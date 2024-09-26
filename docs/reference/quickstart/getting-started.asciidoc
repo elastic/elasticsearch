@@ -7,7 +7,7 @@
 In this quick start guide, you'll learn how to do the following tasks:
 
 * Create an index
-* Add documents
+* Add data as documents
 * Inspect a document's structure
 * Use dynamic and explicit mappings of data types
 * Do basic searches
@@ -31,7 +31,7 @@ DELETE my-explicit-mappings-books
 
 [discrete]
 [[getting-started-index-creation]]
-=== Create an index
+=== Create index
 
 Create a new index named `books`:
 
@@ -53,7 +53,7 @@ Here, the query parameters `v` and `h` are used to filter and format the default
 
 [discrete]
 [[getting-started-add-documents]]
-=== Add documents
+=== Add data
 
 You add data to {es} as JSON objects called documents.
 {es} stores these
@@ -224,11 +224,11 @@ You should receive a response indicating there were no errors.
 
 [discrete]
 [[getting-started-mappings-and-data-types]]
-=== Mappings and data types
+=== Define mappings and data types
 
 [discrete]
 [[getting-started-dynamic-mapping]]
-==== Dynamic mapping
+==== Use dynamic mapping
 
 When using dynamic mapping, {es} automatically creates mappings for new fields by default.
 The documents we've added so far have used dynamic mapping, because we didn't specify a mapping when creating the index.
@@ -258,7 +258,7 @@ GET /books/_mapping
 
 [discrete]
 [[getting-started-explicit-mapping]]
-==== Explicit mapping
+==== Define explicit mapping
 
 Create an index named `my-explicit-mappings-books` with explicit mappings:
 
@@ -330,3 +330,18 @@ GET books/_search
 }
 ----
 // TEST[continued]
+
+[discrete]
+[[getting-started-delete-indices]]
+=== Delete index
+
+Delete indices using the <<indices-delete-index,`DELETE` index API>>.
+
+[source,console]
+----
+DELETE /books
+DELETE /my-explicit-mappings-books
+----
+// TEST[skip:handled by setup/teardown]
+
+

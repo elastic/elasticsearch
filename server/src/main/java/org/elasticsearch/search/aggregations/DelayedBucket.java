@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -14,6 +15,10 @@ import java.util.function.BiFunction;
 /**
  * A wrapper around reducing buckets with the same key that can delay that reduction
  * as long as possible. It's stateful and not even close to thread safe.
+ * <p>
+ * It is responsibility of the caller to account for buckets created using DelayedBucket.
+ * It should call {@link #nonCompetitive} to release any possible sub-bucket creation if
+ * a bucket is rejected from the final response.
  */
 public final class DelayedBucket<B extends InternalMultiBucketAggregation.InternalBucket> {
     /**
@@ -44,7 +49,6 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      */
     public B reduced(BiFunction<List<B>, AggregationReduceContext, B> reduce, AggregationReduceContext reduceContext) {
         if (reduced == null) {
-            reduceContext.consumeBucketsAndMaybeBreak(1);
             reduced = reduce.apply(toReduce, reduceContext);
             toReduce = null;
         }
@@ -92,10 +96,10 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      * Called to mark a bucket as non-competitive so it can release it can release
      * any sub-buckets from the breaker.
      */
-    public void nonCompetitive(AggregationReduceContext reduceContext) {
+    void nonCompetitive(AggregationReduceContext reduceContext) {
         if (reduced != null) {
-            // -1 for itself, -countInnerBucket for all the sub-buckets.
-            reduceContext.consumeBucketsAndMaybeBreak(-1 - InternalMultiBucketAggregation.countInnerBucket(reduced));
+            // -countInnerBucket for all the sub-buckets.
+            reduceContext.consumeBucketsAndMaybeBreak(-InternalMultiBucketAggregation.countInnerBucket(reduced));
         }
     }
 }

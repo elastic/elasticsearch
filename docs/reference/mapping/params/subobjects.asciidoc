@@ -10,7 +10,7 @@ where for instance a field `metrics.time` holds a value too, which is common whe
 A document holding a value for both `metrics.time.max` and `metrics.time` gets rejected given that `time`
 would need to be a leaf field to hold a value as well as an object to hold the `max` sub-field.
 
-The `subobjects` setting, which can be applied only to the top-level mapping definition and
+The `subobjects: false` setting, which can be applied only to the top-level mapping definition and
 to <<object,`object`>> fields, disables the ability for an object to hold further subobjects and makes it possible
 to store documents where field names contain dots and share common prefixes. From the example above, if the object
 container `metrics` has `subobjects` set to `false`, it can hold values for both `time` and `time.max` directly
@@ -109,26 +109,138 @@ PUT my-index-000001/_doc/metric_1
 <1> The entire mapping is configured to not support objects.
 <2> The document does not support objects
 
-The `subobjects` setting for existing fields and the top-level mapping definition cannot be updated.
-
-==== Auto-flattening object mappings
-
-It is generally recommended to define the properties of an object that is configured with `subobjects: false` with dotted field names
-(as shown in the first example).
-However, it is also possible to define these properties as sub-objects in the mappings.
-In that case, the mapping will be automatically flattened before it is stored.
-This makes it easier to re-use existing mappings without having to re-write them.
-
-Note that auto-flattening will not work when certain <<mapping-params, mapping parameters>> are set
-on object mappings that are defined under an object configured with `subobjects: false`:
-
-* The <<enabled, `enabled`>> mapping parameter must not be `false`.
-* The <<dynamic, `dynamic`>> mapping parameter must not contradict the implicit or explicit value of the parent. For example, when `dynamic` is set to `false` in the root of the mapping, object mappers that set `dynamic` to `true` can't be auto-flattened.
-* The <<subobjects, `subobjects`>> mapping parameter must not be set to `true` explicitly.
+Setting `subobjects: false` disallows the definition of <<object,`object`>> and <<nested,`nested`>> sub-fields, which
+can be too restrictive in cases where it's desirable to have <<nested,`nested`>> objects or sub-objects with specific
+behavior (e.g. with `enabled:false`). In this case, it's possible to set `subobjects: auto`, which
+<<auto-flattening, auto-flattens>> whenever possible and falls back to creating an object mapper otherwise (instead of
+rejecting the mapping as `subobjects: false` does). For instance:
 
 [source,console]
 --------------------------------------------------
 PUT my-index-000002
+{
+  "mappings": {
+    "properties": {
+      "metrics": {
+        "type":  "object",
+        "subobjects": "auto", <1>
+        "properties": {
+          "inner": {
+            "type": "object",
+            "enabled": false
+          },
+          "nested": {
+            "type": "nested"
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT my-index-000002/_doc/metric_1
+{
+  "metrics.time" : 100, <2>
+  "metrics.time.min" : 10,
+  "metrics.time.max" : 900
+}
+
+PUT my-index-000002/_doc/metric_2
+{
+  "metrics" : {  <3>
+    "time" : 100,
+    "time.min" : 10,
+    "time.max" : 900,
+    "inner": {
+      "foo": "bar",
+      "path.to.some.field": "baz"
+    },
+    "nested": [
+      { "id": 10 },
+      { "id": 1 }
+    ]
+  }
+}
+
+GET my-index-000002/_mapping
+--------------------------------------------------
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my-index-000002" : {
+    "mappings" : {
+      "properties" : {
+        "metrics" : {
+          "subobjects" : auto,
+          "properties" : {
+            "inner": {  <4>
+              "type": "object",
+              "enabled": false
+            },
+            "nested": {
+              "type": "nested",
+              "properties" : {
+                "id" : {
+                  "type" : "long"
+                }
+              }
+            },
+            "time" : {
+              "type" : "long"
+            },
+            "time.min" : {
+              "type" : "long"
+            },
+            "time.max" : {
+              "type" : "long"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> The `metrics` field can only hold statically defined objects, namely `inner` and `nested`.
+<2> Sample document holding flat paths
+<3> Sample document holding an object (configured with sub-objects) and its leaf sub-fields
+<4> The resulting mapping where dots in field names (`time.min`, `time_max`), as well as the
+statically-defined sub-objects `inner` and `nested`, were preserved
+
+The `subobjects` setting for existing fields and the top-level mapping definition cannot be updated.
+
+[[auto-flattening]]
+==== Auto-flattening object mappings
+
+It is generally recommended to define the properties of an object that is configured with `subobjects: false` or
+`subobjects: auto` with dotted field names (as shown in the first example). However, it is also possible to define
+these properties as sub-objects in the mappings. In that case, the mapping will be automatically flattened before
+it is stored. This makes it easier to re-use existing mappings without having to re-write them.
+
+Note that auto-flattening does not apply if any of the following <<mapping-params, mapping parameters>> are set
+on object mappings that are defined under an object configured with `subobjects: false` or `subobjects: auto`:
+
+* The <<enabled, `enabled`>> mapping parameter is `false`.
+* The <<dynamic, `dynamic`>> mapping parameter contradicts the implicit or explicit value of the parent.
+For example, when `dynamic` is set to `false` in the root of the mapping, object mappers that set `dynamic` to `true`
+can't be auto-flattened.
+* The <<subobjects, `subobjects`>> mapping parameter is set to `auto` or `true` explicitly.
+
+If such a sub-object is detected, the behavior depends on the `subobjects` value:
+
+* `subobjects: false` is not compatible, so a mapping error is returned during mapping construction.
+* `subobjects: auto` reverts to adding the object to the mapping, bypassing auto-flattening for it. Still, any
+intermediate objects will be auto-flattened if applicable (i.e. the object name gets directly attached under the parent
+object with `subobjects: auto`). Auto-flattening can be applied within sub-objects, if they are configured with
+`subobjects: auto` too.
+
+Auto-flattening example with `subobjects: false`:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000003
 {
   "mappings": {
     "properties": {
@@ -147,13 +259,13 @@ PUT my-index-000002
     }
   }
 }
-GET my-index-000002/_mapping
+GET my-index-000003/_mapping
 --------------------------------------------------
 
 [source,console-result]
 --------------------------------------------------
 {
-  "my-index-000002" : {
+  "my-index-000003" : {
     "mappings" : {
       "properties" : {
         "metrics" : {
@@ -175,5 +287,85 @@ GET my-index-000002/_mapping
 
 <1> The metrics object can contain further object mappings that will be auto-flattened.
  Object mappings at this level must not set certain mapping parameters as explained above.
-<2> This field will be auto-flattened to `"time.min"` before the mapping is stored.
-<3> The auto-flattened `"time.min"` field can be inspected by looking at the index mapping.
+<2> This field will be auto-flattened to `time.min` before the mapping is stored.
+<3> The auto-flattened `time.min` field can be inspected by looking at the index mapping.
+
+Auto-flattening example with `subobjects: auto`:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000004
+{
+  "mappings": {
+    "properties": {
+      "metrics": {
+        "subobjects": "auto",
+        "properties": {
+          "time": {
+            "type": "object", <1>
+            "properties": {
+              "min": { "type": "long" } <2>
+            }
+          },
+          "to": {
+            "type": "object",
+            "properties": {
+              "inner_metrics": {  <3>
+                "type": "object",
+                "subobjects": "auto",
+                "properties": {
+                  "time": {
+                    "type": "object",
+                    "properties": {
+                      "max": { "type": "long" } <4>
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+GET my-index-000004/_mapping
+--------------------------------------------------
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my-index-000004" : {
+    "mappings" : {
+      "properties" : {
+        "metrics" : {
+          "subobjects" : "auto",
+          "properties" : {
+            "time.min" : { <5>
+              "type" : "long"
+            },
+            "to.inner_metrics" : { <6>
+              "subobjects" : "auto",
+              "properties" : {
+                "time.max" : { <7>
+                  "type" : "long"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> The metrics object can contain further object mappings that may be auto-flattened, depending on their mapping
+parameters as explained above.
+<2> This field will be auto-flattened to `time.min` before the mapping is stored.
+<3> This object has param `subobjects: auto` so it can't be auto-flattened. Its parent does qualify for auto-flattening,
+so it becomes `to.inner_metrics` before the mapping is stored.
+<4> This field will be auto-flattened to `time.max` before the mapping is stored.
+<5> The auto-flattened `time.min` field can be inspected by looking at the index mapping.
+<6> The inner object `to.inner_metrics` can be inspected by looking at the index mapping.
+<7> The auto-flattened `time.max` field can be inspected by looking at the index mapping.

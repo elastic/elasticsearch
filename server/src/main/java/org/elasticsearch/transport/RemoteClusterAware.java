@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -76,10 +76,10 @@ public abstract class RemoteClusterAware {
         Set<String> clustersToRemove = new HashSet<>();
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
-            // since datemath expression after evaluation should not contain ':' symbol
-            String probe = IndexNameExpressionResolver.resolveDateMathExpression(index);
-            int i = probe.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (i >= 0) {
+            // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
+            boolean isDateMathExpression = (index.charAt(0) == '<' || index.startsWith("-<"));
+            int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+            if (isDateMathExpression == false && i >= 0) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");

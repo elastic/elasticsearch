@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.test.rest;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +42,7 @@ public class CatIndicesWithSecurityIT extends SecurityOnTrialLicenseRestTestCase
             createRequest.setJsonEntity(
                 "{\"settings\": {\"index.hidden\": true, \"number_of_replicas\":  0}, \"aliases\": {\"index_allowed\": {}}}"
             );
+            createRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");
@@ -73,6 +75,7 @@ public class CatIndicesWithSecurityIT extends SecurityOnTrialLicenseRestTestCase
                     }
                   }
                 }""");
+            createRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");

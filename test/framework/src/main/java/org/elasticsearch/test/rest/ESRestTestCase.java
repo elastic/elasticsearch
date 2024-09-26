@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasks
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapsUtils;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -1720,7 +1722,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     public final void ensureGreen(String index) throws IOException {
-        ensureHealth(index, (request) -> {
+        ensureGreen(client(), index);
+    }
+
+    public final void ensureGreen(RestClient client, String index) throws IOException {
+        ensureHealth(client, index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
             final String ensureGreenTimeout = getEnsureGreenTimeout();
@@ -2453,7 +2459,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Response response = restClient.performRequest(request);
         assertOK(response);
         try (XContentParser parser = responseAsParser(response)) {
-            return FieldCapabilitiesResponse.fromXContent(parser);
+            return FieldCapsUtils.parseFieldCapsResponse(parser);
         }
     }
 

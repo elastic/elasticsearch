@@ -407,7 +407,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
+              - openjdk21
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -449,10 +449,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - graalvm-ce17
-              - openjdk17
               - openjdk21
-              - openjdk22
               - openjdk23
             GRADLE_TASK:
               - checkPart1
@@ -476,10 +473,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - graalvm-ce17
-              - openjdk17
               - openjdk21
-              - openjdk22
               - openjdk23
             BWC_VERSION: ["8.15.2", "8.16.0", "9.0.0"]
         agents:
@@ -590,7 +584,7 @@ steps:
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
       diskSizeGb: 250
-    if: build.branch == "main" || build.branch == "7.17"
+    if: build.branch == "main" || build.branch == "8.x" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

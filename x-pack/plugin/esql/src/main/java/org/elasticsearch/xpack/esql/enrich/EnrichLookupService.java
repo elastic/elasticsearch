@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -471,7 +470,7 @@ public class EnrichLookupService {
                 this.inputPage = new Page(bsi);
             }
             this.toRelease = inputPage;
-            PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
+            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             this.extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
         }
 
@@ -486,7 +485,7 @@ public class EnrichLookupService {
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
-            PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, null);
+            PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
         }
 

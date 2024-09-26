@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -306,6 +307,9 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         private final boolean includeFrom;
         private final boolean includeTo;
 
+        private final boolean skipDefaultFrom = randomBoolean();
+        private final boolean skipDefaultTo = randomBoolean();
+
         public TestRange(RangeType type, T from, T to, boolean includeFrom, boolean includeTo) {
             this.type = type;
             this.from = from;
@@ -320,13 +324,13 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
             return (ToXContent) (builder, params) -> {
                 builder.startObject();
-                if (includeFrom && from == null && randomBoolean()) {
+                if (includeFrom && from == null && skipDefaultFrom) {
                     // skip field entirely since it is equivalent to a default value
                 } else {
                     builder.field(fromKey, from);
                 }
 
-                if (includeTo && to == null && randomBoolean()) {
+                if (includeTo && to == null && skipDefaultTo) {
                     // skip field entirely since it is equivalent to a default value
                 } else {
                     builder.field(toKey, to);

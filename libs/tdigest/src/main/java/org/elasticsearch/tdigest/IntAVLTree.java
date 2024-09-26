@@ -21,6 +21,12 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.TDigestByteArray;
+import org.elasticsearch.tdigest.arrays.TDigestIntArray;
+
 import java.util.Arrays;
 
 /**
@@ -29,8 +35,7 @@ import java.util.Arrays;
  * want to add data to the nodes, typically by using arrays and node
  * identifiers as indices.
  */
-abstract class IntAVLTree {
-
+abstract class IntAVLTree implements Releasable {
     /**
      * We use <code>0</code> instead of <code>-1</code> so that left(NIL) works without
      * condition.
@@ -44,22 +49,22 @@ abstract class IntAVLTree {
 
     private final NodeAllocator nodeAllocator;
     private int root;
-    private int[] parent;
-    private int[] left;
-    private int[] right;
-    private byte[] depth;
+    private final TDigestIntArray parent;
+    private final TDigestIntArray left;
+    private final TDigestIntArray right;
+    private final TDigestByteArray depth;
 
-    IntAVLTree(int initialCapacity) {
+    IntAVLTree(TDigestArrays arrays, int initialCapacity) {
         nodeAllocator = new NodeAllocator();
         root = NIL;
-        parent = new int[initialCapacity];
-        left = new int[initialCapacity];
-        right = new int[initialCapacity];
-        depth = new byte[initialCapacity];
+        parent = arrays.newIntArray(initialCapacity);
+        left = arrays.newIntArray(initialCapacity);
+        right = arrays.newIntArray(initialCapacity);
+        depth = arrays.newByteArray(initialCapacity);
     }
 
-    IntAVLTree() {
-        this(16);
+    IntAVLTree(TDigestArrays arrays) {
+        this(arrays, 16);
     }
 
     /**
@@ -74,7 +79,7 @@ abstract class IntAVLTree {
      * can hold.
      */
     public int capacity() {
-        return parent.length;
+        return parent.size();
     }
 
     /**
@@ -82,10 +87,10 @@ abstract class IntAVLTree {
      * <code>newCapacity</code> (excluded).
      */
     protected void resize(int newCapacity) {
-        parent = Arrays.copyOf(parent, newCapacity);
-        left = Arrays.copyOf(left, newCapacity);
-        right = Arrays.copyOf(right, newCapacity);
-        depth = Arrays.copyOf(depth, newCapacity);
+        parent.resize(newCapacity);
+        left.resize(newCapacity);
+        right.resize(newCapacity);
+        depth.resize(newCapacity);
     }
 
     /**
@@ -99,28 +104,28 @@ abstract class IntAVLTree {
      * Return the parent of the provided node.
      */
     public int parent(int node) {
-        return parent[node];
+        return parent.get(node);
     }
 
     /**
      * Return the left child of the provided node.
      */
     public int left(int node) {
-        return left[node];
+        return left.get(node);
     }
 
     /**
      * Return the right child of the provided node.
      */
     public int right(int node) {
-        return right[node];
+        return right.get(node);
     }
 
     /**
      * Return the depth nodes that are stored below <code>node</code> including itself.
      */
     public int depth(int node) {
-        return depth[node];
+        return depth.get(node);
     }
 
     /**
@@ -493,23 +498,23 @@ abstract class IntAVLTree {
 
     private void parent(int node, int parent) {
         assert node != NIL;
-        this.parent[node] = parent;
+        this.parent.set(node, parent);
     }
 
     private void left(int node, int left) {
         assert node != NIL;
-        this.left[node] = left;
+        this.left.set(node, left);
     }
 
     private void right(int node, int right) {
         assert node != NIL;
-        this.right[node] = right;
+        this.right.set(node, right);
     }
 
     private void depth(int node, int depth) {
         assert node != NIL;
         assert depth >= 0 && depth <= Byte.MAX_VALUE;
-        this.depth[node] = (byte) depth;
+        this.depth.set(node, (byte) depth);
     }
 
     void checkBalance(int node) {
@@ -583,4 +588,8 @@ abstract class IntAVLTree {
 
     }
 
+    @Override
+    public void close() {
+        Releasables.close(parent, left, right, depth);
+    }
 }

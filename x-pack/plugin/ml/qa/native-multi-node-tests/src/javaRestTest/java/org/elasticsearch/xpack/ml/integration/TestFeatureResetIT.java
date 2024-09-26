@@ -8,12 +8,9 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -112,13 +109,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     @After
     public void cleanup() throws Exception {
         cleanUp();
-        for (String pipeline : createdPipelines) {
-            try {
-                client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(pipeline)).actionGet();
-            } catch (Exception ex) {
-                logger.warn(() -> "error cleaning up pipeline [" + pipeline + "]", ex);
-            }
-        }
+        IngestPipelineTestUtils.deletePipelinesIgnoringExceptions(client(), createdPipelines);
     }
 
     public void testMLFeatureReset() throws Exception {
@@ -130,7 +121,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         for (int i = 0; i < 100; i++) {
             indexDocForInference("feature_reset_inference_pipeline");
         }
-        client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest("feature_reset_inference_pipeline")).actionGet();
+        deletePipeline("feature_reset_inference_pipeline");
         createdPipelines.remove("feature_reset_inference_pipeline");
 
         assertBusy(
@@ -160,8 +151,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 "Unable to reset machine learning feature as there are ingest pipelines still referencing trained machine learning models"
             )
         );
-        client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest("feature_reset_failure_inference_pipeline"))
-            .actionGet();
+        deletePipeline("feature_reset_failure_inference_pipeline");
         createdPipelines.remove("feature_reset_failure_inference_pipeline");
         assertThat(isResetMode(), is(false));
     }
@@ -294,8 +284,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    private void putTrainedModelIngestPipeline(String pipelineId) throws Exception {
-        client().execute(PutPipelineTransportAction.TYPE, new PutPipelineRequest(pipelineId, new BytesArray("""
+    private void putTrainedModelIngestPipeline(String pipelineId) {
+        putJsonPipeline(pipelineId, """
             {
                 "processors": [
                   {
@@ -306,7 +296,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                     }
                   }
                 ]
-              }"""), XContentType.JSON)).actionGet();
+              }""");
     }
 
     private void indexDocForInference(String pipelineId) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.inference;
@@ -28,6 +29,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     public static final String SERVICE = "service";
     public static final String SERVICE_SETTINGS = "service_settings";
     public static final String TASK_SETTINGS = "task_settings";
+    public static final String CHUNKING_SETTINGS = "chunking_settings";
     private static final String NAME = "inference_model";
 
     public static ModelConfigurations of(Model model, TaskSettings taskSettings) {
@@ -39,7 +41,8 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             model.getConfigurations().getTaskType(),
             model.getConfigurations().getService(),
             model.getServiceSettings(),
-            taskSettings
+            taskSettings,
+            model.getConfigurations().getChunkingSettings()
         );
     }
 
@@ -52,7 +55,8 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             model.getConfigurations().getTaskType(),
             model.getConfigurations().getService(),
             serviceSettings,
-            model.getTaskSettings()
+            model.getTaskSettings(),
+            model.getConfigurations().getChunkingSettings()
         );
     }
 
@@ -61,6 +65,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     private final String service;
     private final ServiceSettings serviceSettings;
     private final TaskSettings taskSettings;
+    private final ChunkingSettings chunkingSettings;
 
     /**
      * Allows no task settings to be defined. This will default to the {@link EmptyTaskSettings} object.
@@ -81,6 +86,23 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.service = Objects.requireNonNull(service);
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
+        this.chunkingSettings = null;
+    }
+
+    public ModelConfigurations(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ServiceSettings serviceSettings,
+        TaskSettings taskSettings,
+        ChunkingSettings chunkingSettings
+    ) {
+        this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
+        this.taskType = Objects.requireNonNull(taskType);
+        this.service = Objects.requireNonNull(service);
+        this.serviceSettings = Objects.requireNonNull(serviceSettings);
+        this.taskSettings = Objects.requireNonNull(taskSettings);
+        this.chunkingSettings = chunkingSettings;
     }
 
     public ModelConfigurations(StreamInput in) throws IOException {
@@ -89,6 +111,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
         this.taskSettings = in.readNamedWriteable(TaskSettings.class);
+        this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)
+            ? in.readOptionalNamedWriteable(ChunkingSettings.class)
+            : null;
     }
 
     @Override
@@ -98,6 +123,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)) {
+            out.writeOptionalNamedWriteable(chunkingSettings);
+        }
     }
 
     public String getInferenceEntityId() {
@@ -120,6 +148,10 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         return taskSettings;
     }
 
+    public ChunkingSettings getChunkingSettings() {
+        return chunkingSettings;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -132,6 +164,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
         builder.field(TASK_SETTINGS, taskSettings);
+        if (chunkingSettings != null) {
+            builder.field(CHUNKING_SETTINGS, chunkingSettings);
+        }
         builder.endObject();
         return builder;
     }
@@ -148,6 +183,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
         builder.field(TASK_SETTINGS, taskSettings);
+        if (chunkingSettings != null) {
+            builder.field(CHUNKING_SETTINGS, chunkingSettings);
+        }
         builder.endObject();
         return builder;
     }

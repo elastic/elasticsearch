@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -26,6 +27,12 @@ public class IndexingPressure {
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES = Setting.memorySizeSetting(
         "indexing_pressure.memory.limit",
         "10%",
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SPLIT_BULK_THRESHOLD = Setting.memorySizeSetting(
+        "indexing_pressure.memory.split_bulk_threshold",
+        "8.5%",
         Setting.Property.NodeScope
     );
 
@@ -56,10 +63,12 @@ public class IndexingPressure {
     private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
     private final long primaryAndCoordinatingLimits;
+    private final long splitBulkThreshold;
     private final long replicaLimits;
 
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
+        this.splitBulkThreshold = SPLIT_BULK_THRESHOLD.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
@@ -201,6 +210,10 @@ public class IndexingPressure {
             this.currentReplicaBytes.getAndAdd(-bytes);
             this.currentReplicaOps.getAndAdd(-operations);
         });
+    }
+
+    public boolean shouldSplitBulks() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get() >= splitBulkThreshold;
     }
 
     public IndexingPressureStats stats() {

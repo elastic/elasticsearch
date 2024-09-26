@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -82,7 +83,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     @After
     public void closeDatabaseReaders() throws IOException {
-        databaseNodeService.close();
+        databaseNodeService.shutdown();
         databaseNodeService = null;
     }
 
@@ -286,9 +287,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildUnsupportedDatabase() throws Exception {
         // mock up some unsupported database (it has a databaseType that we don't recognize)
-        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        IpDatabase database = mock(IpDatabase.class);
         when(database.getDatabaseType()).thenReturn("some-unsupported-database");
-        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        IpDatabaseProvider provider = mock(IpDatabaseProvider.class);
         when(provider.getDatabase(anyString())).thenReturn(database);
 
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
@@ -305,9 +306,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildNullDatabase() throws Exception {
         // mock up a provider that returns a null databaseType
-        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        IpDatabase database = mock(IpDatabase.class);
         when(database.getDatabaseType()).thenReturn(null);
-        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        IpDatabaseProvider provider = mock(IpDatabaseProvider.class);
         when(provider.getDatabase(anyString())).thenReturn(database);
 
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);

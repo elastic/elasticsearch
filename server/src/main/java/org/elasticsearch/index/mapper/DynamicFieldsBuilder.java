@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Encapsulates the logic for dynamically creating fields as part of document parsing.
@@ -161,7 +163,9 @@ final class DynamicFieldsBuilder {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null
             ? mapper
-            : new ObjectMapper.Builder(name, context.parent().subobjects).enabled(ObjectMapper.Defaults.ENABLED)
+            // Dynamic objects are configured with subobject support, otherwise they can't get auto-flattened
+            // even if they otherwise qualify.
+            : new ObjectMapper.Builder(name, Optional.empty()).enabled(ObjectMapper.Defaults.ENABLED)
                 .build(context.createDynamicMapperBuilderContext());
     }
 

@@ -1,22 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,7 +28,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
@@ -32,10 +36,10 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
@@ -47,22 +51,19 @@ public class MetadataDeleteIndexService {
 
     private static final Logger logger = LogManager.getLogger(MetadataDeleteIndexService.class);
 
-    private final Settings settings;
-
     // package private for tests
-    final ClusterStateTaskExecutor<DeleteIndexClusterStateUpdateRequest> executor;
-    private final MasterServiceTaskQueue<DeleteIndexClusterStateUpdateRequest> taskQueue;
+    final ClusterStateTaskExecutor<DeleteIndicesClusterStateUpdateTask> executor;
+    private final MasterServiceTaskQueue<DeleteIndicesClusterStateUpdateTask> taskQueue;
 
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
-        this.settings = settings;
         executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(
-                DeleteIndexClusterStateUpdateRequest task,
+                DeleteIndicesClusterStateUpdateTask task,
                 ClusterState clusterState
             ) {
-                return Tuple.tuple(MetadataDeleteIndexService.deleteIndices(clusterState, Sets.newHashSet(task.indices()), settings), task);
+                return Tuple.tuple(MetadataDeleteIndexService.deleteIndices(clusterState, task.indices, settings), task);
             }
 
             @Override
@@ -80,11 +81,64 @@ public class MetadataDeleteIndexService {
         taskQueue = clusterService.createTaskQueue("delete-index", Priority.URGENT, executor);
     }
 
-    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request) {
-        if (request.indices() == null || request.indices().length == 0) {
-            throw new IllegalArgumentException("Index name is required");
+    public void deleteIndices(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Set<Index> indices,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        if (indices == null || indices.isEmpty()) {
+            throw new IllegalArgumentException("Indices are required");
         }
-        taskQueue.submitTask("delete-index " + Arrays.toString(request.indices()), request, request.masterNodeTimeout());
+        taskQueue.submitTask(
+            "delete-index " + indices,
+            new DeleteIndicesClusterStateUpdateTask(indices, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
+    // package private for tests
+    static class DeleteIndicesClusterStateUpdateTask implements ClusterStateTaskListener, ClusterStateAckListener {
+
+        private final Set<Index> indices;
+        private final TimeValue ackTimeout;
+        private final ActionListener<AcknowledgedResponse> listener;
+
+        DeleteIndicesClusterStateUpdateTask(Set<Index> indices, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
+            this.indices = Objects.requireNonNull(indices);
+            this.ackTimeout = Objects.requireNonNull(ackTimeout);
+            this.listener = Objects.requireNonNull(listener);
+        }
+
+        @Override
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public void onAckTimeout() {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return ackTimeout;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

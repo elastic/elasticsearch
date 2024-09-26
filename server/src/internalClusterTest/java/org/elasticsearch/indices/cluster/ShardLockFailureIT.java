@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.cluster;
@@ -71,9 +72,9 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
             var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
 
             mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                private final CountDownLatch countDownLatch = new CountDownLatch(1);
                 int debugMessagesSeen = 0;
                 int warnMessagesSeen = 0;
 
@@ -100,14 +101,20 @@ public class ShardLockFailureIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void assertMatched() {}
+                public void assertMatched() {
+                    fail("unused");
+                }
+
+                @Override
+                public void awaitMatched(long millis) throws InterruptedException {
+                    assertTrue(countDownLatch.await(millis, TimeUnit.MILLISECONDS));
+                }
             });
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
             ensureYellow(indexName);
-            assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+            mockLog.awaitAllExpectationsMatched();
             assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus());
-            mockLog.assertAllExpectationsMatched();
         }
 
         ensureGreen(indexName);
@@ -152,7 +159,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             );
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
             final var clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueSeconds(10))

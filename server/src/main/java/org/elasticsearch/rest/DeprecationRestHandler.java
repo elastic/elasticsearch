@@ -29,7 +29,6 @@ public class DeprecationRestHandler extends FilterRestHandler implements RestHan
     private final DeprecationLogger deprecationLogger;
     private final boolean compatibleVersionWarning;
     private final String deprecationKey;
-    @Nullable
     private final Level deprecationLevel;
 
     /**
@@ -51,7 +50,7 @@ public class DeprecationRestHandler extends FilterRestHandler implements RestHan
         RestHandler handler,
         RestRequest.Method method,
         String path,
-        @Nullable Level deprecationLevel,
+        Level deprecationLevel,
         String deprecationMessage,
         DeprecationLogger deprecationLogger,
         boolean compatibleVersionWarning
@@ -61,7 +60,7 @@ public class DeprecationRestHandler extends FilterRestHandler implements RestHan
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
         this.compatibleVersionWarning = compatibleVersionWarning;
         this.deprecationKey = DEPRECATED_ROUTE_KEY + "_" + method + "_" + path;
-        if (deprecationLevel != null && (deprecationLevel != Level.WARN && deprecationLevel != DeprecationLogger.CRITICAL)) {
+        if (deprecationLevel != Level.WARN || deprecationLevel != DeprecationLogger.CRITICAL) {
             throw new IllegalArgumentException(
                 "unexpected deprecation logger level: " + deprecationLevel + ", expected either 'CRITICAL' or 'WARN'"
             );
@@ -77,19 +76,18 @@ public class DeprecationRestHandler extends FilterRestHandler implements RestHan
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (compatibleVersionWarning == false) {
-            // The default value for deprecated requests without a version warning is WARN
-            if (deprecationLevel == null || deprecationLevel == Level.WARN) {
+            // emit a standard deprecation warning
+            if (Level.WARN == deprecationLevel) {
                 deprecationLogger.warn(DeprecationCategory.API, deprecationKey, deprecationMessage);
-            } else {
+            } else if (DeprecationLogger.CRITICAL == deprecationLevel) {
                 deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
             }
         } else {
-            // The default value for deprecated requests with a version warning is CRITICAL,
-            // because they have a specific version where the endpoint is removed
-            if (deprecationLevel == null || deprecationLevel == DeprecationLogger.CRITICAL) {
-                deprecationLogger.compatibleCritical(deprecationKey, deprecationMessage);
-            } else {
+            // emit a compatibility warning
+            if (Level.WARN == deprecationLevel) {
                 deprecationLogger.compatible(Level.WARN, deprecationKey, deprecationMessage);
+            } else if (DeprecationLogger.CRITICAL == deprecationLevel) {
+                deprecationLogger.compatibleCritical(deprecationKey, deprecationMessage);
             }
         }
 

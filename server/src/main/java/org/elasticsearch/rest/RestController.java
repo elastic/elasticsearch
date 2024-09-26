@@ -34,6 +34,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpServerTransport;
@@ -144,24 +145,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return apiProtections;
     }
 
-    /**
-     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
-     *
-     * @param method GET, POST, etc.
-     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
-     * @param version API version to handle (e.g. RestApiVersion.V_8)
-     * @param handler The handler to actually execute
-     * @param deprecationMessage The message to log and send as a header in the response
-     */
-    protected void registerAsDeprecatedHandler(
-        RestRequest.Method method,
-        String path,
-        RestApiVersion version,
-        RestHandler handler,
-        String deprecationMessage
-    ) {
-        registerAsDeprecatedHandler(method, path, version, handler, deprecationMessage, null);
-    }
 
     /**
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
@@ -173,17 +156,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param deprecationMessage The message to log and send as a header in the response
      * @param deprecationLevel The deprecation log level to use for the deprecation warning, either WARN or CRITICAL
      */
+    @UpdateForV9 // comment in the "assert false" below when V_7 is no longer supported
     protected void registerAsDeprecatedHandler(
         RestRequest.Method method,
         String path,
         RestApiVersion version,
         RestHandler handler,
         String deprecationMessage,
-        @Nullable Level deprecationLevel
+        Level deprecationLevel
     ) {
         assert (handler instanceof DeprecationRestHandler) == false;
         if (version == RestApiVersion.current()) {
-            // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
+            // e.g. it was marked as deprecated in 9.x, and we're currently running 9.x
             registerHandler(
                 method,
                 path,
@@ -191,7 +175,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, false)
             );
         } else if (version == RestApiVersion.minimumSupported()) {
-            // e.g. it was marked as deprecated in 7.x, and we're currently running 8.x
+            // e.g. it was marked as last fully supported in 8.x, and we're currently running 9.x
             registerHandler(
                 method,
                 path,
@@ -199,21 +183,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, true)
             );
         } else {
-            // e.g. it was marked as deprecated in 7.x, and we're currently running *9.x*
-            logger.debug(
-                "Deprecated route ["
-                    + method
-                    + " "
-                    + path
-                    + "] for handler ["
-                    + handler.getClass()
-                    + "] "
-                    + "with version ["
-                    + version
-                    + "], which is less than the minimum supported version ["
-                    + RestApiVersion.minimumSupported()
-                    + "]"
-            );
+            // e.g. it was marked as deprecated in 7.x, and we're currently running 9.x
+            // should never happen as we only support the current and current -1 versions
+            //TODO: comment this back in when V_7 is no longer supported
+            //assert false : "Unsupported REST API version " + version;
         }
     }
 
@@ -264,7 +237,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             + "] instead.";
 
         registerHandler(method, path, version, handler);
-        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage);
+        Level deprecationLevel = version == RestApiVersion.current() ? Level.WARN : DeprecationLogger.CRITICAL;
+        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage, deprecationLevel);
     }
 
     /**
@@ -308,7 +282,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 handler,
                 replaced.getMethod(),
                 replaced.getPath(),
-                replaced.getRestApiVersion()
+                replaced.getRestApiVersion(),
+                replaced.getDeprecationLevel()
             );
         } else if (route.isDeprecated()) {
             registerAsDeprecatedHandler(

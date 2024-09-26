@@ -11,6 +11,7 @@ package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest.Method;
@@ -136,11 +137,11 @@ public interface RestHandler {
         private final Method method;
         private final String path;
         private final RestApiVersion restApiVersion;
-
+        @Nullable
         private final String deprecationMessage;
         @Nullable
         private final Level deprecationLevel;
-
+        @Nullable
         private final Route replacedRoute;
 
         private Route(
@@ -148,15 +149,15 @@ public interface RestHandler {
             String path,
             RestApiVersion restApiVersion,
             String deprecationMessage,
-            Level deprecationLevel,
+            @Nullable Level deprecationLevel,
             Route replacedRoute
         ) {
             this.method = Objects.requireNonNull(method);
             this.path = Objects.requireNonNull(path);
+            // the last version in which this route was fully supported, defaults to the current version
             this.restApiVersion = Objects.requireNonNull(restApiVersion);
 
-            // a deprecated route will have a deprecation message, and the restApiVersion
-            // will represent the version when the route was deprecated
+            // a route marked as deprecated to keep or remove will have a deprecation message and level (warn for keep, critical for remove)
             this.deprecationMessage = deprecationMessage;
             this.deprecationLevel = deprecationLevel;
 
@@ -183,7 +184,6 @@ public interface RestHandler {
             private RestApiVersion restApiVersion;
 
             private String deprecationMessage;
-            @Nullable
             private Level deprecationLevel;
 
             private Route replacedRoute;
@@ -225,6 +225,7 @@ public interface RestHandler {
                 assert this.replacedRoute == null;
                 this.restApiVersion = Objects.requireNonNull(lastFullySupportedVersion);
                 this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
+                this.deprecationLevel = DeprecationLogger.CRITICAL;
                 return this;
             }
 
@@ -246,6 +247,7 @@ public interface RestHandler {
              */
             public RouteBuilder replaces(Method method, String path, RestApiVersion lastFullySupportedVersion) {
                 assert this.deprecationMessage == null;
+                // the deprecation message and level will be built later
                 this.replacedRoute = new Route(method, path, lastFullySupportedVersion, null, null, null);
                 return this;
             }
@@ -271,14 +273,16 @@ public interface RestHandler {
             }
 
             public Route build() {
-                if (replacedRoute != null) {
-                    return new Route(method, path, restApiVersion, null, null, replacedRoute);
-                } else if (deprecationMessage != null) {
-                    return new Route(method, path, restApiVersion, deprecationMessage, deprecationLevel, null);
-                } else {
-                    // this is a little silly, but perfectly legal
-                    return new Route(method, path, restApiVersion, null, null, null);
-                }
+                assert (deprecationMessage != null) == (deprecationLevel != null);  // both must be set or neither
+                return new Route(
+                    method,
+                    path,
+                    restApiVersion,
+                    deprecationMessage,
+                    deprecationLevel,
+                    replacedRoute
+                );
+
             }
         }
 
@@ -298,11 +302,11 @@ public interface RestHandler {
             return restApiVersion;
         }
 
+        @Nullable
         public String getDeprecationMessage() {
             return deprecationMessage;
         }
 
-        @Nullable
         public Level getDeprecationLevel() {
             return deprecationLevel;
         }
@@ -311,6 +315,7 @@ public interface RestHandler {
             return deprecationMessage != null;
         }
 
+        @Nullable
         public Route getReplacedRoute() {
             return replacedRoute;
         }

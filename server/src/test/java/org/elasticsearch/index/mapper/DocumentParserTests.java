@@ -2307,6 +2307,60 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("attributes.simple.attribute"));
     }
 
+    public void testSubobjectsAutoFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("attributes");
+            {
+                b.field("dynamic", false);
+                b.field("subobjects", "auto");
+                b.startObject("properties");
+                {
+                    b.startObject("simple.attribute").field("type", "keyword").endObject();
+                    b.startObject("complex.attribute").field("type", "flattened").endObject();
+                    b.startObject("path").field("type", "object");
+                    {
+                        b.field("store_array_source", "true").field("subobjects", "auto");
+                        b.startObject("properties");
+                        {
+                            b.startObject("nested.attribute").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.startObject("flattened_object").field("type", "object");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("nested.attribute").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "attributes": {
+                "complex.attribute": {
+                  "foo" : "bar"
+                },
+                "simple.attribute": "sa",
+                "path": {
+                  "nested.attribute": "na"
+                },
+                "flattened_object.nested.attribute": "fna"
+              }
+            }
+            """));
+        assertNotNull(doc.rootDoc().getField("attributes.complex.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.simple.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.path.nested.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.flattened_object.nested.attribute"));
+    }
+
     public void testWriteToFieldAlias() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("alias-field");

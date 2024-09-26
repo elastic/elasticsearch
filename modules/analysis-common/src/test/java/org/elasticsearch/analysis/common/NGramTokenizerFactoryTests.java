@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {

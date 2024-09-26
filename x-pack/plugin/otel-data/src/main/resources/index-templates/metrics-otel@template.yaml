@@ -8,7 +8,6 @@ _meta:
   description: default OpenTelemetry metrics template installed by x-pack
   managed: true
 composed_of:
-  - metrics@mappings
   - metrics@tsdb-settings
   - otel@mappings
   - metrics-otel@mappings
@@ -38,4 +37,3 @@ template:
             ignore_above: 1024
             type: keyword
           match_mapping_type: string
-

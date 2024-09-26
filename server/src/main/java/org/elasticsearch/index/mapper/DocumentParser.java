@@ -391,6 +391,8 @@ public final class DocumentParser {
         RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false));
 
         // Repeat the check, in case the dynamic mappers don't produce a mapping update.
+        // For instance, the parsed source may contain intermediate objects that get flattened,
+        // leading to an empty dynamic update.
         if (root.mappers.isEmpty() && root.runtimeFields().isEmpty()) {
             return null;
         }
@@ -1023,9 +1025,10 @@ public final class DocumentParser {
             // We haven't found a mapper with this name above, which means it is a runtime field.
             return noopFieldMapper(fieldPath);
         }
-        // No match or the matching field type corresponds a mapper with flattened name (containing dots).
-        // In the latter case, returning null leads to creating a dynamic mapper that get deduplicated
-        // when building the dynamic update for the doc at hand.
+        // No match or the matching field type corresponds to a mapper with flattened name (containing dots),
+        // e.g. for field 'foo.bar' under root there is no 'bar' mapper in object 'bar'.
+        // Returning null leads to creating a dynamic mapper. In the case of a mapper with flattened name,
+        // the dynamic mapper later gets deduplicated when building the dynamic update for the doc at hand.
         return null;
     }
 

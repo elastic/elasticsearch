@@ -180,7 +180,7 @@ public class ObjectMapper extends Mapper {
                 if (mapper instanceof ObjectMapper objectMapper
                     && isFlatteningCandidate(subobjects, objectMapper)
                     && objectMapper.checkFlattenable(null).isEmpty()) {
-                    // Subobjects auto doesn't allow for adding subobjects dynamically.
+                    // Subobjects auto and false don't allow adding subobjects dynamically.
                     return;
                 }
                 add(name, mapper);

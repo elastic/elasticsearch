@@ -423,11 +423,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     static List<String> maybeFlattenPaths(List<String> subpaths, DocumentParserContext context, ContentPath contentPath) {
-        String prefix = contentPath.pathAsText("");
-        ObjectMapper parent = contentPath.length() == 0 ? context.root() : context.findObject(prefix.substring(0, prefix.length() - 1));
+        String prefixWithDots = contentPath.pathAsText("");
+        ObjectMapper parent = contentPath.length() == 0
+            ? context.root()
+            : context.findObject(prefixWithDots.substring(0, prefixWithDots.length() - 1));
         List<String> result = new ArrayList<>(subpaths.size());
         for (int i = 0; i < subpaths.size(); i++) {
-            String fullPath = prefix + String.join(".", subpaths.subList(0, i));
+            String fullPath = prefixWithDots + String.join(".", subpaths.subList(0, i));
             if (i > 0) {
                 parent = context.findObject(fullPath);
             }

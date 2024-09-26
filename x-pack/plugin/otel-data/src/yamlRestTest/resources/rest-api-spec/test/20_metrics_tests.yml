@@ -178,3 +178,21 @@ IP dimensions:
         expand_wildcards: hidden
   - match: { .$idx0name.mappings.properties.resource.properties.attributes.properties.host\.ip.type: 'ip' }
   - match: { .$idx0name.mappings.properties.attributes.properties.philip.type: "keyword" }
+---
+"Long data type in attributes must be accepted":
+  - do:
+      indices.get_index_template:
+        name: metrics-otel@template
+  - length: {index_templates: 1}
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","attributes":{"processor.pid": 17}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+  - length: { hits.hits: 1 }

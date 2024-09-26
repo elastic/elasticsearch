@@ -21,10 +21,12 @@
 
 package org.elasticsearch.tdigest.arrays;
 
+import org.elasticsearch.core.Releasable;
+
 /**
  * Minimal interface for ByteArray-like classes used within TDigest.
  */
-public interface TDigestByteArray {
+public interface TDigestByteArray extends Releasable {
     int size();
 
     byte get(int index);

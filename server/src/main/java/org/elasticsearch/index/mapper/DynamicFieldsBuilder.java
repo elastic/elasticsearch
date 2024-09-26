@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Encapsulates the logic for dynamically creating fields as part of document parsing.
@@ -162,7 +163,9 @@ final class DynamicFieldsBuilder {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null
             ? mapper
-            : new ObjectMapper.Builder(name, context.parent().subobjects).enabled(ObjectMapper.Defaults.ENABLED)
+            // Dynamic objects are configured with subobject support, otherwise they can't get auto-flattened
+            // even if they otherwise qualify.
+            : new ObjectMapper.Builder(name, Optional.empty()).enabled(ObjectMapper.Defaults.ENABLED)
                 .build(context.createDynamicMapperBuilderContext());
     }
 

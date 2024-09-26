@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
@@ -66,8 +67,6 @@ import java.util.Iterator;
  * what the AVLTreeDigest uses and no dynamic allocation is required at all.
  */
 public class MergingDigest extends AbstractTDigest {
-    private final TDigestArrays arrays;
-
     private int mergeCount = 0;
 
     private final double publicCompression;
@@ -138,8 +137,6 @@ public class MergingDigest extends AbstractTDigest {
      * @param size        Size of main buffer
      */
     public MergingDigest(TDigestArrays arrays, double compression, int bufferSize, int size) {
-        this.arrays = arrays;
-
         // ensure compression >= 10
         // default size = 2 * ceil(compression)
         // default bufferSize = 5 * size
@@ -274,9 +271,6 @@ public class MergingDigest extends AbstractTDigest {
         incomingWeight.set(incomingCount, weight, 0, lastUsedCell);
         incomingCount += lastUsedCell;
 
-        if (incomingOrder == null) {
-            incomingOrder = arrays.newIntArray(incomingCount);
-        }
         Sort.stableSort(incomingOrder, incomingMean, incomingCount);
 
         totalWeight += unmergedWeight;
@@ -580,5 +574,10 @@ public class MergingDigest extends AbstractTDigest {
             + (useAlternatingSort ? "alternating" : "stable")
             + "-"
             + (useTwoLevelCompression ? "twoLevel" : "oneLevel");
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(weight, mean, tempWeight, tempMean, order);
     }
 }

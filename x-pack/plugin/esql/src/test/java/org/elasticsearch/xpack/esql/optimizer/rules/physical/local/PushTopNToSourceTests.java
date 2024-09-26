@@ -35,13 +35,11 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -294,8 +292,21 @@ public class PushTopNToSourceTests extends ESTestCase {
         private TestPhysicalPlanBuilder(String index, IndexMode indexMode) {
             this.index = index;
             this.indexMode = indexMode;
-            this.fields = sortableFieldAttributes().stream().collect(LinkedHashMap::new, (m, f) -> m.put(f.name(), f), HashMap::putAll);
+            this.fields = new LinkedHashMap<>();
             this.refs = new LinkedHashMap<>();
+            addSortableFieldAttributes(this.fields);
+        }
+
+        private static void addSortableFieldAttributes(Map<String, FieldAttribute> fields) {
+            addFieldAttribute(fields, "field", KEYWORD);
+            addFieldAttribute(fields, "integer", INTEGER);
+            addFieldAttribute(fields, "double", DOUBLE);
+            addFieldAttribute(fields, "keyword", KEYWORD);
+            addFieldAttribute(fields, "location", GEO_POINT);
+        }
+
+        private static void addFieldAttribute(Map<String, FieldAttribute> fields, String name, DataType type) {
+            fields.put(name, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), true)));
         }
 
         static TestPhysicalPlanBuilder from(String index) {
@@ -350,7 +361,9 @@ public class PushTopNToSourceTests extends ESTestCase {
         }
 
         public TopNExec build() {
-            PhysicalPlan child = randomEsQueryExec(indexMode, fields.values());
+            EsIndex esIndex = new EsIndex(this.index, Map.of());
+            List<Attribute> attributes = new ArrayList<>(fields.values());
+            PhysicalPlan child = new EsQueryExec(Source.EMPTY, esIndex, indexMode, attributes, null, null, List.of(), 0);
             if (aliases.isEmpty() == false) {
                 child = new EvalExec(Source.EMPTY, child, aliases);
             }
@@ -408,50 +421,5 @@ public class PushTopNToSourceTests extends ESTestCase {
             }
         }
 
-    }
-
-    private static Map<String, EsField> randomMapping() {
-        int size = between(0, 10);
-        Map<String, EsField> result = new HashMap<>(size);
-        while (result.size() < size) {
-            result.put(randomAlphaOfLength(5), EsFieldTests.randomAnyEsField(1));
-        }
-        return result;
-    }
-
-    private static Map<String, IndexMode> randomConcreteIndices() {
-        int size = between(0, 10);
-        Map<String, IndexMode> result = new HashMap<>(size);
-        while (result.size() < size) {
-            result.put(randomAlphaOfLength(5), randomFrom(IndexMode.values()));
-        }
-        return result;
-    }
-
-    private static EsIndex randomEsIndex() {
-        String name = randomAlphaOfLength(5);
-        Map<String, EsField> mapping = randomMapping();
-        return new EsIndex(name, mapping, randomConcreteIndices());
-    }
-
-    private static EsQueryExec randomEsQueryExec(IndexMode indexMode, Collection<FieldAttribute> attrs) {
-        EsIndex index = randomEsIndex();
-        Expression limit = new Literal(Source.EMPTY, between(0, Integer.MAX_VALUE), INTEGER);
-        Integer estimatedRowSize = randomEstimatedRowSize();
-        return new EsQueryExec(Source.EMPTY, index, indexMode, new ArrayList<>(attrs), null, limit, List.of(), estimatedRowSize);
-    }
-
-    private static List<FieldAttribute> sortableFieldAttributes() {
-        ArrayList<FieldAttribute> attributes = new ArrayList<>();
-        attributes.add(makeFieldAttribute("field", KEYWORD, true));
-        attributes.add(makeFieldAttribute("integer", INTEGER, true));
-        attributes.add(makeFieldAttribute("double", DOUBLE, true));
-        attributes.add(makeFieldAttribute("keyword", KEYWORD, true));
-        attributes.add(makeFieldAttribute("location", GEO_POINT, true));
-        return attributes;
-    }
-
-    private static FieldAttribute makeFieldAttribute(String name, DataType type, boolean aggregatable) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), aggregatable));
     }
 }

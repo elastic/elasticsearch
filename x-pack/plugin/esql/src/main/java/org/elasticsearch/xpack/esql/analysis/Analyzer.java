@@ -1070,12 +1070,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Expression processIn(In in) {
             Expression left = in.value();
             List<Expression> right = in.list();
-            DataType targetDataType = left.dataType();
 
-            if (left.resolved() == false || supportsStringImplicitCasting(targetDataType) == false) {
+            if (left.resolved() == false || supportsStringImplicitCasting(left.dataType()) == false) {
                 return in;
             }
 
+            DataType targetDataType = left.dataType();
             List<Expression> newChildren = new ArrayList<>(right.size() + 1);
             boolean childrenChanged = false;
 
@@ -1107,23 +1107,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             DataType childDataType;
 
             for (Expression e : f.children()) {
-                childDataType = e.dataType();
-                if (childDataType.isNumeric() == false
-                    || childDataType == targetNumericType
-                    || canCastNumeric(childDataType, targetNumericType) == false) {
+                if (e.resolved()) {
+                    childDataType = e.dataType();
+                    if (childDataType.isNumeric() == false
+                        || childDataType == targetNumericType
+                        || canCastNumeric(childDataType, targetNumericType) == false) {
+                        newChildren.add(e);
+                        continue;
+                    }
+                    childrenChanged = true;
+                    // add a casting function
+                    switch (targetNumericType) {
+                        case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
+                        case LONG -> newChildren.add(new ToLong(e.source(), e));
+                        case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
+                        case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
+                        default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
+                    }
+                } else {
                     newChildren.add(e);
-                    continue;
                 }
-                childrenChanged = true;
-                // add a casting function
-                switch (targetNumericType) {
-                    case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
-                    case LONG -> newChildren.add(new ToLong(e.source(), e));
-                    case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
-                    case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
-                    default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
-                }
-
             }
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }

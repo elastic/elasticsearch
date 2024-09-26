@@ -114,7 +114,16 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "index_count" : 2,
                     "indexed_vector_count" : 2,
                     "indexed_vector_dim_min" : 100,
-                    "indexed_vector_dim_max" : 100
+                    "indexed_vector_dim_max" : 100,
+                    "vector_index_type_count" : {
+                      "hnsw" : 2
+                    },
+                    "vector_similarity_type_count" : {
+                      "dot_product" : 2
+                    },
+                    "vector_element_type_count" : {
+                      "float" : 2
+                    }
                   },
                   {
                     "name" : "keyword",
@@ -234,7 +243,16 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "index_count" : 3,
                     "indexed_vector_count" : 3,
                     "indexed_vector_dim_min" : 100,
-                    "indexed_vector_dim_max" : 100
+                    "indexed_vector_dim_max" : 100,
+                    "vector_index_type_count" : {
+                      "hnsw" : 3
+                    },
+                    "vector_similarity_type_count" : {
+                      "dot_product" : 3
+                    },
+                    "vector_element_type_count" : {
+                      "float" : 3
+                    }
                   },
                   {
                     "name" : "keyword",
@@ -460,6 +478,11 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         expectedStats.indexedVectorCount = 2 * indicesCount;
         expectedStats.indexedVectorDimMin = 768;
         expectedStats.indexedVectorDimMax = 1024;
+        expectedStats.vectorIndexTypeCount.put("hnsw", 2 * indicesCount);
+        expectedStats.vectorIndexTypeCount.put("not_indexed", 2);
+        expectedStats.vectorSimilarityTypeCount.put("dot_product", 3);
+        expectedStats.vectorSimilarityTypeCount.put("cosine", 3);
+        expectedStats.vectorElementTypeCount.put("float", 4 * indicesCount);
         assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
     }
 

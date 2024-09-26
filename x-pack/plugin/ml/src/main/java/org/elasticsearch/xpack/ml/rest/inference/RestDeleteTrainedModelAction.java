@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -28,11 +28,20 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteTrainedModelAction extends BaseRestHandler {
 
+    @UpdateForV9
+    // one or more routes use ".replaces" with RestApiVersion.V_8 which will require use of REST API compatibility headers to access
+    // that route in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
+    // continue to emit deprecations warnings but will not require any special headers to access the API in v9.
+    // Please review and update the code and tests as needed. The original code remains commented out below for reference.
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
-                .replaces(DELETE, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8)
+            // Route.builder(DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
+            // .replaces(DELETE, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8)
+            // .build()
+            new Route(DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}"),
+            Route.builder(DELETE, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}")
+                .deprecateAndKeep("Use the trained_models API instead.")
                 .build()
         );
     }

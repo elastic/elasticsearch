@@ -178,65 +178,16 @@ final class RequestXContent {
                                 )
                             );
                         }
-                        value = entry.getValue();
-                        classification = ParserUtils.ParamClassification.CONSTANT;
+                        value = entry.getValue(); // the value of a param can be a string or a map
+                        classification = ParserUtils.ParamClassification.CONSTANT;  // a param is a constant by default
                         if (value instanceof HashMap<?, ?> v) {
-                            tempMap.clear();
-                            for (Map.Entry<?, ?> kv : v.entrySet()) {
-                                String k = kv.getKey().toString();
-                                if ((k.equalsIgnoreCase(PARAM_VALUE)
-                                    || k.equalsIgnoreCase(PARAM_IDENTIFIER)
-                                    || k.equalsIgnoreCase(PARAM_IDENTIFIER_PATTERN)) == false) {
-                                    errors.add(
-                                        new XContentParseException(
-                                            loc,
-                                            "["
-                                                + k
-                                                + "] is not a valid param attribute, "
-                                                + "a valid attribute is "
-                                                + PARAM_VALUE
-                                                + ", "
-                                                + PARAM_IDENTIFIER
-                                                + ", or "
-                                                + PARAM_IDENTIFIER_PATTERN
-                                        )
-                                    );
-                                } else {
-                                    tempMap.put(k.toLowerCase(Locale.ROOT), kv.getValue());
-                                }
-
-                            }
+                            // extract and validate the value and classification from a named parameter that is a map
+                            classification = parseParamMap(name, v, tempMap, loc, errors);
                             value = tempMap.get(PARAM_VALUE);
-                            if (value == null && v.size() > 1) { // require non-null value for identifier and pattern
-                                errors.add(new XContentParseException(loc, "[" + entry + "] does not have a value provided"));
-                            }
-                            var id = tempMap.get(PARAM_IDENTIFIER);
-                            if (id != null) {
-                                if (id instanceof Boolean b) {
-                                    if (b) {
-                                        classification = ParserUtils.ParamClassification.IDENTIFIER;
-                                    }
-                                } else {
-                                    invalidIdentifierOrPatternField(loc, id, ParserUtils.ParamClassification.IDENTIFIER, errors);
-                                }
-                            }
-                            var pattern = tempMap.get(PARAM_IDENTIFIER_PATTERN);
-                            if (pattern != null) {
-                                if (pattern instanceof Boolean pt) {
-                                    if (pt) {
-                                        classification = ParserUtils.ParamClassification.PATTERN;
-                                    }
-                                } else {
-                                    invalidIdentifierOrPatternField(loc, pattern, ParserUtils.ParamClassification.PATTERN, errors);
-                                }
-                            }
                         }
                         type = DataType.fromJava(value);
                         if (type == null) {
                             errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
-                        }
-                        if (classification != ParserUtils.ParamClassification.CONSTANT) {
-                            validateIdentifierOrPatternParams(loc, value, type, classification, errors);
                         }
                         currentParam = new QueryParam(
                             name,
@@ -288,57 +239,123 @@ final class RequestXContent {
                 )
             );
         }
-        if (errors.size() > 0) {
+        if (errors.isEmpty() == false) {
             throw new XContentParseException(
-                "Failed to parse params: " + String.join("; ", errors.stream().map(ex -> ex.getMessage()).toArray(String[]::new))
+                "Failed to parse params: "
+                    + String.join("; ", errors.stream().map(XContentParseException::getMessage).toArray(String[]::new))
             );
         }
         return new QueryParams(namedParams.isEmpty() ? unNamedParams : namedParams);
     }
 
-    private static void validateIdentifierOrPatternParams(
+    private static ParserUtils.ParamClassification parseParamMap(
+        String name,
+        Map<?, ?> inputParam,
+        Map<String, Object> tempParam,
         XContentLocation loc,
-        Object value,
-        DataType type,
-        ParserUtils.ParamClassification classification,
         List<XContentParseException> errors
     ) {
-        String errorMessage = "[{}] is not a valid value for {} parameter, a valid value for {} parameter is a string{}";
-        if (type != KEYWORD
-            || (classification == ParserUtils.ParamClassification.PATTERN
-                && value != null
-                && value.toString().contains(WILDCARD) == false)) {
-            errors.add(
-                new XContentParseException(
-                    loc,
-                    format(
-                        null,
-                        errorMessage,
-                        value,
-                        classification.toString().toLowerCase(Locale.ROOT),
-                        classification.toString().toLowerCase(Locale.ROOT),
-                        classification == ParserUtils.ParamClassification.PATTERN ? " and contains *" : ""
+        ParserUtils.ParamClassification classification = ParserUtils.ParamClassification.CONSTANT;
+        tempParam.clear();
+        // build a temp map with keys in lower cases, and contains only "value", "identifier" or "identifierpattern"
+        for (Map.Entry<?, ?> kv : inputParam.entrySet()) {
+            String k = kv.getKey().toString();
+            if ((k.equalsIgnoreCase(PARAM_VALUE)
+                || k.equalsIgnoreCase(PARAM_IDENTIFIER)
+                || k.equalsIgnoreCase(PARAM_IDENTIFIER_PATTERN)) == false) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        format(
+                            null,
+                            "[{}] is not a valid param attribute, a valid attribute is {}, {} or {}",
+                            k,
+                            PARAM_VALUE,
+                            PARAM_IDENTIFIER,
+                            PARAM_IDENTIFIER_PATTERN
+                        )
                     )
-                )
-            );
+                );
+            } else {
+                tempParam.put(k.toLowerCase(Locale.ROOT), kv.getValue());
+            }
         }
+        Object value = tempParam.get(PARAM_VALUE);
+        // require non-null value for identifier and pattern
+        if (value == null && inputParam.size() > 1) {
+            errors.add(new XContentParseException(loc, format(null, "[{} = {}] does not have a value provided", name, inputParam)));
+        }
+        var id = tempParam.get(PARAM_IDENTIFIER);
+        if (isValidateIdentifierOrPatternField(id, ParserUtils.ParamClassification.IDENTIFIER, loc, errors)) {
+            classification = ParserUtils.ParamClassification.IDENTIFIER;
+        }
+        var pattern = tempParam.get(PARAM_IDENTIFIER_PATTERN);
+        if (isValidateIdentifierOrPatternField(pattern, ParserUtils.ParamClassification.PATTERN, loc, errors)) {
+            // a param cannot be both identifier and pattern
+            if (classification == ParserUtils.ParamClassification.IDENTIFIER) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        format(
+                            null,
+                            "[{}] can be either an identifier or an identifier pattern, but cannot be both",
+                            name + " = " + inputParam
+                        )
+                    )
+                );
+            } else {
+                classification = ParserUtils.ParamClassification.PATTERN;
+            }
+        }
+        // If a param is an "identifier" or "identifierpattern", validate it is a string.
+        // If a param is an "identifierpattern", validate it contains *.
+        if (classification == ParserUtils.ParamClassification.IDENTIFIER || classification == ParserUtils.ParamClassification.PATTERN) {
+            if (DataType.fromJava(value) != KEYWORD
+                || (classification == ParserUtils.ParamClassification.PATTERN
+                    && value != null
+                    && value.toString().contains(WILDCARD) == false)) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        format(
+                            null,
+                            "[{}] is not a valid value for {} parameter, a valid value for {} parameter is a string{}",
+                            value,
+                            classification.toString().toLowerCase(Locale.ROOT),
+                            classification.toString().toLowerCase(Locale.ROOT),
+                            classification == ParserUtils.ParamClassification.PATTERN ? " and contains *" : ""
+                        )
+                    )
+                );
+            }
+        }
+        return classification;
     }
 
-    private static void invalidIdentifierOrPatternField(
-        XContentLocation loc,
+    private static boolean isValidateIdentifierOrPatternField(
         Object value,
-        ParserUtils.ParamClassification classification,
+        ParserUtils.ParamClassification expected,
+        XContentLocation loc,
         List<XContentParseException> errors
     ) {
-        errors.add(
-            new XContentParseException(
-                loc,
-                "["
-                    + value
-                    + "] is not a valid value for an identifier"
-                    + (classification == ParserUtils.ParamClassification.IDENTIFIER ? "" : " pattern")
-                    + " field, a valid value is either true or false"
-            )
-        );
+        if (value != null) {
+            if ((value instanceof Boolean) == false) {
+                // "identifier" and "identifierpattern" can only be a boolean value, true or false.
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        format(
+                            null,
+                            "[{}] is not a valid value for an identifier{} field, a valid value is either true or false",
+                            value,
+                            expected == ParserUtils.ParamClassification.IDENTIFIER ? "" : " pattern"
+                        )
+                    )
+                );
+            } else {
+                return (Boolean) value;
+            }
+        }
+        return false;
     }
 }

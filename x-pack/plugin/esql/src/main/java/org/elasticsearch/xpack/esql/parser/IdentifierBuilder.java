@@ -39,7 +39,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                     source(ctx),
                     invalidParam,
                     ctx.getText(),
-                    lit.value() != null ? "[" + lit.value() + "] declared as a constant" : " is null or undefined"
+                    lit.value() != null ? " with value [" + lit.value() + "] declared as a constant" : " is null or undefined"
                 );
                 case UnresolvedNamePattern up -> throw new ParsingException(
                     source(ctx),

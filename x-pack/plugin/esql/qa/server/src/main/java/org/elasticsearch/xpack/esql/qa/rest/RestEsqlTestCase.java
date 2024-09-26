@@ -55,6 +55,7 @@ import java.util.function.IntFunction;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -695,35 +696,41 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(error, containsString("Unknown query parameter [n1]"));
 
         // param inside backquote is not recognized as a param
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {} | eval x1 = `?n1` | where `?n2` == x1 | stats xx2 = max(`?n3`) by `?n4` | keep `?n4`, `?n5` | sort `?n4`",
-                        testIndexName()
-                    )
-                )
-                    .params(
-                        "[{\"n1\" : {\"value\" : \"integer\" , \"identifier\" : true}},"
-                            + "{\"n2\" : {\"value\" : \"short\" , \"identifier\" : true}}, "
-                            + "{\"n3\" : {\"value\" : \"double\" , \"identifier\" : true}},"
-                            + "{\"n4\" : {\"value\" : \"boolean\" , \"identifier\" : true}}, "
-                            + "{\"n5\" : {\"value\" : \"xx*\" , \"identifierpattern\" : true}}]"
-                    )
-            )
+        Map<String, Integer> commandsWithLineNumber = Map.ofEntries(
+            entry("eval x1 = `?n1`", 33),
+            entry("where `?n1` == 1", 29),
+            entry("stats x = max(n2) by `?n1`", 44),
+            entry("stats x = max(`?n1`) by n2", 37),
+            entry("keep `?n1`", 28),
+            entry("sort `?n1`", 28)
         );
-        error = re.getMessage();
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Unknown column [?n1]"));
-
-        List<String> commands = List.of("rename ?n1 as ?n2", "enrich idx2 ON ?n1 WITH ?n2 = ?n3", "keep ?n1", "drop ?n1");
-        for (Object command : commands) {
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
             re = expectThrows(
                 ResponseException.class,
                 () -> runEsqlSync(
-                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command))
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params(
+                            "[{\"n1\" : {\"value\" : \"integer\" , \"identifier\" : true}},"
+                                + "{\"n2\" : {\"value\" : \"short\" , \"identifier\" : true}}]"
+                        )
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [?n1]"));
+        }
+
+        commandsWithLineNumber = Map.ofEntries(
+            entry("rename ?n1 as ?n2", 30),
+            entry("enrich idx2 ON ?n1 WITH ?n2 = ?n3", 38),
+            entry("keep ?n1", 28),
+            entry("drop ?n1", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
                         .params(
                             "[{\"n1\" : {\"value\" : \"`n1`\" , \"identifier\" : true}},"
                                 + "{\"n2\" : {\"value\" : \"`n2`\" , \"identifier\" : true}}, "
@@ -733,7 +740,34 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             error = re.getMessage();
             assertThat(error, containsString("VerificationException"));
-            assertThat(error, containsString("Unknown column [`n1`]"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [`n1`]"));
+        }
+
+        // param cannot be used as a command name
+        Map<String, String> paramsAsCommandNames = Map.ofEntries(
+            entry("eval", "x = 1"),
+            entry("where", "x == 1"),
+            entry("stats", "x = count(*)"),
+            entry("keep", "x"),
+            entry("drop", "x"),
+            entry("rename", "x as y"),
+            entry("sort", "x"),
+            entry("dissect", "x \"%{foo}\""),
+            entry("grok", "x \"%{WORD:foo}\""),
+            entry("enrich", "idx2 ON x"),
+            entry("mvExpand", "x")
+        );
+        for (Map.Entry<String, String> command : paramsAsCommandNames.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | ?cmd {}", testIndexName(), command.getValue()))
+                        .params("[{\"cmd\" : {\"value\" : \"" + command.getKey() + "\", \"identifier\" : true}}]")
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("ParsingException"));
+            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
         }
     }
 

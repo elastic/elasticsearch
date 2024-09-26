@@ -309,7 +309,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (lit.value() != null) {
                         throw new ParsingException(
                             src,
-                            "Query parameter [{}][{}] declared as a constant, cannot be used as an identifier or pattern",
+                            "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
                             ctx.getText(),
                             lit.value()
                         );
@@ -326,7 +326,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         boolean hasPattern = false;
-        boolean isIdentifier = false;
         // Builds a list of either strings (which map verbatim) or Automatons which match any string
         List<Object> objects = new ArrayList<>(patterns.size());
         for (int i = 0, s = patterns.size(); i < s; i++) {

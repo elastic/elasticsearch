@@ -430,7 +430,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ named_parameter_for_identifier_and_pattern ]
+          capabilities: [ named_parameter_for_field_and_function_names ]
       reason: "named or positional parameters for field names"
 
   - do:

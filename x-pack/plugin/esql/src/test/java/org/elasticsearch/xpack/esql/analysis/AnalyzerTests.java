@@ -71,8 +71,8 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForIdentifier;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForPattern;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
@@ -2103,18 +2103,18 @@ public class AnalyzerTests extends ESTestCase {
             "mapping-multi-field-with-nested.json",
             new QueryParams(
                 List.of(
-                    paramForIdentifier("f1", "a"),
-                    paramForIdentifier("f2", "keyword"),
-                    paramForIdentifier("f3", "some"),
-                    paramForIdentifier("f4", "dotted"),
-                    paramForIdentifier("f5", "field"),
-                    paramForIdentifier("f6", "string"),
-                    paramForIdentifier("f7", "typical"),
-                    paramForIdentifier("f8", "y"),
-                    paramForIdentifier("f36", "some.string"),
-                    paramForIdentifier("f367", "some.string.typical"),
-                    paramForIdentifier("fn1", "trim"),
-                    paramForIdentifier("fn2", "count")
+                    paramAsIdentifier("f1", "a"),
+                    paramAsIdentifier("f2", "keyword"),
+                    paramAsIdentifier("f3", "some"),
+                    paramAsIdentifier("f4", "dotted"),
+                    paramAsIdentifier("f5", "field"),
+                    paramAsIdentifier("f6", "string"),
+                    paramAsIdentifier("f7", "typical"),
+                    paramAsIdentifier("f8", "y"),
+                    paramAsIdentifier("f36", "some.string"),
+                    paramAsIdentifier("f367", "some.string.typical"),
+                    paramAsIdentifier("fn1", "trim"),
+                    paramAsIdentifier("fn2", "count")
                 )
             ),
             "some.string.typical",
@@ -2136,18 +2136,18 @@ public class AnalyzerTests extends ESTestCase {
             "mapping-multi-field-with-nested.json",
             new QueryParams(
                 List.of(
-                    paramForIdentifier("f1", "a"),
-                    paramForIdentifier("f2", "keyword"),
-                    paramForIdentifier("f3", "some"),
-                    paramForIdentifier("f4", "dotted"),
-                    paramForIdentifier("f5", "field"),
-                    paramForIdentifier("f6", "string"),
-                    paramForIdentifier("f7", "typical"),
-                    paramForIdentifier("f8", "text"),
-                    paramForIdentifier("f9", "date"),
-                    paramForIdentifier("f10", "datetime"),
-                    paramForIdentifier("f11", "bool"),
-                    paramForIdentifier("fn1", "trim")
+                    paramAsIdentifier("f1", "a"),
+                    paramAsIdentifier("f2", "keyword"),
+                    paramAsIdentifier("f3", "some"),
+                    paramAsIdentifier("f4", "dotted"),
+                    paramAsIdentifier("f5", "field"),
+                    paramAsIdentifier("f6", "string"),
+                    paramAsIdentifier("f7", "typical"),
+                    paramAsIdentifier("f8", "text"),
+                    paramAsIdentifier("f9", "date"),
+                    paramAsIdentifier("f10", "datetime"),
+                    paramAsIdentifier("f11", "bool"),
+                    paramAsIdentifier("fn1", "trim")
                 )
             ),
             "binary",
@@ -2191,10 +2191,10 @@ public class AnalyzerTests extends ESTestCase {
             "mapping-multi-field-with-nested.json",
             new QueryParams(
                 List.of(
-                    paramForIdentifier("f1", "a"),
-                    paramForIdentifier("f2", "keyword"),
-                    paramForIdentifier("f3", "some.string.nonexisting"),
-                    paramForIdentifier("fn1", "trim")
+                    paramAsIdentifier("f1", "a"),
+                    paramAsIdentifier("f2", "keyword"),
+                    paramAsIdentifier("f3", "some.string.nonexisting"),
+                    paramAsIdentifier("fn1", "trim")
                 )
             ),
             "Unknown column [some.string.nonexisting]"
@@ -2213,7 +2213,7 @@ public class AnalyzerTests extends ESTestCase {
                 assertError(
                     "from test | " + invalidParam,
                     "mapping-multi-field-with-nested.json",
-                    new QueryParams(List.of(paramForPattern("f1", pattern))),
+                    new QueryParams(List.of(paramAsPattern("f1", pattern))),
                     "Unresolved pattern [" + pattern + "]"
                 );
             }
@@ -2224,7 +2224,7 @@ public class AnalyzerTests extends ESTestCase {
             assertError(
                 "from test | stats x = ?fn1(*)",
                 "mapping-multi-field-with-nested.json",
-                new QueryParams(List.of(paramForIdentifier("fn1", pattern))),
+                new QueryParams(List.of(paramAsIdentifier("fn1", pattern))),
                 "Unknown function [" + pattern + "]"
             );
         }
@@ -2243,7 +2243,7 @@ public class AnalyzerTests extends ESTestCase {
             assertError(
                 "from test | " + command,
                 "mapping-multi-field-with-nested.json",
-                new QueryParams(List.of(paramForIdentifier("f1", "`keyword`"))),
+                new QueryParams(List.of(paramAsIdentifier("f1", "`keyword`"))),
                 "Unknown column [`keyword`]"
             );
         }
@@ -2259,14 +2259,14 @@ public class AnalyzerTests extends ESTestCase {
             "mapping-multi-field-with-nested.json",
             new QueryParams(
                 List.of(
-                    paramForPattern("f1", "x*"),
-                    paramForIdentifier("f2", "some"),
-                    paramForPattern("f3", "*"),
-                    paramForPattern("f4", "ambiguous*"),
-                    paramForIdentifier("f5", "dotted"),
-                    paramForIdentifier("f6", "y"),
-                    paramForIdentifier("f7", "z"),
-                    paramForIdentifier("f8", "v")
+                    paramAsPattern("f1", "x*"),
+                    paramAsIdentifier("f2", "some"),
+                    paramAsPattern("f3", "*"),
+                    paramAsPattern("f4", "ambiguous*"),
+                    paramAsIdentifier("f5", "dotted"),
+                    paramAsIdentifier("f6", "y"),
+                    paramAsIdentifier("f7", "z"),
+                    paramAsIdentifier("f8", "v")
                 )
             ),
             "x",
@@ -2286,7 +2286,7 @@ public class AnalyzerTests extends ESTestCase {
                 from test | keep ?f1
                 """,
             "mapping-multi-field-with-nested.json",
-            new QueryParams(List.of(paramForPattern("f1", "a*"))),
+            new QueryParams(List.of(paramAsPattern("f1", "a*"))),
             "No matches found for pattern [a*]"
         );
         // invalid type
@@ -2295,7 +2295,7 @@ public class AnalyzerTests extends ESTestCase {
                 from test | keep ?f1
                 """,
             "mapping-multi-field-with-nested.json",
-            new QueryParams(List.of(paramForIdentifier("f1", "x*"))),
+            new QueryParams(List.of(paramAsIdentifier("f1", "x*"))),
             "Unknown column [x*], did you mean [x]?"
         );
     }

@@ -684,15 +684,15 @@ public final class EsqlTestUtils {
         return new RLike(EMPTY, left, new RLikePattern(exp));
     }
 
-    public static QueryParam paramForConstant(String name, Object value) {
+    public static QueryParam paramAsConstant(String name, Object value) {
         return new QueryParam(name, value, DataType.fromJava(value), ParserUtils.ParamClassification.CONSTANT);
     }
 
-    public static QueryParam paramForIdentifier(String name, Object value) {
+    public static QueryParam paramAsIdentifier(String name, Object value) {
         return new QueryParam(name, value, NULL, ParserUtils.ParamClassification.IDENTIFIER);
     }
 
-    public static QueryParam paramForPattern(String name, Object value) {
+    public static QueryParam paramAsPattern(String name, Object value) {
         return new QueryParam(name, value, NULL, ParserUtils.ParamClassification.PATTERN);
     }
 }

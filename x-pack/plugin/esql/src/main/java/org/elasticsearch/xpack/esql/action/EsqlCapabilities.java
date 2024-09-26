@@ -337,7 +337,7 @@ public class EsqlCapabilities {
         /**
          * Support named parameters for field names.
          */
-        NAMED_PARAMETER_FOR_FIELD_NAME;
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

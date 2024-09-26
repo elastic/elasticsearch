@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -1364,11 +1364,11 @@ public class VerifierTests extends ESTestCase {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(paramForConstant(null, null));
+                parameters.add(paramAsConstant(null, null));
             } else if (param instanceof String) {
-                parameters.add(paramForConstant(null, param));
+                parameters.add(paramAsConstant(null, param));
             } else if (param instanceof Number) {
-                parameters.add(paramForConstant(null, param));
+                parameters.add(paramAsConstant(null, param));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }

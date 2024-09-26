@@ -48,9 +48,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForConstant;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForIdentifier;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForPattern;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -116,20 +116,20 @@ public class EsqlQueryRequestTests extends ESTestCase {
              {"_n7" : false}] }""";
 
         List<QueryParam> params = List.of(
-            paramForIdentifier("n1", "f1"),
-            paramForIdentifier("n2", "f1*"),
-            paramForPattern("n3", "f.1*"),
-            paramForPattern("n4", "*"),
-            paramForIdentifier("n5", "esql"),
-            paramForIdentifier("n_6", "null"),
-            paramForIdentifier("n7_", "f.1.1"),
-            paramForConstant("_n1", "8.15.0"),
-            paramForConstant("__n2", 0.05),
-            paramForConstant("__3", -799810013),
-            paramForConstant("__4n", "127.0.0.1"),
-            paramForConstant("_n5", "esql"),
-            paramForConstant("_n6", null),
-            paramForConstant("_n7", false)
+            paramAsIdentifier("n1", "f1"),
+            paramAsIdentifier("n2", "f1*"),
+            paramAsPattern("n3", "f.1*"),
+            paramAsPattern("n4", "*"),
+            paramAsIdentifier("n5", "esql"),
+            paramAsIdentifier("n_6", "null"),
+            paramAsIdentifier("n7_", "f.1.1"),
+            paramAsConstant("_n1", "8.15.0"),
+            paramAsConstant("__n2", 0.05),
+            paramAsConstant("__3", -799810013),
+            paramAsConstant("__4n", "127.0.0.1"),
+            paramAsConstant("_n5", "esql"),
+            paramAsConstant("_n6", null),
+            paramAsConstant("_n7", false)
         );
         String json = String.format(Locale.ROOT, """
             {
@@ -224,7 +224,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {"n4" : {"value" : 1, "identifier" : true}}, {"n5" : {"value" : true, "identifierPattern" : true}},
             {"n6" : {"identifierPattern" : true}}, {"n7" : {"v" : "v7", "identifier" : true}},
             {"n8" : {"value" : "v8", "identifierPattern" : true}}, {"n9" : {"value" : "v9", "identifierPattern" : "wrong pattern"}},
-            {"n10" : {"value" : "v10", "identifier" : 0}}]""";
+            {"n10" : {"value" : "v10", "identifier" : 0}}, {"n11" : {"value" : ["x", "y"], "identifier" : true}},
+            {"n12" : {"value" : "v12", "identifier" : true, "identifierpattern" : true}}]""";
         String json3 = String.format(Locale.ROOT, """
             {
                 %s
@@ -239,7 +240,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             e3.getCause().getMessage(),
             containsString(
                 "Failed to parse params: [2:16] [v] is not a valid param attribute, "
-                    + "a valid attribute is value, identifier, or identifierpattern"
+                    + "a valid attribute is value, identifier or identifierpattern"
             )
         );
         assertThat(e3.getCause().getMessage(), containsString("[2:39] [id] is not a valid param attribute"));
@@ -254,7 +255,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "[3:46] [true] is not a valid value for pattern parameter, a valid value for pattern parameter is a string and contains *"
             )
         );
-        assertThat(e3.getCause().getMessage(), containsString("[4:40] [n7={identifier=true, v=v7}] does not have a value provided"));
+        assertThat(e3.getCause().getMessage(), containsString("[4:40] [n7 = {identifier=true, v=v7}] does not have a value provided"));
         assertThat(
             e3.getCause().getMessage(),
             containsString(
@@ -271,6 +272,19 @@ public class EsqlQueryRequestTests extends ESTestCase {
             e3.getCause().getMessage(),
             containsString("[6:1] [0] is not a valid value for an identifier field, a valid value is either true or false")
         );
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString(
+                "[6:48] [[x, y]] is not a valid value for identifier parameter, " + "a valid value for identifier parameter is a string"
+            )
+        );
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString(
+                "[7:1] [n12 = {identifier=true, identifierpattern=true, value=v12}] "
+                    + "can be either an identifier or an identifier pattern, but cannot be both"
+            )
+        );
     }
 
     // Test for https://github.com/elastic/elasticsearch/issues/110028
@@ -281,7 +295,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         var paramName = randomAlphaOfLength(5);
         var paramValue = randomAlphaOfLength(5);
         request1.params().addParsingError(new ParsingException(Source.EMPTY, exceptionMessage));
-        request1.params().addTokenParam(null, paramForConstant(paramName, paramValue));
+        request1.params().addTokenParam(null, paramAsConstant(paramName, paramValue));
 
         EsqlQueryRequest request2 = new EsqlQueryRequest();
         assertThat(request2.params(), equalTo(new QueryParams()));
@@ -594,12 +608,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
             for (int i = 0; i < len; i++) {
                 @SuppressWarnings("unchecked")
                 Supplier<QueryParam> supplier = randomFrom(
-                    () -> paramForConstant(null, randomBoolean()),
-                    () -> paramForConstant(null, randomInt()),
-                    () -> paramForConstant(null, randomLong()),
-                    () -> paramForConstant(null, randomDouble()),
-                    () -> paramForConstant(null, null),
-                    () -> paramForConstant(null, randomAlphaOfLength(10))
+                    () -> paramAsConstant(null, randomBoolean()),
+                    () -> paramAsConstant(null, randomInt()),
+                    () -> paramAsConstant(null, randomLong()),
+                    () -> paramAsConstant(null, randomDouble()),
+                    () -> paramAsConstant(null, null),
+                    () -> paramAsConstant(null, randomAlphaOfLength(10))
                 );
                 arr.add(supplier.get());
             }

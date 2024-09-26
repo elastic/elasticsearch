@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -187,7 +186,6 @@ public class Verifier {
             checkForSortOnSpatialTypes(p, failures);
 
             checkFilterMatchConditions(p, failures);
-            checkMatchCommand(p, failures);
             checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
@@ -640,22 +638,6 @@ public class Verifier {
             }
             if (hasMatch.get()) {
                 failures.add(fail(condition, "Invalid condition using MATCH"));
-            }
-        }
-    }
-
-    private static void checkMatchCommand(LogicalPlan plan, Set<Failure> failures) {
-        if (plan instanceof Filter f) {
-            Expression condition = f.condition();
-            if (condition instanceof StringQueryPredicate) {
-                // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
-                // we can't check if it can be pushed down as we don't have yet information about the fields present in the
-                // StringQueryPredicate
-                plan.forEachDown(LogicalPlan.class, lp -> {
-                    if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
-                        failures.add(fail(plan, "MATCH cannot be used after {}", lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)));
-                    }
-                });
             }
         }
     }

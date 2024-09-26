@@ -154,7 +154,12 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 source.size(size);
                 // this one retrieves docs 1, 2, 4, 6, and 7
                 StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-                    QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("term").defaultField(TEXT_FIELD)).boost(10L)
+                    QueryBuilders.boolQuery()
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
                 );
                 // this one retrieves docs 2 and 6 due to prefilter
                 StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
@@ -196,7 +201,12 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("term").defaultField(TEXT_FIELD)).boost(10L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
@@ -243,7 +253,12 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("term").defaultField(TEXT_FIELD)).boost(10L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
@@ -292,7 +307,12 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("term").defaultField(TEXT_FIELD)).boost(10L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
@@ -350,7 +370,12 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("term").defaultField(TEXT_FIELD)).boost(10L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
@@ -407,7 +432,12 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("term").defaultField(TEXT_FIELD)).boost(10L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
         );
         standard0.retrieverName("my_custom_retriever");
         // this one retrieves docs 2 and 6 due to prefilter
@@ -443,13 +473,88 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(2));
             var rrfDetails = resp.getHits().getAt(0).getExplanation().getDetails()[0];
             assertThat(rrfDetails.getDetails().length, equalTo(3));
-            assertThat(rrfDetails.getDescription(), containsString("computed for initial ranks [3, 1, 2]"));
+            assertThat(rrfDetails.getDescription(), containsString("computed for initial ranks [2, 1, 2]"));
 
-            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [3] in query at index [0]"));
-            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [3] in query at index [0]"));
+            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [2] in query at index [0]"));
+            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [2] in query at index [0]"));
             assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("[my_custom_retriever]"));
             assertThat(rrfDetails.getDetails()[1].getDescription(), containsString("for rank [1] in query at index [1]"));
             assertThat(rrfDetails.getDetails()[2].getDescription(), containsString("for rank [2] in query at index [2]"));
+        });
+    }
+
+    public void testRRFExplainWithAnotherNestedRRF() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this one retrieves docs 1, 2, 4, 6, and 7
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
+        );
+        standard0.retrieverName("my_custom_retriever");
+        // this one retrieves docs 2 and 6 due to prefilter
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        // this one retrieves docs 3, 2, 6, and 7
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 4.0f }, null, 10, 100, null);
+
+        RRFRetrieverBuilder nestedRRF = new RRFRetrieverBuilder(
+            Arrays.asList(
+                new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
+                new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+            ),
+            rankWindowSize,
+            rankConstant
+        );
+        StandardRetrieverBuilder standard2 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(20L)
+        );
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(nestedRRF, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard2, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        source.explain(true);
+        source.size(1);
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getHits().length, equalTo(1));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_6"));
+            assertThat(resp.getHits().getAt(0).getExplanation().isMatch(), equalTo(true));
+            assertThat(resp.getHits().getAt(0).getExplanation().getDescription(), containsString("sum of:"));
+            assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(2));
+            var rrfTopLevel = resp.getHits().getAt(0).getExplanation().getDetails()[0];
+            assertThat(rrfTopLevel.getDetails().length, equalTo(2));
+            assertThat(rrfTopLevel.getDescription(), containsString("computed for initial ranks [2, 1]"));
+            assertThat(rrfTopLevel.getDetails()[0].getDetails()[0].getDescription(), containsString("rrf score"));
+            assertThat(rrfTopLevel.getDetails()[1].getDetails()[0].getDescription(), containsString("ConstantScore"));
+
+            var rrfDetails = rrfTopLevel.getDetails()[0].getDetails()[0];
+            assertThat(rrfDetails.getDetails().length, equalTo(3));
+            assertThat(rrfDetails.getDescription(), containsString("computed for initial ranks [4, 2, 3]"));
+
+            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [4] in query at index [0]"));
+            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [4] in query at index [0]"));
+            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("[my_custom_retriever]"));
+            assertThat(rrfDetails.getDetails()[1].getDescription(), containsString("for rank [2] in query at index [1]"));
+            assertThat(rrfDetails.getDetails()[2].getDescription(), containsString("for rank [3] in query at index [2]"));
         });
     }
 

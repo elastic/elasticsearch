@@ -99,6 +99,15 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
+    public QueryBuilder explainQuery() {
+        return new RankDocsQueryBuilder(
+            rankDocs.get(),
+            sources.stream().map(RetrieverBuilder::explainQuery).toArray(QueryBuilder[]::new),
+            true
+        );
+    }
+
+    @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         final RankDocsQueryBuilder rankQuery;
         // if we have aggregations we need to compute them based on all doc matches, not just the top hits

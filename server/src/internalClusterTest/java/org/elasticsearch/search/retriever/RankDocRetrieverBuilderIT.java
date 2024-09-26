@@ -190,8 +190,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
         // this one retrieves docs 1, 4, and 6
-        standard0.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("quick").defaultField(TEXT_FIELD))
-            .boost(10L);
+        standard0.queryBuilder = QueryBuilders.boolQuery()
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(9L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(8L));
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder();
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
@@ -243,8 +245,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
         // this one retrieves docs 1, 4, and 6
-        standard0.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("quick").defaultField(TEXT_FIELD))
-            .boost(10L);
+        standard0.queryBuilder = QueryBuilders.boolQuery()
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(9L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(8L));
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder();
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
@@ -294,8 +298,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
         // this one retrieves docs 1, 4, and 6
-        standard0.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("quick").defaultField(TEXT_FIELD))
-            .boost(10L);
+        standard0.queryBuilder = QueryBuilders.boolQuery()
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(9L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(8L));
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder();
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
@@ -354,8 +360,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
         // this one retrieves docs 1 and 6 as doc_4 is collapsed to doc_1
-        standard0.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("quick").defaultField(TEXT_FIELD))
-            .boost(10L);
+        standard0.queryBuilder = QueryBuilders.boolQuery()
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(9L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(8L));
         standard0.collapseBuilder = new CollapseBuilder(TOPIC_FIELD).setInnerHits(
             new InnerHitBuilder("a").addSort(new FieldSortBuilder(DOC_FIELD).order(SortOrder.DESC)).setSize(10)
         );
@@ -458,8 +466,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
         // this one retrieves docs 1, 4, and 6
-        standard0.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("quick").defaultField(TEXT_FIELD))
-            .boost(10L);
+        standard0.queryBuilder = QueryBuilders.boolQuery()
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(9L))
+            .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(8L));
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder();
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);

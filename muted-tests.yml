@@ -302,6 +302,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5WithTrainedModelAndInference
   issue: https://github.com/elastic/elasticsearch/issues/113565
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5Small_withPlatformAgnosticVariant
+  issue: https://github.com/elastic/elasticsearch/issues/113577
 
 # Examples:
 #

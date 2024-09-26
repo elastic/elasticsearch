@@ -22,3 +22,7 @@ dependencies {
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTestsByFilePattern("**/runtime_fields/110_composite.yml", "warning does not exist for compatibility")
+})

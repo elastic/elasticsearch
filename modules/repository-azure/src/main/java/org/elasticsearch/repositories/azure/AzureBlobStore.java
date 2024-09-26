@@ -84,9 +84,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.core.Strings.format;
@@ -105,7 +109,7 @@ public class AzureBlobStore implements BlobStore {
     private final LocationMode locationMode;
     private final ByteSizeValue maxSinglePartUploadSize;
 
-    private final Stats stats = new Stats();
+    private final StatsCollectors statsCollectors = new StatsCollectors();
     private final AzureClientProvider.SuccessfulRequestHandler statsConsumer;
 
     public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, BigArrays bigArrays) {
@@ -118,14 +122,26 @@ public class AzureBlobStore implements BlobStore {
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
 
         List<RequestStatsCollector> requestStatsCollectors = List.of(
-            RequestStatsCollector.create((httpMethod, url) -> httpMethod == HttpMethod.HEAD, stats.headOperations::incrementAndGet),
+            RequestStatsCollector.create(
+                (httpMethod, url) -> httpMethod == HttpMethod.HEAD,
+                purpose -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB_PROPERTIES, purpose)
+            ),
             RequestStatsCollector.create(
                 (httpMethod, url) -> httpMethod == HttpMethod.GET && isListRequest(httpMethod, url) == false,
-                stats.getOperations::incrementAndGet
+                purpose -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB, purpose)
             ),
-            RequestStatsCollector.create(AzureBlobStore::isListRequest, stats.listOperations::incrementAndGet),
-            RequestStatsCollector.create(AzureBlobStore::isPutBlockRequest, stats.putBlockOperations::incrementAndGet),
-            RequestStatsCollector.create(AzureBlobStore::isPutBlockListRequest, stats.putBlockListOperations::incrementAndGet),
+            RequestStatsCollector.create(
+                AzureBlobStore::isListRequest,
+                purpose -> statsCollectors.onSuccessfulRequest(Operation.LIST_BLOBS, purpose)
+            ),
+            RequestStatsCollector.create(
+                AzureBlobStore::isPutBlockRequest,
+                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK, purpose)
+            ),
+            RequestStatsCollector.create(
+                AzureBlobStore::isPutBlockListRequest,
+                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK_LIST, purpose)
+            ),
             RequestStatsCollector.create(
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
                 // The only URI parameter allowed for put-blob operation is "timeout", but if a sas token is used,
@@ -133,7 +149,7 @@ public class AzureBlobStore implements BlobStore {
                 (httpMethod, url) -> httpMethod == HttpMethod.PUT
                     && isPutBlockRequest(httpMethod, url) == false
                     && isPutBlockListRequest(httpMethod, url) == false,
-                stats.putOperations::incrementAndGet
+                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOB, purpose)
             )
         );
 
@@ -152,7 +168,7 @@ public class AzureBlobStore implements BlobStore {
 
             for (RequestStatsCollector requestStatsCollector : requestStatsCollectors) {
                 if (requestStatsCollector.shouldConsumeRequestInfo(httpMethod, url)) {
-                    requestStatsCollector.consumeHttpRequestInfo();
+                    requestStatsCollector.consumeHttpRequestInfo(purpose);
                     return;
                 }
             }
@@ -653,39 +669,52 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        return stats.toMap();
+        return statsCollectors.statsMap();
+    }
+
+    private enum Operation {
+        GET_BLOB("GetBlob"),
+        LIST_BLOBS("ListBlobs"),
+        GET_BLOB_PROPERTIES("GetBlobProperties"),
+        PUT_BLOB("PutBlob"),
+        PUT_BLOCK("PutBlock"),
+        PUT_BLOCK_LIST("PutBlockList");
+
+        private final String key;
+
+        public String getKey() {
+            return key;
+        }
+
+        Operation(String key) {
+            this.key = key;
+        }
+    }
+
+    private record StatsKey(Operation operation, OperationPurpose purpose) {
+        @Override
+        public String toString() {
+            return operation.getKey() + "_" + purpose.getKey();
+        }
+    }
+
+    private static class StatsCollectors {
+        final Map<StatsKey, Stats> collectors = new ConcurrentHashMap<>();
+
+        Map<String, Long> statsMap() {
+            return collectors.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().counter.sum()));
+        }
+
+        public void onSuccessfulRequest(Operation operation, OperationPurpose purpose) {
+            collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new Stats()).counter.increment();
+        }
     }
 
     private static class Stats {
 
-        private final AtomicLong getOperations = new AtomicLong();
-
-        private final AtomicLong listOperations = new AtomicLong();
-
-        private final AtomicLong headOperations = new AtomicLong();
-
-        private final AtomicLong putOperations = new AtomicLong();
-
-        private final AtomicLong putBlockOperations = new AtomicLong();
-
-        private final AtomicLong putBlockListOperations = new AtomicLong();
-
-        private Map<String, Long> toMap() {
-            return Map.of(
-                "GetBlob",
-                getOperations.get(),
-                "ListBlobs",
-                listOperations.get(),
-                "GetBlobProperties",
-                headOperations.get(),
-                "PutBlob",
-                putOperations.get(),
-                "PutBlock",
-                putBlockOperations.get(),
-                "PutBlockList",
-                putBlockListOperations.get()
-            );
-        }
+        private final LongAdder counter = new LongAdder();
     }
 
     private static class AzureInputStream extends InputStream {
@@ -811,14 +840,14 @@ public class AzureBlobStore implements BlobStore {
 
     private static class RequestStatsCollector {
         private final BiPredicate<HttpMethod, URL> filter;
-        private final Runnable onHttpRequest;
+        private final Consumer<OperationPurpose> onHttpRequest;
 
-        private RequestStatsCollector(BiPredicate<HttpMethod, URL> filter, Runnable onHttpRequest) {
+        private RequestStatsCollector(BiPredicate<HttpMethod, URL> filter, Consumer<OperationPurpose> onHttpRequest) {
             this.filter = filter;
             this.onHttpRequest = onHttpRequest;
         }
 
-        static RequestStatsCollector create(BiPredicate<HttpMethod, URL> filter, Runnable consumer) {
+        static RequestStatsCollector create(BiPredicate<HttpMethod, URL> filter, Consumer<OperationPurpose> consumer) {
             return new RequestStatsCollector(filter, consumer);
         }
 
@@ -826,8 +855,8 @@ public class AzureBlobStore implements BlobStore {
             return filter.test(httpMethod, url);
         }
 
-        private void consumeHttpRequestInfo() {
-            onHttpRequest.run();
+        private void consumeHttpRequestInfo(OperationPurpose operationPurpose) {
+            onHttpRequest.accept(operationPurpose);
         }
     }
 

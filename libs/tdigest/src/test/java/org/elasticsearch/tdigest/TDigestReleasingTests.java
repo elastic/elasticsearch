@@ -9,7 +9,6 @@
 
 package org.elasticsearch.tdigest;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;

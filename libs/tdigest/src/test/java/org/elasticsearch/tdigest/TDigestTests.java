@@ -59,6 +59,7 @@ public abstract class TDigestTests extends TDigestTestCase {
         assertEquals(0.95, digest.cdf(500_000), 1e-5);
         assertEquals(0.975, digest.cdf(1_000_000), 1e-5);
 
+        digest.close();
         digest = factory(80).create();
         digest.setScaleFunction(ScaleFunction.K_0);
 
@@ -72,6 +73,7 @@ public abstract class TDigestTests extends TDigestTestCase {
         assertEquals(19.0, digest.quantile(0.915), 0.1);
         assertEquals(19.0, digest.quantile(0.935), 0.1);
         assertEquals(1_000_000.0, digest.quantile(0.965), 0.1);
+        digest.close();
     }
 
     public void testSmallCountQuantile() {

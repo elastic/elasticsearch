@@ -46,7 +46,12 @@ public class SortingDigest extends AbstractTDigest {
     // Indicates if all values have been sorted.
     private boolean isSorted = true;
 
-    public SortingDigest(TDigestArrays arrays) {
+    static SortingDigest create(TDigestArrays arrays) {
+        arrays.adjustBreaker(SortingDigest.SHALLOW_SIZE);
+        return new SortingDigest(arrays);
+    }
+
+    private SortingDigest(TDigestArrays arrays) {
         this.arrays = arrays;
         values = arrays.newDoubleArray(0);
     }

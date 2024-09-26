@@ -53,8 +53,7 @@ public abstract class TDigest implements Releasable, Accountable {
      * @return the MergingDigest
      */
     public static MergingDigest createMergingDigest(TDigestArrays arrays, double compression) {
-        arrays.adjustBreaker(MergingDigest.SHALLOW_SIZE);
-        return new MergingDigest(arrays, compression);
+        return MergingDigest.create(arrays, compression);
     }
 
     /**
@@ -67,8 +66,7 @@ public abstract class TDigest implements Releasable, Accountable {
      * @return the AvlTreeDigest
      */
     public static AVLTreeDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
-        arrays.adjustBreaker(AVLTreeDigest.SHALLOW_SIZE);
-        return new AVLTreeDigest(arrays, compression);
+        return AVLTreeDigest.create(arrays, compression);
     }
 
     /**
@@ -78,8 +76,7 @@ public abstract class TDigest implements Releasable, Accountable {
      * @return the SortingDigest
      */
     public static SortingDigest createSortingDigest(TDigestArrays arrays) {
-        arrays.adjustBreaker(SortingDigest.SHALLOW_SIZE);
-        return new SortingDigest(arrays);
+        return SortingDigest.create(arrays);
     }
 
     /**
@@ -92,8 +89,7 @@ public abstract class TDigest implements Releasable, Accountable {
      * @return the HybridDigest
      */
     public static HybridDigest createHybridDigest(TDigestArrays arrays, double compression) {
-        arrays.adjustBreaker(HybridDigest.SHALLOW_SIZE);
-        return new HybridDigest(arrays, compression);
+        return HybridDigest.create(arrays, compression);
     }
 
     /**

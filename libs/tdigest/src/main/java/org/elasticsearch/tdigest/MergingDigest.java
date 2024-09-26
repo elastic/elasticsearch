@@ -114,6 +114,16 @@ public class MergingDigest extends AbstractTDigest {
     // weight limits.
     public static boolean useWeightLimit = true;
 
+    static MergingDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(MergingDigest.SHALLOW_SIZE);
+        return new MergingDigest(arrays, compression);
+    }
+
+    static MergingDigest create(TDigestArrays arrays, double compression, int bufferSize, int size) {
+        arrays.adjustBreaker(MergingDigest.SHALLOW_SIZE);
+        return new MergingDigest(arrays, compression, bufferSize, size);
+    }
+
     /**
      * Allocates a buffer merging t-digest.  This is the normally used constructor that
      * allocates default sized internal arrays.  Other versions are available, but should
@@ -121,7 +131,7 @@ public class MergingDigest extends AbstractTDigest {
      *
      * @param compression The compression factor
      */
-    public MergingDigest(TDigestArrays arrays, double compression) {
+    private MergingDigest(TDigestArrays arrays, double compression) {
         this(arrays, compression, -1);
     }
 
@@ -131,7 +141,7 @@ public class MergingDigest extends AbstractTDigest {
      * @param compression Compression factor for t-digest.  Same as 1/\delta in the paper.
      * @param bufferSize  How many samples to retain before merging.
      */
-    public MergingDigest(TDigestArrays arrays, double compression, int bufferSize) {
+    private MergingDigest(TDigestArrays arrays, double compression, int bufferSize) {
         // we can guarantee that we only need ceiling(compression).
         this(arrays, compression, bufferSize, -1);
     }
@@ -143,7 +153,7 @@ public class MergingDigest extends AbstractTDigest {
      * @param bufferSize  Number of temporary centroids
      * @param size        Size of main buffer
      */
-    public MergingDigest(TDigestArrays arrays, double compression, int bufferSize, int size) {
+    private MergingDigest(TDigestArrays arrays, double compression, int bufferSize, int size) {
         this.arrays = arrays;
 
         // ensure compression >= 10

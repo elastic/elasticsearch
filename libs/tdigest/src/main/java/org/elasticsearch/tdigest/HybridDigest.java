@@ -53,6 +53,11 @@ public class HybridDigest extends AbstractTDigest {
     // This gets initialized when the implementation switches to MergingDigest.
     private MergingDigest mergingDigest;
 
+    static HybridDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(HybridDigest.SHALLOW_SIZE);
+        return new HybridDigest(arrays, compression);
+    }
+
     /**
      * Creates a hybrid digest that uses a {@link SortingDigest} for up to {@param maxSortingSize} samples,
      * then switches to a {@link MergingDigest}.
@@ -60,7 +65,7 @@ public class HybridDigest extends AbstractTDigest {
      * @param compression The compression factor for the MergingDigest
      * @param maxSortingSize The sample size limit for switching from a {@link SortingDigest} to a {@link MergingDigest} implementation
      */
-    HybridDigest(TDigestArrays arrays, double compression, long maxSortingSize) {
+    private HybridDigest(TDigestArrays arrays, double compression, long maxSortingSize) {
         this.arrays = arrays;
         this.compression = compression;
         this.maxSortingSize = maxSortingSize;
@@ -73,7 +78,7 @@ public class HybridDigest extends AbstractTDigest {
      *
      * @param compression The compression factor for the MergingDigest
      */
-    HybridDigest(TDigestArrays arrays, double compression) {
+    private HybridDigest(TDigestArrays arrays, double compression) {
         // The default maxSortingSize is calculated so that the SortingDigest will have comparable size with the MergingDigest
         // at the point where implementations switch, e.g. for default compression 100 SortingDigest allocates ~16kB and MergingDigest
         // allocates ~15kB.

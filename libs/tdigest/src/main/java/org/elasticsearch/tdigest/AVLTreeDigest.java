@@ -48,6 +48,11 @@ public class AVLTreeDigest extends AbstractTDigest {
     // Indicates if a sample has been added after the last compression.
     private boolean needsCompression;
 
+    static AVLTreeDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(AVLTreeDigest.SHALLOW_SIZE);
+        return new AVLTreeDigest(arrays, compression);
+    }
+
     /**
      * A histogram structure that will record a sketch of a distribution.
      *
@@ -56,7 +61,7 @@ public class AVLTreeDigest extends AbstractTDigest {
      *                    quantiles.  Conversely, you should expect to track about 5 N centroids for this
      *                    accuracy.
      */
-    AVLTreeDigest(TDigestArrays arrays, double compression) {
+    private AVLTreeDigest(TDigestArrays arrays, double compression) {
         this.arrays = arrays;
         this.compression = compression;
         summary = AVLGroupTree.create(arrays);

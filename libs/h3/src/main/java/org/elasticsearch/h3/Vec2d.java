@@ -27,7 +27,10 @@ import java.util.Objects;
 /**
  *  2D floating-point vector
  */
-final class Vec2d {
+record Vec2d(
+    double x, // x component
+    double y  // y component
+) {
 
     /** 1/sin(60') **/
     private static final double M_RSIN60 = 1.0 / Constants.M_SQRT3_2;
@@ -89,14 +92,6 @@ final class Vec2d {
         { 3.664438879055192436, 1.570043776661997111, 5.758833981448388027 },  // face 18
         { 2.361378999196363184, 0.266983896803167583, 4.455774101589558636 },  // face 19
     };
-
-    private final double x;  /// < x component
-    private final double y;  /// < y component
-
-    Vec2d(double x, double y) {
-        this.x = x;
-        this.y = y;
-    }
 
     /**
      * Determines the center point in spherical coordinates of a cell given by this 2D

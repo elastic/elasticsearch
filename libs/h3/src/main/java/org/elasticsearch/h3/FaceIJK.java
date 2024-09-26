@@ -149,25 +149,13 @@ final class FaceIJK {
     /**
      *  Information to transform into an adjacent face IJK system
      */
-    private static class FaceOrientIJK {
-        // face number
-        final int face;
-        // res 0 translation relative to primary face
-        final int translateI;
-        final int translateJ;
-        final int translateK;
-        // number of 60 degree ccw rotations relative to primary
-        final int ccwRot60;
-
-        // face
-        FaceOrientIJK(int face, int translateI, int translateJ, int translateK, int ccwRot60) {
-            this.face = face;
-            this.translateI = translateI;
-            this.translateJ = translateJ;
-            this.translateK = translateK;
-            this.ccwRot60 = ccwRot60;
-        }
-    }
+    private record FaceOrientIJK(
+        int face, // face number
+        int translateI, // res 0 translation relative to primary face
+        int translateJ,
+        int translateK,
+        int ccwRot60// number of 60 degree ccw rotations relative to primary
+    ) {}
 
     /**
      *  Definition of which faces neighbor each other.

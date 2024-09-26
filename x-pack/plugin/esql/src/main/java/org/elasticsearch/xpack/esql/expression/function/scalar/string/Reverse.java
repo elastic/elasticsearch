@@ -95,7 +95,7 @@ public class Reverse extends EsqlScalarFunction {
     }
 
     private static String reverseStringWithUnicodeCharacters (String str) {
-        BreakIterator boundary = BreakIterator.getCharacterInstance(Locale.getDefault());
+        BreakIterator boundary = BreakIterator.getCharacterInstance(Locale.ROOT);
         boundary.setText(str);
 
         List<String> characters = new ArrayList<>();
@@ -112,9 +112,32 @@ public class Reverse extends EsqlScalarFunction {
         return reversed.toString();
     }
 
+    private static boolean isOneByteUTF8(BytesRef ref) {
+        int end = ref.offset + ref.length;
+        for (int i = ref.offset; i < end; i++) {
+            if (ref.bytes[i] < 0) { return false; }
+        }
+        return true;
+    }
+
+    private static void reverseArray(byte[] array, int start, int end) {
+        while (start < end) {
+            byte temp = array[start];
+            array[start] = array[end];
+            array[end] = temp;
+            start++;
+            end--;
+        }
+    }
+
     @Evaluator
-    static BytesRef process(BytesRef val) {
-        return BytesRefs.toBytesRef(reverseStringWithUnicodeCharacters(val.utf8ToString()));
+    static BytesRef process(BytesRef ref) {
+        if (isOneByteUTF8(ref)) {
+            BytesRef reversed = BytesRef.deepCopyOf(ref);
+            reverseArray(reversed.bytes, reversed.offset,reversed.offset + reversed.length - 1);
+            return reversed;
+        }
+        return BytesRefs.toBytesRef(reverseStringWithUnicodeCharacters(ref.utf8ToString()));
     }
 
     @Override

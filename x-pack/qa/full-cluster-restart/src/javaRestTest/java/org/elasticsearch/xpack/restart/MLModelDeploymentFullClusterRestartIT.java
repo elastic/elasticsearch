@@ -16,10 +16,12 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
 
@@ -195,14 +197,30 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        String inferenceThreadParamName = "threads_per_allocation";
+        String modelThreadParamName = "number_of_allocations";
+        String compatibleHeader = null;
+        if (isRunningAgainstOldCluster()) {
+            compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
+            inferenceThreadParamName = "inference_threads";
+            modelThreadParamName = "model_threads";
+        }
+
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&"
+                + inferenceThreadParamName
+                + "=1&"
+                + modelThreadParamName
+                + "=1"
         );
+        if (compatibleHeader != null) {
+            request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
+        }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);

@@ -16,6 +16,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import com.azure.core.http.HttpMethod;
 import com.azure.core.http.rest.ResponseBase;
 import com.azure.core.util.BinaryData;
 import com.azure.storage.blob.BlobAsyncClient;
@@ -85,7 +86,6 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.stream.StreamSupport;
 
@@ -106,7 +106,7 @@ public class AzureBlobStore implements BlobStore {
     private final ByteSizeValue maxSinglePartUploadSize;
 
     private final Stats stats = new Stats();
-    private final BiConsumer<String, URL> statsConsumer;
+    private final AzureClientProvider.SuccessfulRequestHandler statsConsumer;
 
     public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, BigArrays bigArrays) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
@@ -118,9 +118,9 @@ public class AzureBlobStore implements BlobStore {
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
 
         List<RequestStatsCollector> requestStatsCollectors = List.of(
-            RequestStatsCollector.create((httpMethod, url) -> httpMethod.equals("HEAD"), stats.headOperations::incrementAndGet),
+            RequestStatsCollector.create((httpMethod, url) -> httpMethod == HttpMethod.HEAD, stats.headOperations::incrementAndGet),
             RequestStatsCollector.create(
-                (httpMethod, url) -> httpMethod.equals("GET") && isListRequest(httpMethod, url) == false,
+                (httpMethod, url) -> httpMethod == HttpMethod.GET && isListRequest(httpMethod, url) == false,
                 stats.getOperations::incrementAndGet
             ),
             RequestStatsCollector.create(AzureBlobStore::isListRequest, stats.listOperations::incrementAndGet),
@@ -130,14 +130,14 @@ public class AzureBlobStore implements BlobStore {
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
                 // The only URI parameter allowed for put-blob operation is "timeout", but if a sas token is used,
                 // it's possible that the URI parameters contain additional parameters unrelated to the upload type.
-                (httpMethod, url) -> httpMethod.equals("PUT")
+                (httpMethod, url) -> httpMethod == HttpMethod.PUT
                     && isPutBlockRequest(httpMethod, url) == false
                     && isPutBlockListRequest(httpMethod, url) == false,
                 stats.putOperations::incrementAndGet
             )
         );
 
-        this.statsConsumer = (httpMethod, url) -> {
+        this.statsConsumer = (purpose, httpMethod, url) -> {
             try {
                 URI uri = url.toURI();
                 String path = uri.getPath() == null ? "" : uri.getPath();
@@ -159,20 +159,20 @@ public class AzureBlobStore implements BlobStore {
         };
     }
 
-    private static boolean isListRequest(String httpMethod, URL url) {
-        return httpMethod.equals("GET") && url.getQuery() != null && url.getQuery().contains("comp=list");
+    private static boolean isListRequest(HttpMethod httpMethod, URL url) {
+        return httpMethod == HttpMethod.GET && url.getQuery() != null && url.getQuery().contains("comp=list");
     }
 
     // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
-    private static boolean isPutBlockRequest(String httpMethod, URL url) {
+    private static boolean isPutBlockRequest(HttpMethod httpMethod, URL url) {
         String queryParams = url.getQuery() == null ? "" : url.getQuery();
-        return httpMethod.equals("PUT") && queryParams.contains("comp=block") && queryParams.contains("blockid=");
+        return httpMethod == HttpMethod.PUT && queryParams.contains("comp=block") && queryParams.contains("blockid=");
     }
 
     // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
-    private static boolean isPutBlockListRequest(String httpMethod, URL url) {
+    private static boolean isPutBlockListRequest(HttpMethod httpMethod, URL url) {
         String queryParams = url.getQuery() == null ? "" : url.getQuery();
-        return httpMethod.equals("PUT") && queryParams.contains("comp=blocklist");
+        return httpMethod == HttpMethod.PUT && queryParams.contains("comp=blocklist");
     }
 
     public long getReadChunkSize() {
@@ -810,19 +810,19 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private static class RequestStatsCollector {
-        private final BiPredicate<String, URL> filter;
+        private final BiPredicate<HttpMethod, URL> filter;
         private final Runnable onHttpRequest;
 
-        private RequestStatsCollector(BiPredicate<String, URL> filter, Runnable onHttpRequest) {
+        private RequestStatsCollector(BiPredicate<HttpMethod, URL> filter, Runnable onHttpRequest) {
             this.filter = filter;
             this.onHttpRequest = onHttpRequest;
         }
 
-        static RequestStatsCollector create(BiPredicate<String, URL> filter, Runnable consumer) {
+        static RequestStatsCollector create(BiPredicate<HttpMethod, URL> filter, Runnable consumer) {
             return new RequestStatsCollector(filter, consumer);
         }
 
-        private boolean shouldConsumeRequestInfo(String httpMethod, URL url) {
+        private boolean shouldConsumeRequestInfo(HttpMethod httpMethod, URL url) {
             return filter.test(httpMethod, url);
         }
 

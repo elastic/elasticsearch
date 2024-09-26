@@ -47,13 +47,11 @@ import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorSe
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
-import java.io.IOException;
 import java.net.URL;
 import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME;
@@ -162,7 +160,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         LocationMode locationMode,
         RequestRetryOptions retryOptions,
         ProxyOptions proxyOptions,
-        BiConsumer<String, URL> successfulRequestConsumer,
+        SuccessfulRequestHandler successfulRequestHandler,
         OperationPurpose purpose
     ) {
         if (closed) {
@@ -191,8 +189,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             builder.credential(credentialBuilder.build());
         }
 
-        if (successfulRequestConsumer != null) {
-            builder.addPolicy(new SuccessfulRequestTracker(successfulRequestConsumer));
+        if (successfulRequestHandler != null) {
+            builder.addPolicy(new SuccessfulRequestTracker(purpose, successfulRequestHandler));
         }
 
         if (locationMode.isSecondary()) {
@@ -259,13 +257,15 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() {}
 
     private static final class SuccessfulRequestTracker implements HttpPipelinePolicy {
         private static final Logger logger = LogManager.getLogger(SuccessfulRequestTracker.class);
-        private final BiConsumer<String, URL> onSuccessfulRequest;
+        private final OperationPurpose purpose;
+        private final SuccessfulRequestHandler onSuccessfulRequest;
 
-        private SuccessfulRequestTracker(BiConsumer<String, URL> onSuccessfulRequest) {
+        private SuccessfulRequestTracker(OperationPurpose purpose, SuccessfulRequestHandler onSuccessfulRequest) {
+            this.purpose = purpose;
             this.onSuccessfulRequest = onSuccessfulRequest;
         }
 
@@ -278,11 +278,19 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             HttpMethod method = httpRequest.getHttpMethod();
             if (httpResponse != null && method != null && httpResponse.getStatusCode() > 199 && httpResponse.getStatusCode() <= 299) {
                 try {
-                    onSuccessfulRequest.accept(method.name(), httpRequest.getUrl());
+                    onSuccessfulRequest.onSuccessfulRequest(purpose, method, httpRequest.getUrl());
                 } catch (Exception e) {
                     logger.warn("Unable to notify a successful request", e);
                 }
             }
         }
+    }
+
+    /**
+     * The {@link SuccessfulRequestTracker} calls this when a successful request is detected
+     */
+    interface SuccessfulRequestHandler {
+
+        void onSuccessfulRequest(OperationPurpose purpose, HttpMethod method, URL url);
     }
 }

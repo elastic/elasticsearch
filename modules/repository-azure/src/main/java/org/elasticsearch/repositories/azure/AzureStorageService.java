@@ -24,10 +24,8 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.net.URL;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 
@@ -90,7 +88,7 @@ public class AzureStorageService {
         String clientName,
         LocationMode locationMode,
         OperationPurpose purpose,
-        BiConsumer<String, URL> successfulRequestConsumer
+        AzureClientProvider.SuccessfulRequestHandler successfulRequestHandler
     ) {
         final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
 
@@ -101,7 +99,7 @@ public class AzureStorageService {
             locationMode,
             retryOptions,
             proxyOptions,
-            successfulRequestConsumer,
+            successfulRequestHandler,
             purpose
         );
     }

@@ -20,15 +20,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 public class AzureClientProviderTests extends ESTestCase {
-    private static final BiConsumer<String, URL> EMPTY_CONSUMER = (method, url) -> {};
+    private static final AzureClientProvider.SuccessfulRequestHandler EMPTY_CONSUMER = (purpose, method, url) -> {};
 
     private ThreadPool threadPool;
     private AzureClientProvider azureClientProvider;

@@ -22,13 +22,15 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.TopBucketBuilder;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.DequeAndCurrent;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -138,7 +140,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
      * @param sink Handle the reduced buckets. Returns false if we should stop iterating the buckets, true if we should continue.
      * @return the order we used to reduce the buckets
      */
-    private BucketOrder reduceBuckets(List<List<B>> bucketsList, BucketOrder thisReduceOrder, Consumer<DelayedBucket<B>> sink) {
+    private BucketOrder reduceBuckets(List<Deque<B>> bucketsList, BucketOrder thisReduceOrder, Consumer<DelayedBucket<B>> sink) {
         if (isKeyOrder(thisReduceOrder)) {
             // extract the primary sort in case this is a compound order.
             thisReduceOrder = InternalOrder.key(isKeyAsc(thisReduceOrder));
@@ -149,23 +151,23 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         return thisReduceOrder;
     }
 
-    private void reduceMergeSort(List<List<B>> bucketsList, BucketOrder thisReduceOrder, Consumer<DelayedBucket<B>> sink) {
+    private void reduceMergeSort(List<Deque<B>> bucketsList, BucketOrder thisReduceOrder, Consumer<DelayedBucket<B>> sink) {
         assert isKeyOrder(thisReduceOrder);
         final Comparator<Bucket> cmp = thisReduceOrder.comparator();
-        final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<>(bucketsList.size()) {
+        final PriorityQueue<DequeAndCurrent<B>> pq = new PriorityQueue<>(bucketsList.size()) {
             @Override
-            protected boolean lessThan(IteratorAndCurrent<B> a, IteratorAndCurrent<B> b) {
+            protected boolean lessThan(DequeAndCurrent<B> a, DequeAndCurrent<B> b) {
                 return cmp.compare(a.current(), b.current()) < 0;
             }
         };
-        for (List<B> buckets : bucketsList) {
-            pq.add(new IteratorAndCurrent<>(buckets.iterator()));
+        for (Deque<B> buckets : bucketsList) {
+            pq.add(new DequeAndCurrent<>(buckets));
         }
         // list of buckets coming from different shards that have the same key
         ArrayList<B> sameTermBuckets = new ArrayList<>();
         B lastBucket = null;
         while (pq.size() > 0) {
-            final IteratorAndCurrent<B> top = pq.top();
+            final DequeAndCurrent<B> top = pq.top();
             assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changed so bundle up the last key's worth of buckets
@@ -195,10 +197,11 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
     }
 
-    private void reduceLegacy(List<List<B>> bucketsList, Consumer<DelayedBucket<B>> sink) {
+    private void reduceLegacy(List<Deque<B>> bucketsList, Consumer<DelayedBucket<B>> sink) {
         final Map<Object, ArrayList<B>> bucketMap = new HashMap<>();
-        for (List<B> buckets : bucketsList) {
-            for (B bucket : buckets) {
+        for (Deque<B> buckets : bucketsList) {
+            B bucket;
+            while ((bucket = buckets.pollFirst()) != null) {
                 bucketMap.computeIfAbsent(bucket.getKey(), k -> new ArrayList<>()).add(bucket);
             }
         }
@@ -213,7 +216,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     }
 
     private class TermsAggregationReducer implements AggregatorReducer {
-        private final List<List<B>> bucketsList;
+        private final List<Deque<B>> bucketsList;
         private final AggregationReduceContext reduceContext;
         private final int size;
 
@@ -274,7 +277,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 bucket.updateDocCountError(-thisAggDocCountError);
             }
             if (terms.getBuckets().isEmpty() == false) {
-                bucketsList.add(terms.getBuckets());
+                bucketsList.add(new ArrayDeque<>(terms.getBuckets()));
             }
         }
 

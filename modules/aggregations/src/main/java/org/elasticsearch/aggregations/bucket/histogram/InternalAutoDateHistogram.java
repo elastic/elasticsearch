@@ -22,7 +22,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.BucketReducer;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.DequeAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramBucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -281,7 +282,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
      * is the same and they can be reduced together.
      */
     private BucketReduceResult reduceBuckets(
-        PriorityQueue<IteratorAndCurrent<Bucket>> pq,
+        PriorityQueue<DequeAndCurrent<Bucket>> pq,
         int reduceRoundingIdx,
         long min,
         long max,
@@ -298,7 +299,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             long key = reduceRounding.round(pq.top().current().key);
 
             do {
-                final IteratorAndCurrent<Bucket> top = pq.top();
+                final DequeAndCurrent<Bucket> top = pq.top();
 
                 if (reduceRounding.round(top.current().key) != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
@@ -477,9 +478,9 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
+            private final PriorityQueue<DequeAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
                 @Override
-                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                protected boolean lessThan(DequeAndCurrent<Bucket> a, DequeAndCurrent<Bucket> b) {
                     return a.current().key < b.current().key;
                 }
             };
@@ -492,9 +493,9 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
                 InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
                 reduceRoundingIdx = Math.max(histogram.bucketInfo.roundingIdx, reduceRoundingIdx);
                 if (histogram.buckets.isEmpty() == false) {
-                    min = Math.min(min, histogram.buckets.get(0).key);
-                    max = Math.max(max, histogram.buckets.get(histogram.buckets.size() - 1).key);
-                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                    min = Math.min(min, histogram.buckets.getFirst().key);
+                    max = Math.max(max, histogram.buckets.getLast().key);
+                    pq.add(new DequeAndCurrent<>(new ArrayDeque<>(histogram.buckets)));
                 }
             }
 

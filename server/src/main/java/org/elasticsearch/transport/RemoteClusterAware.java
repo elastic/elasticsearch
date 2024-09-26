@@ -53,30 +53,42 @@ public abstract class RemoteClusterAware {
         return RemoteConnectionStrategy.getRemoteClusters(settings);
     }
 
-    public static boolean isRemoteIndexName(String indexName) {
-        if (indexName.isEmpty() || indexName.charAt(0) == '<' || indexName.startsWith("-<")) {
-            // This is date math, but eve if it is not, the remote can't start with '<'.
+    /**
+     * Check whether the index expression represents remote index or not.
+     * The index name is assumed to be individual index (no commas) but can contain `-`, wildcards,
+     * datemath, remote cluster name and any other syntax permissible in index expression component.
+     */
+    public static boolean isRemoteIndexName(String indexExpression) {
+        if (indexExpression.isEmpty() || indexExpression.charAt(0) == '<' || indexExpression.startsWith("-<")) {
+            // This is date math, but even if it is not, the remote can't start with '<'.
             // Thus, whatever it is, this is definitely not a remote index.
             return false;
         }
         // Note remote index name also can not start with ':'
-        return indexName.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+        return indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
     }
 
-    public static String[] splitIndexName(String indexName) {
-        if (indexName.isEmpty() || indexName.charAt(0) == '<' || indexName.startsWith("-<")) {
-            // This is date math, but eve if it is not, the remote can't start with '<'.
+    /**
+     * Split the index name into remote cluster alias and index name.
+     * The index expression is assumed to be individual index (no commas) but can contain `-`, wildcards,
+     * datemath, remote cluster name and any other syntax permissible in index expression component.
+     * There's no guarantee the components actually represent existing remote cluster or index, only
+     * rudimentary checks are done on the syntax.
+     */
+    public static String[] splitIndexName(String indexExpression) {
+        if (indexExpression.isEmpty() || indexExpression.charAt(0) == '<' || indexExpression.startsWith("-<")) {
+            // This is date math, but even if it is not, the remote can't start with '<'.
             // Thus, whatever it is, this is definitely not a remote index.
-            return new String[] { null, indexName };
+            return new String[] { null, indexExpression };
         }
-        int i = indexName.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+        int i = indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
         if (i == 0) {
-            throw new IllegalArgumentException("index name [" + indexName + "] is invalid because the remote part is empty");
+            throw new IllegalArgumentException("index name [" + indexExpression + "] is invalid because the remote part is empty");
         }
         if (i < 0) {
-            return new String[] { null, indexName };
+            return new String[] { null, indexExpression };
         } else {
-            return new String[] { indexName.substring(0, i), indexName.substring(i + 1) };
+            return new String[] { indexExpression.substring(0, i), indexExpression.substring(i + 1) };
         }
     }
 

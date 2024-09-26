@@ -225,7 +225,7 @@ You should receive a response indicating there were no errors.
 [[getting-started-mappings-and-data-types]]
 === Define mappings and data types
 
-<<elasticsearch-intro-documents-fields-mappings,Mappings>> define how data is stored and indexed in {es}, much like a  schema for a relationaldatabase.
+<<elasticsearch-intro-documents-fields-mappings,Mappings>> define how data is stored and indexed in {es}, much like a  schema for a relational database.
 
 [discrete]
 [[getting-started-dynamic-mapping]]

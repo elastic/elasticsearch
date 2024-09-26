@@ -344,7 +344,7 @@ public class EsExecutors {
     }
 
     public static ThreadFactory daemonThreadFactory(String name) {
-        ThreadPool.assertTestThreadPool();
+        assert name != null && name.isEmpty() == false;
         return createDaemonThreadFactory(name, null);
     }
 

@@ -29,22 +29,15 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RemovePersistentTaskAction extends ActionType<PersistentTaskResponse> {
+public class RemovePersistentTaskAction {
 
-    public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
-    public static final String NAME = "cluster:admin/persistent/remove";
+    public static final ActionType<PersistentTaskResponse> INSTANCE = new ActionType<>("cluster:admin/persistent/remove");
 
-    private RemovePersistentTaskAction() {
-        super(NAME);
-    }
+    private RemovePersistentTaskAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private String taskId;
-
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-        }
+        private final String taskId;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -53,10 +46,6 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
 
         public Request(String taskId) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-            this.taskId = taskId;
-        }
-
-        public void setTaskId(String taskId) {
             this.taskId = taskId;
         }
 
@@ -99,7 +88,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
-                RemovePersistentTaskAction.NAME,
+                INSTANCE.name(),
                 transportService,
                 clusterService,
                 threadPool,

@@ -135,7 +135,7 @@ GET .watcher-history*/_search?pretty
     "bool" : {
       "must" : [
         { "match" : { "result.condition.met" : true }},
-        { "range" : { "result.execution_time" : { "from" : "now-10s" }}}
+        { "range" : { "result.execution_time" : { "gte" : "now-10s" }}}
       ]
     }
   }

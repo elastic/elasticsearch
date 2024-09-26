@@ -57,6 +57,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -574,6 +575,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             HeaderWarning.setThreadContext(threadContext);
+        }
+    }
+
+    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
+    protected final CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
+        breakers.add(breaker);
+        return breaker;
+    }
+
+    @After
+    public final void allBreakersMemoryReleased() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
         }
     }
 

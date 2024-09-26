@@ -33,6 +33,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private static final String NBEST_COST = "nbest_cost";
     private static final String NBEST_EXAMPLES = "nbest_examples";
     private static final String DISCARD_COMPOUND_TOKEN = "discard_compound_token";
+    private static final String LENIENT = "lenient";
 
     private final UserDictionary userDictionary;
     private final Mode mode;
@@ -58,7 +59,15 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
             );
         }
-        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, false, true);
+        List<String> ruleList = Analysis.getWordList(
+            env,
+            settings,
+            USER_DICT_PATH_OPTION,
+            USER_DICT_RULES_OPTION,
+            LENIENT,
+            false,  // typically don't want to remove comments as deduplication will provide better feedback
+            true
+        );
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
         }
@@ -66,6 +75,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         for (String line : ruleList) {
             sb.append(line).append(System.lineSeparator());
         }
+
         try (Reader rulesReader = new StringReader(sb.toString())) {
             return UserDictionary.open(rulesReader);
         } catch (IOException e) {

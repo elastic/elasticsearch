@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
@@ -1022,7 +1021,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             mockObserver(DEFAULT_STATE),
             listener,
             new FailureStoreDocumentConverter()
@@ -1040,7 +1038,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             mockObserver(DEFAULT_STATE),
             listener,
             failureStoreDocumentConverter
@@ -1059,7 +1056,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             observer,
             listener,
             new FailureStoreDocumentConverter()
@@ -1071,7 +1067,6 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client,
         BulkRequest request,
         AtomicArray<BulkItemResponse> existingResponses,
-        Map<String, IndexNotFoundException> indicesThatCanNotBeCreated,
         ClusterStateObserver observer,
         ActionListener<BulkResponse> listener,
         FailureStoreDocumentConverter failureStoreDocumentConverter
@@ -1100,7 +1095,6 @@ public class BulkOperationTests extends ESTestCase {
             request,
             client,
             existingResponses,
-            indicesThatCanNotBeCreated,
             indexNameExpressionResolver,
             () -> endTime,
             timeZero,

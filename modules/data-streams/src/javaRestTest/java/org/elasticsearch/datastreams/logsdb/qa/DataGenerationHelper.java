@@ -35,12 +35,7 @@ class DataGenerationHelper {
     private final DataGenerator dataGenerator;
 
     DataGenerationHelper() {
-        // TODO enable subobjects: auto
-        // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using copy_to.
-        this.subobjects = ESTestCase.randomValueOtherThan(
-            ObjectMapper.Subobjects.AUTO,
-            () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
-        );
+        this.subobjects = ESTestCase.randomFrom(ObjectMapper.Subobjects.values());
         this.keepArraySource = ESTestCase.randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(ESTestCase.randomBoolean());

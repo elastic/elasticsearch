@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.xpack.cluster.settings.ClusterSettings.CLUSTER_LOGSDB_ENABLED;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin {
@@ -24,9 +25,12 @@ public class LogsDBPlugin extends Plugin {
     private final Settings settings;
     private final SyntheticSourceLicenseService licenseService;
 
+    private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
+
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
         this.licenseService = new SyntheticSourceLicenseService(settings);
+        this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(settings);
     }
 
     @Override
@@ -34,6 +38,10 @@ public class LogsDBPlugin extends Plugin {
         licenseService.setLicenseState(XPackPlugin.getSharedLicenseState());
         var clusterSettings = services.clusterService().getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(FALLBACK_SETTING, licenseService::setSyntheticSourceFallback);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_LOGSDB_ENABLED,
+            logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
+        );
         // Nothing to share here:
         return super.createComponents(services);
     }
@@ -43,11 +51,11 @@ public class LogsDBPlugin extends Plugin {
         if (DiscoveryNode.isStateless(settings)) {
             return List.of();
         }
-        return List.of(new SyntheticSourceIndexSettingsProvider(licenseService));
+        return List.of(new SyntheticSourceIndexSettingsProvider(licenseService), logsdbIndexModeSettingsProvider);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FALLBACK_SETTING);
+        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED);
     }
 }

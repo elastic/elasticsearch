@@ -114,6 +114,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 model,
                 request.getQuery(),
                 request.getInput(),
+                request.isStreaming(),
                 request.getTaskSettings(),
                 request.getInputType(),
                 request.getInferenceTimeout(),

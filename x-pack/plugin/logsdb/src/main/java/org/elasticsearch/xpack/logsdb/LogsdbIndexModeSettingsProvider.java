@@ -15,6 +15,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettings;
 
 import java.time.Instant;
 import java.util.List;
@@ -47,7 +48,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             return Settings.EMPTY;
         }
 
-        final IndexMode indexMode = resolveIndexMode(settings.get("index.mode"));
+        final IndexMode indexMode = resolveIndexMode(IndexSettings.MODE.getKey());
         if (indexMode != null) {
             return Settings.EMPTY;
         }

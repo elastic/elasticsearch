@@ -12,6 +12,7 @@ package org.elasticsearch.datastreams.logsdb;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matchers;
@@ -179,7 +180,11 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
     public void testCreateDataStream() throws IOException {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
         assertOK(createDataStream(client, "logs-custom-dev"));
-        final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        final String indexMode = (String) getSetting(
+            client,
+            getDataStreamBackingIndex(client, "logs-custom-dev", 0),
+            IndexSettings.MODE.getKey()
+        );
         assertThat(indexMode, equalTo(IndexMode.LOGSDB.getName()));
     }
 
@@ -238,7 +243,11 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
               }
             """));
         assertOK(createDataStream(client, "logs-custom-dev"));
-        final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        final String indexMode = (String) getSetting(
+            client,
+            getDataStreamBackingIndex(client, "logs-custom-dev", 0),
+            IndexSettings.MODE.getKey()
+        );
         assertThat(indexMode, equalTo(IndexMode.STANDARD.getName()));
     }
 
@@ -266,7 +275,11 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
             }
             """));
         assertOK(createDataStream(client, "logs-custom-dev"));
-        final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        final String indexMode = (String) getSetting(
+            client,
+            getDataStreamBackingIndex(client, "logs-custom-dev", 0),
+            IndexSettings.MODE.getKey()
+        );
         assertThat(indexMode, equalTo(IndexMode.TIME_SERIES.getName()));
     }
 }

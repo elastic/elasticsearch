@@ -30,7 +30,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
     }
 
-    public void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
+    void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
         this.isLogsdbEnabled = isLogsdbEnabled;
     }
 
@@ -48,7 +48,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             return Settings.EMPTY;
         }
 
-        final IndexMode indexMode = resolveIndexMode(IndexSettings.MODE.getKey());
+        final IndexMode indexMode = resolveIndexMode(settings.get(IndexSettings.MODE.getKey()));
         if (indexMode != null) {
             return Settings.EMPTY;
         }

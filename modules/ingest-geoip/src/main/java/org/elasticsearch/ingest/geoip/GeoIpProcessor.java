@@ -127,31 +127,31 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             if (ip instanceof String ipString) {
-                Map<String, Object> geoData = getGeoData(ipDatabase, ipString);
-                if (geoData.isEmpty() == false) {
-                    document.setFieldValue(targetField, geoData);
+                Map<String, Object> data = getGeoData(ipDatabase, ipString);
+                if (data.isEmpty() == false) {
+                    document.setFieldValue(targetField, data);
                 }
             } else if (ip instanceof List<?> ipList) {
                 boolean match = false;
-                List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
+                List<Map<String, Object>> dataList = new ArrayList<>(ipList.size());
                 for (Object ipAddr : ipList) {
                     if (ipAddr instanceof String == false) {
                         throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                     }
-                    Map<String, Object> geoData = getGeoData(ipDatabase, (String) ipAddr);
-                    if (geoData.isEmpty()) {
-                        geoDataList.add(null);
+                    Map<String, Object> data = getGeoData(ipDatabase, (String) ipAddr);
+                    if (data.isEmpty()) {
+                        dataList.add(null);
                         continue;
                     }
                     if (firstOnly) {
-                        document.setFieldValue(targetField, geoData);
+                        document.setFieldValue(targetField, data);
                         return document;
                     }
                     match = true;
-                    geoDataList.add(geoData);
+                    dataList.add(data);
                 }
                 if (match) {
-                    document.setFieldValue(targetField, geoDataList);
+                    document.setFieldValue(targetField, dataList);
                 }
             } else {
                 throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");

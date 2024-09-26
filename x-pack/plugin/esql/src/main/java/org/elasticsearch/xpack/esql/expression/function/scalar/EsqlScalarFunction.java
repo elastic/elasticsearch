@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -73,6 +74,7 @@ public abstract class EsqlScalarFunction extends ScalarFunction implements Evalu
         entries.add(Atan2.ENTRY);
         entries.add(Bucket.ENTRY);
         entries.add(Case.ENTRY);
+        entries.add(Categorize.ENTRY);
         entries.add(CIDRMatch.ENTRY);
         entries.add(Coalesce.ENTRY);
         entries.add(Concat.ENTRY);

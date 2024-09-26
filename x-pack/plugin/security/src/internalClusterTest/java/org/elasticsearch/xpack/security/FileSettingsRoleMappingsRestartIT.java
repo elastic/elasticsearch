@@ -88,7 +88,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        var clusterState = clusterAdmin().state(new ClusterStateRequest()).actionGet().getState();
+        var clusterState = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState();
         assertRoleMappingReservedMetadata(clusterState, "everyone_kibana_alone", "everyone_fleet_alone");
         List<ExpressionRoleMapping> roleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
         assertThat(
@@ -118,7 +118,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         ensureGreen();
 
         // assert role mappings are recovered from "disk"
-        clusterState = clusterAdmin().state(new ClusterStateRequest()).actionGet().getState();
+        clusterState = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState();
         assertRoleMappingReservedMetadata(clusterState, "everyone_kibana_alone", "everyone_fleet_alone");
         roleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
         assertThat(
@@ -151,7 +151,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        clusterState = clusterAdmin().state(new ClusterStateRequest()).actionGet().getState();
+        clusterState = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState();
         assertRoleMappingReservedMetadata(clusterState);
         roleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
         assertThat(roleMappings, emptyIterable());
@@ -162,7 +162,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         ensureGreen();
 
         // assert empty role mappings are recovered from "disk"
-        clusterState = clusterAdmin().state(new ClusterStateRequest()).actionGet().getState();
+        clusterState = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState();
         assertRoleMappingReservedMetadata(clusterState);
         roleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
         assertThat(roleMappings, emptyIterable());

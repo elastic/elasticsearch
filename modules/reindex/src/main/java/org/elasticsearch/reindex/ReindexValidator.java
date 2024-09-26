@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -167,6 +168,8 @@ public class ReindexValidator {
         // to distinguish between those two, given `expression` is pre-evaluated using date-math resolver
         // after evaluation date-math `expression` should not contain ':' symbol
         // otherwise if `expression` is legit remote name, ':' symbol remains
+        // NOTE: index expressions can be prefixed with "-", which will not be parsed by resolveDateMathExpression,
+        // but in this particular case it doesn't seem to be relevant.
         return IndexNameExpressionResolver.resolveDateMathExpression(expression)
             .contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
     }

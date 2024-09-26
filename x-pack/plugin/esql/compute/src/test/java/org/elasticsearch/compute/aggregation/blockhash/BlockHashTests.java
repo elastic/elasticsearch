@@ -1166,6 +1166,9 @@ public class BlockHashTests extends ESTestCase {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, null, groupIds));
                 }
+
+                @Override
+                public void close() {}
             });
             hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -1179,6 +1182,9 @@ public class BlockHashTests extends ESTestCase {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, null, groupIds));
                 }
+
+                @Override
+                public void close() {}
             });
             assertThat(output1.size(), equalTo(output1.size()));
             for (int i = 0; i < output1.size(); i++) {
@@ -1297,6 +1303,9 @@ public class BlockHashTests extends ESTestCase {
             public void add(int positionOffset, IntVector groupIds) {
                 add(positionOffset, groupIds.asBlock());
             }
+
+            @Override
+            public void close() {}
         });
         if (blockHash instanceof LongLongBlockHash == false
             && blockHash instanceof BytesRefLongBlockHash == false

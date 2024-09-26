@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -269,26 +271,55 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IndexRequest indexRequest,
         final Metadata metadata
     ) {
-        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, Map.of());
+    }
+
+    public static void resolvePipelinesAndUpdateIndexRequest(
+        final DocWriteRequest<?> originalRequest,
+        final IndexRequest indexRequest,
+        final Metadata metadata,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions
+    ) {
+        resolvePipelinesAndUpdateIndexRequest(
+            originalRequest,
+            indexRequest,
+            metadata,
+            System.currentTimeMillis(),
+            componentTemplateSubstitutions
+        );
     }
 
     static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,
-        final long epochMillis
+        final long epochMillis,
+        final Map<String, ComponentTemplate> componentTemplateSubstitutions
     ) {
         if (indexRequest.isPipelineResolved()) {
             return;
         }
 
-        String requestPipeline = indexRequest.getPipeline();
-
-        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
-            .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata))
-            .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        /*
+         * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
+         * templates to find the pipelines. But if a user has passed in component template substitutions, they want the settings from those
+         * used in place of the settings used to create any previous indices. So in that case we use the templates to find the pipelines --
+         * we don't fall back to the existing index if we don't find any because it is possible the user has intentionally removed the
+         * pipeline.
+         */
+        final Pipelines pipelines;
+        if (componentTemplateSubstitutions.isEmpty()) {
+            pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
+                .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata, Map.of()))
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        } else {
+            pipelines = resolvePipelinesFromIndexTemplates(indexRequest, metadata, componentTemplateSubstitutions).orElse(
+                Pipelines.NO_PIPELINES_DEFINED
+            );
+        }
 
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
+        String requestPipeline = indexRequest.getPipeline();
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {
@@ -323,16 +354,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final DeletePipelineRequest request;
 
-        DeletePipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeletePipelineRequest request) {
+        public DeletePipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeletePipelineRequest request) {
             super(listener);
             this.request = request;
-        }
-
-        /**
-         * Used by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
-         */
-        public DeletePipelineClusterStateUpdateTask(String id) {
-            this(null, new DeletePipelineRequest(id));
         }
 
         @Override
@@ -1442,7 +1466,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
     }
 
-    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadata) {
+    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(
+        IndexRequest indexRequest,
+        Metadata metadata,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions
+    ) {
         if (indexRequest.index() == null) {
             return Optional.empty();
         }
@@ -1452,7 +1480,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // precedence), or if a V2 template does not match, any V1 templates
         String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
         if (v2Template != null) {
-            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template, componentTemplateSubstitutions);
             return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
         }
 

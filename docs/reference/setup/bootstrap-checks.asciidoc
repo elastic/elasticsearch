@@ -245,10 +245,9 @@ properties:
 - `discovery.seed_providers`
 - `cluster.initial_master_nodes`
 
-Note that you should remove `cluster.initial_master_nodes` from the
-configuration after the cluster has started for the first time. Do not use this
-setting when restarting nodes or when adding new nodes to an existing cluster.
-Instead, configure `discovery.seed_hosts` or `discovery.seed_providers`. If you
-do not need any discovery configuration, for instance if running a single-node
-cluster, set `discovery.seed_hosts: []` to disable discovery and satisfy this
-bootstrap check.
+Note that you must <<initial_master_nodes,remove `cluster.initial_master_nodes`
+from the configuration of every node>> after the cluster has started for the
+first time. Instead, configure `discovery.seed_hosts` or
+`discovery.seed_providers`. If you do not need any discovery configuration, for
+instance if running a single-node cluster, set `discovery.seed_hosts: []` to
+disable discovery and satisfy this bootstrap check.

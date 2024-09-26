@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
@@ -120,7 +121,20 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
-        Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
+        return createClusterService(threadPool, localNode, Settings.EMPTY, clusterSettings);
+    }
+
+    public static ClusterService createClusterService(
+        ThreadPool threadPool,
+        DiscoveryNode localNode,
+        Settings providedSettings,
+        ClusterSettings clusterSettings
+    ) {
+        Settings settings = Settings.builder()
+            .put("node.name", "test")
+            .put("cluster.name", "ClusterServiceTests")
+            .put(providedSettings)
+            .build();
         ClusterService clusterService = new ClusterService(
             settings,
             clusterSettings,

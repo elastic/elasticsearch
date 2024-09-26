@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -79,6 +80,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOrig
  * A {@link FieldMapper} for semantic text fields.
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
+    public static final NodeFeature SEMANTIC_TEXT_SEARCH_INFERENCE_ID = new NodeFeature("semantic_text.search_inference_id");
+
     public static final String CONTENT_TYPE = "semantic_text";
 
     private final IndexSettings indexSettings;
@@ -103,6 +106,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         });
 
+        private final Parameter<String> searchInferenceId = Parameter.stringParam(
+            "search_inference_id",
+            true,
+            mapper -> ((SemanticTextFieldType) mapper.fieldType()).searchInferenceId,
+            null
+        ).acceptsNull();
+
         private final Parameter<SemanticTextField.ModelSettings> modelSettings = new Parameter<>(
             "model_settings",
             true,
@@ -116,6 +126,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
+
+        public static Builder from(SemanticTextFieldMapper mapper) {
+            Builder builder = new Builder(
+                mapper.leafName(),
+                mapper.fieldType().indexVersionCreated,
+                mapper.fieldType().getChunksField().bitsetProducer(),
+                mapper.indexSettings
+            );
+            builder.init(mapper);
+            return builder;
+        }
 
         public Builder(
             String name,
@@ -140,6 +161,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return this;
         }
 
+        public Builder setSearchInferenceId(String id) {
+            this.searchInferenceId.setValue(id);
+            return this;
+        }
+
         public Builder setModelSettings(SemanticTextField.ModelSettings value) {
             this.modelSettings.setValue(value);
             return this;
@@ -147,15 +173,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { inferenceId, modelSettings, meta };
+            return new Parameter<?>[] { inferenceId, searchInferenceId, modelSettings, meta };
         }
 
         @Override
         protected void merge(FieldMapper mergeWith, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
-            super.merge(mergeWith, conflicts, mapperMergeContext);
+            SemanticTextFieldMapper semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
+            semanticMergeWith = copySettings(semanticMergeWith, mapperMergeContext);
+
+            super.merge(semanticMergeWith, conflicts, mapperMergeContext);
             conflicts.check();
-            var semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
-            var context = mapperMergeContext.createChildContext(mergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
+            var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
             var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
             inferenceFieldBuilder = c -> mergedInferenceField;
@@ -181,6 +209,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 new SemanticTextFieldType(
                     fullName,
                     inferenceId.getValue(),
+                    searchInferenceId.getValue(),
                     modelSettings.getValue(),
                     inferenceField,
                     indexVersionCreated,
@@ -189,6 +218,25 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 builderParams(this, context),
                 indexSettings
             );
+        }
+
+        /**
+         * As necessary, copy settings from this builder to the passed-in mapper.
+         * Used to preserve {@link SemanticTextField.ModelSettings} when updating a semantic text mapping to one where the model settings
+         * are not specified.
+         *
+         * @param mapper The mapper
+         * @return A mapper with the copied settings applied
+         */
+        private SemanticTextFieldMapper copySettings(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
+            SemanticTextFieldMapper returnedMapper = mapper;
+            if (mapper.fieldType().getModelSettings() == null) {
+                Builder builder = from(mapper);
+                builder.setModelSettings(modelSettings.getValue());
+                returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());
+            }
+
+            return returnedMapper;
         }
     }
 
@@ -211,9 +259,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer(), indexSettings).init(
-            this
-        );
+        return Builder.from(this);
     }
 
     @Override
@@ -267,7 +313,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         } else {
             Conflicts conflicts = new Conflicts(fullFieldName);
-            canMergeModelSettings(field.inference().modelSettings(), fieldType().getModelSettings(), conflicts);
+            canMergeModelSettings(fieldType().getModelSettings(), field.inference().modelSettings(), conflicts);
             try {
                 conflicts.check();
             } catch (Exception exc) {
@@ -316,7 +362,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         String[] copyFields = sourcePaths.toArray(String[]::new);
         // ensure consistent order
         Arrays.sort(copyFields);
-        return new InferenceFieldMetadata(fullPath(), fieldType().inferenceId, copyFields);
+        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields);
     }
 
     @Override
@@ -335,6 +381,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType {
         private final String inferenceId;
+        private final String searchInferenceId;
         private final SemanticTextField.ModelSettings modelSettings;
         private final ObjectMapper inferenceField;
         private final IndexVersion indexVersionCreated;
@@ -342,6 +389,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         public SemanticTextFieldType(
             String name,
             String inferenceId,
+            String searchInferenceId,
             SemanticTextField.ModelSettings modelSettings,
             ObjectMapper inferenceField,
             IndexVersion indexVersionCreated,
@@ -349,6 +397,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         ) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.inferenceId = inferenceId;
+            this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
             this.indexVersionCreated = indexVersionCreated;
@@ -361,6 +410,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public String getInferenceId() {
             return inferenceId;
+        }
+
+        public String getSearchInferenceId() {
+            return searchInferenceId == null ? inferenceId : searchInferenceId;
         }
 
         public SemanticTextField.ModelSettings getModelSettings() {
@@ -428,14 +481,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     case SPARSE_EMBEDDING -> {
                         if (inferenceResults instanceof TextExpansionResults == false) {
                             throw new IllegalArgumentException(
-                                "Field ["
-                                    + name()
-                                    + "] expected query inference results to be of type ["
-                                    + TextExpansionResults.NAME
-                                    + "],"
-                                    + " got ["
-                                    + inferenceResults.getWriteableName()
-                                    + "]. Has the inference endpoint configuration changed?"
+                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, TextExpansionResults.NAME)
                             );
                         }
 
@@ -454,14 +500,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     case TEXT_EMBEDDING -> {
                         if (inferenceResults instanceof MlTextEmbeddingResults == false) {
                             throw new IllegalArgumentException(
-                                "Field ["
-                                    + name()
-                                    + "] expected query inference results to be of type ["
-                                    + MlTextEmbeddingResults.NAME
-                                    + "],"
-                                    + " got ["
-                                    + inferenceResults.getWriteableName()
-                                    + "]. Has the inference endpoint configuration changed?"
+                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlTextEmbeddingResults.NAME)
                             );
                         }
 
@@ -469,13 +508,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
                         if (inference.length != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(
-                                "Field ["
-                                    + name()
-                                    + "] expected query inference results with "
-                                    + modelSettings.dimensions()
-                                    + " dimensions, got "
-                                    + inference.length
-                                    + " dimensions. Has the inference endpoint configuration changed?"
+                                generateDimensionCountMismatchMessage(inference.length, modelSettings.dimensions())
                             );
                         }
 
@@ -484,7 +517,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     default -> throw new IllegalStateException(
                         "Field ["
                             + name()
-                            + "] configured to use an inference endpoint with an unsupported task type ["
+                            + "] is configured to use an inference endpoint with an unsupported task type ["
                             + modelSettings.taskType()
                             + "]"
                     );
@@ -492,6 +525,51 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
 
             return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost).queryName(queryName);
+        }
+
+        private String generateQueryInferenceResultsTypeMismatchMessage(InferenceResults inferenceResults, String expectedResultsType) {
+            StringBuilder sb = new StringBuilder(
+                "Field ["
+                    + name()
+                    + "] expected query inference results to be of type ["
+                    + expectedResultsType
+                    + "],"
+                    + " got ["
+                    + inferenceResults.getWriteableName()
+                    + "]."
+            );
+
+            return generateInvalidQueryInferenceResultsMessage(sb);
+        }
+
+        private String generateDimensionCountMismatchMessage(int inferenceDimCount, int expectedDimCount) {
+            StringBuilder sb = new StringBuilder(
+                "Field ["
+                    + name()
+                    + "] expected query inference results with "
+                    + expectedDimCount
+                    + " dimensions, got "
+                    + inferenceDimCount
+                    + " dimensions."
+            );
+
+            return generateInvalidQueryInferenceResultsMessage(sb);
+        }
+
+        private String generateInvalidQueryInferenceResultsMessage(StringBuilder baseMessageBuilder) {
+            if (searchInferenceId != null && searchInferenceId.equals(inferenceId) == false) {
+                baseMessageBuilder.append(
+                    " Is the search inference endpoint ["
+                        + searchInferenceId
+                        + "] compatible with the inference endpoint ["
+                        + inferenceId
+                        + "]?"
+                );
+            } else {
+                baseMessageBuilder.append(" Has the configuration for inference endpoint [" + inferenceId + "] changed?");
+            }
+
+            return baseMessageBuilder.toString();
         }
     }
 

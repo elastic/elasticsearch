@@ -345,7 +345,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
                     MlTasks.DATAFEED_TASK_NAME,
                     params,
-                    null,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     listener
                 ),
                 listener::onFailure
@@ -408,28 +408,32 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), null, new ActionListener<>() {
-            @Override
-            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                // We succeeded in cancelling the persistent task, but the
-                // problem that caused us to cancel it is the overall result
-                listener.onFailure(exception);
-            }
+        persistentTasksService.sendRemoveRequest(
+            persistentTask.getId(),
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                    // We succeeded in cancelling the persistent task, but the
+                    // problem that caused us to cancel it is the overall result
+                    listener.onFailure(exception);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(
-                    "["
-                        + persistentTask.getParams().getDatafeedId()
-                        + "] Failed to cancel persistent task that could "
-                        + "not be assigned due to ["
-                        + exception.getMessage()
-                        + "]",
-                    e
-                );
-                listener.onFailure(exception);
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        "["
+                            + persistentTask.getParams().getDatafeedId()
+                            + "] Failed to cancel persistent task that could "
+                            + "not be assigned due to ["
+                            + exception.getMessage()
+                            + "]",
+                        e
+                    );
+                    listener.onFailure(exception);
+                }
             }
-        });
+        );
     }
 
     private static ElasticsearchStatusException createUnlicensedError(

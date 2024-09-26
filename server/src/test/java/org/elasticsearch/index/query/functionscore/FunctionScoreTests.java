@@ -126,8 +126,6 @@ public class FunctionScoreTests extends ESTestCase {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
-                @Override
-                public void close() {}
             };
         }
 
@@ -229,8 +227,6 @@ public class FunctionScoreTests extends ESTestCase {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
-                @Override
-                public void close() {}
             };
         }
 

@@ -228,6 +228,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
+    exports org.elasticsearch.xpack.cluster.settings;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

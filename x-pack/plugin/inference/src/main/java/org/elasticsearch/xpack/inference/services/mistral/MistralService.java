@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -214,32 +215,28 @@ public class MistralService extends SenderService {
 
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
+    }
+
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof MistralEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateEmbeddingModelConfig(embeddingsModel, size)))
+            var serviceSettings = embeddingsModel.getServiceSettings();
+
+            var similarityFromModel = embeddingsModel.getServiceSettings().similarity();
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
+            MistralEmbeddingsServiceSettings updatedServiceSettings = new MistralEmbeddingsServiceSettings(
+                serviceSettings.modelId(),
+                embeddingSize,
+                serviceSettings.maxInputTokens(),
+                similarityToUse,
+                serviceSettings.rateLimitSettings()
             );
+            return new MistralEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
-            listener.onResponse(model);
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
     }
-
-    private MistralEmbeddingsModel updateEmbeddingModelConfig(MistralEmbeddingsModel embeddingsModel, int embeddingsSize) {
-        var embeddingServiceSettings = embeddingsModel.getServiceSettings();
-
-        var similarityFromModel = embeddingsModel.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
-
-        MistralEmbeddingsServiceSettings serviceSettings = new MistralEmbeddingsServiceSettings(
-            embeddingServiceSettings.modelId(),
-            embeddingsSize,
-            embeddingServiceSettings.maxInputTokens(),
-            similarityToUse,
-            embeddingServiceSettings.rateLimitSettings()
-        );
-
-        return new MistralEmbeddingsModel(embeddingsModel, serviceSettings);
-    }
-
 }

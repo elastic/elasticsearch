@@ -14,9 +14,8 @@ The `semantic_text` field type specifies an inference endpoint identifier that w
 You can create the inference endpoint by using the <<put-inference-api>>.
 This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data.
 
-Using `semantic_text`, you won't need to specify how to generate embeddings for
-your data, or how to index it. The inference endpoint automatically determines
-the embedding generation, indexing, and query to use.
+Using `semantic_text`, you won't need to specify how to generate embeddings for your data, or how to index it.
+The {infer} endpoint automatically determines the embedding generation, indexing, and query to use.
 
 [source,console]
 ------------------------------------------------------------
@@ -32,7 +31,29 @@ PUT my-index-000001
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip:Requires inference endpoint]
+
+
+The recommended way to use semantic_text is by having dedicated {infer} endpoints for ingestion and search.
+This ensures that search speed remains unaffected by ingestion workloads, and vice versa.
+After creating dedicated {infer} endpoints for both, you can reference them using the `inference_id` and `search_inference_id` parameters when setting up the index mapping for an index that uses the `semantic_text` field.
+
+[source,console]
+------------------------------------------------------------
+PUT my-index-000002
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": "my-elser-endpoint-for-ingest",
+        "search_inference_id": "my-elser-endpoint-for-search"
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip:Requires inference endpoint]
 
 
 [discrete]
@@ -41,9 +62,15 @@ PUT my-index-000001
 
 `inference_id`::
 (Required, string)
-Inference endpoint that will be used to generate the embeddings for the field.
+{infer-cap} endpoint that will be used to generate the embeddings for the field.
 Use the <<put-inference-api>> to create the endpoint.
+If `search_inference_id` is specified, the {infer} endpoint defined by `inference_id` will only be used at index time.
 
+`search_inference_id`::
+(Optional, string)
+{infer-cap} endpoint that will be used to generate embeddings at query time.
+Use the <<put-inference-api>> to create the endpoint.
+If not specified, the {infer} endpoint defined by `inference_id` will be used at both index and query time.
 
 [discrete]
 [[infer-endpoint-validation]]
@@ -54,6 +81,7 @@ When the first document is indexed, the `inference_id` will be used to generate 
 
 WARNING: Removing an {infer} endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that {infer} endpoint as their `inference_id`.
 Trying to <<delete-inference-api,delete an {infer} endpoint>> that is used on a `semantic_text` field will result in an error.
+
 
 [discrete]
 [[auto-text-chunking]]
@@ -182,6 +210,7 @@ PUT test-index/_bulk
 // TEST[skip:TBD]
 
 Notice that both the `semantic_text` field and the source field are updated in the bulk request.
+
 
 [discrete]
 [[limitations]]

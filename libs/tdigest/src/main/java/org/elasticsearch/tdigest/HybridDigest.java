@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Collection;
@@ -110,6 +111,7 @@ public class HybridDigest extends AbstractTDigest {
             }
             mergingDigest.reserve(size);
             // Release the allocated SortingDigest.
+            sortingDigest.close();
             sortingDigest = null;
         } else {
             sortingDigest.reserve(size);
@@ -195,5 +197,10 @@ public class HybridDigest extends AbstractTDigest {
             return mergingDigest.byteSize();
         }
         return sortingDigest.byteSize();
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(sortingDigest, mergingDigest);
     }
 }

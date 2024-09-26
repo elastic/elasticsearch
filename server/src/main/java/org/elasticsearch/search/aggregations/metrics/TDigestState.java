@@ -119,10 +119,7 @@ public class TDigestState implements Releasable, Accountable {
      * input TDigestState object doesn't get altered in any way.
      * @param state the TDigestState object providing the initialization params
      * @return a TDigestState object
-     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
-     *             Please use one of the other methods receiving a CircuitBreaker instead on new usages.
      */
-    @Deprecated
     public static TDigestState createUsingParamsFrom(TDigestState state) {
         state.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-using-params-from");
         return new TDigestState(state.breaker, state.type, state.compression);

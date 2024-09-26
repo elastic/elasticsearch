@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
@@ -79,7 +81,6 @@ tasks.named("precommit").configure {
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTestsByFilePattern("**/esql/180_match_operator.yml", "match operator changed name - do not check compatibility")
+  task.skipTest("security/10_forbidden/Test bulk response with invalid credentials", "warning does not exist for compatibility")
 })
-
 

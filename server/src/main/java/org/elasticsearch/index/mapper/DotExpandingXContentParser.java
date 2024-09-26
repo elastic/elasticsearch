@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
@@ -38,9 +40,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
+        final DocumentParserContext context;
+        boolean supportsObjectAutoFlattening;
 
-        WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
+        WrappingParser(XContentParser in, ContentPath contentPath, DocumentParserContext context) throws IOException {
             this.contentPath = contentPath;
+            this.context = context;
+            this.supportsObjectAutoFlattening = (context != null && context.supportsObjectAutoFlattening());
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
@@ -107,7 +113,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (resultSize == 0) {
                 throw new IllegalArgumentException("field name cannot contain only dots");
             }
-            final String[] subpaths;
+            String[] subpaths;
             if (resultSize == list.length) {
                 for (String part : list) {
                     // check if the field name contains only whitespace
@@ -125,6 +131,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                     return;
                 }
                 subpaths = extractAndValidateResults(field, list, resultSize);
+            }
+            if (supportsObjectAutoFlattening && subpaths.length > 1) {
+                subpaths = maybeFlattenPaths(Arrays.asList(subpaths), context, contentPath).toArray(String[]::new);
             }
             pushSubParser(delegate, subpaths);
         }
@@ -235,11 +244,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     /**
      * Wraps an XContentParser such that it re-interprets dots in field names as an object structure
-     * @param in    the parser to wrap
-     * @return  the wrapped XContentParser
+     * @param in            the parser to wrap
+     * @param contentPath   the starting path to expand, can be empty
+     * @param context       provides mapping context to check for objects supporting sub-object auto-flattening
+     * @return              the wrapped XContentParser
      */
-    static XContentParser expandDots(XContentParser in, ContentPath contentPath) throws IOException {
-        return new WrappingParser(in, contentPath);
+    static XContentParser expandDots(XContentParser in, ContentPath contentPath, DocumentParserContext context) throws IOException {
+        return new WrappingParser(in, contentPath, context);
     }
 
     private enum State {
@@ -409,5 +420,50 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         public Token nextToken() throws IOException {
             return null;
         }
+    }
+
+    static List<String> maybeFlattenPaths(List<String> subpaths, DocumentParserContext context, ContentPath contentPath) {
+        String prefixWithDots = contentPath.pathAsText("");
+        ObjectMapper parent = contentPath.length() == 0
+            ? context.root()
+            : context.findObject(prefixWithDots.substring(0, prefixWithDots.length() - 1));
+        List<String> result = new ArrayList<>(subpaths.size());
+        for (int i = 0; i < subpaths.size(); i++) {
+            String fullPath = prefixWithDots + String.join(".", subpaths.subList(0, i));
+            if (i > 0) {
+                parent = context.findObject(fullPath);
+            }
+            boolean match = false;
+            StringBuilder path = new StringBuilder(subpaths.get(i));
+            if (parent == null) {
+                // We get here for dynamic objects, which always get parsed with subobjects and may get flattened later.
+                match = true;
+            } else if (parent.subobjects() == ObjectMapper.Subobjects.ENABLED) {
+                match = true;
+            } else if (parent.subobjects() == ObjectMapper.Subobjects.AUTO) {
+                // Check if there's any subobject in the remaining path.
+                for (int j = i; j < subpaths.size() - 1; j++) {
+                    if (j > i) {
+                        path.append(".").append(subpaths.get(j));
+                    }
+                    Mapper mapper = parent.mappers.get(path.toString());
+                    if (mapper instanceof ObjectMapper objectMapper
+                        && (ObjectMapper.isFlatteningCandidate(objectMapper.subobjects, objectMapper)
+                            || objectMapper.checkFlattenable(null).isPresent())) {
+                        i = j;
+                        match = true;
+                        break;
+                    }
+                }
+            }
+            if (match) {
+                result.add(path.toString());
+            } else {
+                // We only get here if parent has subobjects set to false, or set to auto with no non-flattenable object in the sub-path.
+                result.add(String.join(".", subpaths.subList(i, subpaths.size())));
+                return result;
+            }
+        }
+        return result;
     }
 }

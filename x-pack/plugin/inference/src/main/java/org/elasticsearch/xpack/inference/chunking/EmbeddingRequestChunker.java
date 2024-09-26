@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloa
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -60,6 +62,7 @@ public class EmbeddingRequestChunker {
     private final int wordsPerChunk;
     private final int chunkOverlap;
     private final EmbeddingType embeddingType;
+    private final ChunkingSettings chunkingSettings;
 
     private List<List<String>> chunkedInputs;
     private List<AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>>> floatResults;
@@ -82,11 +85,34 @@ public class EmbeddingRequestChunker {
         this.wordsPerChunk = wordsPerChunk;
         this.chunkOverlap = chunkOverlap;
         this.embeddingType = embeddingType;
+        this.chunkingSettings = null;
+        splitIntoBatchedRequests(inputs);
+    }
+
+    public EmbeddingRequestChunker(
+        List<String> inputs,
+        int maxNumberOfInputsPerBatch,
+        EmbeddingType embeddingType,
+        ChunkingSettings chunkingSettings
+    ) {
+        this.maxNumberOfInputsPerBatch = maxNumberOfInputsPerBatch;
+        this.wordsPerChunk = DEFAULT_WORDS_PER_CHUNK; // Can be removed after ChunkingConfigurationFeatureFlag is enabled
+        this.chunkOverlap = DEFAULT_CHUNK_OVERLAP; // Can be removed after ChunkingConfigurationFeatureFlag is enabled
+        this.embeddingType = embeddingType;
+        this.chunkingSettings = chunkingSettings;
         splitIntoBatchedRequests(inputs);
     }
 
     private void splitIntoBatchedRequests(List<String> inputs) {
-        var chunker = new WordBoundaryChunker();
+        Function<String, List<String>> chunkFunction;
+        if (chunkingSettings != null) {
+            var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
+            chunkFunction = input -> chunker.chunk(input, chunkingSettings);
+        } else {
+            var chunker = new WordBoundaryChunker();
+            chunkFunction = input -> chunker.chunk(input, wordsPerChunk, chunkOverlap);
+        }
+
         chunkedInputs = new ArrayList<>(inputs.size());
         switch (embeddingType) {
             case FLOAT -> floatResults = new ArrayList<>(inputs.size());
@@ -95,7 +121,7 @@ public class EmbeddingRequestChunker {
         errors = new AtomicArray<>(inputs.size());
 
         for (int i = 0; i < inputs.size(); i++) {
-            var chunks = chunker.chunk(inputs.get(i), wordsPerChunk, chunkOverlap);
+            var chunks = chunkFunction.apply(inputs.get(i));
             int numberOfSubBatches = addToBatches(chunks, i);
             // size the results array with the expected number of request/responses
             switch (embeddingType) {

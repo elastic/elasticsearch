@@ -108,7 +108,8 @@ that {es} is running on. On JDK version 23 and above, {es} will use the
 _CLDR_ database. On JDK version 22 and below, {es} will use the _COMPAT_
 database. This may mean that the strings used for textual date formats,
 and the output of custom week-date formats, may change when moving from
-a previous JDK version to JDK 23 or above.
+a previous JDK version to JDK 23 or above. For more information, see
+<<custom-date-format-locales,JDK locale differences>>.
 
 [discrete]
 [[jvm-agents]]

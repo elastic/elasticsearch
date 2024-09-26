@@ -25,7 +25,3 @@ if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }
-
-tasks.named("yamlRestCompatTestTransform").configure({task ->
-  task.skipTest("wildcard/30_ignore_above_synthetic_source/wildcard field type ignore_above", "Temporary until backported")
-})

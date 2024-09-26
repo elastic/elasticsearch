@@ -14,11 +14,12 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_COMPONENT_TEMPLATE_SUBSTITUTIONS;
 import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_MAPPING_VALIDATION;
 import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_MAPPING_VALIDATION_TEMPLATES;
 
 public class BulkFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
-        return Set.of(SIMULATE_MAPPING_VALIDATION, SIMULATE_MAPPING_VALIDATION_TEMPLATES);
+        return Set.of(SIMULATE_MAPPING_VALIDATION, SIMULATE_MAPPING_VALIDATION_TEMPLATES, SIMULATE_COMPONENT_TEMPLATE_SUBSTITUTIONS);
     }
 }

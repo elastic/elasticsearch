@@ -453,7 +453,7 @@
 ---
 "Composable index templates that include subobjects: auto at root":
   - requires:
-      cluster_features: ["mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto_fixes"]
       reason: "https://github.com/elastic/elasticsearch/issues/96768 fixed at 8.11.0"
       test_runner_features: "allowed_warnings"
 
@@ -504,7 +504,7 @@
 ---
 "Composable index templates that include subobjects: auto on arbitrary field":
   - requires:
-      cluster_features: ["mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto_fixes"]
       reason: "https://github.com/elastic/elasticsearch/issues/96768 fixed at 8.11.0"
       test_runner_features: "allowed_warnings"
 

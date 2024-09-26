@@ -560,7 +560,7 @@ final class MaxmindIpDataLookups {
     }
 
     /**
-     * The {@code MaxmindIpDataLookups.AbstractBase} is an abstract base implementation of {@link IpDataLookup} that
+     * The {@link MaxmindIpDataLookups.AbstractBase} is an abstract base implementation of {@link IpDataLookup} that
      * provides common functionality for getting a specific kind of {@link AbstractResponse} from a {@link IpDatabase}.
      *
      * @param <RESPONSE> the intermediate type of {@link AbstractResponse}

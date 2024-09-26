@@ -26,18 +26,24 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -45,8 +51,15 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
+    private final int concurrentCallsToOnAvailable = 6;
+    private final ExecutorService executor = Executors.newFixedThreadPool(concurrentCallsToOnAvailable);
+
+    @After
+    public void shutdownExecutor() {
+        executor.shutdown();
+    }
+
     public void testConcurrentOperationsTryingToCreateSecurityIndexAndAlias() throws Exception {
-        assertSecurityIndexActive();
         final int processors = Runtime.getRuntime().availableProcessors();
         final int numThreads = Math.min(50, scaledRandomIntBetween((processors + 1) / 2, 4 * processors));  // up to 50 threads
         final int maxNumRequests = 50 / numThreads; // bound to a maximum of 50 requests
@@ -111,7 +124,13 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         // pick longer wait than in the assertBusy that waits for below to ensure index has had enough time to initialize
         securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(40));
 
-        createSecurityIndex();
+        // check listener added
+        assertThat(
+            securityIndexManager.getStateChangeListeners(),
+            hasItem(instanceOf(SecurityIndexManager.StateConsumerWithCancellable.class))
+        );
+
+        createSecurityIndexWithWaitForActiveShards();
 
         assertBusy(
             () -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)),
@@ -122,11 +141,17 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         // security index creation is complete and index is available for search; therefore whenIndexAvailableForSearch should report
         // success in time
         future.actionGet();
+
+        // check no remaining listeners
+        assertThat(
+            securityIndexManager.getStateChangeListeners(),
+            not(hasItem(instanceOf(SecurityIndexManager.StateConsumerWithCancellable.class)))
+        );
     }
 
     @SuppressWarnings("unchecked")
     public void testOnIndexAvailableForSearchIndexAlreadyAvailable() throws Exception {
-        createSecurityIndex();
+        createSecurityIndexWithWaitForActiveShards();
 
         final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
             .iterator()
@@ -153,6 +178,69 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(10));
             future.actionGet();
         }
+
+        // check no remaining listeners
+        assertThat(
+            securityIndexManager.getStateChangeListeners(),
+            not(hasItem(instanceOf(SecurityIndexManager.StateConsumerWithCancellable.class)))
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testOnIndexAvailableForSearchIndexUnderConcurrentLoad() throws Exception {
+        final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
+            .iterator()
+            .next()
+            .getSecurityIndexManager();
+        // Long time out calls should all succeed
+        final List<Future<Void>> futures = new ArrayList<>();
+        for (int i = 0; i < concurrentCallsToOnAvailable / 2; i++) {
+            final Future<Void> future = executor.submit(() -> {
+                try {
+                    final ActionFuture<Void> f = new PlainActionFuture<>();
+                    securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) f, TimeValue.timeValueSeconds(40));
+                    f.actionGet();
+                } catch (Exception ex) {
+                    fail(ex, "should not have encountered exception");
+                }
+                return null;
+            });
+            futures.add(future);
+        }
+
+        // short time-out tasks should all time out
+        for (int i = 0; i < concurrentCallsToOnAvailable / 2; i++) {
+            final Future<Void> future = executor.submit(() -> {
+                expectThrows(ElasticsearchTimeoutException.class, () -> {
+                    final ActionFuture<Void> f = new PlainActionFuture<>();
+                    securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) f, TimeValue.timeValueMillis(10));
+                    f.actionGet();
+                });
+                return null;
+            });
+            futures.add(future);
+        }
+
+        // Sleep a second for short-running calls to timeout
+        Thread.sleep(1000);
+
+        createSecurityIndexWithWaitForActiveShards();
+        // ensure security index manager state is fully in the expected precondition state for this test (ready for search)
+        assertBusy(
+            () -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        for (var future : futures) {
+            future.get(10, TimeUnit.SECONDS);
+        }
+
+        // check no remaining listeners
+        assertThat(
+            securityIndexManager.getStateChangeListeners(),
+            not(hasItem(instanceOf(SecurityIndexManager.StateConsumerWithCancellable.class)))
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -164,9 +252,24 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             .next()
             .getSecurityIndexManager();
 
-        final ActionFuture<Void> future = new PlainActionFuture<>();
-        securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
-        expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        {
+            final ActionFuture<Void> future = new PlainActionFuture<>();
+            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
+            expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        }
+
+        // Also works with 0 timeout
+        {
+            final ActionFuture<Void> future = new PlainActionFuture<>();
+            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(0));
+            expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        }
+
+        // check no remaining listeners
+        assertThat(
+            securityIndexManager.getStateChangeListeners(),
+            not(hasItem(instanceOf(SecurityIndexManager.StateConsumerWithCancellable.class)))
+        );
     }
 
     public void testSecurityIndexSettingsCannotBeChanged() throws Exception {

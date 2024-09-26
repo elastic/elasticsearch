@@ -44,6 +44,7 @@ following index patterns:
 - `metrics-*-*`
 - `synthetics-*-*`
 - `profiling-*`
+- `security_solution-*-*`
 // end::built-in-index-template-patterns[]
 
 {fleet-guide}/fleet-overview.html[{agent}] uses these templates to create

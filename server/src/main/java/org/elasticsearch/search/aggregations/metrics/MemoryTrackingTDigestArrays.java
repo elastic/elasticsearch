@@ -13,7 +13,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
@@ -28,16 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * TDigestArrays with raw arrays and circuit breaking.
  */
 public class MemoryTrackingTDigestArrays implements TDigestArrays {
-
-    /**
-     * Default no-op CB instance of the wrapper.
-     *
-     * @deprecated This instance shouldn't be used, and will be removed after all usages are replaced.
-     */
-    @Deprecated
-    public static final MemoryTrackingTDigestArrays INSTANCE = new MemoryTrackingTDigestArrays(
-        new NoopCircuitBreaker("default-wrapper-tdigest-arrays")
-    );
 
     private final CircuitBreaker breaker;
 
@@ -94,8 +83,8 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
         return new MemoryTrackingTDigestIntArray(breaker, array);
     }
 
-    private static int estimatedArraySize(int arrayLength, int bytesPerElement) {
-        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + arrayLength * bytesPerElement;
+    private static long estimatedArraySize(long arrayLength, long bytesPerElement) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + arrayLength * bytesPerElement);
     }
 
     private abstract static class AbstractMemoryTrackingArray implements Releasable, Accountable {
@@ -187,7 +176,7 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
                 long oldArraySize = RamUsageEstimator.sizeOf(oldArray);
 
                 int newSize = ArrayUtil.oversize(requiredCapacity, Double.BYTES);
-                int newArraySize = estimatedArraySize(newSize, Double.BYTES);
+                long newArraySize = estimatedArraySize(newSize, Double.BYTES);
                 breaker.addEstimateBytesAndMaybeBreak(newArraySize, "tdigest-new-capacity-double-array");
                 array = Arrays.copyOf(array, newSize);
                 breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));
@@ -257,7 +246,7 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
                 long oldArraySize = RamUsageEstimator.sizeOf(oldArray);
 
                 int newSize = ArrayUtil.oversize(requiredCapacity, Integer.BYTES);
-                int newArraySize = estimatedArraySize(newSize, Integer.BYTES);
+                long newArraySize = estimatedArraySize(newSize, Integer.BYTES);
                 breaker.addEstimateBytesAndMaybeBreak(newArraySize, "tdigest-new-capacity-int-array");
                 array = Arrays.copyOf(array, newSize);
                 breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));
@@ -327,7 +316,7 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
                 long oldArraySize = RamUsageEstimator.sizeOf(oldArray);
 
                 int newSize = ArrayUtil.oversize(requiredCapacity, Long.BYTES);
-                int newArraySize = estimatedArraySize(newSize, Long.BYTES);
+                long newArraySize = estimatedArraySize(newSize, Long.BYTES);
                 breaker.addEstimateBytesAndMaybeBreak(newArraySize, "tdigest-new-capacity-long-array");
                 array = Arrays.copyOf(array, newSize);
                 breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));
@@ -397,7 +386,7 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
                 long oldArraySize = RamUsageEstimator.sizeOf(oldArray);
 
                 int newSize = ArrayUtil.oversize(requiredCapacity, Byte.BYTES);
-                int newArraySize = estimatedArraySize(newSize, Byte.BYTES);
+                long newArraySize = estimatedArraySize(newSize, Byte.BYTES);
                 breaker.addEstimateBytesAndMaybeBreak(newArraySize, "tdigest-new-capacity-byte-array");
                 array = Arrays.copyOf(array, newSize);
                 breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));

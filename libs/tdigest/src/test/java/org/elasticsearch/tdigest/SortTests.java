@@ -22,22 +22,20 @@
 package org.elasticsearch.tdigest;
 
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
-public class SortTests extends ESTestCase {
+public class SortTests extends TDigestTestCase {
     public void testReverse() {
-        TDigestIntArray x = WrapperTDigestArrays.INSTANCE.newIntArray(0);
+        TDigestIntArray x = arrays().newIntArray(0);
 
         // don't crash with no input
         Sort.reverse(x, 0, x.size());
 
         // reverse stuff!
-        x = WrapperTDigestArrays.INSTANCE.newIntArray(new int[] { 1, 2, 3, 4, 5 });
+        x = arrays().newIntArray(new int[] { 1, 2, 3, 4, 5 });
         Sort.reverse(x, 0, x.size());
         for (int i = 0; i < 5; i++) {
             assertEquals(5 - i, x.get(i));
@@ -59,7 +57,7 @@ public class SortTests extends ESTestCase {
         assertEquals(4, x.get(3));
         assertEquals(1, x.get(4));
 
-        x = WrapperTDigestArrays.INSTANCE.newIntArray(new int[] { 1, 2, 3, 4, 5, 6 });
+        x = arrays().newIntArray(new int[] { 1, 2, 3, 4, 5, 6 });
         Sort.reverse(x, 0, x.size());
         for (int i = 0; i < 6; i++) {
             assertEquals(6 - i, x.get(i));
@@ -229,8 +227,8 @@ public class SortTests extends ESTestCase {
     }
 
     private void sort(int[] order, double[] values, int n) {
-        var wrappedOrder = WrapperTDigestArrays.INSTANCE.newIntArray(order);
-        var wrappedValues = WrapperTDigestArrays.INSTANCE.newDoubleArray(values);
+        var wrappedOrder = arrays().newIntArray(order);
+        var wrappedValues = arrays().newDoubleArray(values);
 
         Sort.stableSort(wrappedOrder, wrappedValues, n);
     }

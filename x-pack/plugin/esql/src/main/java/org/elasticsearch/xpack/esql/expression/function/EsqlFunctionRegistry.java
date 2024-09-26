@@ -405,7 +405,7 @@ public class EsqlFunctionRegistry {
         return snapshotRegistry;
     }
 
-    public boolean isSnapshotOnly(String functionName) {
+    public static boolean isSnapshotOnly(String functionName) {
         for (FunctionDefinition[] defs : snapshotFunctions()) {
             for (FunctionDefinition def : defs) {
                 if (def.name().equalsIgnoreCase(functionName)) {

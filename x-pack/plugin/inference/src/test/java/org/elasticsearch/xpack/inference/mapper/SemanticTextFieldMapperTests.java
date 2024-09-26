@@ -214,7 +214,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testInvalidInferenceId() {
+    public void testInvalidInferenceEndpoints() {
         {
             Exception e = expectThrows(
                 MapperParsingException.class,
@@ -231,6 +231,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, "")))
             );
             assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic_text] must not be empty"));
+        }
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, "")))
+            );
+            assertThat(e.getMessage(), containsString("[search_inference_id] on mapper [field] of type [semantic_text] must not be empty"));
         }
     }
 

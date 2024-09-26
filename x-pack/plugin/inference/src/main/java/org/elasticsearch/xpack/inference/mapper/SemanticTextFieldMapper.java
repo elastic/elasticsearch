@@ -112,13 +112,18 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         });
 
-        // TODO: Add validator
         private final Parameter<String> searchInferenceId = Parameter.stringParamDefaultSupplier(
             SEARCH_INFERENCE_ID_FIELD,
             true,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).searchInferenceId,
             () -> inferenceId.isConfigured() ? null : DEFAULT_SEARCH_INFERENCE_ID
-        ).acceptsNull();
+        ).acceptsNull().addValidator(v -> {
+            if (v != null && Strings.isEmpty(v)) {
+                throw new IllegalArgumentException(
+                    "[" + SEARCH_INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
+                );
+            }
+        });
 
         private final Parameter<SemanticTextField.ModelSettings> modelSettings = new Parameter<>(
             MODEL_SETTINGS_FIELD,

@@ -29,7 +29,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -80,10 +79,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
                 try (BytesStreamOutput output = new BytesStreamOutput()) {
                     assertTrue(virtualBatchedCompoundCommit.isFrozen());
-                    try (var frozenInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                        Streams.copy(frozenInputStream, output, false);
-                    }
-                    var batchedCompoundCommit = virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit();
+                    var batchedCompoundCommit = virtualBatchedCompoundCommit.writeToStore(output);
                     virtualBatchedCompoundCommit.close();
 
                     var serializedBatchedCompoundCommit = output.bytes();
@@ -190,9 +186,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 assertTrue(virtualBatchedCompoundCommit.isFrozen());
-                try (var frozenInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                    Streams.copy(frozenInputStream, output, false);
-                }
+                virtualBatchedCompoundCommit.writeToStore(output);
                 var serializedBatchedCompoundCommit = output.bytes();
 
                 BiConsumer<Long, Long> assertBytesRange = (offset, bytesToRead) -> {
@@ -311,9 +305,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 if (virtualBatchedCompoundCommit.getPendingCompoundCommits().size() > 0) {
                     try (BytesStreamOutput output = new BytesStreamOutput()) {
                         // Workaround to serialize VBCC without freezing for testing
-                        try (var vbccInputStream = virtualBatchedCompoundCommit.getInputStreamForUpload()) {
-                            Streams.copy(vbccInputStream, output, false);
-                        }
+                        virtualBatchedCompoundCommit.doWriteToStore(output);
 
                         var serializedBatchedCompoundCommit = output.bytes();
                         int randomOffset = randomIntBetween(0, serializedBatchedCompoundCommit.length() - 1);
@@ -368,9 +360,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 if (randomBoolean()) { // extra freeze is a no-op
                     assertFalse(virtualBatchedCompoundCommit.freeze());
                 }
-                try (var frozenInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                    Streams.copy(frozenInputStream, output, false);
-                }
+                virtualBatchedCompoundCommit.writeToStore(output);
             }
 
             final StatelessCommitRef newCommitRef = fakeNode.generateIndexCommits(1).get(0);
@@ -401,9 +391,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             var batchedCompoundCommitBlobs = new HashMap<String, BytesReference>();
 
             try (BytesStreamOutput output = new BytesStreamOutput()) {
-                try (var vbccInputStream = virtualBatchedCompoundCommit.getInputStreamForUpload()) {
-                    Streams.copy(vbccInputStream, output, false);
-                }
+                virtualBatchedCompoundCommit.doWriteToStore(output);
                 batchedCompoundCommitBlobs.put(virtualBatchedCompoundCommit.getBlobName(), output.bytes());
 
                 long lastCommitPosition = 0;

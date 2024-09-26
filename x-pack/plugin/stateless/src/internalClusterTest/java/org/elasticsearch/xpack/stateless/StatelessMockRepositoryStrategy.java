@@ -127,20 +127,6 @@ public class StatelessMockRepositoryStrategy {
     }
 
     /**
-     * Called in {@link BlobContainer#writeBlobAtomic(OperationPurpose, String, InputStream, long, boolean)}.
-     */
-    public void blobContainerWriteBlobAtomic(
-        CheckedRunnable<IOException> originalRunnable,
-        OperationPurpose purpose,
-        String blobName,
-        InputStream inputStream,
-        long blobSize,
-        boolean failIfAlreadyExists
-    ) throws IOException {
-        originalRunnable.run();
-    }
-
-    /**
      * Called in {@link BlobContainer#writeMetadataBlob(OperationPurpose, String, boolean, boolean, CheckedConsumer)}.
      */
     public void blobContainerWriteMetadataBlob(

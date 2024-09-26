@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.buildExpectationCompletions;
@@ -108,7 +107,6 @@ public class AnthropicServiceTests extends ESTestCase {
                     new HashMap<>(Map.of(AnthropicServiceFields.MAX_TOKENS, 1)),
                     getSecretSettingsMap(apiKey)
                 ),
-                Set.of(),
                 modelListener
             );
         }
@@ -129,7 +127,6 @@ public class AnthropicServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 failureListener
             );
         }
@@ -148,7 +145,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
     }
 
@@ -167,7 +164,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
     }
 
@@ -186,7 +183,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
     }
 
@@ -205,7 +202,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
     }
 

@@ -206,7 +206,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             );
         }
 
-        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
+        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client(), services.threadPool());
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
         var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
@@ -299,15 +299,17 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(
-            new ScalingExecutorBuilder(
-                UTILITY_THREAD_POOL_NAME,
-                0,
-                10,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.utility_thread_pool"
-            )
+        return List.of(inferenceUtilityExecutor(settings));
+    }
+
+    public static ExecutorBuilder<?> inferenceUtilityExecutor(Settings settings) {
+        return new ScalingExecutorBuilder(
+            UTILITY_THREAD_POOL_NAME,
+            0,
+            10,
+            TimeValue.timeValueMinutes(10),
+            false,
+            "xpack.inference.utility_thread_pool"
         );
     }
 

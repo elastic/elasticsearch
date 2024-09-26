@@ -41,6 +41,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -57,6 +58,14 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         super(context);
     }
 
+    // for testing
+    ElserInternalService(
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        Consumer<ActionListener<Set<String>>> platformArch
+    ) {
+        super(context, platformArch);
+    }
+
     @Override
     protected EnumSet<TaskType> supportedTaskTypes() {
         return EnumSet.of(TaskType.SPARSE_EMBEDDING);
@@ -67,18 +76,11 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> modelArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             var serviceSettingsBuilder = ElserInternalServiceSettings.fromRequestMap(serviceSettingsMap);
-
-            if (serviceSettingsBuilder.getModelId() == null) {
-                serviceSettingsBuilder.setModelId(
-                    selectDefaultModelVariantBasedOnClusterArchitecture(modelArchitectures, ELSER_V2_MODEL_LINUX_X86, ELSER_V2_MODEL)
-                );
-            }
 
             Map<String, Object> taskSettingsMap;
             // task settings are optional
@@ -94,15 +96,33 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
             throwIfNotEmptyMap(taskSettingsMap, NAME);
 
-            parsedModelListener.onResponse(
-                new ElserInternalModel(
-                    inferenceEntityId,
-                    taskType,
-                    NAME,
-                    new ElserInternalServiceSettings(serviceSettingsBuilder.build()),
-                    taskSettings
-                )
-            );
+            if (serviceSettingsBuilder.getModelId() == null) {
+                platformArch.accept(parsedModelListener.delegateFailureAndWrap((delegate, arch) -> {
+                    serviceSettingsBuilder.setModelId(
+                        selectDefaultModelVariantBasedOnClusterArchitecture(arch, ELSER_V2_MODEL_LINUX_X86, ELSER_V2_MODEL)
+                    );
+                }));
+
+                parsedModelListener.onResponse(
+                    new ElserInternalModel(
+                        inferenceEntityId,
+                        taskType,
+                        NAME,
+                        new ElserInternalServiceSettings(serviceSettingsBuilder.build()),
+                        taskSettings
+                    )
+                );
+            } else {
+                parsedModelListener.onResponse(
+                    new ElserInternalModel(
+                        inferenceEntityId,
+                        taskType,
+                        NAME,
+                        new ElserInternalServiceSettings(serviceSettingsBuilder.build()),
+                        taskSettings
+                    )
+                );
+            }
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }

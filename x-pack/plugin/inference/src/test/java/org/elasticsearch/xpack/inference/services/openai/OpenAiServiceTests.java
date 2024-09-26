@@ -53,7 +53,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -124,7 +123,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -159,7 +157,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap(user),
                     getSecretSettingsMap(secret)
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -183,7 +180,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -209,7 +205,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -227,7 +223,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -245,7 +241,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -263,7 +259,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -284,7 +280,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -311,7 +306,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 getRequestConfigMap(getServiceSettingsMap(model, null, null), getTaskSettingsMap(null), getSecretSettingsMap(secret)),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -338,7 +332,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -365,7 +358,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -396,7 +388,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -422,7 +413,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
-                Set.of(),
                 modelVerificationListener
             );
         }

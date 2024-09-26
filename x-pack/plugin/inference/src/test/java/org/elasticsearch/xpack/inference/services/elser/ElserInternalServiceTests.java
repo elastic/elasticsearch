@@ -11,6 +11,7 @@ package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceResults;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -64,7 +66,7 @@ public class ElserInternalServiceTests extends ESTestCase {
 
     @Before
     public void setUpThreadPool() {
-        threadPool = new TestThreadPool("test");
+        threadPool = createThreadPool(InferencePlugin.inferenceUtilityExecutor(Settings.EMPTY));
     }
 
     @After
@@ -114,7 +116,7 @@ public class ElserInternalServiceTests extends ESTestCase {
 
         var modelVerificationListener = getModelVerificationListener(expectedModel);
 
-        service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelVerificationListener);
+        service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, modelVerificationListener);
 
     }
 
@@ -159,7 +161,7 @@ public class ElserInternalServiceTests extends ESTestCase {
     }
 
     public void testParseConfigStrictWithNoTaskSettings() {
-        var service = createService(mock(Client.class));
+        var service = createService(mock(Client.class), Set.of("Aarch64"));
 
         var settings = new HashMap<String, Object>();
         settings.put(
@@ -177,8 +179,7 @@ public class ElserInternalServiceTests extends ESTestCase {
 
         var modelVerificationListener = getModelVerificationListener(expectedModel);
 
-        service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelVerificationListener);
-
+        service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, modelVerificationListener);
     }
 
     public void testParseConfigStrictWithUnknownSettings() {
@@ -228,7 +229,7 @@ public class ElserInternalServiceTests extends ESTestCase {
                     );
                 } else {
 
-                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), errorVerificationListener);
+                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, errorVerificationListener);
                 }
             }
 
@@ -271,7 +272,7 @@ public class ElserInternalServiceTests extends ESTestCase {
                         Collections.emptyMap()
                     );
                 } else {
-                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), errorVerificationListener);
+                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, errorVerificationListener);
                 }
             }
 
@@ -316,15 +317,15 @@ public class ElserInternalServiceTests extends ESTestCase {
                         Collections.emptyMap()
                     );
                 } else {
-                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), errorVerificationListener);
+                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, errorVerificationListener);
                 }
             }
         }
     }
 
     public void testParseRequestConfig_DefaultModel() {
-        var service = createService(mock(Client.class));
         {
+            var service = createService(mock(Client.class), Set.of());
             var settings = new HashMap<String, Object>();
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
@@ -333,11 +334,12 @@ public class ElserInternalServiceTests extends ESTestCase {
 
             ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
                 assertEquals(".elser_model_2", ((ElserInternalModel) model).getServiceSettings().modelId());
-            }, (e) -> { fail("Model verification should not fail"); });
+            }, (e) -> { fail(e, "Model verification should not fail"); });
 
-            service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelActionListener);
+            service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, modelActionListener);
         }
         {
+            var service = createService(mock(Client.class), Set.of("linux-x86_64"));
             var settings = new HashMap<String, Object>();
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
@@ -346,9 +348,9 @@ public class ElserInternalServiceTests extends ESTestCase {
 
             ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
                 assertEquals(".elser_model_2_linux-x86_64", ((ElserInternalModel) model).getServiceSettings().modelId());
-            }, (e) -> { fail("Model verification should not fail"); });
+            }, (e) -> { fail(e, "Model verification should not fail"); });
 
-            service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of("linux-x86_64"), modelActionListener);
+            service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, modelActionListener);
         }
     }
 
@@ -510,7 +512,12 @@ public class ElserInternalServiceTests extends ESTestCase {
     }
 
     private ElserInternalService createService(Client client) {
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool);
         return new ElserInternalService(context);
+    }
+
+    private ElserInternalService createService(Client client, Set<String> architectures) {
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool);
+        return new ElserInternalService(context, (l) -> l.onResponse(architectures));
     }
 }

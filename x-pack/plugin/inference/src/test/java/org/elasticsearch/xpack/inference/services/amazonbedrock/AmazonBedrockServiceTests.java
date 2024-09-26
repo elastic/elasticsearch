@@ -52,7 +52,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -111,7 +110,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -135,7 +133,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -159,7 +156,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -183,7 +179,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -210,7 +205,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -231,7 +226,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -255,7 +250,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -279,7 +274,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -305,7 +300,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -329,7 +323,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }

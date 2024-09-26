@@ -76,7 +76,6 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);

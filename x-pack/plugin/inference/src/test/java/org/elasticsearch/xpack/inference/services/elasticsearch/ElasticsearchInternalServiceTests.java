@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.junit.After;
 import org.junit.Before;
@@ -84,7 +86,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     @Before
     public void setUpThreadPool() {
-        threadPool = new TestThreadPool("test");
+        threadPool = createThreadPool(InferencePlugin.inferenceUtilityExecutor(Settings.EMPTY));
     }
 
     @After
@@ -108,7 +110,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         );
 
         var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING);
-        service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+        service.parseRequestConfig(randomInferenceEntityId, taskType, settings, modelListener);
     }
 
     public void testParseRequestConfig_Misconfigured() {
@@ -129,7 +131,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
 
             var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING);
-            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, modelListener);
         }
 
         // Invalid config map
@@ -150,13 +152,13 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
 
             var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING);
-            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, modelListener);
         }
     }
 
     public void testParseRequestConfig_E5() {
         {
-            var service = createService(mock(Client.class));
+            var service = createService(mock(Client.class), Set.of("Aarch64"));
             var settings = new HashMap<String, Object>();
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
@@ -183,14 +185,45 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 randomInferenceEntityId,
                 TaskType.TEXT_EMBEDDING,
                 settings,
-                Set.of(),
+                getModelVerificationActionListener(e5ServiceSettings)
+            );
+        }
+
+        {
+            var service = createService(mock(Client.class), Set.of("linux-x86_64"));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
+                    )
+                )
+            );
+
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
+                1,
+                4,
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                null
+            );
+
+            service.parseRequestConfig(
+                randomInferenceEntityId,
+                TaskType.TEXT_EMBEDDING,
+                settings,
                 getModelVerificationActionListener(e5ServiceSettings)
             );
         }
 
         // Invalid service settings
         {
-            var service = createService(mock(Client.class));
+            var service = createService(mock(Client.class), Set.of("Aarch64"));
             var settings = new HashMap<String, Object>();
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
@@ -213,7 +246,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
             );
 
-            service.parseRequestConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings, Set.of(), modelListener);
+            service.parseRequestConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings, modelListener);
         }
     }
 
@@ -260,7 +293,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 assertEquals(returnDocs, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
             }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
-            service.parseRequestConfig(randomInferenceEntityId, TaskType.RERANK, settings, Set.of(), modelListener);
+            service.parseRequestConfig(randomInferenceEntityId, TaskType.RERANK, settings, modelListener);
         }
     }
 
@@ -302,7 +335,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 assertEquals(Boolean.TRUE, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
             }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
-            service.parseRequestConfig(randomInferenceEntityId, TaskType.RERANK, settings, Set.of(), modelListener);
+            service.parseRequestConfig(randomInferenceEntityId, TaskType.RERANK, settings, modelListener);
         }
     }
 
@@ -341,7 +374,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(model.getServiceSettings(), instanceOf(CustomElandInternalServiceSettings.class));
         }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
-        service.parseRequestConfig(randomInferenceEntityId, TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelListener);
+        service.parseRequestConfig(randomInferenceEntityId, TaskType.SPARSE_EMBEDDING, settings, modelListener);
     }
 
     private ActionListener<Model> getModelVerificationActionListener(MultilingualE5SmallInternalServiceSettings e5ServiceSettings) {
@@ -795,7 +828,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         CustomElandModel expectedModel = getCustomElandModel(taskType);
 
         PlainActionFuture<Model> listener = new PlainActionFuture<>();
-        service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), listener);
+        service.parseRequestConfig(randomInferenceEntityId, taskType, settings, listener);
         var model = listener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(model, is(expectedModel));
     }
@@ -951,7 +984,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     }
 
     private ElasticsearchInternalService createService(Client client) {
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool);
         return new ElasticsearchInternalService(context);
+    }
+
+    private ElasticsearchInternalService createService(Client client, Set<String> architectures) {
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool);
+        return new ElasticsearchInternalService(context, l -> l.onResponse(architectures));
     }
 }

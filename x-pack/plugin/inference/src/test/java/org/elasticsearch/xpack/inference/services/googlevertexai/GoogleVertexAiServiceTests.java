@@ -33,7 +33,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -103,7 +102,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
-                Set.of(),
                 modelListener
             );
         }
@@ -135,7 +133,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
-                Set.of(),
                 modelListener
             );
         }
@@ -165,7 +162,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap("{}")
                 ),
-                Set.of(),
                 failureListener
             );
         }
@@ -193,7 +189,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
@@ -217,7 +213,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
@@ -245,7 +241,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
@@ -273,7 +269,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 

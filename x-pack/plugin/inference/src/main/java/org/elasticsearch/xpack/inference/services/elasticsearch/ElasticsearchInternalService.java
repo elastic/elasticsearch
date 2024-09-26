@@ -48,6 +48,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
@@ -70,6 +71,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         super(context);
     }
 
+    // for testing
+    ElasticsearchInternalService(
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        Consumer<ActionListener<Set<String>>> platformArch
+    ) {
+        super(context, platformArch);
+    }
+
     @Override
     protected EnumSet<TaskType> supportedTaskTypes() {
         return EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING);
@@ -80,7 +89,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> modelListener
     ) {
         try {
@@ -94,7 +102,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 throw new ValidationException().addValidationError("Error parsing request config, model id is missing");
             }
             if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
-                e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
+                platformArch.accept(
+                    modelListener.delegateFailureAndWrap(
+                        (delegate, arch) -> e5Case(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                    )
+                );
             } else {
                 customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, modelListener);
             }

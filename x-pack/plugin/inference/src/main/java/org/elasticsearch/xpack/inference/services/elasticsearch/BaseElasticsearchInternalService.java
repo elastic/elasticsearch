@@ -28,12 +28,16 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -41,11 +45,29 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public abstract class BaseElasticsearchInternalService implements InferenceService {
 
     protected final OriginSettingClient client;
+    protected final ExecutorService inferenceExecutor;
+    protected final Consumer<ActionListener<Set<String>>> platformArch;
 
     private static final Logger logger = LogManager.getLogger(BaseElasticsearchInternalService.class);
 
     public BaseElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
+        this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
+        this.platformArch = this::platformArchitecture;
+    }
+
+    // For testing.
+    // platformArchFn enables similating different architectures
+    // without extensive mocking on the client to simulate the nodes info response.
+    // TODO make package private once the elser service is moved to the Elasticsearch
+    // service package.
+    public BaseElasticsearchInternalService(
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        Consumer<ActionListener<Set<String>>> platformArchFn
+    ) {
+        this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
+        this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
+        this.platformArch = platformArchFn;
     }
 
     /**
@@ -185,6 +207,28 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             // default to the platform-agnostic model
             return platformAgnosticModel;
         }
+    }
+
+    private void platformArchitecture(ActionListener<Set<String>> platformArchitectureListener) {
+        // Find the cluster platform as the service may need that
+        // information when creating the model
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            platformArchitectureListener.delegateFailureAndWrap((delegate, architectures) -> {
+                if (architectures.isEmpty() && clusterIsInElasticCloud()) {
+                    // In Elastic cloud ml nodes run on Linux x86
+                    delegate.onResponse(Set.of("linux-x86_64"));
+                } else {
+                    delegate.onResponse(architectures);
+                }
+            }),
+            client,
+            inferenceExecutor
+        );
+    }
+
+    static boolean clusterIsInElasticCloud() {
+        // use a heuristic to determine if in Elastic cloud.
+        return true; // TODO
     }
 
     public static InferModelAction.Request buildInferenceRequest(

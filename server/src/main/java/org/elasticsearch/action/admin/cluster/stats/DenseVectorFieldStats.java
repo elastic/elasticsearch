@@ -26,8 +26,8 @@ public final class DenseVectorFieldStats extends FieldStats {
     static final int UNSET = -1;
     static final String NOT_INDEXED = "not_indexed";
     Map<String, Integer> vectorIndexTypeCount; // count of mappings by index type
-    Map<String, Integer> vectorSimilarityTypeCount; // count of mappings by index type
-    Map<String, Integer> vectorElementTypeCount; // count of mappings by index type
+    Map<String, Integer> vectorSimilarityTypeCount; // count of mappings by similarity
+    Map<String, Integer> vectorElementTypeCount; // count of mappings by element type
     int indexedVectorCount; // number of times vectors with index:true are used in mappings of this cluster
     int indexedVectorDimMin; // minimum dimension of indexed vectors in this cluster
     int indexedVectorDimMax; // maximum dimension of indexed vectors in this cluster

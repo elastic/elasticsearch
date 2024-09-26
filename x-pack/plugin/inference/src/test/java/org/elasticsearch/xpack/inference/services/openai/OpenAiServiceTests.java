@@ -1435,7 +1435,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                null,
+                similarityMeasure,
                 randomNonNegativeInt(),
                 randomNonNegativeInt(),
                 randomBoolean()
@@ -1443,7 +1443,8 @@ public class OpenAiServiceTests extends ESTestCase {
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
 
-            assertEquals(SimilarityMeasure.DOT_PRODUCT, updatedModel.getServiceSettings().similarity());
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
             assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
     }

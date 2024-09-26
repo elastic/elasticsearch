@@ -125,7 +125,6 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             eq(InferenceAction.Request.DEFAULT_TIMEOUT),
             any()
         );
-        verify(mockActionListener).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
     }
 }

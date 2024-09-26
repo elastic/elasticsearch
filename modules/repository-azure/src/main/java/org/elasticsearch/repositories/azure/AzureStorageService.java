@@ -14,6 +14,7 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -72,12 +73,14 @@ public class AzureStorageService {
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final AzureClientProvider azureClientProvider;
     private final ClientLogger clientLogger = new ClientLogger(AzureStorageService.class);
+    private final boolean stateless;
 
     public AzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
         refreshSettings(clientsSettings);
         this.azureClientProvider = azureClientProvider;
+        this.stateless = DiscoveryNode.isStateless(settings);
     }
 
     public AzureBlobServiceClient client(String clientName, LocationMode locationMode, OperationPurpose purpose) {
@@ -133,6 +136,10 @@ public class AzureStorageService {
     int getMaxReadRetries(String clientName) {
         AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
         return azureStorageSettings.getMaxRetries();
+    }
+
+    boolean isStateless() {
+        return stateless;
     }
 
     // non-static, package private for testing

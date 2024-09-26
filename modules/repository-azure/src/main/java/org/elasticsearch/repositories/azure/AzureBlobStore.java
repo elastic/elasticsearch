@@ -75,6 +75,7 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -669,7 +670,7 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        return statsCollectors.statsMap();
+        return statsCollectors.statsMap(service.isStateless());
     }
 
     private enum Operation {
@@ -694,17 +695,28 @@ public class AzureBlobStore implements BlobStore {
     private record StatsKey(Operation operation, OperationPurpose purpose) {
         @Override
         public String toString() {
-            return operation.getKey() + "_" + purpose.getKey();
+            return purpose.getKey() + "_" + operation.getKey();
         }
     }
 
     private static class StatsCollectors {
         final Map<StatsKey, Stats> collectors = new ConcurrentHashMap<>();
 
-        Map<String, Long> statsMap() {
-            return collectors.entrySet()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().counter.sum()));
+        Map<String, Long> statsMap(boolean stateless) {
+            if (stateless) {
+                return collectors.entrySet()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().counter.sum()));
+            } else {
+                Map<String, Long> normalisedStats = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, o -> 0L));
+                collectors.forEach(
+                    (key, value) -> normalisedStats.compute(
+                        key.operation.getKey(),
+                        (k, current) -> Objects.requireNonNull(current) + value.counter.sum()
+                    )
+                );
+                return Map.copyOf(normalisedStats);
+            }
         }
 
         public void onSuccessfulRequest(Operation operation, OperationPurpose purpose) {

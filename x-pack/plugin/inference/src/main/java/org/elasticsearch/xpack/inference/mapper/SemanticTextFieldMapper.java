@@ -112,12 +112,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         });
 
-        private final Parameter<String> searchInferenceId = Parameter.stringParam(
+        // TODO: Add validator
+        private final Parameter<String> searchInferenceId = Parameter.stringParamDefaultSupplier(
             SEARCH_INFERENCE_ID_FIELD,
             true,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).searchInferenceId,
-            null
-        ).acceptsNull().setSerializerCheck((id, ic, v) -> id || (ic && DEFAULT_SEARCH_INFERENCE_ID.equals(v) == false));
+            () -> inferenceId.isConfigured() ? null : DEFAULT_SEARCH_INFERENCE_ID
+        ).acceptsNull();
 
         private final Parameter<SemanticTextField.ModelSettings> modelSettings = new Parameter<>(
             MODEL_SETTINGS_FIELD,
@@ -210,10 +211,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
-
-            if (inferenceId.isConfigured() == false && searchInferenceId.isConfigured() == false) {
-                searchInferenceId.setValue(DEFAULT_SEARCH_INFERENCE_ID);
-            }
 
             return new SemanticTextFieldMapper(
                 leafName(),

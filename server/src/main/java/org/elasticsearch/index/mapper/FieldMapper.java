@@ -1074,6 +1074,15 @@ public abstract class FieldMapper extends Mapper {
             return stringParam(name, updateable, initializer, defaultValue, XContentBuilder::field);
         }
 
+        public static Parameter<String> stringParamDefaultSupplier(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, String> initializer,
+            Supplier<String> defaultValue
+        ) {
+            return stringParamDefaultSuppler(name, updateable, initializer, defaultValue, XContentBuilder::field);
+        }
+
         public static Parameter<String> stringParam(
             String name,
             boolean updateable,
@@ -1081,10 +1090,26 @@ public abstract class FieldMapper extends Mapper {
             String defaultValue,
             Serializer<String> serializer
         ) {
+            return stringParamDefaultSuppler(
+                name,
+                updateable,
+                initializer,
+                defaultValue == null ? () -> null : () -> defaultValue,
+                serializer
+            );
+        }
+
+        public static Parameter<String> stringParamDefaultSuppler(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, String> initializer,
+            Supplier<String> defaultValue,
+            Serializer<String> serializer
+        ) {
             return new Parameter<>(
                 name,
                 updateable,
-                defaultValue == null ? () -> null : () -> defaultValue,
+                defaultValue,
                 (n, c, o) -> XContentMapValues.nodeStringValue(o),
                 initializer,
                 serializer,

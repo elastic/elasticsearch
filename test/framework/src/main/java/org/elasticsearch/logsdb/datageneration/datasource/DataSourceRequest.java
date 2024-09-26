@@ -9,6 +9,7 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
@@ -115,7 +116,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record ObjectMappingParametersGenerator(boolean isNested)
+    record ObjectMappingParametersGenerator(boolean isNested, ObjectMapper.Subobjects parentSubobjects)
         implements
             DataSourceRequest<DataSourceResponse.ObjectMappingParametersGenerator> {
         public DataSourceResponse.ObjectMappingParametersGenerator accept(DataSourceHandler handler) {

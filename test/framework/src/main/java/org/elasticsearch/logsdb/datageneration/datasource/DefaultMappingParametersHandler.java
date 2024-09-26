@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.test.ESTestCase;
 
@@ -78,8 +79,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
         if (request.isNested()) {
+            assert request.parentSubobjects() != ObjectMapper.Subobjects.DISABLED;
+
             return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
                 var parameters = new HashMap<String, Object>();
+
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
                 }
@@ -90,11 +94,30 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
         return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
             var parameters = new HashMap<String, Object>();
+
+            if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED) {
+                // "enabled: false" is not compatible with subobjects: false
+                // "dynamic: false/strict/runtime" is not compatible with subobjects: false
+                // changing subobjects value is not compatible with subobjects: false
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("dynamic", "true");
+                }
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("enabled", "true");
+                }
+
+                return parameters;
+            }
+
             if (ESTestCase.randomBoolean()) {
                 parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict", "runtime"));
             }
             if (ESTestCase.randomBoolean()) {
                 parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
+            }
+            // Changing subobjects from subobjects: false is not supported, but we can f.e. go from "auto" to "true".
+            if (ESTestCase.randomBoolean()) {
+                parameters.put("subobjects", ESTestCase.randomFrom(ObjectMapper.Subobjects.values()).toString());
             }
 
             return parameters;

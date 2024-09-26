@@ -72,7 +72,7 @@ public class SearchSortValuesTests extends AbstractXContentSerializingTestCase<S
         parser.nextToken(); // skip to the elements start array token, fromXContent advances from there if called
         parser.nextToken();
         parser.nextToken();
-        SearchSortValues searchSortValues = SearchSortValues.fromXContent(parser);
+        SearchSortValues searchSortValues = SearchResponseUtils.parseSearchSortValues(parser);
         parser.nextToken();
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertNull(parser.nextToken());

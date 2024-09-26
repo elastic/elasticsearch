@@ -537,6 +537,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return this;
         }
 
+        public Builder template(Template.Builder template) {
+            this.template = template.build();
+            return this;
+        }
+
         public Builder componentTemplates(List<String> componentTemplates) {
             this.componentTemplates = componentTemplates;
             return this;

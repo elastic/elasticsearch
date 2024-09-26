@@ -119,8 +119,8 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
     private Optional<UpdateSettingsClusterStateUpdateRequest> createUpdateSettingsRequest(
         String indexName,
         Settings settingsToUpdate,
-        TimeValue timeout,
-        TimeValue masterTimeout,
+        TimeValue ackTimeout,
+        TimeValue masterNodeTimeout,
         ClusterState state
     ) {
         if (settingsToUpdate.isEmpty()) {
@@ -136,10 +136,14 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         }
 
         return Optional.of(
-            new UpdateSettingsClusterStateUpdateRequest().indices(new Index[] { writeIndex })
-                .settings(settingsToUpdate)
-                .ackTimeout(timeout)
-                .masterNodeTimeout(masterTimeout)
+            new UpdateSettingsClusterStateUpdateRequest(
+                masterNodeTimeout,
+                ackTimeout,
+                settingsToUpdate,
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                writeIndex
+            )
         );
     }
 

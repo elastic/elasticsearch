@@ -588,10 +588,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void allBreakersMemoryReleased() {
-        for (CircuitBreaker breaker : breakers) {
+        var breakersToCheck = new ArrayList<>(breakers);
+        // We clear it now to avoid keeping old breakers if the assertion fails
+        breakers.clear();
+        for (CircuitBreaker breaker : breakersToCheck) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
-        breakers.clear();
     }
 
     /**

@@ -53,8 +53,8 @@ public abstract class TDigestTestCase extends ESTestCase {
      *     The arrays created by this method will be automatically released after the test.
      * </p>
      */
-    protected DelegatingTDigestArrays arrays() {
-        return new DelegatingTDigestArrays();
+    protected MemoryTrackingTDigestArrays arrays() {
+        return new MemoryTrackingTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
     }
 
     /**

@@ -33,7 +33,7 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
         if (failureStore == null) {
             failureStore = DataStreamFailureStoreTests.randomFailureStore();
         } else {
-            failureStore = randomBoolean() ? null : new DataStreamFailureStore(failureStore.enabled() == false);
+            failureStore = randomBoolean() ? null : randomValueOtherThan(failureStore, DataStreamFailureStoreTests::randomFailureStore);
         }
         return new DataStreamOptions(failureStore);
     }

@@ -85,8 +85,6 @@ endif::[]
 :connectors-python: https://github.com/elastic/connectors/tree/{connectors-branch}
 :connectors-ruby: https://github.com/elastic/connectors-ruby/tree/{connectors-branch}
 
-include::connectors-architecture.asciidoc[]
-
 include::connectors-refs.asciidoc[]
 
 
@@ -119,6 +117,9 @@ include::connectors-scalability.asciidoc[]
 include::connectors-security.asciidoc[]
 include::connectors-troubleshooting.asciidoc[]
 include::connectors-logs.asciidoc[]
+
+include::connectors-use-cases.asciidoc[]
+
 
 include::connectors-release-notes.asciidoc[]
 include::connectors-known-issues.asciidoc[]

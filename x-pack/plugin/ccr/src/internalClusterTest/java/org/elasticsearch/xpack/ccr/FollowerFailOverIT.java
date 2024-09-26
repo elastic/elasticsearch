@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -164,6 +165,12 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         int maxOpsPerRead = followRequest.getParameters().getMaxReadRequestOperationCount();
         int maxNumDocsReplicated = Math.min(between(50, 500), between(maxOpsPerRead, maxOpsPerRead * 10));
         availableDocs.release(maxNumDocsReplicated / 2 + 1);
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class),
+                cs -> cs.routingTable().index("index2").allPrimaryShardsActive()
+            )
+        );
         atLeastDocsIndexed(followerClient(), "index2", maxNumDocsReplicated / 3);
         getFollowerCluster().stopRandomNonMasterNode();
         availableDocs.release(maxNumDocsReplicated / 2 + 1);

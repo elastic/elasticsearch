@@ -302,6 +302,9 @@ tests:
 - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
   method: testSearchAndMSearch
   issue: https://github.com/elastic/elasticsearch/issues/113593
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date_nanos.Date_nanos to date nanos, index version SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113632
 
 # Examples:
 #

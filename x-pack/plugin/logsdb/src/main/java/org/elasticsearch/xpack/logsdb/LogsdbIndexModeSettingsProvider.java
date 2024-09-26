@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -24,7 +22,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.cluster.settings.ClusterSettings.CLUSTER_LOGSDB_ENABLED;
 
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
-    private static final Logger logger = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
     private static final String LOGS_PATTERN = "logs-*-*";
     private volatile boolean isLogsdbEnabled;
 
@@ -33,7 +30,6 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     public void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
-        logger.debug("LogsDB " + (isLogsdbEnabled ? "enabled" : "disabled"));
         this.isLogsdbEnabled = isLogsdbEnabled;
     }
 

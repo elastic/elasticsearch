@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * bounded memory allocation and acceptable speed and accuracy for larger ones.
  */
 public class HybridDigest extends AbstractTDigest {
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HybridDigest.class);
+    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HybridDigest.class);
 
     private final TDigestArrays arrays;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -64,7 +64,7 @@ public class HybridDigest extends AbstractTDigest {
         this.arrays = arrays;
         this.compression = compression;
         this.maxSortingSize = maxSortingSize;
-        this.sortingDigest = new SortingDigest(arrays);
+        this.sortingDigest = TDigest.createSortingDigest(arrays);
     }
 
     /**
@@ -116,7 +116,7 @@ public class HybridDigest extends AbstractTDigest {
         // Check if we need to switch implementations.
         assert sortingDigest != null;
         if (sortingDigest.size() + size >= maxSortingSize) {
-            mergingDigest = new MergingDigest(arrays, compression);
+            mergingDigest = TDigest.createMergingDigest(arrays, compression);
             for (int i = 0; i < sortingDigest.values.size(); i++) {
                 mergingDigest.add(sortingDigest.values.get(i));
             }
@@ -212,6 +212,9 @@ public class HybridDigest extends AbstractTDigest {
 
     @Override
     public void close() {
-        Releasables.close(sortingDigest, mergingDigest);
+        if (closed.compareAndSet(false, true)) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(sortingDigest, mergingDigest);
+        }
     }
 }

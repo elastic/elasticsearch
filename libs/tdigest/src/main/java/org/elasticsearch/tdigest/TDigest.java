@@ -52,7 +52,8 @@ public abstract class TDigest implements Releasable, Accountable {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the MergingDigest
      */
-    public static TDigest createMergingDigest(TDigestArrays arrays, double compression) {
+    public static MergingDigest createMergingDigest(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(MergingDigest.SHALLOW_SIZE);
         return new MergingDigest(arrays, compression);
     }
 
@@ -65,7 +66,8 @@ public abstract class TDigest implements Releasable, Accountable {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the AvlTreeDigest
      */
-    public static TDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
+    public static AVLTreeDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(AVLTreeDigest.SHALLOW_SIZE);
         return new AVLTreeDigest(arrays, compression);
     }
 
@@ -75,7 +77,8 @@ public abstract class TDigest implements Releasable, Accountable {
      *
      * @return the SortingDigest
      */
-    public static TDigest createSortingDigest(TDigestArrays arrays) {
+    public static SortingDigest createSortingDigest(TDigestArrays arrays) {
+        arrays.adjustBreaker(SortingDigest.SHALLOW_SIZE);
         return new SortingDigest(arrays);
     }
 
@@ -88,7 +91,8 @@ public abstract class TDigest implements Releasable, Accountable {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the HybridDigest
      */
-    public static TDigest createHybridDigest(TDigestArrays arrays, double compression) {
+    public static HybridDigest createHybridDigest(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(HybridDigest.SHALLOW_SIZE);
         return new HybridDigest(arrays, compression);
     }
 

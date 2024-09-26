@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * samples, at the expense of allocating much more memory.
  */
 public class SortingDigest extends AbstractTDigest {
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SortingDigest.class);
+    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SortingDigest.class);
 
     private final TDigestArrays arrays;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -154,6 +154,9 @@ public class SortingDigest extends AbstractTDigest {
 
     @Override
     public void close() {
-        Releasables.close(values);
+        if (closed.compareAndSet(false, true)) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(values);
+        }
     }
 }

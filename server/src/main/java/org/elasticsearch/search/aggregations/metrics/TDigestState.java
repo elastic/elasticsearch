@@ -23,6 +23,7 @@ import org.elasticsearch.tdigest.TDigest;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Decorates {@link org.elasticsearch.tdigest.TDigest} with custom serialization. The underlying implementation for TDigest is selected
@@ -31,6 +32,9 @@ import java.util.Iterator;
  */
 public class TDigestState implements Releasable, Accountable {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TDigestState.class);
+
+    private final CircuitBreaker breaker;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     protected static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
 
@@ -72,6 +76,7 @@ public class TDigestState implements Releasable, Accountable {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState create(CircuitBreaker breaker, double compression) {
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create");
         return new TDigestState(breaker, Type.defaultValue(), compression);
     }
 
@@ -81,6 +86,7 @@ public class TDigestState implements Releasable, Accountable {
      * @return a TDigestState object that's optimized for performance
      */
     static TDigestState createOptimizedForAccuracy(CircuitBreaker breaker, double compression) {
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-optimized-for-accuracy");
         return new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
     }
 
@@ -118,10 +124,12 @@ public class TDigestState implements Releasable, Accountable {
      */
     @Deprecated
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(DEFAULT_NOOP_BREAKER, state.type, state.compression);
+        state.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-using-params-from");
+        return new TDigestState(state.breaker, state.type, state.compression);
     }
 
     protected TDigestState(CircuitBreaker breaker, Type type, double compression) {
+        this.breaker = breaker;
         var arrays = new MemoryTrackingTDigestArrays(breaker);
         tdigest = switch (type) {
             case HYBRID -> TDigest.createHybridDigest(arrays, compression);
@@ -169,6 +177,7 @@ public class TDigestState implements Releasable, Accountable {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-read");
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
             size = in.readVLong();
@@ -289,6 +298,9 @@ public class TDigestState implements Releasable, Accountable {
 
     @Override
     public void close() {
-        Releasables.close(tdigest);
+        if (closed.compareAndSet(false, true)) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            Releasables.close(tdigest);
+        }
     }
 }

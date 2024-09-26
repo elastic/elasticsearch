@@ -1217,13 +1217,21 @@ Some Text       | txeT emoS
 reverseEmoji
 required_capability: fn_reverse
 // tag::reverseEmoji[]
-ROW message = "🏠➡️🚌➡️✈️➡️🏝️" | EVAL back_home = REVERSE(message);
+ROW off_on_holiday = "🏠➡️🚌➡️✈️➡️🏝️" | EVAL back_home_again = REVERSE(off_on_holiday);
 // end::reverseEmoji[]
 
 // tag::reverseEmoji-result[]
-message:keyword | back_home:keyword
-🏠➡️🚌➡️✈️➡️🏝️ | 🏝️➡️✈️➡️🚌➡️🏠
+off_on_holiday:keyword | back_home_again:keyword
+🏠➡️🚌➡️✈️➡️🏝️        | 🏝️➡️✈️➡️🚌➡️🏠
 // end::reverseEmoji-result[]
+;
+
+reverseGraphemeClusters
+required_capability: fn_reverse
+ROW message = "áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी" | EVAL message_reversed = REVERSE(message);
+
+message:keyword                | message_reversed:keyword
+áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी    | ठाीकं💖🎉👍🏽😊ûôîêâùòìèàúóíéá
 ;
 
 reverseMultiValue

@@ -25,9 +25,8 @@ public class AdaptiveAllocationsScaler {
     /**
      * The time interval without any requests that has to pass, before scaling down
      * to zero allocations (in case min_allocations = 0).
-     * TODO(jan): get the right value for this time interval from product.
      */
-    private static final long SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_MILLIS = TimeValue.timeValueMinutes(15).getMillis();
+    private static final long SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS = TimeValue.timeValueMinutes(15).getSeconds();
 
     /**
      * If the max_number_of_allocations is not set, use this value for now to prevent scaling up
@@ -41,7 +40,7 @@ public class AdaptiveAllocationsScaler {
     private final String deploymentId;
     private final KalmanFilter1d requestRateEstimator;
     private final KalmanFilter1d inferenceTimeEstimator;
-    private Long lastRequestTimeMillis;
+    private double timeWithoutRequestsSeconds;
 
     private int numberOfAllocations;
     private int neededNumberOfAllocations;
@@ -64,7 +63,7 @@ public class AdaptiveAllocationsScaler {
         // the number of allocations changes, which is passed explicitly to the estimator.
         requestRateEstimator = new KalmanFilter1d(deploymentId + ":rate", 100, true);
         inferenceTimeEstimator = new KalmanFilter1d(deploymentId + ":time", 100, false);
-        lastRequestTimeMillis = System.currentTimeMillis();
+        timeWithoutRequestsSeconds = 0.0;
         this.numberOfAllocations = numberOfAllocations;
         neededNumberOfAllocations = numberOfAllocations;
         minNumberOfAllocations = null;
@@ -84,7 +83,9 @@ public class AdaptiveAllocationsScaler {
     void process(AdaptiveAllocationsScalerService.Stats stats, double timeIntervalSeconds, int numberOfAllocations) {
         lastMeasuredQueueSize = stats.pendingCount();
         if (stats.requestCount() > 0) {
-            lastRequestTimeMillis = System.currentTimeMillis();
+            timeWithoutRequestsSeconds = 0.0;
+        } else {
+            timeWithoutRequestsSeconds += timeIntervalSeconds;
         }
 
         // The request rate (per second) is the request count divided by the time.
@@ -170,7 +171,7 @@ public class AdaptiveAllocationsScaler {
             numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
         }
         if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
-            && lastRequestTimeMillis < System.currentTimeMillis() - SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_MILLIS) {
+            && timeWithoutRequestsSeconds > SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS) {
             logger.debug("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
             numberOfAllocations = 0;
             neededNumberOfAllocations = 0;

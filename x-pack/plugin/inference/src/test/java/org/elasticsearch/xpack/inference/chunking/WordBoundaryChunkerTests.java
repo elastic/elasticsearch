@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.chunking;
 
 import com.ibm.icu.text.BreakIterator;
 
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -52,6 +53,9 @@ public class WordBoundaryChunkerTests extends ESTestCase {
             + " المومنين يا"
             + " خليفہ المومنين يا خليفہ المسلمين يا صحابی يا رضي الله عنه چئي۔ (ب) آنحضور ﷺ جي گھروارين کان علاوه ڪنھن کي ام المومنين "
             + "چئي۔ (ج) آنحضور ﷺ جي خاندان جي اھل بيت کان علاوہڍه ڪنھن کي اھل بيت چئي۔ (د) پنھنجي عبادت گاھ کي مسجد چئي۔" };
+
+    private static final int DEFAULT_MAX_CHUNK_SIZE = 250;
+    private static final int DEFAULT_OVERLAP = 100;
 
     public static int NUM_WORDS_IN_TEST_TEXT;
     static {
@@ -102,6 +106,41 @@ public class WordBoundaryChunkerTests extends ESTestCase {
             assertExpectedNumberOfChunks(whiteSpacedText, numWords, 20, 4);
             assertExpectedNumberOfChunks(whiteSpacedText, numWords, 20, 10);
         }
+    }
+
+    public void testNumberOfChunksWithWordBoundaryChunkingSettings() {
+        for (int numWords : new int[] { 10, 22, 50, 73, 100 }) {
+            var sb = new StringBuilder();
+            for (int i = 0; i < numWords; i++) {
+                sb.append(i).append(' ');
+            }
+            var whiteSpacedText = sb.toString();
+            assertExpectedNumberOfChunksWithWordBoundaryChunkingSettings(
+                whiteSpacedText,
+                numWords,
+                new WordBoundaryChunkingSettings(10, 4)
+            );
+            assertExpectedNumberOfChunksWithWordBoundaryChunkingSettings(
+                whiteSpacedText,
+                numWords,
+                new WordBoundaryChunkingSettings(10, 2)
+            );
+            assertExpectedNumberOfChunksWithWordBoundaryChunkingSettings(
+                whiteSpacedText,
+                numWords,
+                new WordBoundaryChunkingSettings(20, 4)
+            );
+            assertExpectedNumberOfChunksWithWordBoundaryChunkingSettings(
+                whiteSpacedText,
+                numWords,
+                new WordBoundaryChunkingSettings(20, 10)
+            );
+        }
+    }
+
+    public void testInvalidChunkingSettingsProvided() {
+        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(randomNonNegativeInt());
+        assertThrows(IllegalArgumentException.class, () -> { new WordBoundaryChunker().chunk(TEST_TEXT, chunkingSettings); });
     }
 
     public void testWindowSpanningWithOverlapNumWordsInOverlapSection() {
@@ -204,6 +243,16 @@ public class WordBoundaryChunkerTests extends ESTestCase {
         chunkSize = 10;
         chunks = new WordBoundaryChunker().chunk("Won't you chunk", chunkSize, 0);
         assertThat(chunks, contains("Won't you chunk"));
+    }
+
+    private void assertExpectedNumberOfChunksWithWordBoundaryChunkingSettings(
+        String input,
+        int numWords,
+        WordBoundaryChunkingSettings chunkingSettings
+    ) {
+        var chunks = new WordBoundaryChunker().chunk(input, chunkingSettings);
+        int expected = expectedNumberOfChunks(numWords, chunkingSettings.maxChunkSize, chunkingSettings.overlap);
+        assertEquals(expected, chunks.size());
     }
 
     private void assertExpectedNumberOfChunks(String input, int numWords, int windowSize, int overlap) {

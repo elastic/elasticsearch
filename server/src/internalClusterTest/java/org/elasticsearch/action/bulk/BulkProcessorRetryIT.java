@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;

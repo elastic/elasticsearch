@@ -18,17 +18,16 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.index.analysis.Analysis.PERSIAN_ANALYZER_WITH_STEMMER;
 import static org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter.UNIFIED_HIGHLIGHTER_MATCHED_FIELDS;
 
 public class RestFeatures implements FeatureSpecification {
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
             RestNodesCapabilitiesAction.CAPABILITIES_ACTION,
             RestNodesCapabilitiesAction.LOCAL_ONLY_CAPABILITIES,
-            UNIFIED_HIGHLIGHTER_MATCHED_FIELDS,
-            PERSIAN_ANALYZER_WITH_STEMMER
+            UNIFIED_HIGHLIGHTER_MATCHED_FIELDS
         );
     }
 

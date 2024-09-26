@@ -904,7 +904,7 @@
 ---
 "persian stemming":
     - requires:
-        cluster_features: ["persian_analyzer_with_stemmer"]
+        cluster_features: ["lucene_10_upgrade"]
         reason: "test requires persian analyzer stemming capabilities that come with Lucene 10"
 
     - do:

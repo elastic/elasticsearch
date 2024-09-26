@@ -32,9 +32,9 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.search.SearchFeatures;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -1732,7 +1732,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      * after we introduce Lucene 10
      */
     public void testPersianAnalyzerBWC() throws Exception {
-        var originalClusterLegacyPersianAnalyzer = oldClusterHasFeature(Analysis.PERSIAN_ANALYZER_WITH_STEMMER) == false;
+        var originalClusterLegacyPersianAnalyzer = oldClusterHasFeature(SearchFeatures.LUCENE_10_0_0_UPGRADE) == false;
         assumeTrue("Don't run this test if both versions already support stemming", originalClusterLegacyPersianAnalyzer);
         final String indexName = "test_persian_stemmer";
         Settings idxSettings = indexSettings(1, 1).build();

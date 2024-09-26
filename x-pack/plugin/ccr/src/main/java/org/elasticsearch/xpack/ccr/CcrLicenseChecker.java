@@ -43,6 +43,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -427,6 +428,7 @@ public class CcrLicenseChecker {
             return new RemoteClusterClient() {
                 @Override
                 public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                    Transport.Connection connection,
                     RemoteClusterActionType<Response> action,
                     Request request,
                     ActionListener<Response> listener
@@ -437,8 +439,13 @@ public class CcrLicenseChecker {
                         null,
                         request,
                         listener,
-                        (r, l) -> client.execute(action, r, l)
+                        (r, l) -> client.execute(connection, action, r, l)
                     );
+                }
+
+                @Override
+                public <Request extends ActionRequest> void getConnection(Request request, ActionListener<Transport.Connection> listener) {
+                    client.getConnection(request, listener);
                 }
             };
         }
@@ -469,6 +476,7 @@ public class CcrLicenseChecker {
         return new RemoteClusterClient() {
             @Override
             public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                Transport.Connection connection,
                 RemoteClusterActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
@@ -476,8 +484,13 @@ public class CcrLicenseChecker {
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     threadContext.markAsSystemContext();
-                    delegate.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                    delegate.execute(connection, action, request, new ContextPreservingActionListener<>(supplier, listener));
                 }
+            }
+
+            @Override
+            public <Request extends ActionRequest> void getConnection(Request request, ActionListener<Transport.Connection> listener) {
+                delegate.getConnection(request, listener);
             }
         };
     }

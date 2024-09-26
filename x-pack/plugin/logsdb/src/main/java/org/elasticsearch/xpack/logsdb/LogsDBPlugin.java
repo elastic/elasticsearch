@@ -56,6 +56,6 @@ public class LogsDBPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FALLBACK_SETTING);
+        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED);
     }
 }

@@ -72,9 +72,9 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
             var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
 
             mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                private final CountDownLatch countDownLatch = new CountDownLatch(1);
                 int debugMessagesSeen = 0;
                 int warnMessagesSeen = 0;
 
@@ -101,14 +101,20 @@ public class ShardLockFailureIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void assertMatched() {}
+                public void assertMatched() {
+                    fail("unused");
+                }
+
+                @Override
+                public void awaitMatched(long millis) throws InterruptedException {
+                    assertTrue(countDownLatch.await(millis, TimeUnit.MILLISECONDS));
+                }
             });
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
             ensureYellow(indexName);
-            assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+            mockLog.awaitAllExpectationsMatched();
             assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus());
-            mockLog.assertAllExpectationsMatched();
         }
 
         ensureGreen(indexName);
@@ -153,7 +159,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             );
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
             final var clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueSeconds(10))

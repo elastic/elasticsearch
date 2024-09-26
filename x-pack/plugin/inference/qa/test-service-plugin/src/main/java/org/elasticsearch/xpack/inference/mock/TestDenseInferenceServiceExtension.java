@@ -94,6 +94,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             Model model,
             @Nullable String query,
             List<String> input,
+            boolean stream,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,

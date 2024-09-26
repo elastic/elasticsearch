@@ -30,6 +30,7 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
             model,
             model.getTaskType().equals(TaskType.RERANK) ? QUERY : null,
             TEST_INPUT,
+            false,
             Map.of(),
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,

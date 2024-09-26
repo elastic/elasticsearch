@@ -309,6 +309,7 @@ public class AlibabaCloudSearchService extends SenderService {
             model,
             query,
             List.of(input),
+            false,
             Map.of(),
             InputType.INGEST,
             DEFAULT_TIMEOUT,

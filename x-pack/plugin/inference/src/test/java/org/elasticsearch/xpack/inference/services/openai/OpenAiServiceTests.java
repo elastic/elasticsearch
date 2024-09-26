@@ -18,10 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -29,8 +29,10 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -56,8 +58,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
+import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
@@ -340,6 +344,90 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
+    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createOpenAiService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
+                }
+            );
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getServiceSettingsMap("model", null, null),
+                    getTaskSettingsMap(null),
+                    createRandomChunkingSettingsMap(),
+                    getSecretSettingsMap("secret")
+                ),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createOpenAiService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+                var embeddingsModel = (OpenAiEmbeddingsModel) model;
+                assertNull(embeddingsModel.getServiceSettings().uri());
+                assertNull(embeddingsModel.getServiceSettings().organizationId());
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+                assertNull(embeddingsModel.getTaskSettings().user());
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getServiceSettingsMap("model", null, null),
+                    getTaskSettingsMap(null),
+                    createRandomChunkingSettingsMap(),
+                    getSecretSettingsMap("secret")
+                ),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createOpenAiService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+                var embeddingsModel = (OpenAiEmbeddingsModel) model;
+                assertNull(embeddingsModel.getServiceSettings().uri());
+                assertNull(embeddingsModel.getServiceSettings().organizationId());
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+                assertNull(embeddingsModel.getTaskSettings().user());
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
     public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModel() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
@@ -413,6 +501,95 @@ public class OpenAiServiceTests extends ESTestCase {
             assertNull(embeddingsModel.getServiceSettings().organizationId());
             assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -612,6 +789,77 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
+    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutChunkingSettingsWhenChunkingSettingsFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null),
+                createRandomChunkingSettingsMap()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null),
+                createRandomChunkingSettingsMap()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null)
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
@@ -688,6 +936,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 mockModel,
                 null,
                 List.of(""),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -742,6 +991,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("abc"),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1185,7 +1435,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                null,
+                similarityMeasure,
                 randomNonNegativeInt(),
                 randomNonNegativeInt(),
                 randomBoolean()
@@ -1193,7 +1443,8 @@ public class OpenAiServiceTests extends ESTestCase {
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
 
-            assertEquals(SimilarityMeasure.DOT_PRODUCT, updatedModel.getServiceSettings().similarity());
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
             assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
     }
@@ -1221,6 +1472,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("abc"),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1262,6 +1514,32 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testChunkedInfer_Batches() throws IOException {
+        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_ChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        var model = OpenAiEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "org",
+            "secret",
+            "model",
+            "user",
+            ChunkingSettingsTests.createRandomChunkingSettings()
+        );
+
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_ChunkingSettingsNotSetAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", (ChunkingSettings) null);
+
+        testChunkedInfer(model);
+    }
+
+    private void testChunkedInfer(OpenAiEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -1297,7 +1575,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
@@ -1343,19 +1620,5 @@ public class OpenAiServiceTests extends ESTestCase {
 
     private OpenAiService createOpenAiService() {
         return new OpenAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
-    }
-
-    private Map<String, Object> getRequestConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
-    ) {
-        var builtServiceSettings = new HashMap<>();
-        builtServiceSettings.putAll(serviceSettings);
-        builtServiceSettings.putAll(secretSettings);
-
-        return new HashMap<>(
-            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
-        );
     }
 }

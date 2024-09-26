@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.inference.chunking;
 
 import com.ibm.icu.text.BreakIterator;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.ChunkingSettings;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -23,7 +26,7 @@ import java.util.Locale;
  * {@code maxNumberWordsPerChunk} it is split on word boundary with
  * overlap.
  */
-public class SentenceBoundaryChunker {
+public class SentenceBoundaryChunker implements Chunker {
 
     private final BreakIterator sentenceIterator;
     private final BreakIterator wordIterator;
@@ -31,6 +34,27 @@ public class SentenceBoundaryChunker {
     public SentenceBoundaryChunker() {
         sentenceIterator = BreakIterator.getSentenceInstance(Locale.ROOT);
         wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
+    }
+
+    /**
+     * Break the input text into small chunks on sentence boundaries.
+     *
+     * @param input Text to chunk
+     * @param chunkingSettings Chunking settings that define maxNumberWordsPerChunk
+     * @return The input text chunked
+     */
+    @Override
+    public List<String> chunk(String input, ChunkingSettings chunkingSettings) {
+        if (chunkingSettings instanceof SentenceBoundaryChunkingSettings sentenceBoundaryChunkingSettings) {
+            return chunk(input, sentenceBoundaryChunkingSettings.maxChunkSize);
+        } else {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "SentenceBoundaryChunker can't use ChunkingSettings with strategy [%s]",
+                    chunkingSettings.getChunkingStrategy()
+                )
+            );
+        }
     }
 
     /**

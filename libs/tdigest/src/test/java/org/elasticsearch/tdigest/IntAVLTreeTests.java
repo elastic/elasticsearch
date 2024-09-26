@@ -21,8 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -30,7 +29,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
 
-public class IntAVLTreeTests extends ESTestCase {
+public class IntAVLTreeTests extends TDigestTestCase {
 
     static class IntegerBag extends IntAVLTree {
 
@@ -38,8 +37,8 @@ public class IntAVLTreeTests extends ESTestCase {
         int[] values;
         int[] counts;
 
-        IntegerBag() {
-            super(WrapperTDigestArrays.INSTANCE);
+        IntegerBag(TDigestArrays arrays) {
+            super(arrays);
             values = new int[capacity()];
             counts = new int[capacity()];
         }
@@ -89,7 +88,7 @@ public class IntAVLTreeTests extends ESTestCase {
     public void testDualAdd() {
         Random r = random();
         TreeMap<Integer, Integer> map = new TreeMap<>();
-        IntegerBag bag = new IntegerBag();
+        IntegerBag bag = new IntegerBag(arrays());
         for (int i = 0; i < 100000; ++i) {
             final int v = r.nextInt(100000);
             if (map.containsKey(v)) {
@@ -112,7 +111,7 @@ public class IntAVLTreeTests extends ESTestCase {
     public void testDualAddRemove() {
         Random r = random();
         TreeMap<Integer, Integer> map = new TreeMap<>();
-        IntegerBag bag = new IntegerBag();
+        IntegerBag bag = new IntegerBag(arrays());
         for (int i = 0; i < 100000; ++i) {
             final int v = r.nextInt(1000);
             if (r.nextBoolean()) {

@@ -274,6 +274,11 @@ public class EsqlCapabilities {
         DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * Support for to_date_nanos function
+         */
+        TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
          * Support CIDRMatch in CombineDisjunctions rule.
          */
         COMBINE_DISJUNCTIVE_CIDRMATCHES,

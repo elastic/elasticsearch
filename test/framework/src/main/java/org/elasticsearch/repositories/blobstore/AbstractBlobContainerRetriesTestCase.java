@@ -351,9 +351,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             anyOf(
                 containsString("premature end of chunk coded message body: closing chunk expected"),
                 containsString("premature end of content-length delimited message body"),
-                alwaysFlushBody
-                    ? never()
-                    : anyOf(containsString("connection closed prematurely"), containsString("the target server failed to respond"))
+                containsString("connection closed prematurely"),
+                alwaysFlushBody ? never() : containsString("the target server failed to respond")
             )
         );
         assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(Math.min(10, maxRetries)));

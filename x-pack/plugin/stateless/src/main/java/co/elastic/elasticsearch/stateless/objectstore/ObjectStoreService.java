@@ -60,6 +60,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -517,6 +518,22 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return latestBcc;
     }
 
+    public static BatchedCompoundCommit readBatchedCompoundCommit(BlobContainer blobContainer, long generation) throws IOException {
+        // TODO save a GET here
+        var blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+        var blobs = blobContainer.listBlobsByPrefix(OperationPurpose.INDICES, blobName);
+        assert blobs != null && blobs.size() == 1 : blobName + " not found in " + blobs;
+
+        var blobMetadata = blobs.get(blobName);
+        if (blobMetadata != null) {
+            var batchedCompoundCommit = readBatchedCompoundCommitFromStore(blobContainer, blobMetadata.name(), blobMetadata.length());
+            logLatestBcc(batchedCompoundCommit, blobContainer);
+            return batchedCompoundCommit;
+        }
+        assert false : blobName + " not found";
+        throw new FileNotFoundException("Blob [" + blobName + "] not found");
+    }
+
     public static IndexingShardState readIndexingShardState(BlobContainer shardContainer, long primaryTerm) throws IOException {
         Set<BlobFile> unreferencedBlobs = new HashSet<>();
         BatchedCompoundCommit latestBcc = null;
@@ -676,15 +693,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             boolean success = false;
             try {
                 var before = threadPool.relativeTimeInMillis();
-                try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                    blobContainer.writeBlobAtomic(
-                        OperationPurpose.INDICES,
-                        virtualBatchedCompoundCommit.getBlobName(),
-                        vbccInputStream,
-                        virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                        false
-                    );
-                }
+                // TODO: Ensure that out usage of this method for writing files is appropriate. The javadoc is a bit concerning. "This
+                // method is only used for streaming serialization of repository metadata that is known to be of limited size at any point
+                // in time and across all concurrent invocations of this method."
+                blobContainer.writeMetadataBlob(
+                    OperationPurpose.INDICES,
+                    virtualBatchedCompoundCommit.getBlobName(),
+                    false,
+                    true,
+                    virtualBatchedCompoundCommit::writeToStore
+                );
                 var after = threadPool.relativeTimeInMillis();
                 logger.debug(
                     () -> format(

@@ -352,20 +352,19 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
                     }
                     virtualBatchedCompoundCommit.freeze();
-                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                        shardBlobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            vbccInputStream,
-                            virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                            true
-                        );
-                    }
-                    final BatchedCompoundCommit batchedCompoundCommit = virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit();
-                    for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
-                        uploadedBlobLocations.putAll(compoundCommit.commitFiles());
-                    }
-                    expectedNewestBatchedCompoundCommit.set(batchedCompoundCommit);
+                    shardBlobContainer.writeMetadataBlob(
+                        OperationPurpose.INDICES,
+                        virtualBatchedCompoundCommit.getBlobName(),
+                        true,
+                        true,
+                        output -> {
+                            final BatchedCompoundCommit batchedCompoundCommit = virtualBatchedCompoundCommit.writeToStore(output);
+                            for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
+                                uploadedBlobLocations.putAll(compoundCommit.commitFiles());
+                            }
+                            expectedNewestBatchedCompoundCommit.set(batchedCompoundCommit);
+                        }
+                    );
                 }
             }
 

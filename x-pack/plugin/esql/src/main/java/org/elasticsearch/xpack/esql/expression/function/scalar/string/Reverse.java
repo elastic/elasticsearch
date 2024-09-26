@@ -24,7 +24,10 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
 import java.io.IOException;
+import java.text.BreakIterator;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -87,9 +90,31 @@ public class Reverse extends EsqlScalarFunction {
         return field.foldable();
     }
 
+    private static String reverseSimpleString (String str) {
+        return new StringBuilder(str).reverse().toString();
+    }
+
+    private static String reverseStringWithUnicodeCharacters (String str) {
+        BreakIterator boundary = BreakIterator.getCharacterInstance(Locale.getDefault());
+        boundary.setText(str);
+
+        List<String> characters = new ArrayList<>();
+        int start = boundary.first();
+        for (int end = boundary.next(); end != BreakIterator.DONE; start = end, end = boundary.next()) {
+            characters.add(str.substring(start, end));
+        }
+
+        StringBuilder reversed = new StringBuilder(str.length());
+        for (int i = characters.size() - 1; i >= 0; i--) {
+            reversed.append(characters.get(i));
+        }
+
+        return reversed.toString();
+    }
+
     @Evaluator
     static BytesRef process(BytesRef val) {
-        return BytesRefs.toBytesRef(new StringBuilder(val.utf8ToString()).reverse());
+        return BytesRefs.toBytesRef(reverseStringWithUnicodeCharacters(val.utf8ToString()));
     }
 
     @Override

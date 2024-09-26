@@ -1217,12 +1217,12 @@ Some Text       | txeT emoS
 reverseEmoji
 required_capability: fn_reverse
 // tag::reverseEmoji[]
-ROW message = "🏠➡️🚌➡️✈️➡️🏝";
+ROW message = "🏠➡️🚌➡️✈️➡️🏝️" | EVAL back_home = REVERSE(message);
 // end::reverseEmoji[]
 
 // tag::reverseEmoji-result[]
-message:keyword
-🏠➡️🚌➡️✈️➡️🏝
+message:keyword | back_home:keyword
+🏠➡️🚌➡️✈️➡️🏝️ | 🏝️➡️✈️➡️🚌➡️🏠
 // end::reverseEmoji-result[]
 ;
 

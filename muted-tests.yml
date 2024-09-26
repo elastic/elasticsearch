@@ -311,6 +311,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/101458
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
+  issue: https://github.com/elastic/elasticsearch/issues/113648
 
 # Examples:
 #

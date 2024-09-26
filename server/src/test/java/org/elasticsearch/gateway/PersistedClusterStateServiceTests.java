@@ -48,6 +48,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -1599,7 +1601,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writeState(
                     writer,
                     0L,
-                    ClusterState.builder(clusterState).metadata(metadata).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
+                    ClusterState.builder(clusterState)
+                        .metadata(metadata)
+                        .version(randomLongBetween(1L, Long.MAX_VALUE))
+                        .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+                        .build(),
                     clusterState
                 );
             }

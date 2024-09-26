@@ -236,6 +236,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+        assert assertConsistentProjectState(routingTable, metadata);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
@@ -273,6 +274,23 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
         assert routingNodes.equals(expected)
             : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
+        return true;
+    }
+
+    private static boolean assertConsistentProjectState(GlobalRoutingTable routingTable, Metadata metadata) {
+        if (metadata == null) {
+            return true;
+        }
+        final Set<ProjectId> metadataProjects = metadata.projects().keySet();
+        for (var projectId : metadataProjects) {
+            assert routingTable.routingTables().containsKey(projectId) : "Project [" + projectId + "] does not exist in routing table";
+        }
+        if (metadataProjects.size() != routingTable.size()) {
+            for (var projectId : routingTable.routingTables().keySet()) {
+                assert metadataProjects.contains(projectId)
+                    : "Project [" + projectId + "] exists in routing table, but not in metadata (" + metadataProjects + ")";
+            }
+        }
         return true;
     }
 
@@ -961,7 +979,14 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         @Deprecated
         public Builder routingTable(RoutingTable routingTable) {
-            return routingTable(new GlobalRoutingTable(ImmutableOpenMap.builder(Metadata.DEFAULT_PROJECT_ID, routingTable).build()));
+            return routingTable(Metadata.DEFAULT_PROJECT_ID, routingTable);
+        }
+
+        @Deprecated
+        public Builder routingTable(ProjectId projectId, RoutingTable routingTable) {
+            Objects.requireNonNull(projectId, "project-id may not be null");
+            Objects.requireNonNull(routingTable, "routing-table may not be null");
+            return routingTable(new GlobalRoutingTable(ImmutableOpenMap.builder(projectId, routingTable).build()));
         }
 
         public Builder routingTable(GlobalRoutingTable routingTable) {

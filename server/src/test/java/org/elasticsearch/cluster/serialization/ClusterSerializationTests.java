@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -159,7 +161,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         IndexMetadata.Builder indexMetadataBuilder,
         TransportVersion transportVersion
     ) throws IOException {
-        Metadata metadata = Metadata.builder().put(indexMetadataBuilder).build();
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).put(indexMetadataBuilder).build();
+        final Metadata metadata = Metadata.builder().put(projectMetadata).build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.getProject().index("test"))
@@ -176,7 +180,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1"))
             .nodes(nodes)
             .metadata(metadata)
-            .routingTable(routingTable)
+            .routingTable(projectId, routingTable)
             .build();
 
         AllocationService strategy = createAllocationService();

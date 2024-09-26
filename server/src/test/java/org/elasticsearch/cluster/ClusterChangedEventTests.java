@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -156,15 +157,19 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertEquals(hasBlock ? 0 : 1, event.indicesDeleted().size());
 
         // Remove entire project
+        Metadata metadata = Metadata.builder(originalState.metadata()).removeProject(project2.id()).build();
         newState = ClusterState.builder(originalState)
-            .metadata(Metadata.builder(originalState.metadata()).removeProject(project2.id()).build())
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
         event = new ClusterChangedEvent("_na_", newState, originalState);
         assertEquals(hasBlock ? 0 : 1, event.indicesDeleted().size());
 
         // Remove two projects
+        metadata = Metadata.builder(originalState.metadata()).removeProject(project1.id()).removeProject(project2.id()).build();
         newState = ClusterState.builder(originalState)
-            .metadata(Metadata.builder(originalState.metadata()).removeProject(project1.id()).removeProject(project2.id()).build())
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
         event = new ClusterChangedEvent("_na_", newState, originalState);
         assertEquals(hasBlock ? 0 : 2, event.indicesDeleted().size());

@@ -58,7 +58,7 @@ public class RedactProcessor extends AbstractProcessor {
     protected static final String REDACT_KEY = "_redact";
     protected static final String IS_REDACTED_KEY = "_is_redacted";
     protected static final String METADATA_PATH_REDACT = IngestDocument.INGEST_KEY + "." + REDACT_KEY;
-    // indicates if document has been redacted
+    // indicates if document has been redacted, path: _ingest._redact._is_redacted
     protected static final String METADATA_PATH_REDACT_IS_REDACTED = METADATA_PATH_REDACT + "." + IS_REDACTED_KEY;
 
     private final String redactField;
@@ -216,8 +216,9 @@ public class RedactProcessor extends AbstractProcessor {
     }
 
     private void updateMetadataIfNecessary(IngestDocument ingestDocument, String fieldValue, String redacted) {
-        if (traceRedact == false) return;
-        if (fieldValue == null) return;
+        if (traceRedact == false || fieldValue == null) {
+            return;
+        }
 
         Boolean isRedactedMetadata = ingestDocument.getFieldValue(METADATA_PATH_REDACT_IS_REDACTED, Boolean.class, true);
         boolean alreadyRedacted = Boolean.TRUE.equals(isRedactedMetadata);

@@ -11,21 +11,25 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.TDigestByteArray;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
+import org.elasticsearch.tdigest.arrays.TDigestLongArray;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MemoryTrackingTDigestArraysTests extends ESTestCase {
+    // Int arrays
+
     public void testIntEmpty() {
         try (TDigestIntArray array = intArray(0)) {
             assertThat(array.size(), equalTo(0));
         }
     }
 
-    public void testIntBasicOperations() {
+    public void testIntGetAndSet() {
         int initialSize = randomIntBetween(10, 1000);
         try (TDigestIntArray array = intArray(initialSize)) {
             assertThat(array.size(), equalTo(initialSize));
@@ -45,13 +49,202 @@ public class MemoryTrackingTDigestArraysTests extends ESTestCase {
         }
     }
 
+    public void testIntResize() {
+        int initialSize = randomIntBetween(10, 1000);
+        try (TDigestIntArray array = intArray(initialSize)) {
+            assertThat(array.size(), equalTo(initialSize));
+
+            // Fill with a non-zero value
+            int value = randomBoolean() ? randomIntBetween(Integer.MIN_VALUE, -1) : randomIntBetween(1, Integer.MAX_VALUE);
+            for (int i = 0; i < initialSize; i++) {
+                array.set(i, value);
+            }
+
+            // Resize to a size-1
+            array.resize(initialSize - 1);
+            assertThat(array.size(), equalTo(initialSize - 1));
+
+            for (int i = 0; i < initialSize - 1; i++) {
+                assertThat(array.get(i), equalTo(value));
+            }
+
+            // Resize to the original size + 1
+            array.resize(initialSize + 1);
+            assertThat(array.size(), equalTo(initialSize + 1));
+
+            // Ensure all new elements are 0
+            for (int i = 0; i < initialSize - 1; i++) {
+                if (i < initialSize) {
+                    assertThat(array.get(i), equalTo(value));
+                } else {
+                    assertThat(array.get(i), equalTo(0));
+                }
+            }
+        }
+    }
+
+    public void testIntBulkSet() {
+        int initialSize = randomIntBetween(10, 1000);
+        int sourceArraySize = randomIntBetween(0, initialSize);
+
+        try (TDigestIntArray array = intArray(initialSize); TDigestIntArray source = intArray(sourceArraySize)) {
+            assertThat(array.size(), equalTo(initialSize));
+            assertThat(source.size(), equalTo(sourceArraySize));
+
+            int value = randomInt();
+            for (int i = 0; i < sourceArraySize; i++) {
+                source.set(i, value);
+            }
+
+            int initialOffset = randomIntBetween(0, initialSize - sourceArraySize);
+            int sourceOffset = randomIntBetween(0, sourceArraySize - 1);
+            int elementsToCopy = randomIntBetween(1, sourceArraySize - sourceOffset);
+
+            array.set(initialOffset, source, sourceOffset, elementsToCopy);
+
+            for (int i = 0; i < initialSize; i++) {
+                if (i < initialOffset || i >= initialOffset + elementsToCopy) {
+                    assertThat(array.get(i), equalTo(0));
+                } else {
+                    assertThat(array.get(i), equalTo(value));
+                }
+            }
+        }
+    }
+
+    // Long arrays
+
+    public void testLongEmpty() {
+        try (TDigestIntArray array = intArray(0)) {
+            assertThat(array.size(), equalTo(0));
+        }
+    }
+
+    public void testLongGetAndSet() {
+        int initialSize = randomIntBetween(10, 1000);
+        try (TDigestLongArray array = longArray(initialSize)) {
+            assertThat(array.size(), equalTo(initialSize));
+
+            long value = randomLong();
+            for (int i = 9; i < initialSize; i++) {
+                array.set(i, value);
+            }
+
+            for (int i = 0; i < initialSize; i++) {
+                if (i < 9) {
+                    assertThat(array.get(i), equalTo(0L));
+                } else {
+                    assertThat(array.get(i), equalTo(value));
+                }
+            }
+        }
+    }
+
+    public void testLongResize() {
+        int initialSize = randomIntBetween(10, 1000);
+        try (TDigestLongArray array = longArray(initialSize)) {
+            assertThat(array.size(), equalTo(initialSize));
+
+            // Fill with a non-zero value
+            long value = randomBoolean() ? randomLongBetween(Long.MIN_VALUE, -1) : randomLongBetween(1, Long.MAX_VALUE);
+            for (int i = 0; i < initialSize; i++) {
+                array.set(i, value);
+            }
+
+            // Resize to a size-1
+            array.resize(initialSize - 1);
+            assertThat(array.size(), equalTo(initialSize - 1));
+
+            for (int i = 0; i < initialSize - 1; i++) {
+                assertThat(array.get(i), equalTo(value));
+            }
+
+            // Resize to the original size + 1
+            array.resize(initialSize + 1);
+            assertThat(array.size(), equalTo(initialSize + 1));
+
+            // Ensure all new elements are 0
+            for (int i = 0; i < initialSize - 1; i++) {
+                if (i < initialSize) {
+                    assertThat(array.get(i), equalTo(value));
+                } else {
+                    assertThat(array.get(i), equalTo(0L));
+                }
+            }
+        }
+    }
+
+    // Byte arrays
+
+    public void testByteEmpty() {
+        try (TDigestByteArray array = byteArray(0)) {
+            assertThat(array.size(), equalTo(0));
+        }
+    }
+
+    public void testByteGetAndSet() {
+        int initialSize = randomIntBetween(10, 1000);
+        try (TDigestByteArray array = byteArray(initialSize)) {
+            assertThat(array.size(), equalTo(initialSize));
+
+            byte value = randomByte();
+            for (int i = 9; i < initialSize; i++) {
+                array.set(i, value);
+            }
+
+            for (int i = 0; i < initialSize; i++) {
+                if (i < 9) {
+                    assertThat(array.get(i), equalTo((byte) 0));
+                } else {
+                    assertThat(array.get(i), equalTo(value));
+                }
+            }
+        }
+    }
+
+    public void testByteResize() {
+        int initialSize = randomIntBetween(10, 1000);
+        try (TDigestByteArray array = byteArray(initialSize)) {
+            assertThat(array.size(), equalTo(initialSize));
+
+            // Fill with a non-zero value
+            byte value = randomBoolean() ? randomByteBetween(Byte.MIN_VALUE, (byte) -1) : randomByteBetween((byte) 1, Byte.MAX_VALUE);
+            for (int i = 0; i < initialSize; i++) {
+                array.set(i, value);
+            }
+
+            // Resize to a size-1
+            array.resize(initialSize - 1);
+            assertThat(array.size(), equalTo(initialSize - 1));
+
+            for (int i = 0; i < initialSize - 1; i++) {
+                assertThat(array.get(i), equalTo(value));
+            }
+
+            // Resize to the original size + 1
+            array.resize(initialSize + 1);
+            assertThat(array.size(), equalTo(initialSize + 1));
+
+            // Ensure all new elements are 0
+            for (int i = 0; i < initialSize - 1; i++) {
+                if (i < initialSize) {
+                    assertThat(array.get(i), equalTo(value));
+                } else {
+                    assertThat(array.get(i), equalTo((byte) 0));
+                }
+            }
+        }
+    }
+
+    // Double arrays
+
     public void testDoubleEmpty() {
         try (TDigestDoubleArray array = doubleArray(0)) {
             assertThat(array.size(), equalTo(0));
         }
     }
 
-    public void testDoubleBasicOperations() {
+    public void testDoubleGetAndSet() {
         int initialSize = randomIntBetween(10, 1000);
         try (TDigestDoubleArray array = doubleArray(initialSize)) {
             assertThat(array.size(), equalTo(initialSize));
@@ -143,8 +336,18 @@ public class MemoryTrackingTDigestArraysTests extends ESTestCase {
         }
     }
 
+    // Helpers
+
     private TDigestIntArray intArray(int initialSize) {
         return arrays().newIntArray(initialSize);
+    }
+
+    private TDigestLongArray longArray(int initialSize) {
+        return arrays().newLongArray(initialSize);
+    }
+
+    private TDigestByteArray byteArray(int initialSize) {
+        return arrays().newByteArray(initialSize);
     }
 
     private TDigestDoubleArray doubleArray(int initialSize) {

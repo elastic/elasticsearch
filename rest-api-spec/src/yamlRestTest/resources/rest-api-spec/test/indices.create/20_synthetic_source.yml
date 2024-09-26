@@ -887,7 +887,7 @@ doubly nested object:
 ---
 subobjects auto:
   - requires:
-      cluster_features: ["mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto_fixes"]
       reason: requires tracking ignored source and supporting subobjects auto setting
 
   - do:
@@ -924,9 +924,21 @@ subobjects auto:
                         type: keyword
               nested:
                 type: nested
-              auto_obj:
-                type: object
-                subobjects: auto
+              path:
+                properties:
+                  to:
+                    properties:
+                      auto_obj:
+                        type: object
+                        subobjects: auto
+                        properties:
+                          inner:
+                            properties:
+                              id:
+                                type: keyword
+                      id:
+                        type:
+                          integer
 
   - do:
       bulk:
@@ -934,13 +946,13 @@ subobjects auto:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{  "id": 1, "foo": 10, "foo.bar": 100, "regular": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{  "id": 1, "foo": 10, "foo.bar": 100, "regular.trace.id": ["b", "a", "b"], "regular.span.id": "1" }'
           - '{ "create": { } }'
           - '{  "id": 2, "foo": 20, "foo.bar": 200, "stored": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
           - '{ "create": { } }'
           - '{  "id": 3, "foo": 30, "foo.bar": 300, "nested": [ { "a": 10, "b": 20 }, { "a": 100, "b": 200 } ] }'
           - '{ "create": { } }'
-          - '{  "id": 4, "auto_obj": {  "foo": 40, "foo.bar": 400 } }'
+          - '{  "id": 4, "path.to.auto_obj": {  "foo": 40, "foo.bar": 400, "inner.id": "baz" }, "path.to.id": 4000 }'
 
   - match: { errors: false }
 
@@ -952,8 +964,8 @@ subobjects auto:
   - match: { hits.hits.0._source.id: 1  }
   - match: { hits.hits.0._source.foo: 10  }
   - match: { hits.hits.0._source.foo\.bar: 100  }
-  - match: { hits.hits.0._source.regular.span.id: "1" }
-  - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
+  - match: { hits.hits.0._source.regular\.span\.id: "1" }
+  - match: { hits.hits.0._source.regular\.trace\.id: [ "a", "b" ] }
   - match: { hits.hits.1._source.id: 2  }
   - match: { hits.hits.1._source.foo: 20 }
   - match: { hits.hits.1._source.foo\.bar: 200 }
@@ -969,8 +981,110 @@ subobjects auto:
   - match: { hits.hits.2._source.nested.1.a: 100 }
   - match: { hits.hits.2._source.nested.1.b: 200 }
   - match: { hits.hits.3._source.id: 4  }
-  - match: { hits.hits.3._source.auto_obj.foo: 40 }
-  - match: { hits.hits.3._source.auto_obj.foo\.bar: 400 }
+  - match: { hits.hits.3._source.path\.to\.auto_obj.foo: 40 }
+  - match: { hits.hits.3._source.path\.to\.auto_obj.foo\.bar: 400 }
+  - match: { hits.hits.3._source.path\.to\.auto_obj.inner\.id: baz }
+  - match: { hits.hits.3._source.path\.to\.id: 4000 }
+
+
+---
+subobjects auto with path flattening:
+  - requires:
+      cluster_features: ["mapper.subobjects_auto_fixes"]
+      reason: requires tracking ignored source and supporting subobjects auto setting
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            subobjects: auto
+            properties:
+              id:
+                type: integer
+              attributes:
+                type: object
+                subobjects: auto
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "attributes": { "foo": { "bar": 10 } } }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "attributes": { "foo": { "bar": 20 } } }'
+          - '{ "create": { } }'
+          - '{  "id": 3, "attributes": { "foo": { "bar": 30 } } }'
+          - '{ "create": { } }'
+          - '{  "id": 4, "attributes": { "foo": { "bar": 40 } } }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1  }
+  - match: { hits.hits.0._source.attributes.foo\.bar: 10  }
+  - match: { hits.hits.1._source.id: 2 }
+  - match: { hits.hits.1._source.attributes.foo\.bar: 20 }
+  - match: { hits.hits.2._source.id: 3 }
+  - match: { hits.hits.2._source.attributes.foo\.bar: 30 }
+  - match: { hits.hits.3._source.id: 4 }
+  - match: { hits.hits.3._source.attributes.foo\.bar: 40 }
+
+
+---
+subobjects auto with dynamic template:
+  - requires:
+      cluster_features: ["mapper.subobjects_auto_fixes"]
+      reason: requires tracking ignored source and supporting subobjects auto setting
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            subobjects: auto
+            dynamic_templates:
+              - attributes_tmpl:
+                  match: attributes
+                  mapping:
+                    type: object
+                    enabled: false
+                    subobjects: auto
+            properties:
+              id:
+                type: integer
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "attributes": { "foo": 10, "path.to.bar": "val1" }, "a": 100, "a.b": 1000 }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1 }
+  - match: { hits.hits.0._source.attributes.foo: 10 }
+  - match: { hits.hits.0._source.attributes.path\.to\.bar: val1 }
+  - match: { hits.hits.0._source.a: 100 }
+  - match: { hits.hits.0._source.a\.b: 1000 }
+
 
 ---
 synthetic_source with copy_to:
@@ -1755,7 +1869,7 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects false:
 ---
 synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      cluster_features: ["mapper.subobjects_auto_fixes"]
       reason: requires copy_to support in synthetic source
 
   - do:

@@ -30,7 +30,8 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
           machineType: n1-standard-8
-        env: {}
+        env:
+          USE_PROD_DOCKER_CREDENTIALS: "true"
   - group: packaging-tests-upgrade
     steps:
       - label: "{{matrix.image}} / 8.0.1 / packaging-tests-upgrade"

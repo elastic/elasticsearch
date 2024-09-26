@@ -211,9 +211,7 @@ public class SharedBlobCacheWarmingService {
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
         this.cacheWarmingPageAlignedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
-        ByteSizeValue byteSizeValue = PREWARMING_RANGE_MINIMIZATION_STEP.get(settings);
-        logger.info("prewarming with [{}={}]", PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), byteSizeValue.getStringRep());
-        this.prewarmingRangeMinimizationStep = byteSizeValue.getBytes();
+        this.prewarmingRangeMinimizationStep = PREWARMING_RANGE_MINIMIZATION_STEP.get(settings).getBytes();
     }
 
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {

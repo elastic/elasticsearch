@@ -1,25 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.logsdb.qa.matchers.source;
+package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.datastreams.logsdb.qa.matchers.GenericEqualsMatcher;
+import org.elasticsearch.datastreams.logsdb.qa.matchers.ListEqualMatcher;
+import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.logsdb.qa.matchers.GenericEqualsMatcher;
-import org.elasticsearch.xpack.logsdb.qa.matchers.ListEqualMatcher;
-import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
-import org.elasticsearch.xpack.logsdb.qa.matchers.Messages;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintCollections;
 
 public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>>> {
     private final Map<String, MappingTransforms.FieldMapping> actualNormalizedMapping;
@@ -62,12 +66,12 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
     public MatchResult match() {
         if (actual.size() != expected.size()) {
             return MatchResult.noMatch(
-                Messages.formatErrorMessage(
+                formatErrorMessage(
                     actualMappings,
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "Number of documents does not match, " + Messages.prettyPrintCollections(actual, expected)
+                    "Number of documents does not match, " + prettyPrintCollections(actual, expected)
                 )
             );
         }

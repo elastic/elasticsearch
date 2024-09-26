@@ -1,16 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.logsdb.qa.matchers;
+package org.elasticsearch.datastreams.logsdb.qa.matchers;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
+
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintCollections;
 
 public class ListEqualMatcher extends GenericEqualsMatcher<List<?>> {
     public ListEqualMatcher(
@@ -34,12 +39,12 @@ public class ListEqualMatcher extends GenericEqualsMatcher<List<?>> {
     private MatchResult matchListEquals(final List<Object> actualList, final List<Object> expectedList, boolean ignoreSorting) {
         if (actualList.size() != expectedList.size()) {
             return MatchResult.noMatch(
-                Messages.formatErrorMessage(
+                formatErrorMessage(
                     actualMappings,
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "List lengths do not match, " + Messages.prettyPrintCollections(actualList, expectedList)
+                    "List lengths do not match, " + prettyPrintCollections(actualList, expectedList)
                 )
             );
         }
@@ -47,24 +52,24 @@ public class ListEqualMatcher extends GenericEqualsMatcher<List<?>> {
             return matchListsEqualIgnoringSorting(actualList, expectedList)
                 ? MatchResult.match()
                 : MatchResult.noMatch(
-                    Messages.formatErrorMessage(
+                    formatErrorMessage(
                         actualMappings,
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Lists do not match when ignoring sort order, " + Messages.prettyPrintCollections(actualList, expectedList)
+                        "Lists do not match when ignoring sort order, " + prettyPrintCollections(actualList, expectedList)
                     )
                 );
         } else {
             return matchListsEqualExact(actualList, expectedList)
                 ? MatchResult.match()
                 : MatchResult.noMatch(
-                    Messages.formatErrorMessage(
+                    formatErrorMessage(
                         actualMappings,
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Lists do not match exactly, " + Messages.prettyPrintCollections(actualList, expectedList)
+                        "Lists do not match exactly, " + prettyPrintCollections(actualList, expectedList)
                     )
                 );
         }

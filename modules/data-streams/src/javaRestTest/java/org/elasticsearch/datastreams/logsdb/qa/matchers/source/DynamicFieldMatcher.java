@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.logsdb.qa.matchers.source;
+package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
-import org.elasticsearch.xpack.logsdb.qa.matchers.Messages;
 
 import java.util.List;
 import java.util.Objects;
@@ -18,6 +19,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintCollections;
 
 class DynamicFieldMatcher {
     private final XContentBuilder actualMappings;
@@ -58,13 +62,13 @@ class DynamicFieldMatcher {
             var matchResult = normalizedActual.equals(normalizedExpected)
                 ? MatchResult.match()
                 : MatchResult.noMatch(
-                    Messages.formatErrorMessage(
+                    formatErrorMessage(
                         actualMappings,
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
                         "Values of dynamically mapped field containing double values don't match after normalization, normalized "
-                            + Messages.prettyPrintCollections(normalizedActual, normalizedExpected)
+                            + prettyPrintCollections(normalizedActual, normalizedExpected)
                     )
                 );
             return Optional.of(matchResult);

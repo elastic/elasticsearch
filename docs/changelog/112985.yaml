@@ -1,6 +1,0 @@
-pr: 112985
-summary: "ES|QL: Fix `ResolvedEnrichPolicy` serialization (bwc) in v 8.15"
-area: ES|QL
-type: bug
-issues:
- - 112968

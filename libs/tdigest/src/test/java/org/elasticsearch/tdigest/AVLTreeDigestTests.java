@@ -21,13 +21,11 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-
 public class AVLTreeDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
         return () -> {
-            AVLTreeDigest digest = new AVLTreeDigest(WrapperTDigestArrays.INSTANCE, compression);
+            AVLTreeDigest digest = new AVLTreeDigest(arrays(), compression);
             digest.setRandomSeed(randomLong());
             return digest;
         };

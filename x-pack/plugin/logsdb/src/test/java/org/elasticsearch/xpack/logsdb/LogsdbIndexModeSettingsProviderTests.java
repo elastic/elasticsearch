@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -88,7 +90,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             Metadata.EMPTY_METADATA,
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
-            Settings.builder().put("index.mode", "standard").build(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build(),
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
@@ -106,7 +108,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             Metadata.EMPTY_METADATA,
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
-            Settings.builder().put("index.mode", "time_series").build(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build(),
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
@@ -164,7 +166,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertIndexMode(additionalIndexSettings, "logsdb");
+        assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
     }
 
     public void testWithMultipleComponentTemplates() throws IOException {
@@ -182,7 +184,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertIndexMode(additionalIndexSettings, "logsdb");
+        assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
     }
 
     public void testWithCustomComponentTemplatesOnly() throws IOException {
@@ -272,7 +274,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertIndexMode(beforeSettings, null);
+        assertTrue(beforeSettings.isEmpty());
 
         provider.updateClusterIndexModeLogsdbEnabled(true);
 
@@ -286,7 +288,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertIndexMode(afterSettings, "logsdb");
+        assertIndexMode(afterSettings, IndexMode.LOGSDB.getName());
 
         provider.updateClusterIndexModeLogsdbEnabled(false);
 
@@ -300,7 +302,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertIndexMode(laterSettings, null);
+        assertTrue(laterSettings.isEmpty());
     }
 
     private static Metadata buildMetadata(final List<String> indexPatterns, final List<String> componentTemplates) throws IOException {
@@ -318,7 +320,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     private void assertIndexMode(final Settings settings, final String expectedIndexMode) {
-        assertEquals(expectedIndexMode, settings.get("index.mode"));
+        assertEquals(expectedIndexMode, settings.get(IndexSettings.MODE.getKey()));
     }
 
 }

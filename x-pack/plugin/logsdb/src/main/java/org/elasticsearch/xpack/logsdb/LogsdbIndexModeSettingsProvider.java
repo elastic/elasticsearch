@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.cluster.settings.ClusterSettings.CLUSTER_LOGSDB_ENABLED;
 
@@ -65,7 +66,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     private IndexMode resolveIndexMode(final String mode) {
-        return mode != null ? Enum.valueOf(IndexMode.class, mode) : null;
+        return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
     }
 
     private boolean usesLogsAtSettingsComponentTemplate(final Metadata metadata, final String name) {

@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import org.elasticsearch.tdigest.arrays.TDigestLongArray;
@@ -31,7 +33,7 @@ import java.util.Iterator;
 /**
  * A tree of t-digest centroids.
  */
-final class AVLGroupTree extends AbstractCollection<Centroid> {
+final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasable {
     /* For insertions into the tree */
     private double centroid;
     private long count;
@@ -267,4 +269,8 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
         }
     }
 
+    @Override
+    public void close() {
+        Releasables.close(centroids, counts, aggregatedCounts, tree);
+    }
 }

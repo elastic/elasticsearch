@@ -308,6 +308,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
+  issue: https://github.com/elastic/elasticsearch/issues/101458
 
 # Examples:
 #

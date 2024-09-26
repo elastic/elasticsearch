@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexSettingProvider;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.cluster.settings.ClusterSettings.CLUSTER_LOGSDB_ENABLED;
 

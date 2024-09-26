@@ -149,6 +149,7 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         Model model,
         @Nullable String query,
         List<String> inputs,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

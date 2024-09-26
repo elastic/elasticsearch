@@ -323,6 +323,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Model model,
         @Nullable String query,
         List<String> input,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

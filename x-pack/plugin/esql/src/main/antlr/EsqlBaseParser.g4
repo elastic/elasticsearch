@@ -102,7 +102,13 @@ primaryExpression
     ;
 
 functionExpression
-    : identifier LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionIdentifier LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    ;
+
+functionIdentifier
+    : identifier
+    // Additional function identifiers that are already a reserved word in the language
+    | DEV_MATCH
     ;
 
 dataType

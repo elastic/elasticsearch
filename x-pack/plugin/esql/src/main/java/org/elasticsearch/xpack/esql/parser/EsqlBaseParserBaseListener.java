@@ -337,6 +337,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFunctionIdentifier(EsqlBaseParser.FunctionIdentifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionIdentifier(EsqlBaseParser.FunctionIdentifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterToDataType(EsqlBaseParser.ToDataTypeContext ctx) { }
   /**
    * {@inheritDoc}

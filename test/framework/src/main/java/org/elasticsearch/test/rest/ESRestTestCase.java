@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasks
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapsUtils;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -1178,7 +1179,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field
                 // or that doesn't support data streams so it's safe to ignore
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
-                if (statusCode < 404 || statusCode > 405) {
+                if (statusCode == 400) {
+                    // the test cluster likely does not include the data streams module so we can ignore this error code
+                    // additionally there is an implementation gotcha that cause response code to be 400 or 405 dependent on if
+                    // "_data_stream/*" matches a registered index pattern such as {a}/{b} but not for the HTTP verb.
+                    // Prior to v9 POST {index}/{type} was registered as a compatible index pattern so the request would partially match
+                    // and return a 405, but without that pattern registered at all the return value is a 400.
+                    return;
+                } else if (statusCode < 404 || statusCode > 405) {
                     throw ee;
                 }
             }
@@ -1721,7 +1729,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     public final void ensureGreen(String index) throws IOException {
-        ensureHealth(index, (request) -> {
+        ensureGreen(client(), index);
+    }
+
+    public final void ensureGreen(RestClient client, String index) throws IOException {
+        ensureHealth(client, index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
             final String ensureGreenTimeout = getEnsureGreenTimeout();
@@ -2454,7 +2466,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Response response = restClient.performRequest(request);
         assertOK(response);
         try (XContentParser parser = responseAsParser(response)) {
-            return FieldCapabilitiesResponse.fromXContent(parser);
+            return FieldCapsUtils.parseFieldCapsResponse(parser);
         }
     }
 

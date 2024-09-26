@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -198,7 +199,19 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
             (delegate, verifiedModel) -> modelRegistry.storeModel(
                 verifiedModel,
-                delegate.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))
+                ActionListener.wrap(r -> putAndStartModel(service, verifiedModel, delegate), e -> {
+                    if (e.getCause() instanceof StrictDynamicMappingException && e.getCause().getMessage().contains("chunking_settings")) {
+                        delegate.onFailure(
+                            new ElasticsearchStatusException(
+                                "One or more nodes in your cluster does not support chunking_settings. "
+                                    + "Please update all nodes in your cluster to the latest version to use chunking_settings.",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        delegate.onFailure(e);
+                    }
+                })
             )
         );
 

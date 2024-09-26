@@ -39,7 +39,8 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     TransportSearchableSnapshotCacheStoresAction.Request,
     TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata,
     TransportSearchableSnapshotCacheStoresAction.NodeRequest,
-    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata> {
+    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata,
+    Void> {
 
     public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 

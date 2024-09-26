@@ -83,11 +83,32 @@ POST /_ingest/_simulate
         }
       ]
     }
+  },
+  "component_template_substitutions": { <2>
+    "my-component-template": {
+      "template": {
+        "mappings": {
+          "dynamic": "true",
+          "properties": {
+            "field3": {
+              "type": "keyword"
+            }
+          }
+        },
+        "settings": {
+          "index": {
+            "default_pipeline": "my-pipeline"
+          }
+        }
+      }
+    }
   }
 }
 ----
 
 <1> This replaces the existing `my-pipeline` pipeline with the contents given here for the duration of this request.
+<2> This replaces the existing `my-component-template` component template with the contents given here for the duration of this request.
+These templates can be used to change the pipeline(s) used, or to modify the mapping that will be used to validate the result.
 
 [[simulate-ingest-api-request]]
 ==== {api-request-title}
@@ -191,6 +212,19 @@ Map of pipeline IDs to substitute pipeline definition objects.
 include::put-pipeline.asciidoc[tag=pipeline-object]
 ====
 
+`component_template_substitutions`::
+(Optional, map of strings to objects)
+Map of component template names to substitute component template definition objects.
++
+.Properties of component template definition objects
+[%collapsible%open]
+
+====
+
+include::{es-ref-dir}/indices/put-component-template.asciidoc[tag=template]
+
+====
+
 [[simulate-ingest-api-example]]
 ==== {api-examples-title}
 
@@ -268,7 +302,7 @@ The API returns the following response:
 
 [[simulate-ingest-api-request-body-ex]]
 ===== Specify a pipeline substitution in the request body
-In this example the index `index` has a default pipeline called `my-pipeline` and a final
+In this example the index `my-index` has a default pipeline called `my-pipeline` and a final
 pipeline called `my-final-pipeline`. But a substitute definition of `my-pipeline` is
 provided in `pipeline_substitutions`. The substitute `my-pipeline` will be used in place of
 the `my-pipeline` that is in the system, and then the `my-final-pipeline` that is already
@@ -342,6 +376,87 @@ The API returns the following response:
                "my-pipeline",
                "my-final-pipeline"
             ]
+         }
+      }
+   ]
+}
+----
+
+[[simulate-ingest-api-substitute-component-templates-ex]]
+===== Specify a component template substitution in the request body
+In this example, imagine that the index `my-index` has a strict mapping with only the `foo`
+keyword field defined. Say that field mapping came from a component template named
+`my-mappings-template`. We want to test adding a new field, `bar`. So a substitute definition of
+`my-mappings-template` is provided in `component_template_substitutions`. The substitute
+`my-mappings-template` will be used in place of the existing mapping for `my-index` and in place
+of the `my-mappings-template` that is in the system.
+
+[source,console]
+----
+POST /_ingest/_simulate
+{
+  "docs": [
+    {
+      "_index": "my-index",
+      "_id": "123",
+      "_source": {
+        "foo": "foo"
+      }
+    },
+    {
+      "_index": "my-index",
+      "_id": "456",
+      "_source": {
+        "bar": "rab"
+      }
+    }
+  ],
+  "component_template_substitutions": {
+    "my-mappings_template": {
+      "template": {
+        "mappings": {
+          "dynamic": "strict",
+          "properties": {
+            "foo": {
+              "type": "keyword"
+            },
+            "bar": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+   "docs": [
+      {
+         "doc": {
+            "_id": "123",
+            "_index": "my-index",
+            "_version": -3,
+            "_source": {
+               "foo": "foo"
+            },
+            "executed_pipelines": []
+         }
+      },
+      {
+         "doc": {
+            "_id": "456",
+            "_index": "my-index",
+            "_version": -3,
+            "_source": {
+               "bar": "rab"
+            },
+            "executed_pipelines": []
          }
       }
    ]

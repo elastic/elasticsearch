@@ -6,9 +6,9 @@ include::links.asciidoc[]
 
 include::landing-page.asciidoc[]
 
-include::intro.asciidoc[]
-
 include::release-notes/highlights.asciidoc[]
+
+include::intro.asciidoc[]
 
 include::quickstart/index.asciidoc[]
 
@@ -31,6 +31,8 @@ include::ingest.asciidoc[]
 include::alias.asciidoc[]
 
 include::search/search-your-data/search-your-data.asciidoc[]
+
+include::reranking/index.asciidoc[]
 
 include::query-dsl.asciidoc[]
 

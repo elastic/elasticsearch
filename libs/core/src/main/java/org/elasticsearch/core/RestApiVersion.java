@@ -22,11 +22,10 @@ public enum RestApiVersion {
 
     V_8(8),
 
-    @UpdateForV9 // we need to remove all references to this version
+    @UpdateForV9 // remove all references to V_7 then delete this annotation
     V_7(7);
 
     public final byte major;
-
 
     private static final RestApiVersion CURRENT = V_9;
     private static final RestApiVersion PREVIOUS = V_8;
@@ -67,8 +66,6 @@ public enum RestApiVersion {
         };
     }
 
-    @UpdateForV9
-    // Right now we return api version 8 for major version 9 until we bump the api version above
     public static RestApiVersion forMajor(int major) {
         switch (major) {
             case 7 -> {
@@ -78,7 +75,7 @@ public enum RestApiVersion {
                 return V_8;
             }
             case 9 -> {
-                return V_8;
+                return V_9;
             }
             default -> throw new IllegalArgumentException("Unknown REST API version " + major);
         }

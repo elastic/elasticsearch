@@ -12,7 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 public final class EmptyTDigestState extends TDigestState {
     public EmptyTDigestState() {
         // Use the sorting implementation to minimize memory allocation.
-        super(Type.SORTING, 1.0D);
+        super(MemoryTrackingTDigestArrays.INSTANCE, Type.SORTING, 1.0D);
     }
 
     @Override

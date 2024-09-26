@@ -138,7 +138,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends TransportRequest>
-        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
+        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse, Void> {
 
         AbstractTestNodesAction(
             String actionName,

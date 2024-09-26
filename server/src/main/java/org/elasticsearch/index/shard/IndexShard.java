@@ -1514,6 +1514,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         engine.forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(), forceMerge.onlyExpungeDeletes(), forceMerge.forceMergeUUID());
     }
 
+    public void triggerPendingMerges() throws IOException {
+        switch (state /* single volatile read */) {
+            case STARTED, POST_RECOVERY -> getEngine().forceMerge(
+                // don't immediately flush - if any merging happens then we don't wait for it anyway
+                false,
+                // don't apply any segment count limit, we only want to call IndexWriter#maybeMerge
+                ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS,
+                // don't look for expunge-delete merges, we only want to call IndexWriter#maybeMerge
+                false,
+                // force-merge UUID is not used when calling IndexWriter#maybeMerge
+                null
+            );
+            // otherwise shard likely closed and maybe reopened, nothing to do
+        }
+    }
+
     /**
      * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.

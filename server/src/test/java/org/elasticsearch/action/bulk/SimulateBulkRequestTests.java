@@ -9,24 +9,36 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SimulateBulkRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        testSerialization(getTestPipelineSubstitutions());
-        testSerialization(null);
-        testSerialization(Map.of());
+        testSerialization(getTestPipelineSubstitutions(), getTestTemplateSubstitutions());
+        testSerialization(getTestPipelineSubstitutions(), null);
+        testSerialization(null, getTestTemplateSubstitutions());
+        testSerialization(null, null);
+        testSerialization(Map.of(), Map.of());
     }
 
-    private void testSerialization(Map<String, Map<String, Object>> pipelineSubstitutions) throws IOException {
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
+    private void testSerialization(
+        Map<String, Map<String, Object>> pipelineSubstitutions,
+        Map<String, Map<String, Object>> templateSubstitutions
+    ) throws IOException {
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, templateSubstitutions);
         /*
          * Note: SimulateBulkRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a
          * Writable
@@ -35,12 +47,112 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testGetComponentTemplateSubstitutions() throws IOException {
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+        assertThat(simulateBulkRequest.getComponentTemplateSubstitutions(), equalTo(Map.of()));
+        String substituteComponentTemplatesString = """
+              {
+                  "mappings_template": {
+                    "template": {
+                      "mappings": {
+                        "dynamic": "true",
+                        "properties": {
+                          "foo": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "settings_template": {
+                    "template": {
+                      "settings": {
+                        "index": {
+                          "default_pipeline": "bar-pipeline"
+                        }
+                      }
+                    }
+                  }
+              }
+            """;
+
+        Map tempMap = XContentHelper.convertToMap(
+            new BytesArray(substituteComponentTemplatesString.getBytes(StandardCharsets.UTF_8)),
+            randomBoolean(),
+            XContentType.JSON
+        ).v2();
+        Map<String, Map<String, Object>> substituteComponentTemplates = (Map<String, Map<String, Object>>) tempMap;
+        simulateBulkRequest = new SimulateBulkRequest(Map.of(), substituteComponentTemplates);
+        Map<String, ComponentTemplate> componentTemplateSubstitutions = simulateBulkRequest.getComponentTemplateSubstitutions();
+        assertThat(componentTemplateSubstitutions.size(), equalTo(2));
+        assertThat(
+            XContentHelper.convertToMap(
+                XContentHelper.toXContent(
+                    componentTemplateSubstitutions.get("mappings_template").template(),
+                    XContentType.JSON,
+                    randomBoolean()
+                ),
+                randomBoolean(),
+                XContentType.JSON
+            ).v2(),
+            equalTo(substituteComponentTemplates.get("mappings_template").get("template"))
+        );
+        assertNull(componentTemplateSubstitutions.get("mappings_template").template().settings());
+        assertNull(componentTemplateSubstitutions.get("settings_template").template().mappings());
+        assertThat(componentTemplateSubstitutions.get("settings_template").template().settings().size(), equalTo(1));
+        assertThat(
+            componentTemplateSubstitutions.get("settings_template").template().settings().get("index.default_pipeline"),
+            equalTo("bar-pipeline")
+        );
+    }
+
+    public void testShallowClone() throws IOException {
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(getTestPipelineSubstitutions(), getTestTemplateSubstitutions());
+        simulateBulkRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        simulateBulkRequest.waitForActiveShards(randomIntBetween(1, 10));
+        simulateBulkRequest.timeout(randomTimeValue());
+        simulateBulkRequest.pipeline(randomBoolean() ? null : randomAlphaOfLength(10));
+        simulateBulkRequest.routing(randomBoolean() ? null : randomAlphaOfLength(10));
+        simulateBulkRequest.requireAlias(randomBoolean());
+        simulateBulkRequest.requireDataStream(randomBoolean());
+        BulkRequest shallowCopy = simulateBulkRequest.shallowClone();
+        assertThat(shallowCopy, instanceOf(SimulateBulkRequest.class));
+        SimulateBulkRequest simulateBulkRequestCopy = (SimulateBulkRequest) shallowCopy;
+        assertThat(simulateBulkRequestCopy.requests, equalTo(List.of()));
+        assertThat(
+            simulateBulkRequestCopy.getComponentTemplateSubstitutions(),
+            equalTo(simulateBulkRequest.getComponentTemplateSubstitutions())
+        );
+        assertThat(simulateBulkRequestCopy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
+        assertThat(simulateBulkRequestCopy.getRefreshPolicy(), equalTo(simulateBulkRequest.getRefreshPolicy()));
+        assertThat(simulateBulkRequestCopy.waitForActiveShards(), equalTo(simulateBulkRequest.waitForActiveShards()));
+        assertThat(simulateBulkRequestCopy.timeout(), equalTo(simulateBulkRequest.timeout()));
+        assertThat(shallowCopy.pipeline(), equalTo(simulateBulkRequest.pipeline()));
+        assertThat(shallowCopy.routing(), equalTo(simulateBulkRequest.routing()));
+        assertThat(shallowCopy.requireAlias(), equalTo(simulateBulkRequest.requireAlias()));
+        assertThat(shallowCopy.requireDataStream(), equalTo(simulateBulkRequest.requireDataStream()));
+
+    }
+
     private static Map<String, Map<String, Object>> getTestPipelineSubstitutions() {
         return Map.of(
             "pipeline1",
             Map.of("processors", List.of(Map.of("processor2", Map.of()), Map.of("processor3", Map.of()))),
             "pipeline2",
             Map.of("processors", List.of(Map.of("processor3", Map.of())))
+        );
+    }
+
+    private static Map<String, Map<String, Object>> getTestTemplateSubstitutions() {
+        return Map.of(
+            "template1",
+            Map.of(
+                "template",
+                Map.of("mappings", Map.of("_source", Map.of("enabled", false), "properties", Map.of()), "settings", Map.of())
+            ),
+            "template2",
+            Map.of("template", Map.of("mappings", Map.of(), "settings", Map.of()))
         );
     }
 }

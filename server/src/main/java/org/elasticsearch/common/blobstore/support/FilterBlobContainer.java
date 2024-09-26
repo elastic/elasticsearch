@@ -89,6 +89,17 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        delegate.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         delegate.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);

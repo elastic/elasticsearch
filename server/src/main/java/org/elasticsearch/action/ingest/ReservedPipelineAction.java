@@ -101,7 +101,14 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
         toDelete.removeAll(entities);
 
         for (var pipelineToDelete : toDelete) {
-            var task = new IngestService.DeletePipelineClusterStateUpdateTask(null, new DeletePipelineRequest(pipelineToDelete));
+            var task = new IngestService.DeletePipelineClusterStateUpdateTask(
+                null,
+                new DeletePipelineRequest(
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    pipelineToDelete
+                )
+            );
             state = wrapIngestTaskExecute(task, state);
         }
 
@@ -119,7 +126,15 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
             Map<String, ?> content = (Map<String, ?>) source.get(id);
             try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                 builder.map(content);
-                result.add(new PutPipelineRequest(id, BytesReference.bytes(builder), XContentType.JSON));
+                result.add(
+                    new PutPipelineRequest(
+                        RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                        RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                        id,
+                        BytesReference.bytes(builder),
+                        XContentType.JSON
+                    )
+                );
             } catch (Exception e) {
                 throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
             }

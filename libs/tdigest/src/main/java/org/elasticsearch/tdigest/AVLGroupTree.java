@@ -21,31 +21,36 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
+import org.elasticsearch.tdigest.arrays.TDigestLongArray;
+
 import java.util.AbstractCollection;
-import java.util.Arrays;
 import java.util.Iterator;
 
 /**
  * A tree of t-digest centroids.
  */
-final class AVLGroupTree extends AbstractCollection<Centroid> {
+final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasable {
     /* For insertions into the tree */
     private double centroid;
     private long count;
-    private double[] centroids;
-    private long[] counts;
-    private long[] aggregatedCounts;
+    private final TDigestDoubleArray centroids;
+    private final TDigestLongArray counts;
+    private final TDigestLongArray aggregatedCounts;
     private final IntAVLTree tree;
 
-    AVLGroupTree() {
-        tree = new IntAVLTree() {
+    AVLGroupTree(TDigestArrays arrays) {
+        tree = new IntAVLTree(arrays) {
 
             @Override
             protected void resize(int newCapacity) {
                 super.resize(newCapacity);
-                centroids = Arrays.copyOf(centroids, newCapacity);
-                counts = Arrays.copyOf(counts, newCapacity);
-                aggregatedCounts = Arrays.copyOf(aggregatedCounts, newCapacity);
+                centroids.resize(newCapacity);
+                counts.resize(newCapacity);
+                aggregatedCounts.resize(newCapacity);
             }
 
             @Override
@@ -56,13 +61,13 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
 
             @Override
             protected void copy(int node) {
-                centroids[node] = centroid;
-                counts[node] = count;
+                centroids.set(node, centroid);
+                counts.set(node, count);
             }
 
             @Override
             protected int compare(int node) {
-                if (centroid < centroids[node]) {
+                if (centroid < centroids.get(node)) {
                     return -1;
                 } else {
                     // upon equality, the newly added node is considered greater
@@ -73,13 +78,13 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
             @Override
             protected void fixAggregates(int node) {
                 super.fixAggregates(node);
-                aggregatedCounts[node] = counts[node] + aggregatedCounts[left(node)] + aggregatedCounts[right(node)];
+                aggregatedCounts.set(node, counts.get(node) + aggregatedCounts.get(left(node)) + aggregatedCounts.get(right(node)));
             }
 
         };
-        centroids = new double[tree.capacity()];
-        counts = new long[tree.capacity()];
-        aggregatedCounts = new long[tree.capacity()];
+        centroids = arrays.newDoubleArray(tree.capacity());
+        counts = arrays.newLongArray(tree.capacity());
+        aggregatedCounts = arrays.newLongArray(tree.capacity());
     }
 
     /**
@@ -107,14 +112,14 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      * Return the mean for the provided node.
      */
     public double mean(int node) {
-        return centroids[node];
+        return centroids.get(node);
     }
 
     /**
      * Return the count for the provided node.
      */
     public long count(int node) {
-        return counts[node];
+        return counts.get(node);
     }
 
     /**
@@ -167,7 +172,7 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
         int floor = IntAVLTree.NIL;
         for (int node = tree.root(); node != IntAVLTree.NIL;) {
             final int left = tree.left(node);
-            final long leftCount = aggregatedCounts[left];
+            final long leftCount = aggregatedCounts.get(left);
             if (leftCount <= sum) {
                 floor = node;
                 sum -= leftCount + count(node);
@@ -199,11 +204,11 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      */
     public long headSum(int node) {
         final int left = tree.left(node);
-        long sum = aggregatedCounts[left];
+        long sum = aggregatedCounts.get(left);
         for (int n = node, p = tree.parent(node); p != IntAVLTree.NIL; n = p, p = tree.parent(n)) {
             if (n == tree.right(p)) {
                 final int leftP = tree.left(p);
-                sum += counts[p] + aggregatedCounts[leftP];
+                sum += counts.get(p) + aggregatedCounts.get(leftP);
             }
         }
         return sum;
@@ -243,7 +248,7 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      * Return the total count of points that have been added to the tree.
      */
     public long sum() {
-        return aggregatedCounts[tree.root()];
+        return aggregatedCounts.get(tree.root());
     }
 
     void checkBalance() {
@@ -255,11 +260,17 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     }
 
     private void checkAggregates(int node) {
-        assert aggregatedCounts[node] == counts[node] + aggregatedCounts[tree.left(node)] + aggregatedCounts[tree.right(node)];
+        assert aggregatedCounts.get(node) == counts.get(node) + aggregatedCounts.get(tree.left(node)) + aggregatedCounts.get(
+            tree.right(node)
+        );
         if (node != IntAVLTree.NIL) {
             checkAggregates(tree.left(node));
             checkAggregates(tree.right(node));
         }
     }
 
+    @Override
+    public void close() {
+        Releasables.close(centroids, counts, aggregatedCounts, tree);
+    }
 }

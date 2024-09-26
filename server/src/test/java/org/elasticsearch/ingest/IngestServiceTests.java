@@ -32,16 +32,20 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
@@ -73,6 +77,7 @@ import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -408,7 +413,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.getPipeline("_id"), notNullValue());
 
         // Delete pipeline:
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_id");
         previousClusterState = clusterState;
         clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -713,7 +718,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline.getProcessors().size(), equalTo(1));
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("set"));
 
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(id);
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id);
         previousClusterState = clusterState;
         clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -803,7 +808,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.getPipeline("q1"), notNullValue());
 
         // Delete pipeline matching wildcard
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("p*");
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "p*");
         previousClusterState = clusterState;
         clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -816,13 +821,16 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 ResourceNotFoundException.class,
-                () -> executeFailingDelete(new DeletePipelineRequest("unknown"), finalClusterState)
+                () -> executeFailingDelete(
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "unknown"),
+                    finalClusterState
+                )
             ).getMessage(),
             equalTo("pipeline [unknown] is missing")
         );
 
         // match all wildcard works on last remaining pipeline
-        DeletePipelineRequest matchAllDeleteRequest = new DeletePipelineRequest("*");
+        DeletePipelineRequest matchAllDeleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "*");
         previousClusterState = clusterState;
         clusterState = executeDelete(matchAllDeleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -851,8 +859,10 @@ public class IngestServiceTests extends ESTestCase {
 
         ClusterState finalClusterState = clusterState;
         assertThat(
-            expectThrows(ResourceNotFoundException.class, () -> executeFailingDelete(new DeletePipelineRequest("z*"), finalClusterState))
-                .getMessage(),
+            expectThrows(
+                ResourceNotFoundException.class,
+                () -> executeFailingDelete(new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "z*"), finalClusterState)
+            ).getMessage(),
             equalTo("pipeline [z*] is missing")
         );
     }
@@ -878,7 +888,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), notNullValue());
 
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_id");
 
         {
             // delete pipeline which is in used of default_pipeline
@@ -2483,7 +2493,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
-        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, epochMillis);
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, epochMillis, Map.of());
         assertTrue(hasPipeline(indexRequest));
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
@@ -2637,7 +2647,14 @@ public class IngestServiceTests extends ESTestCase {
 
         final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(pipelineString),
+            XContentType.JSON,
+            version
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(
             e.getMessage(),
@@ -2662,7 +2679,14 @@ public class IngestServiceTests extends ESTestCase {
             .build();
 
         final Integer requestedVersion = randomValueOtherThan(version, ESTestCase::randomInt);
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, requestedVersion);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(pipelineString),
+            XContentType.JSON,
+            requestedVersion
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(
             e.getMessage(),
@@ -2687,7 +2711,14 @@ public class IngestServiceTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
             .build();
 
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(pipelineString),
+            XContentType.JSON,
+            version
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(e.getMessage(), equalTo(Strings.format("cannot update pipeline [%s] with the same version [%s]", pipelineId, version)));
     }
@@ -2703,7 +2734,14 @@ public class IngestServiceTests extends ESTestCase {
 
         final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
         var updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(updatedPipelineString),
+            XContentType.JSON,
+            existingVersion
+        );
         var updatedState = executePut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
@@ -2721,7 +2759,14 @@ public class IngestServiceTests extends ESTestCase {
             .build();
 
         var updatedPipelineString = "{\"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(updatedPipelineString),
+            XContentType.JSON,
+            existingVersion
+        );
         var updatedState = executePut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
@@ -2810,6 +2855,83 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
             assertThat(indexRequest.getFinalPipeline(), equalTo(NOOP_PIPELINE_NAME));
+        }
+    }
+
+    public void testResolvePipelinesAndUpdateIndexRequestWithComponentTemplateSubstitutions() throws IOException {
+        final String componentTemplateName = "test-component-template";
+        final String indexName = "my-index-1";
+        final String indexPipeline = "index-pipeline";
+        final String realTemplatePipeline = "template-pipeline";
+        final String substitutePipeline = "substitute-pipeline";
+
+        Metadata metadata;
+        {
+            // Build up cluster state metadata
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            ComponentTemplate realComponentTemplate = new ComponentTemplate(
+                new Template(
+                    Settings.builder().put("index.default_pipeline", realTemplatePipeline).build(),
+                    CompressedXContent.fromJSON("{}"),
+                    null
+                ),
+                null,
+                null
+            );
+            ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("my-index-*"))
+                .componentTemplates(List.of(componentTemplateName))
+                .build();
+            metadata = Metadata.builder()
+                .put(builder)
+                .indexTemplates(Map.of("my-index-template", composableIndexTemplate))
+                .componentTemplates(Map.of("test-component-template", realComponentTemplate))
+                .build();
+        }
+
+        Map<String, ComponentTemplate> componentTemplateSubstitutions;
+        {
+            ComponentTemplate simulatedComponentTemplate = new ComponentTemplate(
+                new Template(
+                    Settings.builder().put("index.default_pipeline", substitutePipeline).build(),
+                    CompressedXContent.fromJSON("{}"),
+                    null
+                ),
+                null,
+                null
+            );
+            componentTemplateSubstitutions = Map.of(componentTemplateName, simulatedComponentTemplate);
+        }
+
+        {
+            /*
+             * Here there is a pipeline in the request. This takes precedence over anything in the index or templates or component template
+             * substitutions.
+             */
+            IndexRequest indexRequest = new IndexRequest(indexName).setPipeline(indexPipeline);
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, componentTemplateSubstitutions);
+            assertThat(indexRequest.getPipeline(), equalTo(indexPipeline));
+        }
+        {
+            /*
+             * Here there is no pipeline in the request, but there is one in the substitute component template. So it takes precedence.
+             */
+            IndexRequest indexRequest = new IndexRequest(indexName);
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, componentTemplateSubstitutions);
+            assertThat(indexRequest.getPipeline(), equalTo(substitutePipeline));
+        }
+        {
+            /*
+             * This one is tricky. Since the index exists and there are no component template substitutions, we're going to use the actual
+             * index in this case rather than its template. The index does not have a default pipeline set, so it's "_none" instead of
+             * realTemplatePipeline.
+             */
+            IndexRequest indexRequest = new IndexRequest(indexName);
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, Map.of());
+            assertThat(indexRequest.getPipeline(), equalTo("_none"));
         }
     }
 

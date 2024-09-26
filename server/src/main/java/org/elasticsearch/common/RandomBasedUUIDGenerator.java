@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
 
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Random;
 
 class RandomBasedUUIDGenerator implements UUIDGenerator {
@@ -36,7 +35,7 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
         byte[] encodedBytes = null;
         try {
             uuidBytes = getUUIDBytes(SecureRandomHolder.INSTANCE);
-            encodedBytes = Base64.getUrlEncoder().withoutPadding().encode(uuidBytes);
+            encodedBytes = Strings.BASE_64_NO_PADDING_URL_ENCODER.encode(uuidBytes);
             return new SecureString(CharArrays.utf8BytesToChars(encodedBytes));
         } finally {
             if (uuidBytes != null) {
@@ -54,7 +53,7 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
      * as defined here: http://www.ietf.org/rfc/rfc4122.txt
      */
     public static String getBase64UUID(Random random) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(getUUIDBytes(random));
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(getUUIDBytes(random));
     }
 
     static final int SIZE_IN_BYTES = 16;

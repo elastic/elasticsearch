@@ -21,58 +21,56 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 
-public class SortTests extends ESTestCase {
-
+public class SortTests extends TDigestTestCase {
     public void testReverse() {
-        int[] x = new int[0];
+        TDigestIntArray x = arrays().newIntArray(0);
 
         // don't crash with no input
-        Sort.reverse(x);
+        Sort.reverse(x, 0, x.size());
 
         // reverse stuff!
-        x = new int[] { 1, 2, 3, 4, 5 };
-        Sort.reverse(x);
+        x = arrays().newIntArray(new int[] { 1, 2, 3, 4, 5 });
+        Sort.reverse(x, 0, x.size());
         for (int i = 0; i < 5; i++) {
-            assertEquals(5 - i, x[i]);
+            assertEquals(5 - i, x.get(i));
         }
 
         // reverse some stuff back
         Sort.reverse(x, 1, 3);
-        assertEquals(5, x[0]);
-        assertEquals(2, x[1]);
-        assertEquals(3, x[2]);
-        assertEquals(4, x[3]);
-        assertEquals(1, x[4]);
+        assertEquals(5, x.get(0));
+        assertEquals(2, x.get(1));
+        assertEquals(3, x.get(2));
+        assertEquals(4, x.get(3));
+        assertEquals(1, x.get(4));
 
         // another no-op
         Sort.reverse(x, 3, 0);
-        assertEquals(5, x[0]);
-        assertEquals(2, x[1]);
-        assertEquals(3, x[2]);
-        assertEquals(4, x[3]);
-        assertEquals(1, x[4]);
+        assertEquals(5, x.get(0));
+        assertEquals(2, x.get(1));
+        assertEquals(3, x.get(2));
+        assertEquals(4, x.get(3));
+        assertEquals(1, x.get(4));
 
-        x = new int[] { 1, 2, 3, 4, 5, 6 };
-        Sort.reverse(x);
+        x = arrays().newIntArray(new int[] { 1, 2, 3, 4, 5, 6 });
+        Sort.reverse(x, 0, x.size());
         for (int i = 0; i < 6; i++) {
-            assertEquals(6 - i, x[i]);
+            assertEquals(6 - i, x.get(i));
         }
     }
 
     public void testEmpty() {
-        Sort.sort(new int[] {}, new double[] {}, null, 0);
+        sort(new int[0], new double[0], 0);
     }
 
     public void testOne() {
         int[] order = new int[1];
-        Sort.sort(order, new double[] { 1 }, new double[] { 1 }, 1);
+        sort(order, new double[] { 1 }, 1);
         assertEquals(0, order[0]);
     }
 
@@ -80,7 +78,7 @@ public class SortTests extends ESTestCase {
         int[] order = new int[6];
         double[] values = new double[6];
 
-        Sort.sort(order, values, null, values.length);
+        sort(order, values, values.length);
         checkOrder(order, values);
     }
 
@@ -92,56 +90,8 @@ public class SortTests extends ESTestCase {
             values[i] = Math.rint(10 * ((double) i / n)) / 10.0;
         }
 
-        Sort.sort(order, values, null, values.length);
+        sort(order, values, values.length);
         checkOrder(order, values);
-    }
-
-    public void testRepeatedSortByWeight() {
-        // this needs to be long enough to force coverage of both quicksort and insertion sort
-        // (i.e. >64)
-        int n = 125;
-        int[] order = new int[n];
-        double[] values = new double[n];
-        double[] weights = new double[n];
-        double totalWeight = 0;
-
-        // generate evenly distributed values and weights
-        for (int i = 0; i < n; i++) {
-            int k = ((i + 5) * 37) % n;
-            values[i] = Math.floor(k / 25.0);
-            weights[i] = (k % 25) + 1;
-            totalWeight += weights[i];
-        }
-
-        // verify: test weights should be evenly distributed
-        double[] tmp = new double[5];
-        for (int i = 0; i < n; i++) {
-            tmp[(int) values[i]] += weights[i];
-        }
-        for (double v : tmp) {
-            assertEquals(totalWeight / tmp.length, v, 0);
-        }
-
-        // now sort ...
-        Sort.sort(order, values, weights, n);
-
-        // and verify our somewhat unusual ordering of the result
-        // within the first two quintiles, value is constant, weights increase within each quintile
-        int delta = order.length / 5;
-        double sum = checkSubOrder(0.0, order, values, weights, 0, delta, 1);
-        assertEquals(totalWeight * 0.2, sum, 0);
-        sum = checkSubOrder(sum, order, values, weights, delta, 2 * delta, 1);
-        assertEquals(totalWeight * 0.4, sum, 0);
-
-        // in the middle quintile, weights go up and then down after the median
-        sum = checkMidOrder(totalWeight / 2, sum, order, values, weights, 2 * delta, 3 * delta);
-        assertEquals(totalWeight * 0.6, sum, 0);
-
-        // in the last two quintiles, weights decrease
-        sum = checkSubOrder(sum, order, values, weights, 3 * delta, 4 * delta, -1);
-        assertEquals(totalWeight * 0.8, sum, 0);
-        sum = checkSubOrder(sum, order, values, weights, 4 * delta, 5 * delta, -1);
-        assertEquals(totalWeight, sum, 0);
     }
 
     public void testStableSort() {
@@ -172,7 +122,7 @@ public class SortTests extends ESTestCase {
         }
 
         // now sort ...
-        Sort.stableSort(order, values, n);
+        sort(order, values, n);
 
         // and verify stability of the ordering
         // values must be in order and they must appear in their original ordering
@@ -184,37 +134,6 @@ public class SortTests extends ESTestCase {
         }
     }
 
-    private double checkMidOrder(double medianWeight, double sofar, int[] order, double[] values, double[] weights, int start, int end) {
-        double value = values[order[start]];
-        double last = 0;
-        assertTrue(sofar < medianWeight);
-        for (int i = start; i < end; i++) {
-            assertEquals(value, values[order[i]], 0);
-            double w = weights[order[i]];
-            assertTrue(w > 0);
-            if (sofar > medianWeight) {
-                w = 2 * medianWeight - w;
-            }
-            assertTrue(w >= last);
-            sofar += weights[order[i]];
-        }
-        assertTrue(sofar > medianWeight);
-        return sofar;
-    }
-
-    private double checkSubOrder(double sofar, int[] order, double[] values, double[] weights, int start, int end, int ordering) {
-        double lastWeight = weights[order[start]] * ordering;
-        double value = values[order[start]];
-        for (int i = start; i < end; i++) {
-            assertEquals(value, values[order[i]], 0);
-            double newOrderedWeight = weights[order[i]] * ordering;
-            assertTrue(newOrderedWeight >= lastWeight);
-            lastWeight = newOrderedWeight;
-            sofar += weights[order[i]];
-        }
-        return sofar;
-    }
-
     public void testShort() {
         int[] order = new int[6];
         double[] values = new double[6];
@@ -224,19 +143,19 @@ public class SortTests extends ESTestCase {
             values[i] = 1;
         }
 
-        Sort.sort(order, values, null, values.length);
+        sort(order, values, values.length);
         checkOrder(order, values);
 
         values[0] = 0.8;
         values[1] = 0.3;
 
-        Sort.sort(order, values, null, values.length);
+        sort(order, values, values.length);
         checkOrder(order, values);
 
         values[5] = 1.5;
         values[4] = 1.2;
 
-        Sort.sort(order, values, null, values.length);
+        sort(order, values, values.length);
         checkOrder(order, values);
     }
 
@@ -246,7 +165,7 @@ public class SortTests extends ESTestCase {
         for (int i = 0; i < 20; i++) {
             values[i] = (i * 13) % 20;
         }
-        Sort.sort(order, values, null, values.length);
+        sort(order, values, values.length);
         checkOrder(order, values);
     }
 
@@ -270,33 +189,8 @@ public class SortTests extends ESTestCase {
         values[24] = 25;
         values[26] = 25;
 
-        Sort.sort(order, values, null, values.length);
+        sort(order, values, values.length);
         checkOrder(order, values);
-    }
-
-    public void testMultiPivotsInPlace() {
-        // more pivots than low split on first pass
-        // multiple pivots, but more low data on second part of recursion
-        double[] keys = new double[30];
-        for (int i = 0; i < 9; i++) {
-            keys[i] = i + 20 * (i % 2);
-        }
-
-        for (int i = 9; i < 20; i++) {
-            keys[i] = 10;
-        }
-
-        for (int i = 20; i < 30; i++) {
-            keys[i] = i - 20 * (i % 2);
-        }
-        keys[29] = 29;
-        keys[24] = 25;
-        keys[26] = 25;
-
-        double[] v = valuesFromKeys(keys, 0);
-
-        Sort.sort(keys, v);
-        checkOrder(keys, 0, keys.length, v);
     }
 
     public void testRandomized() {
@@ -309,96 +203,9 @@ public class SortTests extends ESTestCase {
                 values[i] = rand.nextDouble();
             }
 
-            Sort.sort(order, values, null, values.length);
+            sort(order, values, values.length);
             checkOrder(order, values);
         }
-    }
-
-    public void testRandomizedShortSort() {
-        Random rand = random();
-
-        for (int k = 0; k < 100; k++) {
-            double[] keys = new double[30];
-            for (int i = 0; i < 10; i++) {
-                keys[i] = i;
-            }
-            for (int i = 10; i < 20; i++) {
-                keys[i] = rand.nextDouble();
-            }
-            for (int i = 20; i < 30; i++) {
-                keys[i] = i;
-            }
-            double[] v0 = valuesFromKeys(keys, 0);
-            double[] v1 = valuesFromKeys(keys, 1);
-
-            Sort.sort(keys, 10, 10, v0, v1);
-            checkOrder(keys, 10, 10, v0, v1);
-            checkValues(keys, 0, keys.length, v0, v1);
-            for (int i = 0; i < 10; i++) {
-                assertEquals(i, keys[i], 0);
-            }
-            for (int i = 20; i < 30; i++) {
-                assertEquals(i, keys[i], 0);
-            }
-        }
-    }
-
-    /**
-     * Generates a vector of values corresponding to a vector of keys.
-     *
-     * @param keys A vector of keys
-     * @param k    Which value vector to generate
-     * @return The new vector containing frac(key_i * 3 * 5^k)
-     */
-    private double[] valuesFromKeys(double[] keys, int k) {
-        double[] r = new double[keys.length];
-        double scale = 3;
-        for (int i = 0; i < k; i++) {
-            scale = scale * 5;
-        }
-        for (int i = 0; i < keys.length; i++) {
-            r[i] = fractionalPart(keys[i] * scale);
-        }
-        return r;
-    }
-
-    /**
-     * Verifies that keys are in order and that each value corresponds to the keys
-     *
-     * @param key    Array of keys
-     * @param start  The starting offset of keys and values to check
-     * @param length The number of keys and values to check
-     * @param values Arrays of associated values. Value_{ki} = frac(key_i * 3 * 5^k)
-     */
-    private void checkOrder(double[] key, int start, int length, double[]... values) {
-        assert start + length <= key.length;
-
-        for (int i = start; i < start + length - 1; i++) {
-            assertTrue(String.format(Locale.ROOT, "bad ordering at %d, %f > %f", i, key[i], key[i + 1]), key[i] <= key[i + 1]);
-        }
-
-        checkValues(key, start, length, values);
-    }
-
-    private void checkValues(double[] key, int start, int length, double[]... values) {
-        double scale = 3;
-        for (int k = 0; k < values.length; k++) {
-            double[] v = values[k];
-            assertEquals(key.length, v.length);
-            for (int i = start; i < length; i++) {
-                assertEquals(
-                    String.format(Locale.ROOT, "value %d not correlated, key=%.5f, k=%d, v=%.5f", i, key[i], k, values[k][i]),
-                    fractionalPart(key[i] * scale),
-                    values[k][i],
-                    0
-                );
-            }
-            scale = scale * 5;
-        }
-    }
-
-    private double fractionalPart(double v) {
-        return v - Math.floor(v);
     }
 
     private void checkOrder(int[] order, double[] values) {
@@ -417,5 +224,12 @@ public class SortTests extends ESTestCase {
         for (var entry : counts.entrySet()) {
             assertEquals(1, entry.getValue().intValue());
         }
+    }
+
+    private void sort(int[] order, double[] values, int n) {
+        var wrappedOrder = arrays().newIntArray(order);
+        var wrappedValues = arrays().newDoubleArray(values);
+
+        Sort.stableSort(wrappedOrder, wrappedValues, n);
     }
 }

@@ -11,8 +11,11 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -23,7 +26,7 @@ import java.util.Iterator;
  * through factory method params, providing one optimized for performance (e.g. MergingDigest or HybridDigest) by default, or optionally one
  * that produces highly accurate results regardless of input size but its construction over the sample population takes 2x-10x longer.
  */
-public class TDigestState {
+public class TDigestState implements Releasable {
 
     private final double compression;
 
@@ -48,13 +51,21 @@ public class TDigestState {
     private final Type type;
 
     /**
+     * @deprecated this method will be removed after all usages are replaced
+     */
+    @Deprecated
+    public static TDigestState create(double compression) {
+        return create(MemoryTrackingTDigestArrays.INSTANCE, compression);
+    }
+
+    /**
      * Default factory for TDigestState. The underlying {@link org.elasticsearch.tdigest.TDigest} implementation is optimized for
      * performance, potentially providing slightly inaccurate results compared to other, substantially slower implementations.
      * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
      * @return a TDigestState object that's optimized for performance
      */
-    public static TDigestState create(double compression) {
-        return new TDigestState(Type.defaultValue(), compression);
+    public static TDigestState create(TDigestArrays arrays, double compression) {
+        return new TDigestState(arrays, Type.defaultValue(), compression);
     }
 
     /**
@@ -62,8 +73,16 @@ public class TDigestState {
      * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
      * @return a TDigestState object that's optimized for performance
      */
-    public static TDigestState createOptimizedForAccuracy(double compression) {
-        return new TDigestState(Type.valueForHighAccuracy(), compression);
+    public static TDigestState createOptimizedForAccuracy(TDigestArrays arrays, double compression) {
+        return new TDigestState(arrays, Type.valueForHighAccuracy(), compression);
+    }
+
+    /**
+     * @deprecated this method will be removed after all usages are replaced
+     */
+    @Deprecated
+    public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+        return create(MemoryTrackingTDigestArrays.INSTANCE, compression, executionHint);
     }
 
     /**
@@ -74,10 +93,10 @@ public class TDigestState {
      * @param executionHint controls which implementation is used; accepted values are 'high_accuracy' and '' (default)
      * @return a TDigestState object
      */
-    public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+    public static TDigestState create(TDigestArrays arrays, double compression, TDigestExecutionHint executionHint) {
         return switch (executionHint) {
-            case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
-            case DEFAULT -> create(compression);
+            case HIGH_ACCURACY -> createOptimizedForAccuracy(arrays, compression);
+            case DEFAULT -> create(arrays, compression);
         };
     }
 
@@ -88,15 +107,15 @@ public class TDigestState {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(state.type, state.compression);
+        return new TDigestState(MemoryTrackingTDigestArrays.INSTANCE, state.type, state.compression);
     }
 
-    protected TDigestState(Type type, double compression) {
+    protected TDigestState(TDigestArrays arrays, Type type, double compression) {
         tdigest = switch (type) {
-            case HYBRID -> TDigest.createHybridDigest(compression);
-            case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
-            case SORTING -> TDigest.createSortingDigest();
-            case MERGING -> TDigest.createMergingDigest(compression);
+            case HYBRID -> TDigest.createHybridDigest(arrays, compression);
+            case AVL_TREE -> TDigest.createAvlTreeDigest(arrays, compression);
+            case SORTING -> TDigest.createSortingDigest(arrays);
+            case MERGING -> TDigest.createMergingDigest(arrays, compression);
         };
         this.type = type;
         this.compression = compression;
@@ -120,15 +139,23 @@ public class TDigestState {
         }
     }
 
+    /**
+     * @deprecated this method will be removed after all usages are replaced
+     */
+    @Deprecated
     public static TDigestState read(StreamInput in) throws IOException {
+        return read(MemoryTrackingTDigestArrays.INSTANCE, in);
+    }
+
+    public static TDigestState read(TDigestArrays arrays, StreamInput in) throws IOException {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            state = new TDigestState(Type.valueOf(in.readString()), compression);
+            state = new TDigestState(arrays, Type.valueOf(in.readString()), compression);
             size = in.readVLong();
         } else {
-            state = new TDigestState(Type.valueForHighAccuracy(), compression);
+            state = new TDigestState(arrays, Type.valueForHighAccuracy(), compression);
         }
         int n = in.readVInt();
         if (size > 0) {
@@ -240,5 +267,10 @@ public class TDigestState {
 
     public final double getMax() {
         return tdigest.getMax();
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(tdigest);
     }
 }

@@ -165,7 +165,7 @@ final class ESPolicy extends Policy {
         Set<URL> accessibleSources = securedFiles.get(permission);
         if (accessibleSources != null) {
             // simple case - single-file referenced directly
-            return accessibleSources.contains(location);
+            return accessibleSources.contains(location) || location.toString().equals("jrt:/java.security.jgss");
         } else {
             // there's a directory reference in there somewhere
             // do a manual search :(

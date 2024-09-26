@@ -74,7 +74,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
              * TransportGetDatabaseConfigurationAction used to be a TransportMasterNodeAction, and not all nodes in the cluster have been
              * updated. So we don't want to send node requests to the other nodes because they will blow up. Instead, we just return
              * the information that we used to return from the master node (it doesn't make any difference that this might not be the master
-             * node, because we're only reading the clsuter state).
+             * node, because we're only reading the cluster state).
              */
             newResponseAsync(task, request, createActionContext(task, request), List.of(), List.of(), listener);
         } else {

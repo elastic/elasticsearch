@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -67,32 +68,29 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof HuggingFaceEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
-    private static HuggingFaceEmbeddingsModel updateModelWithEmbeddingDetails(HuggingFaceEmbeddingsModel model, int embeddingSize) {
-        // default to cosine similarity
-        var similarity = model.getServiceSettings().similarity() == null
-            ? SimilarityMeasure.COSINE
-            : model.getServiceSettings().similarity();
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof HuggingFaceEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
 
-        var serviceSettings = new HuggingFaceServiceSettings(
-            model.getServiceSettings().uri(),
-            similarity,
-            embeddingSize,
-            model.getTokenLimit(),
-            model.getServiceSettings().rateLimitSettings()
-        );
+            var updatedServiceSettings = new HuggingFaceServiceSettings(
+                serviceSettings.uri(),
+                similarityToUse,
+                embeddingSize,
+                embeddingsModel.getTokenLimit(),
+                serviceSettings.rateLimitSettings()
+            );
 
-        return new HuggingFaceEmbeddingsModel(model, serviceSettings);
+            return new HuggingFaceEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
     }
 
     @Override

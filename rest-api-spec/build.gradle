@@ -54,10 +54,8 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
 }
 
-tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTest("tsdb/140_routing_path/multi-value routing path field", "Multi-value routing paths are allowed now. See #112645")
-  task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
-  task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
-  task.skipTest("search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays", "Temporary mute while backporting to 8.x")
-  task.skipTest("wildcard/30_ignore_above_synthetic_source/wildcard field type ignore_above", "Temporary until backported")
+tasks.named("yamlRestCompatTestTransform").configure({task ->
+    task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
+    task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+    task.skipTest("wildcard/30_ignore_above_synthetic_source/wildcard field type ignore_above", "Temporary until backported")
 })

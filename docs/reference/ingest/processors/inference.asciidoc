@@ -455,6 +455,29 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 =======
 =====
 
+[discrete]
+[[inference-processor-text-similarity-opt]]
+==== Text similarity configuration options
+
+`text_similarity`:::
+(Object, optional)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
++
+.Properties of text_similarity inference
+[%collapsible%open]
+=====
+`span_score_combination_function`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity-span-score-func]
+
+`tokenization`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
+=====
+
 
 [discrete]
 [[inference-processor-zero-shot-opt]]

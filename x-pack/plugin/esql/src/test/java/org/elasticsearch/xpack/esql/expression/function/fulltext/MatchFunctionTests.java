@@ -24,7 +24,6 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.MATCH_FUNCTION;
@@ -44,11 +43,7 @@ public class MatchFunctionTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        final Set<DataType> validTypes = Set.of(DataType.KEYWORD, DataType.TEXT);
-        final List<Set<DataType>> validPerPosition = List.of(validTypes, validTypes);
         List<TestCaseSupplier> suppliers = new LinkedList<>();
-        // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
-
         for (DataType fieldType : validStringDataTypes()) {
             for (DataType queryType : validStringDataTypes()) {
                 suppliers.add(

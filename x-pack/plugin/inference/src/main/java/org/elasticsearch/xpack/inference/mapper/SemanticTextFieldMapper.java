@@ -103,15 +103,19 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             INFERENCE_ID_FIELD,
             false,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
-            null
-        );
+            DEFAULT_INFERENCE_ID
+        ).addValidator(v -> {
+            if (Strings.isEmpty(v)) {
+                throw new IllegalArgumentException("[inference_id] cannot be empty");
+            }
+        });
 
         private final Parameter<String> searchInferenceId = Parameter.stringParam(
             SEARCH_INFERENCE_ID_FIELD,
             true,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).searchInferenceId,
             null
-        ).acceptsNull();
+        ).acceptsNull().setSerializerCheck((id, ic, v) -> id || (ic && DEFAULT_SEARCH_INFERENCE_ID.equals(v) == false));
 
         private final Parameter<SemanticTextField.ModelSettings> modelSettings = new Parameter<>(
             MODEL_SETTINGS_FIELD,
@@ -206,20 +210,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
 
             if (inferenceId.isConfigured() == false && searchInferenceId.isConfigured() == false) {
-                inferenceId.setValue(DEFAULT_INFERENCE_ID);
                 searchInferenceId.setValue(DEFAULT_SEARCH_INFERENCE_ID);
-            } else if (inferenceId.isConfigured() == false) {
-                throw new IllegalArgumentException(
-                    "["
-                        + INFERENCE_ID_FIELD
-                        + "] must be specified for "
-                        + CONTENT_TYPE
-                        + " field ["
-                        + fullName
-                        + "] when ["
-                        + SEARCH_INFERENCE_ID_FIELD
-                        + "] is specified"
-                );
             }
 
             return new SemanticTextFieldMapper(

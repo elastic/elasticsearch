@@ -10,6 +10,7 @@
 package org.elasticsearch.datastreams.logsdb;
 
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -281,5 +282,31 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
             IndexSettings.MODE.getKey()
         );
         assertThat(indexMode, equalTo(IndexMode.TIME_SERIES.getName()));
+    }
+
+    public void testLogsAtSettingWithTimeSeriesOverrideFailure() {
+        // NOTE: apm@settings defines sorting on @timestamp and template composition results in index.mode "time_series"
+        // with a non-allowed index.sort.field '@timestamp'
+        final ResponseException ex = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "routing_path": [ "hostname" ],
+                    "mode": "time_series"
+                  }
+                },
+                "mappings": {
+                  "properties": {
+                    "hostname": {
+                       "type": "keyword",
+                       "time_series_dimension": true
+                    }
+                  }
+                }
+              }
+            }
+            """));
+        assertTrue(ex.getMessage().contains("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 }

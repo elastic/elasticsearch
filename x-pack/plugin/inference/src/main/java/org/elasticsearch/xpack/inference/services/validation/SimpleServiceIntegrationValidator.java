@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -33,14 +34,25 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
             Map.of(),
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener.delegateFailureAndWrap((delegate, r) -> {
+            ActionListener.wrap(r -> {
                 if (r != null) {
-                    delegate.onResponse(r);
+                    listener.onResponse(r);
                 } else {
-                    delegate.onFailure(
-                        new ElasticsearchStatusException("Could not make a validation call to the selected service", RestStatus.BAD_REQUEST)
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Could not complete inference endpoint creation as validation call to service returned null response.",
+                            RestStatus.BAD_REQUEST
+                        )
                     );
                 }
+            }, e -> {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Could not complete inference endpoint creation as validation call to service threw an exception.",
+                        RestStatus.BAD_REQUEST,
+                        e
+                    )
+                );
             })
         );
     }

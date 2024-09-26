@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.indices.IndicesExpressionResolver;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -29,9 +29,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
 
-import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -61,7 +59,7 @@ public class PlanExecutor {
         Configuration cfg,
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
-        Function<String, Map<String, OriginalIndices>> resolveClusterAndIndicesFunction,
+        IndicesExpressionResolver indicesExpressionResolver,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
@@ -77,7 +75,7 @@ public class PlanExecutor {
             mapper,
             verifier,
             planningMetrics,
-            resolveClusterAndIndicesFunction
+            indicesExpressionResolver
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

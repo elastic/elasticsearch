@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.IndicesExpressionResolver;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -110,17 +111,16 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (p, r) -> fail("this shouldn't happen");
-        Function<String, Map<String, OriginalIndices>> resolveClusterIndicesFunction = any -> Map.of(
-            "",
-            new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
-        );
+        IndicesExpressionResolver resolveClusterIndices = (indicesOptions, indexExpressions) ->
+            Map.of("", new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT));
+
         planExecutor.esql(
             request,
             randomAlphaOfLength(10),
             EsqlTestUtils.TEST_CFG,
             enrichResolver,
             new EsqlExecutionInfo(),
-            resolveClusterIndicesFunction,
+            resolveClusterIndices,
             runPhase,
             new ActionListener<>() {
                 @Override
@@ -149,7 +149,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsqlTestUtils.TEST_CFG,
             enrichResolver,
             new EsqlExecutionInfo(),
-            resolveClusterIndicesFunction,
+            resolveClusterIndices,
             runPhase,
             new ActionListener<>() {
                 @Override

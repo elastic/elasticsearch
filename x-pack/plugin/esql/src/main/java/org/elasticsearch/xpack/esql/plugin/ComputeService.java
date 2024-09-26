@@ -440,7 +440,6 @@ public class ComputeService {
             if (context.configuration.profile()) {
                 return new ComputeResponse(drivers.stream().map(Driver::profile).toList());
             } else {
-                // MP TODO: where does this ComputeResponse go?
                 final ComputeResponse response = new ComputeResponse(List.of());
                 return response;
             }

@@ -207,7 +207,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         Iterator<ToXContent> tookTime;
         if (executionInfo != null && executionInfo.overallTook() != null) {
             tookTime = ChunkedToXContentHelper.singleChunk((builder, p) -> {
-                // TODO: change this to took_nanos and call overallTook().nanos instead?
                 builder.field("took", executionInfo.overallTook().millis());
                 return builder;
             });

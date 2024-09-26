@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
@@ -53,7 +50,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -180,19 +176,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             executionInfo,
             resultListener
         );
-
-        Function<String, Map<String, OriginalIndices>> resolveClusterIndicesFunction = indexExpression -> {
-            String[] indexComponents = Strings.splitStringByCommaToArray(indexExpression);
-            return remoteClusterService.groupIndices(IndicesOptions.DEFAULT, indexComponents);
-        };
-
         planExecutor.esql(
             request,
             sessionId,
             configuration,
             enrichPolicyResolver,
             executionInfo,
-            resolveClusterIndicesFunction,
+            remoteClusterService,
             runPhase,
             listener.map(result -> toResponse(task, request, configuration, result))
         );

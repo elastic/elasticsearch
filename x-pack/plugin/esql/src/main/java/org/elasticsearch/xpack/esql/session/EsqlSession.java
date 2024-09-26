@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.indices.IndicesExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -71,7 +73,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -95,7 +96,7 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
-    private final Function<String, Map<String, OriginalIndices>> resolveClusterAndIndicesFunction;
+    private final IndicesExpressionResolver indicesExpressionResolver;
 
     public EsqlSession(
         String sessionId,
@@ -108,7 +109,7 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanningMetrics planningMetrics,
-        Function<String, Map<String, OriginalIndices>> resolveClusterAndIndicesFunction
+        IndicesExpressionResolver indicesExpressionResolver
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -121,7 +122,7 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
-        this.resolveClusterAndIndicesFunction = resolveClusterAndIndicesFunction;
+        this.indicesExpressionResolver = indicesExpressionResolver;
     }
 
     public String sessionId() {
@@ -318,7 +319,7 @@ public class EsqlSession {
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
 
-            Map<String, OriginalIndices> clusterIndices = resolveClusterAndIndicesFunction.apply(table.index());
+            Map<String, OriginalIndices> clusterIndices = indicesExpressionResolver.groupIndices(IndicesOptions.DEFAULT, table.index());
             for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
                 final String clusterAlias = entry.getKey();
                 String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());

@@ -181,7 +181,6 @@ public class IndexResolver {
      * @param indexExpression expects a single index expression at a time
      * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
      */
-    // MP TODO: move this elsewhere
     public static String parseClusterAlias(String indexExpression) {
         assert indexExpression != null : "Must not pass null indexExpression";
         String trimmed = indexExpression.trim();

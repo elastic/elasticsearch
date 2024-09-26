@@ -215,7 +215,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -2131,15 +2130,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    public static final class DeprecationWarning {
-        private final Level level; // Intentionally ignoring level for the sake of equality for now
-        private final String message;
-
-        public DeprecationWarning(Level level, String message) {
-            this.level = level;
-            this.message = message;
-        }
-
+    public record DeprecationWarning(Level level, String message) {
         @Override
         public int hashCode() {
             return Objects.hash(message);

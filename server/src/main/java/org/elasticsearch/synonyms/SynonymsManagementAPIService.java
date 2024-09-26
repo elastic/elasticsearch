@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.synonyms;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAc
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -601,6 +603,9 @@ public class SynonymsManagementAPIService {
         @Override
         public void onFailure(Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus) {
+                cause = cause.getCause();
+            }
             if (cause instanceof IndexNotFoundException) {
                 delegate.onFailure(new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found"));
                 return;

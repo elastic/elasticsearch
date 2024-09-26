@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -385,6 +386,9 @@ public class DockerTests extends PackagingTestCase {
         if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        } else if (distribution.packaging == Packaging.DOCKER_WOLFI) {
+            // In these images, the `cacerts` file ought to be a symlink here
+            assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
         } else {
             // Whereas on other images, it's a real file so the real path is the same
             assertThat(path, equalTo("/usr/share/elasticsearch/jdk/lib/security/cacerts"));

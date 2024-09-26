@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -1618,10 +1619,9 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         assertNotNull(doc.rootDoc().get("metrics.time.max"));
         assertNotNull(doc.docs().get(0).get("metrics.time.foo"));
-        assertThat(
-            ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics")).getMapper("time"),
-            instanceOf(NestedObjectMapper.class)
-        );
+        var metrics = ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics"));
+        assertThat(metrics.getMapper("time"), instanceOf(NestedObjectMapper.class));
+        assertThat(metrics.getMapper("time.max"), instanceOf(NumberFieldMapper.class));
     }
 
     public void testDynamicSubobject() throws IOException {
@@ -2056,7 +2056,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 "dynamic_templates": [
                   {
                     "test": {
-                      "path_match": "attributes.resource.*",
+                      "path_match": "attributes.*",
                       "match_mapping_type": "object",
                       "mapping": {
                         "type": "flattened"
@@ -2069,7 +2069,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             """;
         String docJson = """
             {
-              "attributes.resource": {
+              "attributes": {
                 "complex.attribute": {
                   "a": "b"
                 },
@@ -2082,12 +2082,65 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
-        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.resource.foo.bar");
+        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.foo.bar");
         assertNotNull(fooBarMapper);
         assertEquals("text", fooBarMapper.typeName());
-        Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.resource.complex.attribute");
+        Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.complex.attribute");
         assertNotNull(fooStructuredMapper);
         assertEquals("flattened", fooStructuredMapper.typeName());
+    }
+
+    public void testSubobjectsAutoWithObjectInDynamicTemplate() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "attributes": {
+                    "type": "object",
+                    "subobjects": "auto"
+                  }
+                },
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "path_match": "attributes.*",
+                      "match_mapping_type": "object",
+                      "mapping": {
+                        "type": "object",
+                        "dynamic": "false",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+              "attributes": {
+                "to": {
+                  "id": 10
+                },
+                "foo.bar": "baz"
+              }
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.foo.bar");
+        assertNotNull(fooBarMapper);
+        assertEquals("text", fooBarMapper.typeName());
+        Mapper innerObject = mapperService.documentMapper().mappers().objectMappers().get("attributes.to");
+        assertNotNull(innerObject);
+        assertEquals("integer", mapperService.documentMapper().mappers().getMapper("attributes.to.id").typeName());
     }
 
     public void testMatchWithArrayOfFieldNames() throws IOException {

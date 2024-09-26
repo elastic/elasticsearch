@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -38,7 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 
 final class DataNodeRequest extends TransportRequest implements IndicesRequest.Replaceable {
-    private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String sessionId;
     private final Configuration configuration;
     private final String clusterAlias;
@@ -82,7 +80,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         }
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
+        this.plan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration).readNamedWriteable(PhysicalPlan.class);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
             this.indices = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -102,7 +100,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         }
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
-        new PlanStreamOutput(out, planNameRegistry, configuration).writePhysicalPlanNode(plan);
+        new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);

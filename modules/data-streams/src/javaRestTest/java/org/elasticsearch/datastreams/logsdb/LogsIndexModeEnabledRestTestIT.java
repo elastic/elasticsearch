@@ -286,7 +286,7 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
 
     public void testLogsAtSettingWithTimeSeriesOverrideFailure() {
         // NOTE: apm@settings defines sorting on @timestamp and template composition results in index.mode "time_series"
-        // with a non-allowed index.sort.field '@timestamp'
+        // with a non-allowed index.sort.field '@timestamp'. This fails at template composition stage before the index is even created.
         final ResponseException ex = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", """
             {
               "template": {

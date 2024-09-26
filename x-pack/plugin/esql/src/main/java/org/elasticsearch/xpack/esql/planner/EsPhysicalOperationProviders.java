@@ -162,12 +162,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         final LuceneOperator.Factory luceneFactory;
 
         List<Sort> sorts = esQueryExec.sorts();
-        List<SortBuilder<?>> sortBuilders = null;
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
         if (sorts != null && sorts.isEmpty() == false) {
-            sortBuilders = new ArrayList<>(sorts.size());
+            List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
             }

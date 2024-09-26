@@ -282,7 +282,7 @@ PUT /my-explicit-mappings-books
 
 [discrete]
 [[getting-started-combined-mapping]]
-=== Combine dynamic and explicit mappings
+==== Combine dynamic and explicit mappings
 
 When an index has the `dynamic` flag set to `true`, you can add new fields to documents without updating the mapping.
 This allows you to combine dynamic and explicit mappings.

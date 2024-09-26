@@ -405,7 +405,10 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                     }
                 }
             } else {
-                // it's a little bit silly, but yes we're copying this file here
+                /*
+                 * Given that this is not code that will be called extremely frequently, we copy the file to the expected location here in
+                 * order to avoid making the rest of the code more complex to avoid this.
+                 */
                 Files.copy(retrievedFile, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
             }
             // finally, atomically move some-database.mmdb.tmp to some-database.mmdb

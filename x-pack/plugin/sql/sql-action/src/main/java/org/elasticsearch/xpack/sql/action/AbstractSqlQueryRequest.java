@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.proto.VersionCompatibility;
 
 import java.io.IOException;
@@ -286,15 +287,15 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         validationException
                     );
                 }
-            } else if (VersionCompatibility.isClientCompatible(SqlVersionUtils.SERVER_COMPAT_VERSION, requestInfo().version()) == false) {
+            } else if (VersionCompatibility.isClientCompatible(SqlVersions.SERVER_COMPAT_VERSION, requestInfo().version()) == false) {
                 validationException = addValidationError(
                     "The ["
                         + requestInfo().version()
                         + "] version of the ["
                         + mode.toString()
                         + "] "
-                        + "client is not compatible with Elasticsearch version ["
-                        + SqlVersionUtils.SERVER_COMPAT_VERSION
+                        + "client is not compatible with Elasticsearch server compatibility version ["
+                        + SqlVersions.SERVER_COMPAT_VERSION
                         + "]",
                     validationException
                 );

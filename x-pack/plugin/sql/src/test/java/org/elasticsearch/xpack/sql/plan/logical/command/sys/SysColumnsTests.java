@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.action.Protocol;
-import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.index.IndexCompatibility;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -296,7 +296,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             Mode.ODBC,
             null,
-            SqlVersionUtils.SERVER_COMPAT_VERSION,
+            SqlVersions.SERVER_COMPAT_VERSION,
             null,
             null,
             false,
@@ -343,7 +343,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             mode,
             null,
-            SqlVersionUtils.SERVER_COMPAT_VERSION,
+            SqlVersions.SERVER_COMPAT_VERSION,
             null,
             null,
             false,

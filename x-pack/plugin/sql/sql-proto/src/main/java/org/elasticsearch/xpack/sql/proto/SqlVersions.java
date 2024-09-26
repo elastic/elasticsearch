@@ -153,6 +153,11 @@ public final class SqlVersions {
 
     static final List<SqlVersion> DECLARED_VERSIONS = getDeclaredVersions();
 
+    /**
+     * What's the version of the server that the clients should be compatible with?
+     */
+    public static final SqlVersion SERVER_COMPAT_VERSION = getLatestVersion();
+
     public static SqlVersion getFirstVersion() {
         return DECLARED_VERSIONS.get(0);
     }
@@ -193,8 +198,10 @@ public final class SqlVersions {
             if (field.getType() != SqlVersion.class) {
                 continue;
             }
-            if (field.getName().equals("LATEST")) {
-                continue;
+            switch (field.getName()) {
+                case "LATEST":
+                case "SERVER_COMPAT_VERSION":
+                    continue;
             }
             assert field.getName().matches("V(_\\d+){3}?") : field.getName();
             try {

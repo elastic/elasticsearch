@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
@@ -106,7 +107,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     ) {
         this.cursor = cursor;
         this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : SqlVersionUtils.SERVER_COMPAT_VERSION;
+        this.sqlVersion = sqlVersion != null ? sqlVersion : SqlVersions.SERVER_COMPAT_VERSION;
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;
@@ -274,7 +275,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
         if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
-            if (mode == JDBC && isClientCompatible(SqlVersionUtils.SERVER_COMPAT_VERSION, sqlVersion)) {
+            if (mode == JDBC && isClientCompatible(SqlVersions.SERVER_COMPAT_VERSION, sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));
             } else {
                 builder.value(StringUtils.toString(zdt));

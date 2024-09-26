@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.proto.SqlVersions;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.action.SqlVersionUtils.SERVER_COMPAT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.SqlVersions.SERVER_COMPAT_VERSION;
 import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_FIELD_TYPE;
 

@@ -123,6 +123,7 @@ public class ConfigDatabasesTests extends ESTestCase {
         {
             assertThat(cache.count(), equalTo(0));
             assertThat(configDatabases.getConfigDatabases().size(), equalTo(1));
+
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
             CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);

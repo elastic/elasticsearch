@@ -559,7 +559,7 @@ public class MaxMindSupportTests extends ESTestCase {
      * terminal types is converted to a bean-property-like name using the "beanify" method.
      *
      * @param context This is a String representing where in the list of methods we are
-     * @param aClass  The class whose methods we want to traverse to generate field names
+     * @param aClass The class whose methods we want to traverse to generate field names
      * @return A sorted set of bean-property-like field names that can recursively be found from aClass
      */
     private static SortedSet<String> getFieldNamesUsedFromClass(String context, Class<?> aClass) {

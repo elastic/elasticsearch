@@ -252,7 +252,7 @@
           query:
             range:
               date:
-                from: "1990-12-29T22:30:00.000Z"
+                gte: "1990-12-29T22:30:00.000Z"
           fields:
             - field: date
               format: "yyyy/MM/dd"

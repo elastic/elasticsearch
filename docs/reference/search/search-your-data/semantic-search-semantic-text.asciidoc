@@ -118,6 +118,13 @@ Create the embeddings from the text by reindexing the data from the `test-data` 
 The data in the `content` field will be reindexed into the `content` semantic text field of the destination index.
 The reindexed data will be processed by the {infer} endpoint associated with the `content` semantic text field.
 
+[NOTE]
+====
+This step uses the reindex API to simulate data ingestion. If you have existing data already indexed 
+(i.e., you’re not using the `test-data` set but your own data), reindexing is required to ensure that 
+the data is processed by the {infer} endpoint and the necessary embeddings are generated.
+====
+
 [source,console]
 ------------------------------------------------------------
 POST _reindex?wait_for_completion=false

@@ -53,6 +53,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSourceTests.TestPhysicalPlanBuilder.from;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PushTopNToSourceTests extends ESTestCase {
 
@@ -73,14 +74,14 @@ public class PushTopNToSourceTests extends ESTestCase {
     public void testSimpleSortFieldAndEvalLiteral() {
         // FROM index | EVAL x = 1 | SORT field | LIMIT 10
         var query = from("index").eval("x", e -> e.i(1)).sort("field").limit(10);
-        assertPushdownSort(query);
+        assertPushdownSort(query, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
     public void testSimpleSortFieldWithAlias() {
         // FROM index | EVAL x = field | SORT field | LIMIT 10
         var query = from("index").eval("x", b -> b.field("field")).sort("field").limit(10);
-        assertPushdownSort(query);
+        assertPushdownSort(query, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -93,7 +94,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             .sort("integer")
             .sort("double")
             .limit(10);
-        assertPushdownSort(query);
+        assertPushdownSort(query, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -108,14 +109,14 @@ public class PushTopNToSourceTests extends ESTestCase {
     public void testSimpleSortFieldAndEvalSumLiterals() {
         // FROM index | EVAL sum = 1 + 2 | SORT field | LIMIT 10
         var query = from("index").eval("sum", b -> b.add(b.i(1), b.i(2))).sort("field").limit(10);
-        assertPushdownSort(query);
+        assertPushdownSort(query, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
     public void testSimpleSortFieldAndEvalSumLiteralAndField() {
         // FROM index | EVAL sum = 1 + integer | SORT integer | LIMIT 10
         var query = from("index").eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("integer").limit(10);
-        assertPushdownSort(query);
+        assertPushdownSort(query, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -131,7 +132,7 @@ public class PushTopNToSourceTests extends ESTestCase {
         // FROM index | EVAL sum = 1 + integer | SORT integer, sum, field | LIMIT 10
         var query = from("index").eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("integer").sort("sum").sort("field").limit(10);
         // Both integer and field can be pushed down, but we can only push down the leading sortable fields, so the 'sum' blocks 'field'
-        assertPushdownSort(query, EvalExec.class, List.of(query.orders.get(0)), null);
+        assertPushdownSort(query, List.of(query.orders.get(0)), null, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -149,7 +150,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             .sort("distance", Order.OrderDirection.ASC)
             .limit(10);
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
-        assertPushdownSort(query, Map.of("distance", "location"));
+        assertPushdownSort(query, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -159,7 +160,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             .sort("distance", Order.OrderDirection.ASC)
             .limit(10);
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
-        assertPushdownSort(query, Map.of("distance", "location"));
+        assertPushdownSort(query, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -182,7 +183,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             .sort("integer", Order.OrderDirection.DESC)
             .limit(10);
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
-        assertPushdownSort(query, EvalExec.class, query.orders, Map.of("distance", "location"));
+        assertPushdownSort(query, query.orders, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -197,29 +198,37 @@ public class PushTopNToSourceTests extends ESTestCase {
         // We can only push down the leading sorts that pushable, and the rest will be handled by the final SORT
         var expectedSorts = List.of(query.orders.get(0));
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
-        assertPushdownSort(query, EvalExec.class, expectedSorts, Map.of("distance", "location"));
+        assertPushdownSort(query, expectedSorts, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
     private static void assertPushdownSort(TestPhysicalPlanBuilder builder) {
-        assertPushdownSort(builder, null);
+        assertPushdownSort(builder, null, List.of(EsQueryExec.class));
     }
 
-    private static void assertPushdownSort(TestPhysicalPlanBuilder builder, Map<String, String> fieldMap) {
-        var topNExec = builder.build();
-        var result = pushTopNToSource(topNExec);
-        assertPushdownSort(result, null, builder.orders, fieldMap);
+    private static void assertPushdownSort(TestPhysicalPlanBuilder builder, List<Class<? extends PhysicalPlan>> topClass) {
+        assertPushdownSort(builder, null, topClass);
     }
 
     private static void assertPushdownSort(
         TestPhysicalPlanBuilder builder,
-        Class<? extends PhysicalPlan> topClass,
-        List<Order> expectedSorts,
-        Map<String, String> fieldMap
+        Map<String, String> fieldMap,
+        List<Class<? extends PhysicalPlan>> topClass
     ) {
         var topNExec = builder.build();
         var result = pushTopNToSource(topNExec);
-        assertPushdownSort(result, topClass, expectedSorts, fieldMap);
+        assertPushdownSort(result, builder.orders, fieldMap, topClass);
+    }
+
+    private static void assertPushdownSort(
+        TestPhysicalPlanBuilder builder,
+        List<Order> expectedSorts,
+        Map<String, String> fieldMap,
+        List<Class<? extends PhysicalPlan>> topClass
+    ) {
+        var topNExec = builder.build();
+        var result = pushTopNToSource(topNExec);
+        assertPushdownSort(result, expectedSorts, fieldMap, topClass);
     }
 
     private static void assertNoPushdownSort(TestPhysicalPlanBuilder builder, String message) {
@@ -244,12 +253,20 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     private static void assertPushdownSort(
         PhysicalPlan plan,
-        Class<? extends PhysicalPlan> topClass,
         List<Order> expectedSorts,
-        Map<String, String> fieldMap
+        Map<String, String> fieldMap,
+        List<Class<? extends PhysicalPlan>> topClass
     ) {
-        if (topClass != null) {
-            assertThat("Expect top physical plan class to match", plan.getClass(), is(topClass));
+        if (topClass != null && topClass.size() > 0) {
+            PhysicalPlan current = plan;
+            for (var clazz : topClass) {
+                assertThat("Expect non-null physical plan class to match " + clazz.getSimpleName(), current, notNullValue());
+                assertThat("Expect top physical plan class to match", current.getClass(), is(clazz));
+                current = current.children().size() > 0 ? current.children().get(0) : null;
+            }
+            if (current != null) {
+                fail("No more child classes expected in plan, but found: " + current.getClass().getSimpleName());
+            }
         }
         var esQueryExec = findEsQueryExec(plan);
         var sorts = esQueryExec.sorts();

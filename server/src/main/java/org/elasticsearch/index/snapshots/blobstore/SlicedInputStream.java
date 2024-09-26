@@ -24,12 +24,12 @@ import java.io.InputStream;
 public abstract class SlicedInputStream extends InputStream {
     private int nextSlice = 0;
     private InputStream currentStream;
-    private int currentSliceOffset = 0;
+    private long currentSliceOffset = 0;
     private final int numSlices;
     private boolean closed = false;
     private boolean initialized = false;
     private int markedSlice = -1;
-    private int markedSliceOffset = -1;
+    private long markedSliceOffset = -1;
 
     /**
      * Creates a new SlicedInputStream

@@ -10,6 +10,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -138,6 +140,38 @@ public class SlicedInputStreamTests extends ESTestCase {
         streamsOpened.forEach(stream -> assertTrue(stream.closed));
     }
 
+    public void testRandomMarkResetInBigSlice() throws IOException {
+        AtomicReference<IncreasingBytesUnlimitedInputStream> stream = new AtomicReference<>();
+        SlicedInputStream input = new SlicedInputStream(1) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                assertThat(slice, equalTo(0));
+                stream.set(new IncreasingBytesUnlimitedInputStream());
+                return stream.get();
+            }
+        };
+
+        // Skip up to a random point that is larger than 4GiB so that the marked offset is larger than an int (ES-9639).
+        final long mark = ByteSizeValue.ofGb(randomIntBetween(5, 6)).getBytes() + randomLongBetween(1, 1024);
+        input.skip(mark);
+
+        // Mark
+        input.mark(randomNonNegativeInt());
+
+        // Skip a few more bytes
+        input.skip(randomLongBetween(0, 1024));
+
+        // Reset
+        input.reset();
+
+        // Read some bytes, asserting they are what is expected
+        final byte[] buffer = new byte[randomIntBetween(1024, 8192)];
+        input.read(buffer);
+        for (int i = 0; i < buffer.length; i++) {
+            assertThat("Unexpected value for mark=" + mark + " and i=" + i, buffer[i], equalTo((byte) ((mark + i) % 256)));
+        }
+    }
+
     public void testMarkResetClosedStream() throws IOException {
         final int slices = randomIntBetween(1, 20);
         SlicedInputStream input = new SlicedInputStream(slices) {
@@ -230,6 +264,15 @@ public class SlicedInputStreamTests extends ESTestCase {
         public void close() throws IOException {
             closed = true;
             super.close();
+        }
+    }
+
+    private static final class IncreasingBytesUnlimitedInputStream extends InputStream {
+        long currentByte = 0;
+
+        @Override
+        public int read() throws IOException {
+            return (int) (currentByte++ % 256);
         }
     }
 }

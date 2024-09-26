@@ -195,6 +195,16 @@ public interface RestHandler {
             }
 
             /**
+            * @deprecated Use {@link #deprecatedForRemoval(String, RestApiVersion)} if the intent is deprecate the path and remove in the
+             * next major version. Use {@link #deprecateAndKeep(String)} if the intent is to deprecate the path but not remove it.
+             * This method will delegate to {@link #deprecatedForRemoval(String, RestApiVersion)}.
+             */
+            @Deprecated(since = "9.0.0", forRemoval = true)
+            public RouteBuilder deprecated(String deprecationMessage, RestApiVersion lastFullySupportedVersion) {
+                return deprecatedForRemoval(deprecationMessage, lastFullySupportedVersion);
+            }
+
+            /**
              * Marks that the route being built has been deprecated (for some reason -- the deprecationMessage) for removal. Notes the last
              * major version in which the path is fully supported without compatibility headers. If this path is being replaced by another
              * then use {@link #replaces(Method, String, RestApiVersion)} instead.
@@ -202,7 +212,7 @@ public interface RestHandler {
              * For example:
              * <pre> {@code
              * Route.builder(GET, "_upgrade")
-             *  .deprecated("The _upgrade API is no longer useful and will be removed.", RestApiVersion.V_7)
+             *  .deprecatedForRemoval("The _upgrade API is no longer useful and will be removed.", RestApiVersion.V_7)
              *  .build()}</pre>
              *
              * @param deprecationMessage the user-visible explanation of this deprecation
@@ -211,7 +221,7 @@ public interface RestHandler {
              *                                  The next major version (i.e. 9) will have no support whatsoever for this route.
              * @return a reference to this object.
              */
-            public RouteBuilder deprecated(String deprecationMessage, RestApiVersion lastFullySupportedVersion) {
+            public RouteBuilder deprecatedForRemoval(String deprecationMessage, RestApiVersion lastFullySupportedVersion) {
                 assert this.replacedRoute == null;
                 this.restApiVersion = Objects.requireNonNull(lastFullySupportedVersion);
                 this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
@@ -246,7 +256,7 @@ public interface RestHandler {
              * For example:
              * <pre> {@code
              * Route.builder(GET, "_upgrade")
-             *  .deprecated("The _upgrade API is no longer useful but will not be removed.")
+             *  .deprecateAndKeep("The _upgrade API is no longer useful but will not be removed.")
              *  .build()}</pre>
              *
              * @param deprecationMessage the user-visible explanation of this deprecation

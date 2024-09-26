@@ -15,6 +15,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class DataStreamFailureStoreTests extends AbstractXContentSerializingTestCase<DataStreamFailureStore> {
 
     @Override
@@ -29,15 +31,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
 
     @Override
     protected DataStreamFailureStore mutateInstance(DataStreamFailureStore instance) throws IOException {
-        var enabled = instance.enabled();
-        if (instance.enabled() == null) {
-            enabled = randomBoolean();
-        } else if (randomBoolean()) {
-            enabled = null;
-        } else {
-            enabled = enabled == false;
-        }
-        return new DataStreamFailureStore(enabled);
+        return new DataStreamFailureStore(instance.enabled() == false);
     }
 
     @Override
@@ -46,11 +40,11 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
     }
 
     static DataStreamFailureStore randomFailureStore() {
-        return new DataStreamFailureStore(switch (randomIntBetween(0, 2)) {
-            case 0 -> true;
-            case 1 -> false;
-            case 2 -> null;
-            default -> throw new IllegalArgumentException("Illegal randomisation branch");
-        });
+        return new DataStreamFailureStore(randomBoolean());
+    }
+
+    public void testInvalidEmptyConfiguration() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore((Boolean) null));
+        assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
     }
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -25,10 +24,9 @@ import java.io.IOException;
 
 /**
  * Holds the data stream failure store metadata that enable or disable the failure store of a data stream. Currently, it
- * supports the following configurations:
- * @param enabled, true when the failure is enabled, false when it's disabled, null when it depends on other configuration
+ * supports the following configurations only explicitly enabling or disabling the failure store
  */
-public record DataStreamFailureStore(@Nullable Boolean enabled) implements SimpleDiffable<DataStreamFailureStore>, ToXContentObject {
+public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<DataStreamFailureStore>, ToXContentObject {
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
@@ -42,8 +40,15 @@ public record DataStreamFailureStore(@Nullable Boolean enabled) implements Simpl
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
     }
 
-    public DataStreamFailureStore() {
-        this((Boolean) null);
+    /**
+     *  @param enabled, true when the failure is enabled, false when it's disabled, null when it depends on other configuration. Currently,
+     *                  null value is not supported because there are no other arguments
+     * @throws IllegalArgumentException when all the constructor arguments are null
+     */
+    public DataStreamFailureStore {
+        if (enabled == null) {
+            throw new IllegalArgumentException("Failure store configuration should have at least one non-null configuration value.");
+        }
     }
 
     public DataStreamFailureStore(StreamInput in) throws IOException {

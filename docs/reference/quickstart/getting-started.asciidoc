@@ -16,12 +16,14 @@ In this quick start guide, you'll learn how to do the following tasks:
 [source,console]
 ----
 PUT books
+PUT my-explicit-mappings-books
 ----
 // TESTSETUP
 
 [source,console]
 --------------------------------------------------
 DELETE books
+DELETE my-explicit-mappings-books
 --------------------------------------------------
 // TEARDOWN
 
@@ -37,14 +39,17 @@ Create a new index named `books`:
 ----
 PUT /books
 ----
+// TEST[skip: index already setup]
 
-List all indices to confirm creation:
+List all indices to confirm the `books` index was created:
 
 [source,console]
 ----
-GET /_cat/indices
+GET /_cat/indices?v&h=index,docs.count&s=index:asc
 ----
 // TEST[continued]
+
+Here, the query parameters `v` and `h` are used to filter and format the default output of the <<cat-indices,`_cat/indices` API>>.
 
 [discrete]
 [[getting-started-add-documents]]
@@ -71,7 +76,7 @@ If the index didn't already exist, the request would automatically create it.
 POST books/_doc
 {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
 ----
-// TEST[s/_doc/_doc?refresh=wait_for/]
+// TEST[continued]
 
 The response includes metadata that {es} generates for the document including a unique `_id` for the document within the index.
 
@@ -232,12 +237,18 @@ Let's add a new document to the `books` index with a field that doesn't exist, t
 
 [source,console]
 ----
-PUT /books/_doc
-{"name": "The Great Gatsby", "author": "F. Scott Fitzgerald", "release_date": "1925-04-10", "page_count": 180, "new_field": "This is a dynamically added field"}
+POST /books/_doc
+{
+  "name": "The Great Gatsby",
+  "author": "F. Scott Fitzgerald",
+  "release_date": "1925-04-10",
+  "page_count": 180,
+  "new_field": "This is a dynamically added field"
+}
 ----
 // TEST[continued]
 
-View the mapping for the `books` index. The new field `new_field` has been added to the mapping with a `keyword` data type.
+View the mapping for the `books` index. The new field `new_field` has been added to the mapping with a `text` data type.
 
 [source,console]
 ----
@@ -273,7 +284,7 @@ PUT /my-explicit-mappings-books
 [[getting-started-combined-mapping]]
 === Combine dynamic and explicit mappings
 
-As long as an index has the `dynamic` flag set to `true`, you can add new fields to documents without updating the mapping.
+When an index has the `dynamic` flag set to `true`, you can add new fields to documents without updating the mapping.
 This allows you to combine dynamic and explicit mappings.
 
 [discrete]

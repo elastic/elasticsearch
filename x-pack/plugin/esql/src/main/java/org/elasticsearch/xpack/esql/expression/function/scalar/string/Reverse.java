@@ -90,11 +90,11 @@ public class Reverse extends EsqlScalarFunction {
         return field.foldable();
     }
 
-    private static String reverseSimpleString (String str) {
+    private static String reverseSimpleString(String str) {
         return new StringBuilder(str).reverse().toString();
     }
 
-    private static String reverseStringWithUnicodeCharacters (String str) {
+    private static String reverseStringWithUnicodeCharacters(String str) {
         BreakIterator boundary = BreakIterator.getCharacterInstance(Locale.ROOT);
         boundary.setText(str);
 
@@ -115,7 +115,9 @@ public class Reverse extends EsqlScalarFunction {
     private static boolean isOneByteUTF8(BytesRef ref) {
         int end = ref.offset + ref.length;
         for (int i = ref.offset; i < end; i++) {
-            if (ref.bytes[i] < 0) { return false; }
+            if (ref.bytes[i] < 0) {
+                return false;
+            }
         }
         return true;
     }
@@ -134,7 +136,7 @@ public class Reverse extends EsqlScalarFunction {
     static BytesRef process(BytesRef ref) {
         if (isOneByteUTF8(ref)) {
             BytesRef reversed = BytesRef.deepCopyOf(ref);
-            reverseArray(reversed.bytes, reversed.offset,reversed.offset + reversed.length - 1);
+            reverseArray(reversed.bytes, reversed.offset, reversed.offset + reversed.length - 1);
             return reversed;
         }
         return BytesRefs.toBytesRef(reverseStringWithUnicodeCharacters(ref.utf8ToString()));

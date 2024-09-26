@@ -168,7 +168,10 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         for (String index : indices) {
             // ensure that `index` is a remote name and not a date math expression which includes ':' symbol
             // since date math expression after evaluation should not contain ':' symbol
-            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(index);
+            // NOTE: index expressions can be prefixed with "-" for index exclusion, which will not be parsed by resolveDateMathExpression
+            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(
+                index.charAt(0) == '-' ? index.substring(1) : index
+            );
             if (indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) < 0) {
                 return true;
             }

@@ -50,3 +50,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.commons.logging.LogFactory',
   )
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("ingest/30_date_processor/Test week based date parsing", "week-date behaviour has changed")
+})

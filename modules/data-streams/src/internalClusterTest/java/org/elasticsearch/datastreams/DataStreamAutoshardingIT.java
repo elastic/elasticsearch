@@ -536,7 +536,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, null, null, null))
+                .template(Template.builder().settings(settings))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

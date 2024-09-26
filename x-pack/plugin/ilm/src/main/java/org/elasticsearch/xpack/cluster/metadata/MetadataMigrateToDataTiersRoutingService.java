@@ -746,12 +746,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     settingsBuilder.remove(requireRoutingSetting);
                     settingsBuilder.remove(includeRoutingSetting);
                     settingsBuilder.remove(excludeRoutingSetting);
-                    Template migratedInnerTemplate = new Template(
-                        settingsBuilder.build(),
-                        currentInnerTemplate.mappings(),
-                        currentInnerTemplate.aliases(),
-                        currentInnerTemplate.lifecycle()
-                    );
+                    Template migratedInnerTemplate = Template.builder(currentInnerTemplate).settings(settingsBuilder).build();
 
                     migratedComposableTemplateBuilder.indexPatterns(composableTemplate.indexPatterns());
                     migratedComposableTemplateBuilder.template(migratedInnerTemplate);
@@ -796,12 +791,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     settingsBuilder.remove(requireRoutingSetting);
                     settingsBuilder.remove(includeRoutingSetting);
                     settingsBuilder.remove(excludeRoutingSetting);
-                    Template migratedInnerTemplate = new Template(
-                        settingsBuilder.build(),
-                        currentInnerTemplate.mappings(),
-                        currentInnerTemplate.aliases(),
-                        currentInnerTemplate.lifecycle()
-                    );
+                    Template migratedInnerTemplate = Template.builder(currentInnerTemplate).settings(settingsBuilder).build();
 
                     ComponentTemplate migratedComponentTemplate = new ComponentTemplate(
                         migratedInnerTemplate,

@@ -11,10 +11,11 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -25,7 +26,7 @@ import java.util.Iterator;
  * through factory method params, providing one optimized for performance (e.g. MergingDigest or HybridDigest) by default, or optionally one
  * that produces highly accurate results regardless of input size but its construction over the sample population takes 2x-10x longer.
  */
-public class TDigestState {
+public class TDigestState implements Releasable {
 
     private final double compression;
 
@@ -54,7 +55,7 @@ public class TDigestState {
      */
     @Deprecated
     public static TDigestState create(double compression) {
-        return create(WrapperTDigestArrays.INSTANCE, compression);
+        return create(MemoryTrackingTDigestArrays.INSTANCE, compression);
     }
 
     /**
@@ -81,7 +82,7 @@ public class TDigestState {
      */
     @Deprecated
     public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
-        return create(WrapperTDigestArrays.INSTANCE, compression, executionHint);
+        return create(MemoryTrackingTDigestArrays.INSTANCE, compression, executionHint);
     }
 
     /**
@@ -106,7 +107,7 @@ public class TDigestState {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(WrapperTDigestArrays.INSTANCE, state.type, state.compression);
+        return new TDigestState(MemoryTrackingTDigestArrays.INSTANCE, state.type, state.compression);
     }
 
     protected TDigestState(TDigestArrays arrays, Type type, double compression) {
@@ -143,7 +144,7 @@ public class TDigestState {
      */
     @Deprecated
     public static TDigestState read(StreamInput in) throws IOException {
-        return read(WrapperTDigestArrays.INSTANCE, in);
+        return read(MemoryTrackingTDigestArrays.INSTANCE, in);
     }
 
     public static TDigestState read(TDigestArrays arrays, StreamInput in) throws IOException {
@@ -266,5 +267,10 @@ public class TDigestState {
 
     public final double getMax() {
         return tdigest.getMax();
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(tdigest);
     }
 }

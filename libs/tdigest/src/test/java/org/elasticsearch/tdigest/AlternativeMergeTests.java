@@ -21,15 +21,12 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-public class AlternativeMergeTests extends ESTestCase {
+public class AlternativeMergeTests extends TDigestTestCase {
     /**
      * Computes size using the alternative scaling limit for both an idealized merge and for
      * a MergingDigest.
@@ -37,8 +34,8 @@ public class AlternativeMergeTests extends ESTestCase {
     public void testMerges() {
         for (int n : new int[] { 100, 1000, 10000, 100000 }) {
             for (double compression : new double[] { 50, 100, 200, 400 }) {
-                MergingDigest mergingDigest = new MergingDigest(WrapperTDigestArrays.INSTANCE, compression);
-                AVLTreeDigest treeDigest = new AVLTreeDigest(WrapperTDigestArrays.INSTANCE, compression);
+                MergingDigest mergingDigest = new MergingDigest(arrays(), compression);
+                AVLTreeDigest treeDigest = new AVLTreeDigest(arrays(), compression);
                 List<Double> data = new ArrayList<>();
                 Random gen = random();
                 for (int i = 0; i < n; i++) {

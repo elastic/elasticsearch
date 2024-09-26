@@ -23,7 +23,7 @@ public class StackPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(StackTemplateRegistry.STACK_TEMPLATES_ENABLED, StackTemplateRegistry.CLUSTER_LOGSDB_ENABLED);
+        return List.of(StackTemplateRegistry.STACK_TEMPLATES_ENABLED);
     }
 
     @Override

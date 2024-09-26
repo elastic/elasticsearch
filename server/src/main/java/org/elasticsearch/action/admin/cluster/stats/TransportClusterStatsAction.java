@@ -72,6 +72,8 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.CCS_REMOTE_TELEMETRY_STATS;
+
 /**
  * Transport action implementing _cluster/stats API.
  */
@@ -445,19 +447,27 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         @Override
         protected void sendItemRequest(String clusterAlias, ActionListener<RemoteClusterStatsResponse> listener) {
-            var remoteRequest = new RemoteClusterStatsRequest();
             var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 clusterAlias,
                 requestExecutor,
                 RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
             );
+            var remoteRequest = new RemoteClusterStatsRequest();
             remoteRequest.setParentTask(taskId);
-            remoteClusterClient.execute(TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, listener);
+            remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) -> {
+                if (connection.getTransportVersion().before(CCS_REMOTE_TELEMETRY_STATS)) {
+                    responseListener.onResponse(null);
+                } else {
+                    remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);
+                }
+            }));
         }
 
         @Override
         protected void onItemResponse(String clusterAlias, RemoteClusterStatsResponse response) {
-            remoteClustersStats.computeIfPresent(clusterAlias, (k, v) -> v.acceptResponse(response));
+            if (response != null) {
+                remoteClustersStats.computeIfPresent(clusterAlias, (k, v) -> v.acceptResponse(response));
+            }
         }
 
         @Override

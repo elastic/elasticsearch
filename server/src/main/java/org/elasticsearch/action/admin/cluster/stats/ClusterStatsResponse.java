@@ -162,6 +162,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         return Strings.toString(this, true, true);
     }
 
+    /**
+     * Represents the information about a remote cluster.
+     */
     public record RemoteClusterStats(
         String clusterUUID,
         String mode,

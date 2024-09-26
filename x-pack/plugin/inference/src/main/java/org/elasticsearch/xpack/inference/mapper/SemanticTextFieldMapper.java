@@ -106,7 +106,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             DEFAULT_INFERENCE_ID
         ).addValidator(v -> {
             if (Strings.isEmpty(v)) {
-                throw new IllegalArgumentException("[inference_id] cannot be empty");
+                throw new IllegalArgumentException(
+                    "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
+                );
             }
         });
 

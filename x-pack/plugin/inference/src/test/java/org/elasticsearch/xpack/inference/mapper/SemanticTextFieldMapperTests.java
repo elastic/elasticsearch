@@ -81,7 +81,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_INFERENCE_ID;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_SEARCH_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -96,16 +95,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "semantic_text");
-    }
-
-    private void minimalMappingWithDefaults(XContentBuilder b) throws IOException {
-        minimalMapping(b);
-        b.field(INFERENCE_ID_FIELD, DEFAULT_INFERENCE_ID).field(SEARCH_INFERENCE_ID_FIELD, DEFAULT_SEARCH_INFERENCE_ID);
-    }
-
-    @Override
-    protected void metaMapping(XContentBuilder b) throws IOException {
-        minimalMappingWithDefaults(b);
     }
 
     @Override
@@ -169,7 +158,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::minimalMappingWithDefaults)), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
@@ -177,6 +166,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         // No indexable fields
         assertTrue(fields.isEmpty());
     }
+
+    // TODO: Add serialization test here
 
     @Override
     public void testFieldHasValue() {
@@ -199,6 +190,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
         {
             MapperService mapperService = createMapperService(
+                fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId))
+            );
+            assertSemanticTextField(mapperService, fieldName, false);
+            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_INFERENCE_ID, searchInferenceId);
+        }
+        {
+            MapperService mapperService = createMapperService(
                 fieldMapping(
                     b -> b.field("type", "semantic_text")
                         .field(INFERENCE_ID_FIELD, inferenceId)
@@ -210,15 +208,24 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testInferenceIdRequired() {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, "foo")))
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("[inference_id] must be specified for semantic_text field [field] when [search_inference_id] is specified")
-        );
+    public void testInvalidInferenceId() {
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, (String) null)))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString("[inference_id] on mapper [field] of type [semantic_text] must not have a [null] value")
+            );
+        }
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, "")))
+            );
+            assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic_text] must not be empty"));
+        }
     }
 
     public void testCannotBeUsedInMultiFields() {

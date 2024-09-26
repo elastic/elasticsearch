@@ -23,6 +23,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -167,8 +168,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertTrue(fields.isEmpty());
     }
 
-    // TODO: Add serialization test here
-
     @Override
     public void testFieldHasValue() {
         MappedFieldType fieldType = getMappedFieldType();
@@ -181,30 +180,37 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         final String inferenceId = "foo";
         final String searchInferenceId = "bar";
 
+        CheckedBiConsumer<XContentBuilder, MapperService, IOException> assertSerialization = (expectedMapping, mapperService) -> {
+            DocumentMapper mapper = mapperService.documentMapper();
+            assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
+        };
+
         {
-            MapperService mapperService = createMapperService(
-                fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, inferenceId))
-            );
+            final XContentBuilder fieldMapping = fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, inferenceId));
+            final MapperService mapperService = createMapperService(fieldMapping);
             assertSemanticTextField(mapperService, fieldName, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
+            assertSerialization.accept(fieldMapping, mapperService);
         }
         {
-            MapperService mapperService = createMapperService(
-                fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId))
+            final XContentBuilder fieldMapping = fieldMapping(
+                b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
             );
+            final MapperService mapperService = createMapperService(fieldMapping);
             assertSemanticTextField(mapperService, fieldName, false);
             assertInferenceEndpoints(mapperService, fieldName, DEFAULT_INFERENCE_ID, searchInferenceId);
+            assertSerialization.accept(fieldMapping, mapperService);
         }
         {
-            MapperService mapperService = createMapperService(
-                fieldMapping(
-                    b -> b.field("type", "semantic_text")
-                        .field(INFERENCE_ID_FIELD, inferenceId)
-                        .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
-                )
+            final XContentBuilder fieldMapping = fieldMapping(
+                b -> b.field("type", "semantic_text")
+                    .field(INFERENCE_ID_FIELD, inferenceId)
+                    .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
             );
+            MapperService mapperService = createMapperService(fieldMapping);
             assertSemanticTextField(mapperService, fieldName, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
+            assertSerialization.accept(fieldMapping, mapperService);
         }
     }
 

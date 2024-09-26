@@ -128,7 +128,7 @@ public class ThreadPoolTests extends ESTestCase {
             final ThreadPool.CachedTimeThread thread = new ThreadPool.CachedTimeThread("[timer]", 200, 100);
             thread.start();
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             thread.interrupt();
             thread.join();
@@ -297,7 +297,7 @@ public class ThreadPoolTests extends ESTestCase {
                 }
             };
             threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         } finally {
             assertTrue(terminate(threadPool));
         }

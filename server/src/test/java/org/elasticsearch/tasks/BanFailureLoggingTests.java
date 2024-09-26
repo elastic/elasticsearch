@@ -184,8 +184,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                     // acceptable; we mostly ignore the result of cancellation anyway
                 }
 
-                // assert busy since failure to remove a ban may be logged after cancellation completed
-                assertBusy(mockLog::assertAllExpectationsMatched);
+                // await since failure to remove a ban may be logged after cancellation completed
+                mockLog.awaitAllExpectationsMatched();
             }
 
             assertTrue("child tasks did not finish in time", childTaskLock.tryLock(15, TimeUnit.SECONDS));

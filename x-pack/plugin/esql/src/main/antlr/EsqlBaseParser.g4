@@ -55,7 +55,6 @@ processingCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? matchCommand
     ;
 
 whereCommand
@@ -311,12 +310,4 @@ lookupCommand
 
 inlinestatsCommand
     : DEV_INLINESTATS stats=fields (BY grouping=fields)?
-    ;
-
-matchCommand
-    : DEV_MATCH matchQuery
-    ;
-
-matchQuery
-    : QUOTED_STRING
     ;

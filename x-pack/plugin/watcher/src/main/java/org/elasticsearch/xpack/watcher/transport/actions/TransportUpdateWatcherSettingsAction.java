@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -91,9 +90,14 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             return;
         }
         final Settings newSettings = Settings.builder().loadFromMap(request.settings()).build();
-        final UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            new Index[] { watcherIndexMd.getIndex() }
-        ).settings(newSettings).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout());
+        final UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            newSettings,
+            UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+            UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+            watcherIndexMd.getIndex()
+        );
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
             @Override

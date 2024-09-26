@@ -36,14 +36,12 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
@@ -147,13 +145,11 @@ public class BulkOperationTests extends ESTestCase {
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(dataStreamName))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, false))
-                            .template(new Template(null, null, null, null))
                             .build(),
                         "ds-template-with-failure-store",
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(fsDataStreamName, fsRolloverDataStreamName))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
-                            .template(new Template(null, null, null, null))
                             .build()
                     )
                 )
@@ -1025,7 +1021,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             mockObserver(DEFAULT_STATE),
             listener,
             new FailureStoreDocumentConverter()
@@ -1043,7 +1038,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             mockObserver(DEFAULT_STATE),
             listener,
             failureStoreDocumentConverter
@@ -1062,7 +1056,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             observer,
             listener,
             new FailureStoreDocumentConverter()
@@ -1074,7 +1067,6 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client,
         BulkRequest request,
         AtomicArray<BulkItemResponse> existingResponses,
-        Map<String, IndexNotFoundException> indicesThatCanNotBeCreated,
         ClusterStateObserver observer,
         ActionListener<BulkResponse> listener,
         FailureStoreDocumentConverter failureStoreDocumentConverter
@@ -1103,7 +1095,6 @@ public class BulkOperationTests extends ESTestCase {
             request,
             client,
             existingResponses,
-            indicesThatCanNotBeCreated,
             indexNameExpressionResolver,
             () -> endTime,
             timeZero,

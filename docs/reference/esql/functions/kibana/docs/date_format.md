@@ -8,5 +8,5 @@ Returns a string representation of a date, in the provided format.
 ```
 FROM employees
 | KEEP first_name, last_name, hire_date
-| EVAL hired = DATE_FORMAT("YYYY-MM-dd", hire_date)
+| EVAL hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
 ```

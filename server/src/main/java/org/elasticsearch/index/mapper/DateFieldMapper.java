@@ -90,7 +90,7 @@ public final class DateFieldMapper extends FieldMapper {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
             @Override
             public long convert(Instant instant) {
-               return toLongMillis(instant);
+                return toLongMillis(instant);
             }
 
             @Override

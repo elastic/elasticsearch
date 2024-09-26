@@ -217,14 +217,9 @@ public class DateUtils {
             return instant.toEpochMilli();
         } catch (ArithmeticException e) {
             if (instant.isAfter(Instant.now())) {
-                throw new IllegalArgumentException(
-                    "date[" + instant + "] is too far in the future to fit in a long milliseconds variable"
-                );
-            }
-            else {
-                throw new IllegalArgumentException(
-                    "date[" + instant + "] is too far in the past to fit in a long milliseconds variable"
-                );
+                throw new IllegalArgumentException("date[" + instant + "] is too far in the future to fit in a long milliseconds variable");
+            } else {
+                throw new IllegalArgumentException("date[" + instant + "] is too far in the past to fit in a long milliseconds variable");
             }
         }
     }

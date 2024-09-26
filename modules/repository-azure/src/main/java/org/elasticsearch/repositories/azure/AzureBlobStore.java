@@ -673,7 +673,8 @@ public class AzureBlobStore implements BlobStore {
         return statsCollectors.statsMap(service.isStateless());
     }
 
-    private enum Operation {
+    // visible for testing
+    enum Operation {
         GET_BLOB("GetBlob"),
         LIST_BLOBS("ListBlobs"),
         GET_BLOB_PROPERTIES("GetBlobProperties"),

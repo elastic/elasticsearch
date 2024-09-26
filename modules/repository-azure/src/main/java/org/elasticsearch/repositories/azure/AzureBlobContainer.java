@@ -216,4 +216,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         );
     }
 
+    // visible for testing
+    AzureBlobStore getBlobStore() {
+        return blobStore;
+    }
 }

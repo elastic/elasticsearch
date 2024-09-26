@@ -3,3 +3,5 @@
 *Description*
 
 Returns a new string representing the input string in reverse order.
+
+NOTE: This function keeps unicode grapheme clusters together during reversal.

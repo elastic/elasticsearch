@@ -43,7 +43,8 @@ public class Reverse extends EsqlScalarFunction {
         description = "Returns a new string representing the input string in reverse order.",
         examples = {
             @Example(file = "string", tag = "reverse"),
-            @Example(file = "string", tag = "reverseEmoji", description = "`REVERSE` works with unicode, too!") }
+            @Example(file = "string", tag = "reverseEmoji", description = "`REVERSE` works with unicode, too!") },
+        note = "This function keeps unicode grapheme clusters together during reversal."
     )
     public Reverse(
         Source source,
@@ -133,13 +134,13 @@ public class Reverse extends EsqlScalarFunction {
     }
 
     @Evaluator
-    static BytesRef process(BytesRef ref) {
-        if (isOneByteUTF8(ref)) {
-            BytesRef reversed = BytesRef.deepCopyOf(ref);
+    static BytesRef process(BytesRef val) {
+        if (isOneByteUTF8(val)) {
+            BytesRef reversed = BytesRef.deepCopyOf(val);
             reverseArray(reversed.bytes, reversed.offset, reversed.offset + reversed.length - 1);
             return reversed;
         }
-        return BytesRefs.toBytesRef(reverseStringWithUnicodeCharacters(ref.utf8ToString()));
+        return BytesRefs.toBytesRef(reverseStringWithUnicodeCharacters(val.utf8ToString()));
     }
 
     @Override

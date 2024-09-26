@@ -8,3 +8,4 @@ Returns a new string representing the input string in reverse order.
 ```
 ROW message = "Some Text" | EVAL message_reversed = REVERSE(message);
 ```
+Note: This function keeps unicode grapheme clusters together during reversal.

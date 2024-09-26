@@ -25,54 +25,54 @@ import org.elasticsearch.xpack.esql.expression.function.Warnings;
 public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
-  private final EvalOperator.ExpressionEvaluator ref;
+  private final EvalOperator.ExpressionEvaluator val;
 
   private final DriverContext driverContext;
 
-  public ReverseEvaluator(Source source, EvalOperator.ExpressionEvaluator ref,
+  public ReverseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.ref = ref;
+    this.val = val;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock refBlock = (BytesRefBlock) ref.eval(page)) {
-      BytesRefVector refVector = refBlock.asVector();
-      if (refVector == null) {
-        return eval(page.getPositionCount(), refBlock);
+    try (BytesRefBlock valBlock = (BytesRefBlock) val.eval(page)) {
+      BytesRefVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return eval(page.getPositionCount(), valBlock);
       }
-      return eval(page.getPositionCount(), refVector).asBlock();
+      return eval(page.getPositionCount(), valVector).asBlock();
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock refBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef refScratch = new BytesRef();
+      BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (refBlock.isNull(p)) {
+        if (valBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (refBlock.getValueCount(p) != 1) {
-          if (refBlock.getValueCount(p) > 1) {
+        if (valBlock.getValueCount(p) != 1) {
+          if (valBlock.getValueCount(p) > 1) {
             warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Reverse.process(refBlock.getBytesRef(refBlock.getFirstValueIndex(p), refScratch)));
+        result.appendBytesRef(Reverse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector refVector) {
+  public BytesRefVector eval(int positionCount, BytesRefVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-      BytesRef refScratch = new BytesRef();
+      BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Reverse.process(refVector.getBytesRef(p, refScratch)));
+        result.appendBytesRef(Reverse.process(valVector.getBytesRef(p, valScratch)));
       }
       return result.build();
     }
@@ -80,32 +80,32 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "ReverseEvaluator[" + "ref=" + ref + "]";
+    return "ReverseEvaluator[" + "val=" + val + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(ref);
+    Releasables.closeExpectNoException(val);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory ref;
+    private final EvalOperator.ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory ref) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
       this.source = source;
-      this.ref = ref;
+      this.val = val;
     }
 
     @Override
     public ReverseEvaluator get(DriverContext context) {
-      return new ReverseEvaluator(source, ref.get(context), context);
+      return new ReverseEvaluator(source, val.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ReverseEvaluator[" + "ref=" + ref + "]";
+      return "ReverseEvaluator[" + "val=" + val + "]";
     }
   }
 }

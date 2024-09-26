@@ -1,13 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.datastreams.logsdb.qa;
+package org.elasticsearch.xpack.logsdb.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -22,17 +20,17 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * This test compares behavior of a logsdb data stream and a standard index mode data stream
- * containing data reindexed from initial data stream.
+ * This test compares behavior of a logsdb data stream and a data stream containing
+ * data reindexed from initial data stream.
  * There should be no differences between such two data streams.
  */
-public class LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT extends ReindexChallengeRestIT {
+public class LogsDbVersusReindexedLogsDbChallengeRestIT extends ReindexChallengeRestIT {
     public String getBaselineDataStreamName() {
         return "logs-apache-baseline";
     }
 
     public String getContenderDataStreamName() {
-        return "standard-apache-reindexed-contender";
+        return "logs-apache-reindexed-contender";
     }
 
     @Override
@@ -42,7 +40,7 @@ public class LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT extends 
 
     @Override
     public void contenderSettings(Settings.Builder builder) {
-
+        dataGenerationHelper.logsDbSettings(builder);
     }
 
     @Override
@@ -52,7 +50,7 @@ public class LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT extends 
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.standardMapping(builder);
+        dataGenerationHelper.logsDbMapping(builder);
     }
 
     @Override

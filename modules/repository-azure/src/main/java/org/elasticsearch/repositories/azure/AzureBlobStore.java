@@ -701,19 +701,19 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private static class StatsCollectors {
-        final Map<StatsKey, Stats> collectors = new ConcurrentHashMap<>();
+        final Map<StatsKey, LongAdder> collectors = new ConcurrentHashMap<>();
 
         Map<String, Long> statsMap(boolean stateless) {
             if (stateless) {
                 return collectors.entrySet()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().counter.sum()));
+                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().sum()));
             } else {
                 Map<String, Long> normalisedStats = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, o -> 0L));
                 collectors.forEach(
                     (key, value) -> normalisedStats.compute(
                         key.operation.getKey(),
-                        (k, current) -> Objects.requireNonNull(current) + value.counter.sum()
+                        (k, current) -> Objects.requireNonNull(current) + value.sum()
                     )
                 );
                 return Map.copyOf(normalisedStats);
@@ -721,13 +721,8 @@ public class AzureBlobStore implements BlobStore {
         }
 
         public void onSuccessfulRequest(Operation operation, OperationPurpose purpose) {
-            collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new Stats()).counter.increment();
+            collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new LongAdder()).increment();
         }
-    }
-
-    private static class Stats {
-
-        private final LongAdder counter = new LongAdder();
     }
 
     private static class AzureInputStream extends InputStream {

@@ -156,4 +156,47 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
             .get();
         ensureYellow(indexName);
     }
+
+    public void testWhereQstrWithScoring() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                equalTo(List.of("INTEGER", "FLOAT"))
+            );
+            // values
+            List<List<Object>> values = getValuesList(resp);
+            assertMap(values, matchesList().item(List.of(1, 1.1565589F)).item(List.of(6, 0.9114002F)));
+        }
+    }
+
+    public void testWhereQstrWithNonPushableAndScoring() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+              AND abs(id) > 0
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                equalTo(List.of("INTEGER", "FLOAT"))
+            );
+            // values
+            List<List<Object>> values = getValuesList(resp);
+            assertMap(values, matchesList().item(List.of(1, 1.1565589F)).item(List.of(6, 0.9114002F)));
+        }
+    }
 }

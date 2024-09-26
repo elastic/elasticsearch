@@ -19,7 +19,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -70,9 +69,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     private IndexMode resolveIndexMode(final String mode) {
-        return mode == null
-            ? null
-            : Arrays.stream(IndexMode.values()).filter(indexMode -> Objects.equals(indexMode.getName(), mode)).findFirst().orElse(null);
+        return mode != null ? Enum.valueOf(IndexMode.class, mode) : null;
     }
 
     private boolean usesLogsAtSettingsComponentTemplate(final Metadata metadata, final String name) {
@@ -84,9 +81,12 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         if (composableIndexTemplate == null) {
             return false;
         }
-        return composableIndexTemplate.composedOf()
-            .stream()
-            .anyMatch(componentTemplate -> Objects.equals("logs@settings", componentTemplate));
+        for (final String componentTemplate : composableIndexTemplate.composedOf()) {
+            if ("logs@settings".equals(componentTemplate)) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

@@ -8,7 +8,6 @@ In this quick start guide, you'll learn how to do the following tasks:
 
 * Create an index
 * Add data as documents
-* Inspect a document's structure
 * Use dynamic and explicit mappings of data types
 * Do basic searches
 

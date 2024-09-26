@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -72,7 +73,14 @@ public class AzureClientProviderTests extends ESTestCase {
 
         LocationMode locationMode = LocationMode.SECONDARY_ONLY;
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
-        azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER);
+        azureClientProvider.createClient(
+            storageSettings,
+            locationMode,
+            requestRetryOptions,
+            null,
+            EMPTY_CONSUMER,
+            randomFrom(OperationPurpose.values())
+        );
     }
 
     public void testCanNotCreateAClientWithSecondaryLocationWithoutAProperEndpoint() {
@@ -95,7 +103,14 @@ public class AzureClientProviderTests extends ESTestCase {
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
         expectThrows(
             IllegalArgumentException.class,
-            () -> azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER)
+            () -> azureClientProvider.createClient(
+                storageSettings,
+                locationMode,
+                requestRetryOptions,
+                null,
+                EMPTY_CONSUMER,
+                randomFrom(OperationPurpose.values())
+            )
         );
     }
 

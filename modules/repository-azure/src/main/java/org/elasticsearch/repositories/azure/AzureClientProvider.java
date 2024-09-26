@@ -37,6 +37,7 @@ import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -161,7 +162,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         LocationMode locationMode,
         RequestRetryOptions retryOptions,
         ProxyOptions proxyOptions,
-        BiConsumer<String, URL> successfulRequestConsumer
+        BiConsumer<String, URL> successfulRequestConsumer,
+        OperationPurpose purpose
     ) {
         if (closed) {
             throw new IllegalStateException("AzureClientProvider is already closed");

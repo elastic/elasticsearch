@@ -14,6 +14,7 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -81,16 +82,28 @@ public class AzureStorageService {
         this.azureClientProvider = azureClientProvider;
     }
 
-    public AzureBlobServiceClient client(String clientName, LocationMode locationMode) {
-        return client(clientName, locationMode, null);
+    public AzureBlobServiceClient client(String clientName, LocationMode locationMode, OperationPurpose purpose) {
+        return client(clientName, locationMode, purpose, null);
     }
 
-    public AzureBlobServiceClient client(String clientName, LocationMode locationMode, BiConsumer<String, URL> successfulRequestConsumer) {
+    public AzureBlobServiceClient client(
+        String clientName,
+        LocationMode locationMode,
+        OperationPurpose purpose,
+        BiConsumer<String, URL> successfulRequestConsumer
+    ) {
         final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
 
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
-        return azureClientProvider.createClient(azureStorageSettings, locationMode, retryOptions, proxyOptions, successfulRequestConsumer);
+        return azureClientProvider.createClient(
+            azureStorageSettings,
+            locationMode,
+            retryOptions,
+            proxyOptions,
+            successfulRequestConsumer,
+            purpose
+        );
     }
 
     private AzureStorageSettings getClientSettings(String clientName) {

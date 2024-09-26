@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -146,7 +147,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
             final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
-            final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService().client("default", LocationMode.PRIMARY_ONLY);
+            final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService()
+                .client("default", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()));
             final BlobServiceClient client = azureBlobServiceClient.getSyncClient();
             try {
                 SocketAccess.doPrivilegedException(() -> {

@@ -251,9 +251,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_force_delete/Test force deleting a running transform}
   issue: https://github.com/elastic/elasticsearch/issues/113327
-- class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
-  method: testOnIndexAvailableForSearchIndexAlreadyAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/113336
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=analytics/top_metrics/sort by scaled float field}
   issue: https://github.com/elastic/elasticsearch/issues/113340

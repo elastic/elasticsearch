@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -62,16 +63,16 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
 
         switch (randomInt(6)) {
             case 0:
-                doc = randomNonNegativeInt();
+                doc = randomValueOtherThan(doc, ESTestCase::randomNonNegativeInt);
                 break;
             case 1:
                 shardIndex = shardIndex == -1 ? randomNonNegativeInt() : -1;
                 break;
             case 2:
-                score = randomFloat();
+                score = randomValueOtherThan(score, ESTestCase::randomFloat);
                 break;
             case 3:
-                rankConstant = randomIntBetween(1, 100);
+                rankConstant = randomValueOtherThan(rankConstant, () -> randomIntBetween(1, 100));
                 break;
             case 4:
                 rank = rank == NO_RANK ? randomIntBetween(1, 10000) : NO_RANK;
@@ -83,7 +84,7 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
                 break;
             case 6:
                 for (int i = 0; i < queries; i++) {
-                    scores[i] = randomFloat();
+                    scores[i] = randomValueOtherThan(scores[i], ESTestCase::randomFloat);
                 }
                 break;
             default:

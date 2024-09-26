@@ -353,7 +353,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         final AtomicReference<SearchResponse> lastResponse = new AtomicReference<>();
         try {
             assertBusy(() -> {
-                ClusterState state = clusterAdmin().prepareState().get().getState();
+                ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                     state,
                     IndicesOptions.lenientExpandOpen(),
@@ -429,7 +429,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             assertBusy(() -> {
                 // The watch_history index gets created in the background when the first watch is triggered
                 // so we to check first is this index is created and shards are started
-                ClusterState state = clusterAdmin().prepareState().get().getState();
+                ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                     state,
                     IndicesOptions.lenientExpandOpen(),
@@ -476,7 +476,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected void assertWatchWithMinimumActionsCount(final String watchName, final ExecutionState recordState, final long recordCount)
         throws Exception {
         assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                 state,
                 IndicesOptions.lenientExpandOpen(),

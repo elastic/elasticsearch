@@ -4431,11 +4431,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      */
     public void testInlinestatsNestedExpressionsInGroups() {
-        var plan = optimizedPlan("""
+        var query = """
             FROM test
             | INLINESTATS c = COUNT(salary) by emp_no % 2
-            """);
-
+            """;
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'INLINESTATS' expecting {"));
+            return;
+        }
+        var plan = optimizedPlan(query);
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), InlineStats.class);
         var groupings = agg.groupings();
@@ -4862,9 +4867,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
               FROM test
             | RENAME languages AS int
             | LOOKUP int_number_names ON int""";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = optimizedPlan(query);
@@ -4941,9 +4946,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
             | STATS MIN(emp_no) BY name""";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = optimizedPlan(query);

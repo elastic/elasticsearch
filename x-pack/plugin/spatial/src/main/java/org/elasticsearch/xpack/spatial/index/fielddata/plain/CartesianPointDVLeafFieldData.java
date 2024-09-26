@@ -35,11 +35,6 @@ final class CartesianPointDVLeafFieldData extends LeafCartesianPointFieldData {
     }
 
     @Override
-    public void close() {
-        // noop
-    }
-
-    @Override
     public SortedNumericDocValues getSortedNumericDocValues() {
         try {
             return DocValues.getSortedNumeric(reader, fieldName);

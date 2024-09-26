@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search;
 
@@ -2719,7 +2720,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             try {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(SEARCH_WORKER_THREADS_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
@@ -2730,7 +2731,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 // reset original default setting
                 client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(SEARCH_WORKER_THREADS_ENABLED.getKey()).build())
                     .get();
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
@@ -2868,7 +2869,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             try {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
@@ -2891,7 +2892,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 // Reset to the original default setting and check to ensure it takes effect.
                 client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
                     .get();
                 {

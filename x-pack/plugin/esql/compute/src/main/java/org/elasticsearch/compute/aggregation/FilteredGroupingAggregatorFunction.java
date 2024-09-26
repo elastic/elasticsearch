@@ -23,6 +23,11 @@ import java.util.stream.IntStream;
 /**
  * A {@link GroupingAggregatorFunction} that wraps another, filtering which positions
  * are supplied to the aggregator.
+ * <p>
+ *     This filtering works by setting all of the group ids for filtered positions to
+ *     {@code null}. {@link GroupingAggregatorFunction} will then skip collecting those
+ *     positions.
+ * </p>
  */
 record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalOperator.ExpressionEvaluator filter)
     implements

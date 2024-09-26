@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -170,7 +171,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             Metadata.builder().build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(new Template(null, null, null, DataStreamLifecycle.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of(randomAlphaOfLength(10)))
                 .build(),
@@ -196,7 +197,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             Metadata.builder().build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(new Template(null, null, null, DataStreamLifecycle.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of("." + randomAlphaOfLength(10)))
                 .build(),
@@ -219,16 +220,15 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                     Map.of(
                         "component-template",
                         new ComponentTemplate(
-                            new Template(
-                                null,
-                                null,
-                                null,
-                                new DataStreamLifecycle(
-                                    new DataStreamLifecycle.Retention(randomTimeValue(2, 100, TimeUnit.DAYS)),
-                                    null,
-                                    null
+                            Template.builder()
+                                .lifecycle(
+                                    new DataStreamLifecycle(
+                                        new DataStreamLifecycle.Retention(randomTimeValue(2, 100, TimeUnit.DAYS)),
+                                        null,
+                                        null
+                                    )
                                 )
-                            ),
+                                .build(),
                             null,
                             null
                         )
@@ -237,7 +237,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                 .build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(new Template(null, null, null, DataStreamLifecycle.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of(randomAlphaOfLength(10)))
                 .componentTemplates(List.of("component-template"))
@@ -290,12 +290,11 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
 
-        Template template = new Template(
-            ComponentTemplateTests.randomSettings(),
-            null,
-            ComponentTemplateTests.randomAliases(),
-            DataStreamLifecycle.DEFAULT
-        );
+        Template template = Template.builder()
+            .settings(ComponentTemplateTests.randomSettings())
+            .aliases(ComponentTemplateTests.randomAliases())
+            .lifecycle(DataStreamLifecycle.DEFAULT)
+            .build();
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 

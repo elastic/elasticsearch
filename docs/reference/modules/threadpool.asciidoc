@@ -121,6 +121,11 @@ There are several thread pools, but the important ones include:
     `min(5 * (`<<node.processors, `# of allocated processors`>>`), 50)`
     and queue_size of `1000`.
 
+[[modules-threadpool-esql]]`esql_worker`::
+    Executes <<esql>> operations. Thread pool type is `fixed` with a
+    size of `int((`<<node.processors, `# of allocated processors`>>
+    `pass:[ * ]3) / 2) + 1`, and queue_size of `1000`.
+
 Thread pool settings are <<static-cluster-setting,static>> and can be changed by
 editing `elasticsearch.yml`. Changing a specific thread pool can be done by
 setting its type-specific parameters; for example, changing the number of

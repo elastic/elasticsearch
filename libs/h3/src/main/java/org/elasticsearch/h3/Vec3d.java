@@ -96,7 +96,7 @@ final class Vec3d {
             }
         }
         // cos(r) = 1 - 2 * sin^2(r/2) = 1 - 2 * (sqd / 4) = 1 - sqd/2
-        double r = FastMath.acos(1 - sqd / 2);
+        double r = FastMath.acos(1 - sqd * 0.5);
 
         if (r < Constants.EPSILON) {
             return FaceIJK.faceIjkToH3(res, face, new CoordIJK(0, 0, 0));

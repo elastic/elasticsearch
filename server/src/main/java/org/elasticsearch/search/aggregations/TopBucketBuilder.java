@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -131,7 +132,11 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
             DelayedBucket<B> removed = queue.insertWithOverflow(bucket);
             if (removed != null) {
                 nonCompetitive.accept(removed);
+                // release any created sub-buckets
                 removed.nonCompetitive(reduceContext);
+            } else {
+                // add one bucket to the final result
+                reduceContext.consumeBucketsAndMaybeBreak(1);
             }
         }
 
@@ -182,6 +187,8 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
                 next.add(bucket);
                 return;
             }
+            // add one bucket to the final result
+            reduceContext.consumeBucketsAndMaybeBreak(1);
             buffer.add(bucket);
             if (buffer.size() < size) {
                 return;

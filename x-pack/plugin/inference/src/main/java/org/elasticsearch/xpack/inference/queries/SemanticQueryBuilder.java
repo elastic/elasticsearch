@@ -204,7 +204,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 List.of(query),
                 Map.of(),
                 InputType.SEARCH,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API,
+                false
             );
 
             queryRewriteContext.registerAsyncAction(
@@ -283,7 +284,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         String inferenceId = null;
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
-            String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getInferenceId() : null;
+            String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getSearchInferenceId() : null;
             if (indexInferenceId != null) {
                 if (inferenceId != null && inferenceId.equals(indexInferenceId) == false) {
                     throw new IllegalArgumentException("Field [" + fieldName + "] has multiple inference IDs associated with it");

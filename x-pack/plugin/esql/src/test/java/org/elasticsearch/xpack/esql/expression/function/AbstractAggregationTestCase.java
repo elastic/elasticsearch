@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -150,8 +151,10 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
             for (Page inputPage : rows(testCase.getMultiRowFields())) {
-                try {
-                    aggregator.processPage(inputPage);
+                try (
+                    BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
+                ) {
+                    aggregator.processPage(inputPage, noMasking);
                 } finally {
                     inputPage.releaseBlocks();
                 }
@@ -217,8 +220,10 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             intermediateBlocks = new Block[intermediateBlockOffset + intermediateStates + intermediateBlockExtraSize];
 
             for (Page inputPage : rows(testCase.getMultiRowFields())) {
-                try {
-                    aggregator.processPage(inputPage);
+                try (
+                    BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
+                ) {
+                    aggregator.processPage(inputPage, noMasking);
                 } finally {
                     inputPage.releaseBlocks();
                 }
@@ -247,9 +252,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             )
         ) {
             Page inputPage = new Page(intermediateBlocks);
-            try {
+            try (BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())) {
                 if (inputPage.getPositionCount() > 0) {
-                    aggregator.processPage(inputPage);
+                    aggregator.processPage(inputPage, noMasking);
                 }
             } finally {
                 inputPage.releaseBlocks();

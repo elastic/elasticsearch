@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -168,11 +169,12 @@ public class XContentDataHelperTests extends ESTestCase {
         XContentParser xContentParser = createParser(JsonXContent.jsonXContent, data);
         xContentParser.nextToken();
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        assertFalse(context.getClonedSource());
+        assertFalse(context.getRecordedSource());
         var tuple = XContentDataHelper.cloneSubContextWithParser(context);
         assertEquals(data, dataInParser(tuple.v1().parser()));
         assertEquals(data, dataInParser(tuple.v2()));
-        assertTrue(tuple.v1().getClonedSource());
+        assertTrue(tuple.v1().getRecordedSource());
+        assertFalse(context.getRecordedSource());
     }
 
     public void testWriteMergedWithSingleValue() throws IOException {
@@ -186,7 +188,7 @@ public class XContentDataHelperTests extends ESTestCase {
     }
 
     private void testWriteMergedWithSingleValue(Object value) throws IOException {
-        var map = executeWriteMergeOnRepeated(value);
+        var map = executeWriteMergedOnRepeated(value);
         assertEquals(Arrays.asList(value, value), map.get("foo"));
     }
 
@@ -208,7 +210,7 @@ public class XContentDataHelperTests extends ESTestCase {
     }
 
     private void testWriteMergedWithMultipleValues(List<Object> value) throws IOException {
-        var map = executeWriteMergeOnRepeated(value);
+        var map = executeWriteMergedOnRepeated(value);
         var expected = Stream.of(value, value).flatMap(Collection::stream).toList();
         assertEquals(expected, map.get("foo"));
     }
@@ -233,16 +235,16 @@ public class XContentDataHelperTests extends ESTestCase {
     }
 
     private void testWriteMergedWithMixedValues(Object value, List<Object> multipleValues) throws IOException {
-        var map = executeWriteMergeOnTwoEncodedValues(value, multipleValues);
+        var map = executeWriteMergedOnTwoEncodedValues(value, multipleValues);
         var expected = Stream.concat(Stream.of(value), multipleValues.stream()).toList();
         assertEquals(expected, map.get("foo"));
     }
 
-    private Map<String, Object> executeWriteMergeOnRepeated(Object value) throws IOException {
-        return executeWriteMergeOnTwoEncodedValues(value, value);
+    private Map<String, Object> executeWriteMergedOnRepeated(Object value) throws IOException {
+        return executeWriteMergedOnTwoEncodedValues(value, value);
     }
 
-    private Map<String, Object> executeWriteMergeOnTwoEncodedValues(Object first, Object second) throws IOException {
+    private Map<String, Object> executeWriteMergedOnTwoEncodedValues(Object first, Object second) throws IOException {
         var xContentType = randomFrom(XContentType.values());
 
         var firstEncoded = encodeSingleValue(first, xContentType);

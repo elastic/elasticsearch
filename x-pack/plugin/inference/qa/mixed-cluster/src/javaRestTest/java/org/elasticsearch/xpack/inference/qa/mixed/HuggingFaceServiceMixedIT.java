@@ -84,6 +84,7 @@ public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
         final String inferenceId = "mixed-cluster-elser";
         final String upgradedClusterId = "upgraded-cluster-elser";
 
+        elserServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse()));
         put(inferenceId, elserConfig(getUrl(elserServer)), TaskType.SPARSE_EMBEDDING);
 
         var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, inferenceId).get("endpoints");

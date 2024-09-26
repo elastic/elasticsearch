@@ -311,5 +311,6 @@
       "variadic" : false,
       "returnType" : "boolean"
     }
-  ]
+  ],
+  "preview" : false
 }

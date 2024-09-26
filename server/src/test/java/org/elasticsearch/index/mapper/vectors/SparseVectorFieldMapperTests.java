@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
@@ -13,7 +14,6 @@ import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -22,11 +22,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
@@ -224,44 +221,6 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected IndexVersion boostNotAllowedIndexVersion() {
         return NEW_SPARSE_VECTOR_INDEX_VERSION;
-    }
-
-    public void testSparseVectorWith7xIndex() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), PREVIOUS_SPARSE_VECTOR_INDEX_VERSION);
-
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("my-vector")
-            .field("type", "sparse_vector")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-
-        DocumentMapper mapper = createDocumentMapper(version, builder);
-        assertWarnings(SparseVectorFieldMapper.ERROR_MESSAGE_7X);
-
-        // Check that new vectors cannot be indexed.
-        int[] indexedDims = { 65535, 50, 2 };
-        float[] indexedValues = { 0.5f, 1800f, -34567.11f };
-        BytesReference source = BytesReference.bytes(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("my-vector")
-                .field(Integer.toString(indexedDims[0]), indexedValues[0])
-                .field(Integer.toString(indexedDims[1]), indexedValues[1])
-                .field(Integer.toString(indexedDims[2]), indexedValues[2])
-                .endObject()
-                .endObject()
-        );
-
-        DocumentParsingException indexException = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(new SourceToParse("id", source, XContentType.JSON))
-        );
-        assertThat(indexException.getCause().getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE_7X));
     }
 
     public void testSparseVectorUnsupportedIndex() throws Exception {

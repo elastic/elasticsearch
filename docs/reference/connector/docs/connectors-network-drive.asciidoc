@@ -83,6 +83,29 @@ Default value is `false`.
 Refer to <<es-connectors-network-drive-dls, Document level security>> for more information, including prerequisites and limitations.
 ====
 
+Identity mappings::
+Path to a CSV file containing user and group SIDs (For Linux Network Drive).
++
+File should be formatted as follows:
++
+* Fields separated by semicolons (`;`)
+* Three fields per line: `Username;User-SID;Group-SIDs`
+* Group-SIDs are comma-separated and optional.
++
+*Example* with one username, user-sid and no group:
++
+[source,text]
+----
+user1;S-1;
+----
++
+*Example* with one username, user-sid and two groups:
++
+[source,text]
+----
+user1;S-1;S-11,S-22
+----
+
 [discrete#es-connectors-network-drive-documents-syncs]
 ===== Documents and syncs
 
@@ -313,7 +336,27 @@ The following options are available:
 * `Linux`
 
 `identity_mappings`::
-Path of CSV file containing user and group SIDs (For Linux Network Drive).
+Path to a CSV file containing user and group SIDs (For Linux Network Drive).
++
+File should be formatted as follows:
++
+* Fields separated by semicolons (`;`)
+* Three fields per line: `Username;User-SID;Group-SIDs`
+* Group-SIDs are comma-separated and optional.
++
+*Example* with one username, user-sid and no group:
++
+[source,text]
+----
+user1;S-1;
+----
++
+*Example* with one username, user-sid and two groups:
++
+[source,text]
+----
+user1;S-1;S-11,S-22
+----
 
 [discrete#es-connectors-network-drive-client-docker]
 ===== Deployment using Docker

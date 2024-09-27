@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -55,6 +54,45 @@ public abstract class RemoteClusterAware {
     }
 
     /**
+     * Check whether the index expression represents remote index or not.
+     * The index name is assumed to be individual index (no commas) but can contain `-`, wildcards,
+     * datemath, remote cluster name and any other syntax permissible in index expression component.
+     */
+    public static boolean isRemoteIndexName(String indexExpression) {
+        if (indexExpression.isEmpty() || indexExpression.charAt(0) == '<' || indexExpression.startsWith("-<")) {
+            // This is date math, but even if it is not, the remote can't start with '<'.
+            // Thus, whatever it is, this is definitely not a remote index.
+            return false;
+        }
+        // Note remote index name also can not start with ':'
+        return indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+    }
+
+    /**
+     * Split the index name into remote cluster alias and index name.
+     * The index expression is assumed to be individual index (no commas) but can contain `-`, wildcards,
+     * datemath, remote cluster name and any other syntax permissible in index expression component.
+     * There's no guarantee the components actually represent existing remote cluster or index, only
+     * rudimentary checks are done on the syntax.
+     */
+    public static String[] splitIndexName(String indexExpression) {
+        if (indexExpression.isEmpty() || indexExpression.charAt(0) == '<' || indexExpression.startsWith("-<")) {
+            // This is date math, but even if it is not, the remote can't start with '<'.
+            // Thus, whatever it is, this is definitely not a remote index.
+            return new String[] { null, indexExpression };
+        }
+        int i = indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+        if (i == 0) {
+            throw new IllegalArgumentException("index name [" + indexExpression + "] is invalid because the remote part is empty");
+        }
+        if (i < 0) {
+            return new String[] { null, indexExpression };
+        } else {
+            return new String[] { indexExpression.substring(0, i), indexExpression.substring(i + 1) };
+        }
+    }
+
+    /**
      * Groups indices per cluster by splitting remote cluster-alias, index-name pairs on {@link #REMOTE_CLUSTER_INDEX_SEPARATOR}. All
      * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
@@ -77,19 +115,21 @@ public abstract class RemoteClusterAware {
         Set<String> clustersToRemove = new HashSet<>();
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
-            // since datemath expression after evaluation should not contain ':' symbol
-            String probe = IndexNameExpressionResolver.resolveDateMathExpression(index);
-            int i = probe.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (i >= 0) {
+            // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
+            String[] split = splitIndexName(index);
+            if (split[0] != null) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
-                int startIdx = index.charAt(0) == '-' ? 1 : 0;
-                String remoteClusterName = index.substring(startIdx, i);
-                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
-                String indexName = index.substring(i + 1);
-                if (startIdx == 1) {
+                String remoteClusterName = split[0];
+                String indexName = split[1];
+                boolean isNegative = remoteClusterName.startsWith("-");
+                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(
+                    remoteClusterNames,
+                    isNegative ? remoteClusterName.substring(1) : remoteClusterName
+                );
+                if (isNegative) {
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(

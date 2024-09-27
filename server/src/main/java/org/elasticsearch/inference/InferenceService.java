@@ -85,6 +85,7 @@ public interface InferenceService extends Closeable {
      * @param model        The model
      * @param query        Inference query, mainly for re-ranking
      * @param input        Inference input
+     * @param stream       Stream inference results
      * @param taskSettings Settings in the request to override the model's defaults
      * @param inputType    For search, ingest etc
      * @param timeout      The timeout for the request
@@ -94,6 +95,7 @@ public interface InferenceService extends Closeable {
         Model model,
         @Nullable String query,
         List<String> input,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -174,6 +176,17 @@ public interface InferenceService extends Closeable {
     default void checkModelConfig(Model model, ActionListener<Model> listener) {
         listener.onResponse(model);
     };
+
+    /**
+     * Update a text embedding model's dimensions based on a provided embedding
+     * size and set the default similarity if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @param embeddingSize The embedding size to update the model with
+     * @return The model with updated embedding details
+     */
+    default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        return model;
+    }
 
     /**
      * Return true if this model is hosted in the local Elasticsearch cluster

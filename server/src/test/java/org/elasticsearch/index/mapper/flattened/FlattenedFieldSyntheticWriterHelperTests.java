@@ -35,7 +35,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         byte[] bytes = ("test" + '\0' + "one").getBytes(StandardCharsets.UTF_8);
         when(dv.nextOrd()).thenReturn(0L);
         when(dv.lookupOrd(0L)).thenReturn(new BytesRef(bytes, 0, bytes.length));
-        FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(dv);
+        FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         XContentBuilder b = new XContentBuilder(XContentType.JSON.xContent(), baos);
 
@@ -52,7 +52,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
     public void testFlatObject() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
-        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(dv);
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a" + '\0' + "value_a", "b" + '\0' + "value_b", "c" + '\0' + "value_c", "d" + '\0' + "value_d")
@@ -79,7 +79,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
     public void testSingleObject() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
-        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(dv);
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of(
@@ -111,7 +111,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
     public void testMultipleObjects() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
-        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(dv);
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a.x" + '\0' + "10", "a.y" + '\0' + "20", "b.a" + '\0' + "30", "b.c" + '\0' + "40")
@@ -138,7 +138,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
     public void testSingleArray() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
-        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(dv);
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a.x" + '\0' + "10", "a.x" + '\0' + "20", "a.x" + '\0' + "30", "a.x" + '\0' + "40")
@@ -165,7 +165,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
     public void testMultipleArrays() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
-        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(dv);
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of(
@@ -190,5 +190,24 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
 
         // THEN
         assertEquals("{\"a\":{\"x\":[\"10\",\"20\"]},\"b\":{\"y\":[\"30\",\"40\",\"50\"]}}", baos.toString(StandardCharsets.UTF_8));
+    }
+
+    private class SortedSetSortedKeyedValues implements FlattenedFieldSyntheticWriterHelper.SortedKeyedValues {
+        private final SortedSetDocValues dv;
+        private int seen = 0;
+
+        private SortedSetSortedKeyedValues(SortedSetDocValues dv) {
+            this.dv = dv;
+        }
+
+        @Override
+        public BytesRef next() throws IOException {
+            if (seen < dv.docValueCount()) {
+                seen += 1;
+                return dv.lookupOrd(dv.nextOrd());
+            }
+
+            return null;
+        }
     }
 }

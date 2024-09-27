@@ -413,7 +413,7 @@ final class BootstrapChecks {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             final long maxFileSize = getMaxFileSize();
-            if (maxFileSize != Long.MIN_VALUE && maxFileSize != ProcessLimits.UNLIMITED) {
+            if (maxFileSize != -1 && maxFileSize != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",
@@ -427,7 +427,7 @@ final class BootstrapChecks {
         }
 
         long getMaxFileSize() {
-            return NativeAccess.instance().getProcessLimits().maxVirtualMemorySize();
+            return NativeAccess.instance().getProcessLimits().maxFileSize();
         }
 
         @Override

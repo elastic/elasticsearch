@@ -302,9 +302,27 @@ tests:
 - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
   method: testSearchAndMSearch
   issue: https://github.com/elastic/elasticsearch/issues/113593
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date_nanos.Date_nanos to date nanos, index version SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113632
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  method: testStopWaitForCheckpoint
+  issue: https://github.com/elastic/elasticsearch/issues/106113
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
+  issue: https://github.com/elastic/elasticsearch/issues/101458
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
+  issue: https://github.com/elastic/elasticsearch/issues/113648
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJobs_GivenMultipleJobs
+  issue: https://github.com/elastic/elasticsearch/issues/113654
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJobs_GivenSingleJob
+  issue: https://github.com/elastic/elasticsearch/issues/113655
+- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
+  method: testHasRemoteIndices
+  issue: https://github.com/elastic/elasticsearch/issues/113660
+- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
+  method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
+  issue: https://github.com/elastic/elasticsearch/issues/113659
 
 # Examples:
 #

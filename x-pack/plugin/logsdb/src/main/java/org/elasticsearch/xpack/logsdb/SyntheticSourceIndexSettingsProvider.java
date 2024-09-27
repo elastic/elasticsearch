@@ -9,28 +9,41 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperService;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
 /**
  * An index setting provider that overwrites the source mode from synthetic to stored if synthetic source isn't allowed to be used.
  */
-public class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider {
+final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceIndexSettingsProvider.class);
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
+    private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
 
-    public SyntheticSourceIndexSettingsProvider(SyntheticSourceLicenseService syntheticSourceLicenseService) {
+    SyntheticSourceIndexSettingsProvider(
+        SyntheticSourceLicenseService syntheticSourceLicenseService,
+        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
+    ) {
         this.syntheticSourceLicenseService = syntheticSourceLicenseService;
+        this.mapperServiceFactory = mapperServiceFactory;
     }
 
     @Override
@@ -43,7 +56,7 @@ public class SyntheticSourceIndexSettingsProvider implements IndexSettingProvide
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
-        if (newIndexHasSyntheticSourceUsage(indexTemplateAndCreateRequestSettings)
+        if (newIndexHasSyntheticSourceUsage(indexName, isTimeSeries, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
             && syntheticSourceLicenseService.fallbackToStoredSource()) {
             LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
             // TODO: handle falling back to stored source
@@ -51,11 +64,60 @@ public class SyntheticSourceIndexSettingsProvider implements IndexSettingProvide
         return Settings.EMPTY;
     }
 
-    boolean newIndexHasSyntheticSourceUsage(Settings indexTemplateAndCreateRequestSettings) {
-        // TODO: build tmp MapperService and check whether SourceFieldMapper#isSynthetic() to determine synthetic source usage.
-        // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
-        var rawIndexMode = indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey());
-        IndexMode indexMode = rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
-        return indexMode != null && indexMode.isSyntheticSourceEnabled();
+    boolean newIndexHasSyntheticSourceUsage(
+        String indexName,
+        boolean isTimeSeries,
+        Settings indexTemplateAndCreateRequestSettings,
+        List<CompressedXContent> combinedTemplateMappings
+    ) {
+        if ("validate-index-name".equals(indexName)) {
+            // This index name is used when validating component and index templates, we should skip this check in that case.
+            // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
+            return false;
+        }
+
+        var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, isTimeSeries, indexTemplateAndCreateRequestSettings);
+        try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
+            // combinedTemplateMappings can be null when creating system indices
+            // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
+            if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
+                combinedTemplateMappings = List.of(new CompressedXContent("{}"));
+            }
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
+            return mapperService.documentMapper().sourceMapper().isSynthetic();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    // Create a dummy IndexMetadata instance that can be used to create a MapperService in order to check whether synthetic source is used:
+    private IndexMetadata buildIndexMetadataForMapperService(
+        String indexName,
+        boolean isTimeSeries,
+        Settings indexTemplateAndCreateRequestSettings
+    ) {
+        var tmpIndexMetadata = IndexMetadata.builder(indexName);
+
+        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(indexTemplateAndCreateRequestSettings);
+        int dummyShards = indexTemplateAndCreateRequestSettings.getAsInt(
+            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+            dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
+        );
+        int shardReplicas = indexTemplateAndCreateRequestSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        var finalResolvedSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(indexTemplateAndCreateRequestSettings)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+
+        if (isTimeSeries) {
+            finalResolvedSettings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+            // Avoid failing because index.routing_path is missing (in case fields are marked as dimension)
+            finalResolvedSettings.putList(INDEX_ROUTING_PATH.getKey(), List.of("path"));
+        }
+
+        tmpIndexMetadata.settings(finalResolvedSettings);
+        return tmpIndexMetadata.build();
     }
 }

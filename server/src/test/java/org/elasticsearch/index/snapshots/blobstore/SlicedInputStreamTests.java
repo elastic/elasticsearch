@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -188,36 +189,39 @@ public class SlicedInputStreamTests extends ESTestCase {
             }
         };
 
+        // Buffer to use for reading a few KiB from a start byte of IncreasingBytesUnlimitedInputStream, to verify expected bytes.
+        final byte[] buffer = new byte[Math.toIntExact(ByteSizeValue.ofKb(randomIntBetween(1, 8)).getBytes())];
+        Consumer<Long> readAndAssert = (start) -> {
+            try {
+                final int read = input.read(buffer);
+                assertThat("Unexpected number of bytes read", read, equalTo(buffer.length));
+                for (int i = 0; i < read; i++) {
+                    assertThat("Unexpected value for startByte=" + start + " and i=" + i, buffer[i], equalTo((byte) ((start + i) % 255)));
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+
         // Skip up to a random point that is larger than 4GiB so that the marked offset is larger than an int (ES-9639).
-        final long mark = ByteSizeValue.ofGb(randomIntBetween(5, 128)).getBytes() + randomNonNegativeInt();
+        final long mark = randomLongBetween(Integer.MAX_VALUE, Long.MAX_VALUE - buffer.length);
         input.skip(mark);
 
         // Mark
         input.mark(randomNonNegativeInt());
 
         // Skip a large amount of bytes
-        final long skip = ByteSizeValue.ofGb(randomIntBetween(5, 128)).getBytes() + randomNonNegativeInt();
-        input.skip(skip);
+        final long skipTo = randomLongBetween(mark, Long.MAX_VALUE - buffer.length);
+        input.skip(skipTo - mark);
 
         // Read a few KiB, asserting the bytes are what they are expected
-        final byte[] buffer = new byte[Math.toIntExact(ByteSizeValue.ofKb(randomIntBetween(1, 8)).getBytes())];
-        input.read(buffer);
-        for (int i = 0; i < buffer.length; i++) {
-            assertThat(
-                "Unexpected value for mark=" + mark + ", skip=" + skip + ", and i=" + i,
-                buffer[i],
-                equalTo((byte) ((mark + skip + i) % 255))
-            );
-        }
+        readAndAssert.accept(skipTo);
 
         // Reset
         input.reset();
 
         // Read a few KiB, asserting the bytes are what they are expected
-        input.read(buffer);
-        for (int i = 0; i < buffer.length; i++) {
-            assertThat("Unexpected value for mark=" + mark + " and i=" + i, buffer[i], equalTo((byte) ((mark + i) % 255)));
-        }
+        readAndAssert.accept(mark);
     }
 
     public void testMarkResetClosedStream() throws IOException {

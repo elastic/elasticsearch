@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
@@ -78,7 +79,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     /**
      * This setting is never registered by the security plugin - in order to disable the native role APIs
      * another plugin must register it as a boolean setting and cause it to be set to `false`.
-     *
+     * <p>
      * If this setting is set to <code>false</code> then
      * <ul>
      *     <li>the Rest APIs for native role mappings management are disabled.</li>
@@ -106,14 +107,26 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     private final boolean lastLoadCacheEnabled;
     private final AtomicReference<List<ExpressionRoleMapping>> lastLoadRef = new AtomicReference<>(null);
     private final boolean enabled;
+    private final Supplier<Set<ExpressionRoleMapping>> reservedRoleMappingSupplier;
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
+        this(settings, client, securityIndex, scriptService, Set::of);
+    }
+
+    public NativeRoleMappingStore(
+        Settings settings,
+        Client client,
+        SecurityIndexManager securityIndex,
+        ScriptService scriptService,
+        Supplier<Set<ExpressionRoleMapping>> reservedRoleMappingSupplier
+    ) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
         this.scriptService = scriptService;
         this.lastLoadCacheEnabled = LAST_LOAD_CACHE_ENABLED_SETTING.get(settings);
         this.enabled = settings.getAsBoolean(NATIVE_ROLE_MAPPINGS_ENABLED, true);
+        this.reservedRoleMappingSupplier = reservedRoleMappingSupplier;
     }
 
     /**
@@ -199,6 +212,11 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         Request request,
         ActionListener<Result> listener
     ) {
+        if (reservedRoleMappingSupplier.get().stream().anyMatch(it -> it.getName().equals(name))) {
+            // TODO
+            listener.onFailure(new IllegalArgumentException("[" + name + "] set as read-only by [file_settings]"));
+            return;
+        }
         if (securityIndex.isIndexUpToDate() == false) {
             listener.onFailure(
                 new IllegalStateException(
@@ -304,12 +322,26 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         }
     }
 
+    public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
+        ActionListener<List<ExpressionRoleMapping>> reservedMappingListener = listener.delegateFailureAndWrap((l, mappings) -> {
+            var reservedMappings = reservedRoleMappingSupplier.get();
+            if (reservedMappings.isEmpty()) {
+                listener.onResponse(mappings);
+                return;
+            }
+            var reservedMappingNames = reservedMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
+            var filteredNativeRoleMappings = mappings.stream().filter(it -> false == reservedMappingNames.contains(it.getName())).toList();
+            listener.onResponse(filteredNativeRoleMappings);
+        });
+        innerGetRoleMappings(names, reservedMappingListener);
+    }
+
     /**
      * Retrieves one or more mappings from the index.
      * If <code>names</code> is <code>null</code> or {@link Set#isEmpty empty}, then this retrieves all mappings.
      * Otherwise it retrieves the specified mappings by name.
      */
-    public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
+    private void innerGetRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
         if (enabled == false) {
             listener.onResponse(List.of());
         } else if (names == null || names.isEmpty()) {

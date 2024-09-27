@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ClusterStateRoleMapperTests extends ESTestCase {
+public class ReservedClusterStateRoleMapperTests extends ESTestCase {
 
     private ScriptService scriptService;
     private ClusterService clusterService;
@@ -66,12 +66,12 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
     }
 
     public void testRegisterForClusterChangesIfEnabled() {
-        ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
+        ReservedClusterStateRoleMapper roleMapper = new ReservedClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
         verify(clusterService, times(1)).addListener(same(roleMapper));
     }
 
     public void testNoRegisterForClusterChangesIfNotEnabled() {
-        new ClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
+        new ReservedClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
         verifyNoInteractions(clusterService);
     }
 
@@ -87,7 +87,7 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         {
             // the role mapper is enabled
-            ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
+            ReservedClusterStateRoleMapper roleMapper = new ReservedClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
             PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
             roleMapper.resolveRoles(userData, future);
             Set<String> roleNames = future.get();
@@ -102,7 +102,7 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
         }
         {
             // but if the role mapper is disabled, NO roles are resolved
-            ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
+            ReservedClusterStateRoleMapper roleMapper = new ReservedClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
             PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
             roleMapper.resolveRoles(userData, future);
             Set<String> roleNames = future.get();
@@ -113,7 +113,7 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
 
     public void testRoleMappingChangesTriggerRealmCacheClear() {
         CachingRealm mockRealm = mock(CachingRealm.class);
-        ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
+        ReservedClusterStateRoleMapper roleMapper = new ReservedClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
         roleMapper.clearRealmCacheOnChange(mockRealm);
         ExpressionRoleMapping mapping1 = mockExpressionRoleMapping(true, Set.of("role"), mock(ExpressionModel.class));
         ExpressionModel model2 = mock(ExpressionModel.class);

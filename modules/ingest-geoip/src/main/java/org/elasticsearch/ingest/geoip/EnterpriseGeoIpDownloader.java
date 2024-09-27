@@ -71,7 +71,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     // for overriding in tests
     static String DEFAULT_MAXMIND_ENDPOINT = System.getProperty(
-        MAXMIND_SETTINGS_PREFIX + "endpoint.default",
+        MAXMIND_SETTINGS_PREFIX + "endpoint.default", //
         "https://download.maxmind.com/geoip/databases"
     );
     // n.b. a future enhancement might be to allow for a MAXMIND_ENDPOINT_SETTING, but

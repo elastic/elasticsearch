@@ -390,36 +390,35 @@ public class RestControllerTests extends ESTestCase {
         for (RestApiVersion replacedInVersion : replacedInVersions) {
             clearInvocations(controller);
             Route route = Route.builder(method, path).replaces(replacedMethod, replacedPath, replacedInVersion).build();
-
             // don't want to test everything -- just that it actually wraps the handler
             doCallRealMethod().when(controller).registerHandler(route, handler);
+            Level level = replacedInVersion == current ? Level.WARN : DeprecationLogger.CRITICAL;
             doCallRealMethod().when(controller)
-                .registerAsReplacedHandler(method, path, current, handler, replacedMethod, replacedPath, replacedInVersion);
+                .registerAsReplacedHandler(
+                    method,
+                    path,
+                    current,
+                    handler,
+                    replacedMethod,
+                    replacedPath,
+                    replacedInVersion,
+                    deprecationMessage,
+                    level
+                );
 
             controller.registerHandler(route, handler);
 
+            // verify we registered the primary handler
             verify(controller).registerHandler(method, path, current, handler);
-            if (replacedInVersion.equals(current)) {
-                // is replaced in current version, which results in a critical deprecation warning
-                verify(controller).registerAsDeprecatedHandler(
-                    replacedMethod,
-                    replacedPath,
-                    replacedInVersion,
-                    handler,
-                    deprecationMessage,
-                    Level.WARN
-                );
-            } else {
-                // is replaced in previous version, which results in a critical deprecation warning
-                verify(controller).registerAsDeprecatedHandler(
-                    replacedMethod,
-                    replacedPath,
-                    replacedInVersion,
-                    handler,
-                    deprecationMessage,
-                    DeprecationLogger.CRITICAL
-                );
-            }
+            // verify we register the replaced handler with the correct deprecation message and level
+            verify(controller).registerAsDeprecatedHandler(
+                replacedMethod,
+                replacedPath,
+                replacedInVersion,
+                handler,
+                deprecationMessage,
+                level
+            );
         }
     }
 

@@ -153,12 +153,16 @@ public interface RestHandler {
         ) {
             this.method = Objects.requireNonNull(method);
             this.path = Objects.requireNonNull(path);
-            // the last version in which this route was fully supported, defaults to the current version
+            // the last version in which this route was fully supported
             this.restApiVersion = Objects.requireNonNull(restApiVersion);
 
             // a route marked as deprecated to keep or remove will have a deprecation message and level (warn for keep, critical for remove)
             this.deprecationMessage = deprecationMessage;
-            this.deprecationLevel = deprecationLevel;
+            this.deprecationLevel = Objects.requireNonNull(deprecationLevel);
+
+            if (deprecationMessage == null && deprecationLevel != Level.OFF) {
+                throw new IllegalArgumentException("deprecationMessage must be set if deprecationLevel is not OFF");
+            }
 
             // a route that replaces another route will have a reference to the route that was replaced
             this.replacedRoute = replacedRoute;
@@ -237,17 +241,38 @@ public interface RestHandler {
              * Route.builder(GET, "/_security/user/")
              *   .replaces(GET, "/_xpack/security/user/", RestApiVersion.V_7).build()}</pre>
              *
-             * @param method the method being replaced
-             * @param path the path being replaced
+             * @param replacedMethod the method being replaced
+             * @param replacedPath the path being replaced
              * @param lastFullySupportedVersion the last {@link RestApiVersion} (i.e. 7) for which this route is fully supported.
              *                                  The next major version (i.e. 8) will require compatibility header(s). (;compatible-with=7)
              *                                  The next major version (i.e. 9) will have no support whatsoever for this route.
              * @return a reference to this object.
              */
-            public RouteBuilder replaces(Method method, String path, RestApiVersion lastFullySupportedVersion) {
+            public RouteBuilder replaces(Method replacedMethod, String replacedPath, RestApiVersion lastFullySupportedVersion) {
                 assert this.deprecationMessage == null;
-                // the deprecation message and level will be built later
-                this.replacedRoute = new Route(method, path, lastFullySupportedVersion, null, null, null);
+
+                // if being replaced in the current version, then it's a warning, otherwise it's critical
+                Level deprecationLevel = lastFullySupportedVersion == RestApiVersion.current() ? Level.WARN : DeprecationLogger.CRITICAL;
+
+                // e.g. [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
+                final String replacedMessage = "["
+                    + replacedMethod.name()
+                    + " "
+                    + replacedPath
+                    + "] is deprecated! Use ["
+                    + this.method.name()
+                    + " "
+                    + this.path
+                    + "] instead.";
+
+                this.replacedRoute = new Route(
+                    replacedMethod,
+                    replacedPath,
+                    lastFullySupportedVersion,
+                    replacedMessage,
+                    deprecationLevel,
+                    null
+                );
                 return this;
             }
 
@@ -281,7 +306,6 @@ public interface RestHandler {
                     deprecationLevel == null ? Level.OFF : deprecationLevel,
                     replacedRoute
                 );
-
             }
         }
 

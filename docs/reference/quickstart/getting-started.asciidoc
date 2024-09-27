@@ -4,12 +4,21 @@
 <titleabbrev>Basics: Indices, documents, and mappings</titleabbrev>
 ++++
 
-In this quick start guide, you'll learn how to do the following tasks:
+This quick start guide is a hands-on introduction to the fundamental concepts of Elasticsearch: indices, documents, and field type mappings. 
+You'll learn how to create an index, add data as documents, work with dynamic and explicit mappings, and perform your first basic searches.
 
-* Create an index
-* Add data as documents
-* Use dynamic and explicit mappings of data types
-* Do basic searches
+[TIP]
+====
+By default the examples are in Dev Tools Console syntax, but you can {kibana-ref}/console-kibana.html#import-export-console-requests[export to other programming languages] in the Console UI.
+====
+
+[discrete]
+[[getting-started-prerequisites]]
+=== Prerequisites
+
+Before you begin, you need to have a running {es} cluster.
+
+Set up a fast <<run-elasticsearch-locally,local development environment>>, or refer to <<elasticsearch-intro-deploy,Run {es}>> for other deployment options.
 
 ////
 [source,console]

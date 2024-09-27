@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -160,6 +159,11 @@ public class SlicedInputStreamTests extends ESTestCase {
             assertArrayEquals(expectedMoreBytes, moreBytesRead);
         }
 
+        // Randomly read to EOF
+        if (randomBoolean()) {
+            input.readAllBytes();
+        }
+
         // Reset
         input.reset();
 
@@ -179,13 +183,11 @@ public class SlicedInputStreamTests extends ESTestCase {
     }
 
     public void testMarkSkipResetInBigSlice() throws IOException {
-        AtomicReference<IncreasingBytesUnlimitedInputStream> stream = new AtomicReference<>();
         SlicedInputStream input = new SlicedInputStream(1) {
             @Override
             protected InputStream openSlice(int slice) throws IOException {
                 assertThat(slice, equalTo(0));
-                stream.set(new IncreasingBytesUnlimitedInputStream());
-                return stream.get();
+                return new IncreasingBytesUnlimitedInputStream();
             }
         };
 

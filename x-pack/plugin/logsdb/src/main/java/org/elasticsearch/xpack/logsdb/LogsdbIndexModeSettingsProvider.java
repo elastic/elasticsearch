@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Locale;
 
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
-    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
+    static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
         false,
         Setting.Property.Dynamic,

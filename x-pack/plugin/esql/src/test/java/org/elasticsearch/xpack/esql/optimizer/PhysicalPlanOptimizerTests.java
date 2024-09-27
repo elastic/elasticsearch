@@ -4332,6 +4332,48 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * <code>
+     * ProjectExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18, abbrev{f}#12 AS code]]
+     * \_TopNExec[[Order[abbrev{f}#12,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18],false]
+     *     \_ProjectExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18]]
+     *       \_FieldExtractExec[abbrev{f}#12, name{f}#13, location{f}#16, country{f..][]
+     *         \_EsQueryExec[airports], indexMode[standard], query[][_doc{f}#29], limit[5],
+     *             sort[[FieldSort[field=abbrev{f}#12, direction=ASC, nulls=LAST]]] estimatedRowSize[237]
+     * </code>
+     */
+    public void testPushTopNAliasedKeywordToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL code = abbrev
+            | SORT code
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, code
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "code"));
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "location", "country", "city"));
+        var source = source(extract.child());
+        assertThat(source.limit(), is(topN.limit()));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
+
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("abbrev"));
+        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+        assertNull(source.query());
+    }
+
+    /**
      * ProjectExec[[abbrev{f}#11, name{f}#12, location{f}#15, country{f}#16, city{f}#17]]
      * \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],0]
      *   \_ExchangeExec[[abbrev{f}#11, name{f}#12, location{f}#15, country{f}#16, city{f}#17, distance{r}#4],false]

@@ -101,8 +101,7 @@ public class PushTopNToSourceTests extends ESTestCase {
     public void testSimpleSortFieldAsAlias() {
         // FROM index | EVAL x = field | SORT x | LIMIT 10
         var query = from("index").eval("x", b -> b.field("field")).sort("x").limit(10);
-        // TODO: For simple field aliasing, perhaps it could be supported
-        assertNoPushdownSort(query, "when sorting on a derived field");
+        assertPushdownSort(query, Map.of("x", "field"), List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -195,10 +194,8 @@ public class PushTopNToSourceTests extends ESTestCase {
             .sort("x", Order.OrderDirection.DESC)
             .sort("integer", Order.OrderDirection.DESC)
             .limit(10);
-        // We can only push down the leading sorts that pushable, and the rest will be handled by the final SORT
-        var expectedSorts = List.of(query.orders.get(0));
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
-        assertPushdownSort(query, expectedSorts, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
+        assertPushdownSort(query, query.orders, Map.of("distance", "location", "x", "field"), List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -216,10 +213,8 @@ public class PushTopNToSourceTests extends ESTestCase {
             .sort("x", Order.OrderDirection.DESC)
             .sort("integer", Order.OrderDirection.DESC)
             .limit(10);
-        // We can only push down the leading sorts that pushable, and the rest will be handled by the final SORT
-        var expectedSorts = List.of(query.orders.get(0));
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
-        assertPushdownSort(query, expectedSorts, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
+        assertPushdownSort(query, Map.of("distance", "location", "x", "field"), List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 

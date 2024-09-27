@@ -173,6 +173,14 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             // As soon as we see a non-pushable sort, we know we need a final SORT command
                             break;
                         }
+                    } else if (refAttributes.containsKey(referenceAttribute.id())) {
+                        // If the SORT refers to a reference to a pushable field, we can push it down
+                        FieldAttribute fieldAttribute = refAttributes.get(referenceAttribute.id());
+                        if (LucenePushDownUtils.isPushableFieldAttribute(fieldAttribute, hasIdenticalDelegate)) {
+                            pushableSorts.add(
+                                new EsQueryExec.FieldSort(fieldAttribute.exactAttribute(), order.direction(), order.nullsPosition())
+                            );
+                        }
                     } else {
                         // If the SORT refers to a non-pushable reference function, the EVAL must remain before the SORT,
                         // and we can no longer push down anything

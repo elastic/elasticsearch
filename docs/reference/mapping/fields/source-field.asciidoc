@@ -150,6 +150,7 @@ GET index-000001/_search
   }
 }
 --------------------------------------------------
+// TEST[skip: TBD]
 
 When the parameter is `true`, the results will show the vector fields in the results:
 

@@ -326,7 +326,7 @@ public class EsqlSession {
                 String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
                 executionInfo.swapCluster(clusterAlias, (k, v) -> {
                     assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr.toString(), executionInfo.isSkipUnavailable(clusterAlias));
+                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
                 });
             }
             indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);

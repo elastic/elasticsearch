@@ -52,7 +52,10 @@ final class ComputeListener implements Releasable {
     // used by the top level ComputeListener in ComputeService on both local and remote clusters
     private final String whereRunning;
 
-    // for use by DataNodeRequestHandler
+    /**
+     * Create a ComputeListener that does not need to gather any metadata in EsqlExecutionInfo
+     * (currently that's the ComputeListener in DataNodeRequestHandler).
+     */
     public static ComputeListener create(
         TransportService transportService,
         CancellableTask task,
@@ -61,7 +64,20 @@ final class ComputeListener implements Releasable {
         return new ComputeListener(transportService, task, null, null, -1, delegate);
     }
 
-    // for use by top level ComputeListener in ComputeService
+    /**
+     * Create a ComputeListener that gathers metadata in EsqlExecutionInfo
+     * (currently that's the top level ComputeListener in ComputeService).
+     * @param clusterAlias the clusterAlias where this ComputeListener is running. For the querying cluster, use
+     *                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY. For remote clusters that are part of a CCS,
+     *                     the remote cluster is given its clusterAlias in the request sent to it, so that should be
+     *                     passed in here. This gives context to the ComputeListener as to where this listener is running
+     *                     and thus how it should behave with respect to the {@link EsqlExecutionInfo} metadata it gathers.
+     * @param transportService
+     * @param task
+     * @param executionInfo {@link EsqlExecutionInfo} to capture execution metadata
+     * @param queryStartTimeNanos Start time of the ES|QL query (stored in {@link org.elasticsearch.xpack.esql.session.Configuration})
+     * @param delegate
+     */
     public static ComputeListener create(
         String clusterAlias,
         TransportService transportService,
@@ -153,7 +169,6 @@ final class ComputeListener implements Releasable {
      */
     private boolean isCCSListener(String computeClusterAlias) {
         return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(whereRunning)
-            && esqlExecutionInfo != null  // MP TODO: remove this once all have tests passing - I think it's redundant
             && computeClusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false;
     }
 
@@ -177,7 +192,8 @@ final class ComputeListener implements Releasable {
     /**
      * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      * @param computeClusterAlias The cluster alias where the compute is happening. Used when metadata needs to be gathered
-     *                            into the {@link EsqlExecutionInfo} Cluster objects.
+     *                            into the {@link EsqlExecutionInfo} Cluster objects. Callers that do not required execution
+     *                            info to be gathered (namely, the DataNodeRequestHandler ComputeListener) should pass in null.
      */
     ActionListener<ComputeResponse> acquireCompute(@Nullable String computeClusterAlias) {
         assert computeClusterAlias == null || (esqlExecutionInfo != null && queryStartTimeNanos > 0)
@@ -221,6 +237,9 @@ final class ComputeListener implements Releasable {
         });
     }
 
+    /**
+     * Use this method when no execution metadata needs to be added to {@link EsqlExecutionInfo}
+     */
     ActionListener<ComputeResponse> acquireCompute() {
         return acquireCompute(null);
     }

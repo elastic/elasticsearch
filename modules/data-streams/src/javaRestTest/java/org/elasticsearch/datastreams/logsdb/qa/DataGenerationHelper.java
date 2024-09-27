@@ -27,14 +27,19 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
-class DataGenerationHelper {
+public class DataGenerationHelper {
     private final ObjectMapper.Subobjects subobjects;
     private final boolean keepArraySource;
 
     private final DataGenerator dataGenerator;
 
-    DataGenerationHelper() {
+    public DataGenerationHelper() {
+        this(b -> {});
+    }
+
+    public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator) {
         this.subobjects = ESTestCase.randomFrom(ObjectMapper.Subobjects.values());
         this.keepArraySource = ESTestCase.randomBoolean();
 
@@ -42,7 +47,8 @@ class DataGenerationHelper {
         if (subobjects != ObjectMapper.Subobjects.ENABLED) {
             specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
         }
-        this.dataGenerator = new DataGenerator(specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
+
+        specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
             @Override
             public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
                 if (subobjects == ObjectMapper.Subobjects.ENABLED) {
@@ -108,8 +114,12 @@ class DataGenerationHelper {
                         }
                     })
                 )
-            )
-            .build());
+            );
+
+        // Customize builder if necessary
+        builderConfigurator.accept(specificationBuilder);
+
+        this.dataGenerator = new DataGenerator(specificationBuilder.build());
     }
 
     DataGenerator getDataGenerator() {

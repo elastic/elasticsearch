@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,7 +26,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -158,6 +158,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         followRequest.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
         followRequest.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        followRequest.waitForActiveShards(ActiveShardCount.ALL);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         disableDelayedAllocation("index2");
         logger.info("--> follow request {}", Strings.toString(followRequest));
@@ -165,12 +166,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         int maxOpsPerRead = followRequest.getParameters().getMaxReadRequestOperationCount();
         int maxNumDocsReplicated = Math.min(between(50, 500), between(maxOpsPerRead, maxOpsPerRead * 10));
         availableDocs.release(maxNumDocsReplicated / 2 + 1);
-        safeAwait(
-            ClusterServiceUtils.addTemporaryStateListener(
-                getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class),
-                cs -> cs.routingTable().index("index2").allPrimaryShardsActive()
-            )
-        );
         atLeastDocsIndexed(followerClient(), "index2", maxNumDocsReplicated / 3);
         getFollowerCluster().stopRandomNonMasterNode();
         availableDocs.release(maxNumDocsReplicated / 2 + 1);

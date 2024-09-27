@@ -2,5 +2,5 @@
 
 *Parameters*
 
-`query`::
-Query string in Lucene query string format.
+`field`::
+Input value. The input can be a single- or multi-valued column or an expression.

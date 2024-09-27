@@ -76,6 +76,26 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             return false;
         }
 
+        var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, isTimeSeries, indexTemplateAndCreateRequestSettings);
+        try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
+            // combinedTemplateMappings can be null when creating system indices
+            // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
+            if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
+                combinedTemplateMappings = List.of(new CompressedXContent("{}"));
+            }
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
+            return mapperService.documentMapper().sourceMapper().isSynthetic();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    // Create a dummy IndexMetadata instance that can be used to create a MapperService in order to check whether synthetic source is used:
+    private IndexMetadata buildIndexMetadataForMapperService(
+        String indexName,
+        boolean isTimeSeries,
+        Settings indexTemplateAndCreateRequestSettings
+    ) {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
 
         int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(indexTemplateAndCreateRequestSettings);
@@ -93,22 +113,11 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
         if (isTimeSeries) {
             finalResolvedSettings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-            // Avoid failing because index.routing_path is missing
+            // Avoid failing because index.routing_path is missing (in case fields are marked as dimension)
             finalResolvedSettings.putList(INDEX_ROUTING_PATH.getKey(), List.of("path"));
         }
 
         tmpIndexMetadata.settings(finalResolvedSettings);
-        // Create MapperService just to extract keyword dimension fields:
-        try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
-            // combinedTemplateMappings can be null when creating system indices
-            // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
-            if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
-                combinedTemplateMappings = List.of(new CompressedXContent("{}"));
-            }
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-            return mapperService.documentMapper().sourceMapper().isSynthetic();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return tmpIndexMetadata.build();
     }
 }

@@ -10,11 +10,13 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -94,7 +96,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
     private int offset = 0;
 
     private PerShardCollector perShardCollector;
-    private final List<SortBuilder<?>> sorts;
+    protected final List<SortBuilder<?>> sorts;
     protected final int limit;
 
     public LuceneTopNSourceOperator(
@@ -174,7 +176,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(scoreDocs);
             offset = 0;
             if (perShardCollector != null) {
-                scoreDocs = perShardCollector.topFieldCollector.topDocs().scoreDocs;
+                scoreDocs = perShardCollector.getTopDocs().scoreDocs;
             } else {
                 scoreDocs = new ScoreDoc[0];
             }
@@ -250,7 +252,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
     static class PerShardCollector {
         protected ShardContext shardContext;
-        protected TopFieldCollector topFieldCollector;
+        private TopFieldCollector collector;
         private int leafIndex;
         private LeafCollector leafCollector;
         private Thread currentThread;
@@ -260,16 +262,24 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         PerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             this.shardContext = shardContext;
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            this.topFieldCollector = TopFieldCollector.create(sort, limit, 0);
+            this.collector = TopFieldCollector.create(sort, limit, 0);
         }
 
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {
             if (currentThread != Thread.currentThread() || leafIndex != leafReaderContext.ord) {
-                leafCollector = topFieldCollector.getLeafCollector(leafReaderContext);
+                leafCollector = getCollector().getLeafCollector(leafReaderContext);
                 leafIndex = leafReaderContext.ord;
                 currentThread = Thread.currentThread();
             }
             return leafCollector;
+        }
+
+        Collector getCollector() {
+            return collector;
+        }
+
+        TopDocs getTopDocs() {
+            return collector.topDocs();
         }
     }
 }

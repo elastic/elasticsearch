@@ -7,12 +7,15 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
@@ -102,7 +105,11 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
     float getScore(ScoreDoc scoreDoc) {
         FieldDoc fieldDoc = (FieldDoc) scoreDoc;
         if (Float.isNaN(fieldDoc.score)) {
-            return (float) fieldDoc.fields[0];
+            if (sorts != null) {
+                return (Float) fieldDoc.fields[sorts.size() + 1];
+            } else {
+                return (Float) fieldDoc.fields[1];
+            }
         } else {
             return fieldDoc.score;
         }
@@ -113,21 +120,32 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
         Optional<SortAndFormats> sortAndFormats = shardContext.buildSort(sorts);
         Sort sort;
         if (sortAndFormats.isPresent()) {
-            var l = new ArrayList<SortField>();
+            var l = new ArrayList<>(Arrays.asList(sortAndFormats.get().sort.getSort()));
+            l.add(SortField.FIELD_DOC);
             l.add(SortField.FIELD_SCORE);
-            l.addAll(Arrays.asList(sortAndFormats.get().sort.getSort()));
             sort = new Sort(l.toArray(SortField[]::new));
         } else {
-            sort = Sort.RELEVANCE;
+            sort = new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
         }
         return new ScoringPerShardCollector(shardContext, sort, limit);
     }
 
     static class ScoringPerShardCollector extends PerShardCollector {
+
+        private final TopFieldCollector collector;
         ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             this.shardContext = shardContext;
-            // TODO: numHits should be configurable
-            this.topFieldCollector = new TopFieldCollectorManager(sort, 100, limit).newCollector();
+            int numHits = 10_0000; // TODO : infer this
+            collector = new TopFieldCollectorManager(sort, numHits,  limit).newCollector();
+        }
+        @Override
+        Collector getCollector() {
+            return collector;
+        }
+
+        @Override
+        TopDocs getTopDocs() {
+            return collector.topDocs();
         }
     }
 }

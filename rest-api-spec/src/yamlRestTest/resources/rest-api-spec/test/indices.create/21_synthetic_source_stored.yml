@@ -25,7 +25,7 @@ object param - object array:
                       id:
                         type: keyword
               stored:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   span:
                     properties:
@@ -77,10 +77,10 @@ object param - object array within array:
               mode: synthetic
             properties:
               stored:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   path:
-                    store_array_source: true
+                    synthetic_source_keep: arrays
                     properties:
                       to:
                         properties:
@@ -120,7 +120,7 @@ object param - no object array:
               mode: synthetic
             properties:
               stored:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   span:
                     properties:
@@ -164,7 +164,7 @@ object param - field ordering in object array:
               a:
                 type: keyword
               b:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   aa:
                     type: keyword
@@ -173,7 +173,7 @@ object param - field ordering in object array:
               c:
                 type: keyword
               d:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   aa:
                     type: keyword
@@ -215,7 +215,7 @@ object param - nested object array next to other fields:
               b:
                 properties:
                   c:
-                    store_array_source: true
+                    synthetic_source_keep: arrays
                     properties:
                       aa:
                         type: keyword
@@ -272,7 +272,7 @@ object param - nested object with stored array:
                 type: nested
               nested_array_stored:
                 type: nested
-                store_array_source: true
+                synthetic_source_keep: arrays
 
   - do:
       bulk:
@@ -322,7 +322,7 @@ index param - nested array within array:
                   to:
                     properties:
                       some:
-                        store_array_source: true
+                        synthetic_source_keep: arrays
                         properties:
                           id:
                             type: integer
@@ -369,7 +369,7 @@ stored field under object with store_array_source:
               name:
                 type: keyword
               obj:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   foo:
                     type: keyword

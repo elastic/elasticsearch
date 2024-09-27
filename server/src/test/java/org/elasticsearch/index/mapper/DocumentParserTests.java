@@ -2319,7 +2319,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
                     b.startObject("complex.attribute").field("type", "flattened").endObject();
                     b.startObject("path").field("type", "object");
                     {
-                        b.field("store_array_source", "true").field("subobjects", "auto");
+                        b.field("synthetic_source_keep", "arrays").field("subobjects", "auto");
                         b.startObject("properties");
                         {
                             b.startObject("nested.attribute").field("type", "keyword").endObject();

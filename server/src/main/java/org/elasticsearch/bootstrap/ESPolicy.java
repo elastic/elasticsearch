@@ -16,6 +16,7 @@ import java.io.FilePermission;
 import java.io.IOException;
 import java.net.SocketPermission;
 import java.net.URL;
+import java.security.AllPermission;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -124,7 +125,7 @@ final class ESPolicy extends Policy {
              * It's helpful to use the infrastructure around FilePermission here to do the directory structure check with implies
              * so we use ALL_FILE_MASK mask to check if we can do something with this file, whatever the actual operation we're requesting
              */
-            return canAccessSecuredFile(location, new FilePermission(permission.getName(), ALL_FILE_MASK));
+            return canAccessSecuredFile(domain, new FilePermission(permission.getName(), ALL_FILE_MASK));
         }
 
         if (location != null) {
@@ -157,16 +158,17 @@ final class ESPolicy extends Policy {
     }
 
     @SuppressForbidden(reason = "We get given an URL by the security infrastructure")
-    private boolean canAccessSecuredFile(URL location, FilePermission permission) {
-        if (location == null) {
+    private boolean canAccessSecuredFile(ProtectionDomain domain, FilePermission permission) {
+        if (domain == null) {
             return false;
         }
+        URL location = domain.getCodeSource().getLocation();
 
         // check the source
         Set<URL> accessibleSources = securedFiles.get(permission);
         if (accessibleSources != null) {
             // simple case - single-file referenced directly
-            return accessibleSources.contains(location) || location.toString().equals("jrt:/java.security.jgss");
+            return accessibleSources.contains(location) || system.implies(domain, new AllPermission());
         } else {
             // there's a directory reference in there somewhere
             // do a manual search :(

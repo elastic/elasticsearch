@@ -123,6 +123,7 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+    private final boolean supportsObjectAutoFlattening;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -177,6 +178,7 @@ public abstract class DocumentParserContext {
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.recordedSource = recordedSource;
+        this.supportsObjectAutoFlattening = checkForAutoFlatteningSupport();
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -202,6 +204,43 @@ public abstract class DocumentParserContext {
             in.dynamicMappersSize,
             in.recordedSource
         );
+    }
+
+    private boolean checkForAutoFlatteningSupport() {
+        if (root().subobjects() != ObjectMapper.Subobjects.ENABLED) {
+            return true;
+        }
+        for (ObjectMapper objectMapper : mappingLookup.objectMappers().values()) {
+            if (objectMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
+                return true;
+            }
+        }
+        if (root().dynamicTemplates() != null) {
+            for (DynamicTemplate dynamicTemplate : root().dynamicTemplates()) {
+                if (findSubobjects(dynamicTemplate.getMapping())) {
+                    return true;
+                }
+            }
+        }
+        for (ObjectMapper objectMapper : dynamicObjectMappers.values()) {
+            if (objectMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean findSubobjects(Map<String, Object> mapping) {
+        for (var entry : mapping.entrySet()) {
+            if (entry.getKey().equals("subobjects") && (entry.getValue() instanceof Boolean || entry.getValue() instanceof String)) {
+                return true;
+            }
+            if (entry.getValue() instanceof Map<?, ?> && findSubobjects((Map<String, Object>) entry.getValue())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected DocumentParserContext(
@@ -464,6 +503,10 @@ public abstract class DocumentParserContext {
         return copyToFields;
     }
 
+    boolean supportsObjectAutoFlattening() {
+        return supportsObjectAutoFlattening;
+    }
+
     /**
      * Add a new mapper dynamically created while parsing.
      *
@@ -599,6 +642,25 @@ public abstract class DocumentParserContext {
         return dynamicObjectMappers.get(name);
     }
 
+    ObjectMapper findObject(String fullName) {
+        // does the object mapper already exist? if so, use that
+        ObjectMapper objectMapper = mappingLookup().objectMappers().get(fullName);
+        if (objectMapper != null) {
+            return objectMapper;
+        }
+        // has the object mapper been added as a dynamic update already?
+        return getDynamicObjectMapper(fullName);
+    }
+
+    ObjectMapper.Builder findObjectBuilder(String fullName) {
+        // does the object mapper already exist? if so, use that
+        ObjectMapper objectMapper = findObject(fullName);
+        if (objectMapper != null) {
+            return objectMapper.newBuilder(indexSettings().getIndexVersionCreated());
+        }
+        return null;
+    }
+
     /**
      * Add a new runtime field dynamically created while parsing.
      * We use the same set for both new indexed and new runtime fields,
@@ -698,7 +760,7 @@ public abstract class DocumentParserContext {
      */
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
         ContentPath path = new ContentPath();
-        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), path);
+        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), path, this);
         return new Wrapper(root(), this) {
             @Override
             public ContentPath path() {

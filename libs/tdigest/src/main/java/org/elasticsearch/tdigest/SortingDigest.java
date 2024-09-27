@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 
@@ -136,5 +137,10 @@ public class SortingDigest extends AbstractTDigest {
     @Override
     public int byteSize() {
         return values.size() * 8;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(values);
     }
 }

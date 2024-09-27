@@ -243,7 +243,7 @@ public class ClusterServiceUtils {
         ESTestCase.safeAwait(
             listener -> clusterService.submitUnbatchedStateUpdateTask(
                 "await-queue-empty",
-                new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(10)) {
+                new ClusterStateUpdateTask(Priority.LANGUID, ESTestCase.SAFE_AWAIT_TIMEOUT) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return currentState;
@@ -287,7 +287,7 @@ public class ClusterServiceUtils {
         if (predicate.test(clusterService.state())) {
             listener.onResponse(null);
         } else {
-            listener.addTimeout(TimeValue.timeValueSeconds(10), clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            listener.addTimeout(ESTestCase.SAFE_AWAIT_TIMEOUT, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
         return listener;
     }

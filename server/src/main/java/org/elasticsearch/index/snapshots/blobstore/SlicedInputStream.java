@@ -116,11 +116,12 @@ public abstract class SlicedInputStream extends InputStream {
             }
             long skipped = stream.skip(remaining);
             currentSliceOffset += skipped;
-            if (skipped == 0) {
+            if (skipped < remaining) {
                 // read one more byte to see if we reached EOF in order to proceed to the next stream.
                 if (stream.read() < 0) {
                     nextStream();
                 } else {
+                    currentSliceOffset++;
                     skipped++;
                 }
             }

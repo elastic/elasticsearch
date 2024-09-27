@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.completion.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -253,62 +254,52 @@ public class AzureAiStudioService extends SenderService {
 
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
+    }
+
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof AzureAiStudioEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateEmbeddingModelConfig(embeddingsModel, size)))
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
+            var updatedServiceSettings = new AzureAiStudioEmbeddingsServiceSettings(
+                serviceSettings.target(),
+                serviceSettings.provider(),
+                serviceSettings.endpointType(),
+                embeddingSize,
+                serviceSettings.dimensionsSetByUser(),
+                serviceSettings.maxInputTokens(),
+                similarityToUse,
+                serviceSettings.rateLimitSettings()
             );
-        } else if (model instanceof AzureAiStudioChatCompletionModel chatCompletionModel) {
-            listener.onResponse(updateChatCompletionModelConfig(chatCompletionModel));
+
+            return new AzureAiStudioEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
-            listener.onResponse(model);
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
     }
 
-    private AzureAiStudioEmbeddingsModel updateEmbeddingModelConfig(AzureAiStudioEmbeddingsModel embeddingsModel, int embeddingsSize) {
-        if (embeddingsModel.getServiceSettings().dimensionsSetByUser()
-            && embeddingsModel.getServiceSettings().dimensions() != null
-            && embeddingsModel.getServiceSettings().dimensions() != embeddingsSize) {
-            throw new ElasticsearchStatusException(
-                Strings.format(
-                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
-                        + "Please recreate the [%s] configuration with the correct dimensions",
-                    embeddingsSize,
-                    embeddingsModel.getServiceSettings().dimensions(),
-                    embeddingsModel.getConfigurations().getInferenceEntityId()
-                ),
-                RestStatus.BAD_REQUEST
+    @Override
+    public Model updateModelWithChatCompletionDetails(Model model) {
+        if (model instanceof AzureAiStudioChatCompletionModel chatCompletionModel) {
+            var taskSettings = chatCompletionModel.getTaskSettings();
+            var modelMaxNewTokens = taskSettings.maxNewTokens();
+            var maxNewTokensToUse = modelMaxNewTokens == null ? DEFAULT_MAX_NEW_TOKENS : modelMaxNewTokens;
+
+            var updatedTaskSettings = new AzureAiStudioChatCompletionTaskSettings(
+                taskSettings.temperature(),
+                taskSettings.topP(),
+                taskSettings.doSample(),
+                maxNewTokensToUse
             );
+
+            return new AzureAiStudioChatCompletionModel(chatCompletionModel, updatedTaskSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithChatCompletionDetails(model.getClass());
         }
-
-        var similarityFromModel = embeddingsModel.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
-
-        AzureAiStudioEmbeddingsServiceSettings serviceSettings = new AzureAiStudioEmbeddingsServiceSettings(
-            embeddingsModel.getServiceSettings().target(),
-            embeddingsModel.getServiceSettings().provider(),
-            embeddingsModel.getServiceSettings().endpointType(),
-            embeddingsSize,
-            embeddingsModel.getServiceSettings().dimensionsSetByUser(),
-            embeddingsModel.getServiceSettings().maxInputTokens(),
-            similarityToUse,
-            embeddingsModel.getServiceSettings().rateLimitSettings()
-        );
-
-        return new AzureAiStudioEmbeddingsModel(embeddingsModel, serviceSettings);
-    }
-
-    private AzureAiStudioChatCompletionModel updateChatCompletionModelConfig(AzureAiStudioChatCompletionModel chatCompletionModel) {
-        var modelMaxNewTokens = chatCompletionModel.getTaskSettings().maxNewTokens();
-        var maxNewTokensToUse = modelMaxNewTokens == null ? DEFAULT_MAX_NEW_TOKENS : modelMaxNewTokens;
-        var updatedTaskSettings = new AzureAiStudioChatCompletionTaskSettings(
-            chatCompletionModel.getTaskSettings().temperature(),
-            chatCompletionModel.getTaskSettings().topP(),
-            chatCompletionModel.getTaskSettings().doSample(),
-            maxNewTokensToUse
-        );
-        return new AzureAiStudioChatCompletionModel(chatCompletionModel, updatedTaskSettings);
     }
 
     private static void checkProviderAndEndpointTypeForTask(

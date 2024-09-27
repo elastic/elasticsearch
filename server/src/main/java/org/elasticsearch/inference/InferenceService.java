@@ -189,6 +189,15 @@ public interface InferenceService extends Closeable {
     }
 
     /**
+     * Update a chat completion model's max tokens if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @return The model with updated chat completion details
+     */
+    default Model updateModelWithChatCompletionDetails(Model model) {
+        return model;
+    }
+
+    /**
      * Return true if this model is hosted in the local Elasticsearch cluster
      * @return True if in cluster
      */

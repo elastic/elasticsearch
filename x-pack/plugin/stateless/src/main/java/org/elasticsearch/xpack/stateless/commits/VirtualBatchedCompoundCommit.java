@@ -35,17 +35,20 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -71,6 +74,7 @@ import java.util.stream.Collectors;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.isGenerationalFile;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.CURRENT_VERSION;
 import static java.util.stream.Collectors.groupingBy;
+import static org.elasticsearch.common.io.Streams.limitStream;
 
 /**
  * Represents a collection of non-uploaded compound commits, where multiple commits can be added and read,
@@ -84,14 +88,14 @@ import static java.util.stream.Collectors.groupingBy;
  *
  * <p>
  *     It is expected that after the batched compound commit is written to the store using the
- *     {@link #writeToStore(OutputStream)} method, the caller should promptly invoke {@link #close()} on the instance.
- *     This action releases the acquired Lucene commit reference and facilitates the proper release of associated resources.
+ *     {@link #getFrozenInputStreamForUpload()} method, the caller should promptly invoke {@link #close()} on the input stream and the VBCC
+ *     instance. This action releases the acquired Lucene commit reference and facilitates the proper release of associated resources.
  * </p>
  *
  * <p>
  *     This class facilitates the appending of multiple compound commits via {@link #appendCommit(StatelessCommitRef, boolean)}.
- *     When the caller intends to write these commits to the blob store it should use {@link #writeToStore(OutputStream)}.
- *  </p>
+ *     When the caller intends to write these commits to the blob store it should use {@link #getFrozenInputStreamForUpload()}.
+ * </p>
  *
  * */
 public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements Closeable, AbstractBatchedCompoundCommit {
@@ -381,12 +385,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return true;
     }
 
-    public BatchedCompoundCommit writeToStore(OutputStream output) throws IOException {
-        BatchedCompoundCommit frozenBatchedCompoundCommit = getFrozenBatchedCompoundCommit();
-        doWriteToStore(output);
-        return frozenBatchedCompoundCommit;
-    }
-
     public BatchedCompoundCommit getFrozenBatchedCompoundCommit() {
         assert isFrozen() : "Cannot serialize before freeze";
         assert assertInternalConsistency();
@@ -398,8 +396,34 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return new BatchedCompoundCommit(primaryTermAndGeneration, Collections.unmodifiableList(compoundCommits));
     }
 
-    void doWriteToStore(OutputStream output) throws IOException {
-        getBytesByRange(0, getTotalSizeInBytes(), output);
+    public InputStream getFrozenInputStreamForUpload() {
+        assert isFrozen() : "Cannot stream before freeze";
+        assert assertInternalConsistency();
+        return getInputStreamForUpload();
+    }
+
+    InputStream getInputStreamForUpload() {
+        mustIncRef();
+        List<Long> offsets = internalDataReadersByOffset.navigableKeySet().stream().collect(Collectors.toUnmodifiableList());
+        return new SlicedInputStream(offsets.size()) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                final var offset = offsets.get(slice);
+                final var reader = internalDataReadersByOffset.get(offset);
+                return reader.getInputStream(0L, Long.MAX_VALUE);
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (isClosed() == false) {
+                    try {
+                        super.close();
+                    } finally {
+                        decRef();
+                    }
+                }
+            }
+        };
     }
 
     public String getBlobName() {
@@ -586,8 +610,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     }
                     InternalDataReader internalDataReader = entry.getValue();
                     long skipBytes = Math.max(0, offset - entry.getKey()); // can be non-zero only for the first entry
-                    long bytesRead = internalDataReader.read(skipBytes, remainingBytesToRead, output);
-                    remainingBytesToRead -= bytesRead;
+                    try (var inputStream = internalDataReader.getInputStream(skipBytes, remainingBytesToRead)) {
+                        long bytesRead = Streams.copy(inputStream, output, false);
+                        remainingBytesToRead -= bytesRead;
+                    }
                 }
                 assert remainingBytesToRead == 0 : "remaining bytes to read " + remainingBytesToRead;
             } finally {
@@ -645,18 +671,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         // No need to be volatile because writing is synchronized at higher level in StatelessCommitService
         // and reading is dispatched to another thread after a second synchronization
         private int padding = 0;
-
-        private static final byte[] PADDING_BYTES;
-        static {
-            byte[] padding = new byte[SharedBytes.PAGE_SIZE];
-            Arrays.fill(padding, (byte) 0);
-            PADDING_BYTES = padding;
-        }
-
-        static void writePadding(OutputStream output, int length) throws IOException {
-            assert 0 <= length && length < SharedBytes.PAGE_SIZE : length;
-            output.write(PADDING_BYTES, 0, length);
-        }
 
         /**
          * Creates a new pending to upload compound commit. Note that the last pending compound commit should not have padding. The
@@ -725,13 +739,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     @FunctionalInterface
     private interface InternalDataReader {
         /**
-         * Read the internal data and copy it into the output.
-         * @param offset The starting position to read the data from. The value is relative to each individual data component.
-         * @param length The maximum length of data to read.
-         * @param output The destination where the data should be copied into.
-         * @return The number of bytes actually read and copied. It can be smaller than requested length if there is not enough data.
+         * Get the {@link InputStream} for reading the internal data.
+         * @param offset the number of bytes to skip in the internal data before starting to read the internal data.
+         * @param length the max number of bytes to read. ineffective if larger than the remaining available size of the internal data.
          */
-        long read(long offset, long length, OutputStream output) throws IOException;
+        InputStream getInputStream(long offset, long length) throws IOException;
     }
 
     /**
@@ -739,11 +751,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
      */
     private record InternalHeaderReader(byte[] header) implements InternalDataReader {
         @Override
-        public long read(long offset, long length, OutputStream output) throws IOException {
-            assert offset < header.length : "offset [" + offset + "] more than header length [" + header.length + "]";
-            long headerBytesToRead = Math.min(length, header.length - offset);
-            output.write(header, Math.toIntExact(offset), Math.toIntExact(headerBytesToRead));
-            return headerBytesToRead;
+        public InputStream getInputStream(long offset, long length) throws IOException {
+            final var stream = new ByteArrayStreamInput(header);
+            stream.skipNBytes(offset);
+            return limitStream(stream, length);
         }
     }
 
@@ -752,15 +763,23 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
      */
     private record InternalFileReader(String filename, Directory directory) implements InternalDataReader {
         @Override
-        public long read(long offset, long length, OutputStream output) throws IOException {
+        public InputStream getInputStream(long offset, long length) throws IOException {
             long fileLength = directory.fileLength(filename);
             assert offset < fileLength : "offset [" + offset + "] more than file length [" + fileLength + "]";
             long fileBytesToRead = Math.min(length, fileLength - offset);
-            try (IndexInput input = directory.openInput(filename, IOContext.READONCE)) {
+            IndexInput input = directory.openInput(filename, IOContext.READONCE);
+            try {
                 input.seek(offset);
-                Streams.copy(new InputStreamIndexInput(input, fileBytesToRead), output, false);
+                return new InputStreamIndexInput(input, fileBytesToRead) {
+                    @Override
+                    public void close() throws IOException {
+                        IOUtils.close(super::close, input);
+                    }
+                };
+            } catch (IOException e) {
+                IOUtils.closeWhileHandlingException(input);
+                throw e;
             }
-            return fileBytesToRead;
         }
     }
 
@@ -770,18 +789,27 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private record InternalFileRangeReader(String filename, Directory directory, long rangeOffset, long rangeLength)
         implements
             InternalDataReader {
+
         @Override
-        public long read(long offset, long length, OutputStream output) throws IOException {
+        public InputStream getInputStream(long offset, long length) throws IOException {
             long fileLength = rangeOffset + rangeLength;
             long fileOffset = rangeOffset + offset;
             assert fileOffset < fileLength
                 : "offset [" + rangeOffset + "+" + offset + "] more than file length [" + rangeOffset + "+" + rangeLength + "]";
             long fileBytesToRead = Math.min(Math.min(length, rangeLength), fileLength - fileOffset);
-            try (IndexInput input = directory.openInput(filename, IOContext.READONCE)) {
+            IndexInput input = directory.openInput(filename, IOContext.READONCE);
+            try {
                 input.seek(fileOffset);
-                Streams.copy(new InputStreamIndexInput(input, fileBytesToRead), output, false);
+                return new InputStreamIndexInput(input, fileBytesToRead) {
+                    @Override
+                    public void close() throws IOException {
+                        IOUtils.close(super::close, input);
+                    }
+                };
+            } catch (IOException e) {
+                IOUtils.closeWhileHandlingException(input);
+                throw e;
             }
-            return fileBytesToRead;
         }
     }
 
@@ -789,12 +817,24 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
      * Internal data reader for padding bytes
      */
     private record InternalPaddingReader(int padding) implements InternalDataReader {
+
+        public InternalPaddingReader {
+            assert padding <= SharedBytes.PAGE_SIZE : "padding " + padding + " is more than page size " + SharedBytes.PAGE_SIZE;
+        }
+
+        private static final byte[] PADDING_BYTES;
+
+        static {
+            byte[] padding = new byte[SharedBytes.PAGE_SIZE];
+            Arrays.fill(padding, (byte) 0);
+            PADDING_BYTES = padding;
+        }
+
         @Override
-        public long read(long offset, long length, OutputStream output) throws IOException {
+        public InputStream getInputStream(long offset, long length) throws IOException {
             assert offset < padding : "offset [" + offset + "] more than padding length [" + padding + "]";
             int paddingBytesToRead = BlobCacheUtils.toIntBytes(Math.min(length, padding - offset));
-            PendingCompoundCommit.writePadding(output, paddingBytesToRead);
-            return paddingBytesToRead;
+            return limitStream(new ByteArrayStreamInput(PADDING_BYTES), paddingBytesToRead);
         }
     }
 }

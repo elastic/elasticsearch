@@ -37,7 +37,6 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -48,7 +47,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -349,19 +348,15 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         CountDownLatch failed = new CountDownLatch(1);
         setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
             @Override
-            public void blobContainerWriteMetadataBlob(
+            public void blobContainerWriteBlobAtomic(
                 CheckedRunnable<IOException> original,
                 OperationPurpose purpose,
                 String blobName,
-                boolean failIfAlreadyExists,
-                boolean atomic,
-                CheckedConsumer<OutputStream, IOException> writer
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
             ) throws IOException {
                 if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
-                    writer.accept(new OutputStream() {
-                        @Override
-                        public void write(int b) {}
-                    });
                     logger.info("--> simulate failure on [{}]", blobName);
                     failed.countDown();
                     throw new IOException("simulate failure after write");

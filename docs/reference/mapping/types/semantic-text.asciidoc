@@ -114,10 +114,7 @@ Once a document is ingested, a `semantic_text` field will have the following str
     },
     "chunks": [ <4>
       {
-        "text": "these are not the droids you're looking for",
-        "embeddings": {
-          (...)
-        }
+        "text": "these are not the droids you're looking for"
       }
     ]
   }

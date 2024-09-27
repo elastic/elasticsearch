@@ -68,17 +68,27 @@ final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasa
         TDigestLongArray counts = null;
         TDigestLongArray aggregatedCounts = null;
 
-        arrays.adjustBreaker(IntAVLTree.SHALLOW_SIZE);
         try {
-            this.tree = tree = new InternalIntAvlTree(arrays);
+            this.tree = tree = createIntAvlTree(arrays);
             this.centroids = centroids = arrays.newDoubleArray(tree.capacity());
             this.counts = counts = arrays.newLongArray(tree.capacity());
             this.aggregatedCounts = aggregatedCounts = arrays.newLongArray(tree.capacity());
-        } catch (Exception e) {
-            if (tree == null) {
-                arrays.adjustBreaker(-IntAVLTree.SHALLOW_SIZE);
-            }
+
+            tree = null;
+            centroids = null;
+            counts = null;
+            aggregatedCounts = null;
+        } finally {
             Releasables.close(tree, centroids, counts, aggregatedCounts);
+        }
+    }
+
+    private IntAVLTree createIntAvlTree(TDigestArrays arrays) {
+        arrays.adjustBreaker(IntAVLTree.SHALLOW_SIZE);
+        try {
+            return new InternalIntAvlTree(arrays);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-IntAVLTree.SHALLOW_SIZE);
             throw e;
         }
     }

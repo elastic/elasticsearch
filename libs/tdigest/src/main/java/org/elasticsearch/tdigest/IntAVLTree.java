@@ -76,9 +76,14 @@ abstract class IntAVLTree implements Releasable, Accountable {
             this.left = left = arrays.newIntArray(initialCapacity);
             this.right = right = arrays.newIntArray(initialCapacity);
             this.depth = depth = arrays.newByteArray(initialCapacity);
-        } catch (Exception e) {
+
+            nodeAllocator = null;
+            parent = null;
+            left = null;
+            right = null;
+            depth = null;
+        } finally {
             Releasables.close(nodeAllocator, parent, left, right, depth);
-            throw e;
         }
     }
 

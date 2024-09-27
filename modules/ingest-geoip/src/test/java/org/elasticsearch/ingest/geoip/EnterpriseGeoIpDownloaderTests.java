@@ -63,6 +63,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.geoip.DatabaseNodeServiceTests.createClusterState;
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloader.MAX_CHUNK_SIZE;
+import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloader.downloadUrl;
 import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -498,6 +499,19 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         geoIpDownloader.updateDatabases();
         verifyNoInteractions(httpClient);
+    }
+
+    public void testMaxmindUrls() {
+        final String name = "GeoLite2-City";
+
+        {
+            String url = "https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz";
+            assertThat(downloadUrl(name, "tar.gz"), equalTo(url));
+        }
+        {
+            String url = "https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz.sha256";
+            assertThat(downloadUrl(name, "tar.gz.sha256"), equalTo(url));
+        }
     }
 
     private static class MockClient extends NoOpClient {

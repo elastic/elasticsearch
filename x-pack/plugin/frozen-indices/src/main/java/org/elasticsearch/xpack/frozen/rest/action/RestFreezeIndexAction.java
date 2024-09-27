@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -37,11 +38,17 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
     private static final String UNFREEZE_DEPRECATED = "Frozen indices are deprecated because they provide no benefit given improvements "
         + "in heap memory utilization. They will be removed in a future release.";
 
+    @UpdateForV9
+    // these routes were ".deprecated" in RestApiVersion.V_8 which will require use of REST API compatibility headers to access
+    // this API in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
+    // continue to emit deprecations warnings but will not require any special headers to access the API in v9.
+    // Please review and update the code and tests as needed. The original code remains commented out below for reference.
     @Override
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, "/{index}/_freeze").deprecated(FREEZE_REMOVED, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/_unfreeze").deprecated(UNFREEZE_DEPRECATED, RestApiVersion.V_8).build()
+            // Route.builder(POST, "/{index}/_unfreeze").deprecated(UNFREEZE_DEPRECATED, RestApiVersion.V_8).build()
+            Route.builder(POST, "/{index}/_unfreeze").deprecateAndKeep(UNFREEZE_DEPRECATED).build()
         );
     }
 

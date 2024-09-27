@@ -415,7 +415,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.modelMemoryLimit = config.modelMemoryLimit;
             this.maxModelMemoryLimit = maxModelMemoryLimit;
             if (config.analyzedFields != null) {
-                this.analyzedFields = FetchSourceContext.of(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
+                this.analyzedFields = FetchSourceContext.of(
+                    true,
+                    config.analyzedFields.includes(),
+                    config.analyzedFields.excludes(),
+                    config.analyzedFields.includeVectors()
+                );
             }
             this.createTime = config.createTime;
             this.version = config.version;

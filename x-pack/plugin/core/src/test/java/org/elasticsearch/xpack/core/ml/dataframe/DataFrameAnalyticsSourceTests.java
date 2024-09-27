@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -91,6 +92,27 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     }
 
     public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, TransportVersion version) {
+        if (version.before(TransportVersions.HIDE_VECTORS_IN_SOURCE)) {
+            FetchSourceContext sourceFiltering = instance.getSourceFiltering();
+            if (sourceFiltering != null) {
+                // Set includeVectors to true because that's what the deserialization logic defaults to when processing a FetchSourceContext
+                // object from an old cluster
+                sourceFiltering = FetchSourceContext.of(
+                    sourceFiltering.fetchSource(),
+                    sourceFiltering.includes(),
+                    sourceFiltering.excludes(),
+                    true
+                );
+
+                instance = new DataFrameAnalyticsSource(
+                    instance.getIndex(),
+                    instance.getQueryProvider(),
+                    sourceFiltering,
+                    instance.getRuntimeMappings()
+                );
+            }
+        }
+
         return instance;
     }
 

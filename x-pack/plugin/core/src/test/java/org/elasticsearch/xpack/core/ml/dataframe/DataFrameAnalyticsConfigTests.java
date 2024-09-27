@@ -120,6 +120,21 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         if (version.before(TransportVersions.V_8_8_0)) {
             builder.setMeta(null);
         }
+        if (version.before(TransportVersions.HIDE_VECTORS_IN_SOURCE)) {
+            FetchSourceContext analyzedFields = instance.getAnalyzedFields();
+            if (analyzedFields != null) {
+                // Set includeVectors to true because that's what the deserialization logic defaults to when processing a FetchSourceContext
+                // object from an old cluster
+                analyzedFields = FetchSourceContext.of(
+                    analyzedFields.fetchSource(),
+                    analyzedFields.includes(),
+                    analyzedFields.excludes(),
+                    true
+                );
+                builder.setAnalyzedFields(analyzedFields);
+            }
+        }
+
         return builder.build();
     }
 

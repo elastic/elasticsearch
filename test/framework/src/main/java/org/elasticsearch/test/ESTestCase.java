@@ -41,6 +41,7 @@ import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
@@ -218,7 +219,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -2431,6 +2431,44 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static <T> Exception safeAwaitFailure(@SuppressWarnings("unused") Class<T> responseType, Consumer<ActionListener<T>> consumer) {
         return safeAwaitFailure(consumer);
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @param responseType  Class of listener response type, to aid type inference but otherwise ignored.
+     * @param exceptionType Expected exception type. This method throws an {@link AssertionError} if a different type of exception is seen.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <Response, ExpectedException extends Exception> ExpectedException safeAwaitFailure(
+        Class<ExpectedException> exceptionType,
+        Class<Response> responseType,
+        Consumer<ActionListener<Response>> consumer
+    ) {
+        return asInstanceOf(exceptionType, safeAwaitFailure(responseType, consumer));
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure. Any layers of {@link ElasticsearchWrapperException} are removed from the thrown exception
+     * using {@link ExceptionsHelper#unwrapCause}.
+     *
+     * @param responseType  Class of listener response type, to aid type inference but otherwise ignored.
+     * @param exceptionType Expected unwrapped exception type. This method throws an {@link AssertionError} if a different type of exception
+     *                      is seen.
+     *
+     * @return The unwrapped exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <Response, ExpectedException extends Exception> ExpectedException safeAwaitAndUnwrapFailure(
+        Class<ExpectedException> exceptionType,
+        Class<Response> responseType,
+        Consumer<ActionListener<Response>> consumer
+    ) {
+        return asInstanceOf(exceptionType, ExceptionsHelper.unwrapCause(safeAwaitFailure(responseType, consumer)));
     }
 
     /**

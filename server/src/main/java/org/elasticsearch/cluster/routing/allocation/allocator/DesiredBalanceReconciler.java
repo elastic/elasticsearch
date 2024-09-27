@@ -87,9 +87,7 @@ public class DesiredBalanceReconciler {
      * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
      */
     protected final LongGaugeMetric undesiredAllocations;
-    protected final LongGaugeMetric undesiredAllocationsExcludingShuttingDownNodes;
     private final DoubleGauge undesiredAllocationsRatio;
-    private final DoubleGauge undesiredAllocationsRatioExcludingShuttingDownNodes;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(
@@ -117,32 +115,16 @@ public class DesiredBalanceReconciler {
         undesiredAllocations = LongGaugeMetric.create(
             meterRegistry,
             "es.allocator.desired_balance.allocations.undesired.current",
-            "Total number of shards allocated on undesired nodes",
+            "Total number of shards allocated on undesired nodes excluding shutting down nodes",
             "{shard}"
         );
         undesiredAllocationsRatio = meterRegistry.registerDoubleGauge(
             "es.allocator.desired_balance.allocations.undesired.ratio",
-            "Ratio of undesired allocations to shard count",
-            "1",
-            () -> {
-                var total = totalAllocations.get();
-                var undesired = undesiredAllocations.get();
-                return new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0);
-            }
-        );
-        undesiredAllocationsExcludingShuttingDownNodes = LongGaugeMetric.create(
-            meterRegistry,
-            "es.allocator.desired_balance.allocations.undesired.exclude_shutdowns.current",
-            "Total number of shards allocated on undesired nodes excluding shutting down nodes",
-            "{shard}"
-        );
-        undesiredAllocationsRatioExcludingShuttingDownNodes = meterRegistry.registerDoubleGauge(
-            "es.allocator.desired_balance.allocations.undesired.exclude_shutdowns.ratio",
             "Ratio of undesired allocations to shard count excluding shutting down nodes",
             "1",
             () -> {
                 var total = totalAllocations.get();
-                var undesired = undesiredAllocationsExcludingShuttingDownNodes.get();
+                var undesired = undesiredAllocations.get();
                 return new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0);
             }
         );
@@ -519,7 +501,6 @@ public class DesiredBalanceReconciler {
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
             int totalAllocations = 0;
             int undesiredAllocationsExcludingShuttingDownNodes = 0;
-            int undesiredAllocations = 0;
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -545,7 +526,6 @@ public class DesiredBalanceReconciler {
                     continue;
                 }
 
-                undesiredAllocations++;
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
                     undesiredAllocationsExcludingShuttingDownNodes++;
                 }
@@ -582,57 +562,26 @@ public class DesiredBalanceReconciler {
             }
 
             DesiredBalanceReconciler.this.unassignedShards.set(unassignedShards);
-            DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocations);
-            DesiredBalanceReconciler.this.undesiredAllocationsExcludingShuttingDownNodes.set(
-                undesiredAllocationsExcludingShuttingDownNodes
-            );
+            DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocationsExcludingShuttingDownNodes);
             DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
 
-            maybeLogUndesiredAllocationsWarning(
-                totalAllocations,
-                undesiredAllocations,
-                undesiredAllocationsExcludingShuttingDownNodes,
-                routingNodes.size()
-            );
+            maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
         }
 
-        private void maybeLogUndesiredAllocationsWarning(
-            int totalAllocations,
-            int undesiredAllocations,
-            int undesiredAllocationsExcludingShuttingDownNodes,
-            int nodeCount
-        ) {
-            // shards that cluster can relocate with one reroute
-            final boolean emptyRelocationBacklog = undesiredAllocations <= 2L * nodeCount;
-            if (totalAllocations == 0 || emptyRelocationBacklog) {
-                return;
-            }
-            final long maxUndesiredAllocations = (long) (undesiredAllocationsLogThreshold * totalAllocations);
-            final boolean warningThresholdReached = undesiredAllocations > maxUndesiredAllocations
-                || undesiredAllocationsExcludingShuttingDownNodes > maxUndesiredAllocations;
-            if (warningThresholdReached) {
-                undesiredAllocationLogInterval.maybeExecute(() -> {
-                    if (undesiredAllocations > maxUndesiredAllocations) {
-                        logger.warn(
-                            "[{}] of assigned shards ({}/{}) on all nodes are not on their desired nodes, "
-                                + "which exceeds the warn threshold of [{}]",
-                            Strings.format1Decimals(100.0 * undesiredAllocations / totalAllocations, "%"),
-                            undesiredAllocations,
-                            totalAllocations,
-                            Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
-                        );
-                    }
-                    if (undesiredAllocationsExcludingShuttingDownNodes > maxUndesiredAllocations) {
-                        logger.warn(
-                            "[{}] of assigned shards ({}/{}) on non-shutting-down nodes are not on their desired nodes, "
-                                + "which exceeds the warn threshold of [{}]",
-                            Strings.format1Decimals(100.0 * undesiredAllocationsExcludingShuttingDownNodes / totalAllocations, "%"),
-                            undesiredAllocationsExcludingShuttingDownNodes,
-                            totalAllocations,
-                            Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
-                        );
-                    }
-                });
+        private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {
+            // more shards than cluster can relocate with one reroute
+            final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
+            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * totalAllocations;
+            if (totalAllocations > 0 && nonEmptyRelocationBacklog && warningThresholdReached) {
+                undesiredAllocationLogInterval.maybeExecute(
+                    () -> logger.warn(
+                        "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",
+                        Strings.format1Decimals(100.0 * undesiredAllocations / totalAllocations, "%"),
+                        undesiredAllocations,
+                        totalAllocations,
+                        Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
+                    )
+                );
             }
         }
 

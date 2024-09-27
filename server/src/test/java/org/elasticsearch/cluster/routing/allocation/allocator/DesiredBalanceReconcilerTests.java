@@ -1301,16 +1301,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
-        var expectedWarningMessageAllAllocations = "[100%] of assigned shards ("
+        var expectedWarningMessage = "[100%] of assigned shards ("
             + shardCount
             + "/"
             + shardCount
-            + ") on all nodes are not on their desired nodes, which exceeds the warn threshold of [10%]";
-        var expectedWarningMessageExcludingShutdowns = "[100%] of assigned shards ("
-            + shardCount
-            + "/"
-            + shardCount
-            + ") on non-shutting-down nodes are not on their desired nodes, which exceeds the warn threshold of [10%]";
+            + ") are not on their desired nodes, which exceeds the warn threshold of [10%]";
         // Desired assignment matches current routing table
         assertThatLogger(
             () -> reconciler.reconcile(new DesiredBalance(1, allShardsDesiredOnDataNode1), createRoutingAllocationFrom(clusterState)),
@@ -1319,30 +1314,24 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 "Should not log if all shards on desired location",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                expectedWarningMessageAllAllocations
+                expectedWarningMessage
             )
         );
         assertThatLogger(
             () -> reconciler.reconcile(new DesiredBalance(1, allShardsDesiredOnDataNode2), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
-            new MockLog.SeenEventExpectation(
-                "Should log first too many shards on undesired locations",
-                DesiredBalanceReconciler.class.getCanonicalName(),
-                Level.WARN,
-                expectedWarningMessageAllAllocations
-            ),
             node1ShuttingDown
                 ? new MockLog.UnseenEventExpectation(
-                    "Should log first too many shards on undesired non-shutting-down locations",
+                    "Should not log first too many shards on undesired locations",
                     DesiredBalanceReconciler.class.getCanonicalName(),
                     Level.WARN,
-                    expectedWarningMessageExcludingShutdowns
+                    expectedWarningMessage
                 )
                 : new MockLog.SeenEventExpectation(
-                    "Should log first too many shards on undesired non-shutting-down locations",
+                    "Should log first too many shards on undesired locations",
                     DesiredBalanceReconciler.class.getCanonicalName(),
                     Level.WARN,
-                    expectedWarningMessageExcludingShutdowns
+                    expectedWarningMessage
                 )
         );
         assertThatLogger(
@@ -1352,13 +1341,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 "Should not log immediate second too many shards on undesired locations",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                expectedWarningMessageAllAllocations
-            ),
-            new MockLog.UnseenEventExpectation(
-                "Should not log immediate second too many too many shards on undesired non-shutting-down locations",
-                DesiredBalanceReconciler.class.getCanonicalName(),
-                Level.WARN,
-                expectedWarningMessageExcludingShutdowns
+                expectedWarningMessage
             )
         );
     }

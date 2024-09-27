@@ -402,7 +402,9 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
 
         maxFileSize.set(ProcessLimits.UNLIMITED);
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 
+        maxFileSize.set(-1);
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 
         // nothing should happen if max file size is not available

@@ -413,7 +413,7 @@ final class BootstrapChecks {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             final long maxFileSize = getMaxFileSize();
-            if (maxFileSize != -1 && maxFileSize != ProcessLimits.UNLIMITED) {
+            if (maxFileSize != Long.MIN_VALUE && maxFileSize != -1 && maxFileSize != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",

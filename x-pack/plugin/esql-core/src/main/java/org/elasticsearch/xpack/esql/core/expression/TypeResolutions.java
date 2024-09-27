@@ -71,14 +71,8 @@ public final class TypeResolutions {
         }
 
         return new TypeResolution(
-            format(
-                null,
-                "[{}] cannot operate on [{}] which is not an Elasticsearch field",
-                operationName,
-                e.sourceText()
-            )
+            format(null, "[{}] cannot operate on [{}] which is not an Elasticsearch field", operationName, e.sourceText())
         );
-
     }
 
     public static TypeResolution isIP(Expression e, String operationName, ParamOrdinal paramOrd) {

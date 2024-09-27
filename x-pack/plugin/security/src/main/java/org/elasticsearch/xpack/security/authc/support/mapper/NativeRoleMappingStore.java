@@ -213,8 +213,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         ActionListener<Result> listener
     ) {
         if (reservedRoleMappingSupplier.get().stream().anyMatch(it -> it.getName().equals(name))) {
-            // TODO
-            listener.onFailure(new IllegalArgumentException("[" + name + "] set as read-only by [file_settings]"));
+            listener.onFailure(new IllegalArgumentException("[" + name + "] role mapping is reserved and cannot be modified via API"));
             return;
         }
         if (securityIndex.isIndexUpToDate() == false) {

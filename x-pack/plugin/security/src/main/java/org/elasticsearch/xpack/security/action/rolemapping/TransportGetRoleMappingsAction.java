@@ -51,7 +51,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
         } else {
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
-        // TODO return reserved role mappings here
+        // TODO return reserved role mappings here, if we decide this is necessary
         this.roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
             ExpressionRoleMapping[] array = mappings.toArray(new ExpressionRoleMapping[mappings.size()]);
             listener.onResponse(new GetRoleMappingsResponse(array));

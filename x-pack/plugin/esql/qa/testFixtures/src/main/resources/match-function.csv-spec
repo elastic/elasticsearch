@@ -49,6 +49,59 @@ book_no:keyword | title:text
 7350            | Return of the Shadow
 ;
 
+matchAfterKeep
+required_capability: match_function
+
+from books 
+| keep book_no, author 
+| where match(author, "Faulkner")
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterDrop
+required_capability: match_function
+
+from books 
+| drop ratings, description, year, publisher, title, author.keyword
+| where match(author, "Faulkner")
+| keep book_no, author
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterEval
+required_capability: match_function
+
+from books 
+| eval stars = to_long(ratings / 2.0) 
+| where match(author, "Faulkner")
+| sort book_no 
+| keep book_no, author, stars
+| limit 5;
+
+book_no:keyword | author:text                                           | stars:long
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]    | 3
+2713            | William Faulkner                                      | 2
+2847            | Colleen Faulkner                                      | 3
+2883            | William Faulkner                                      | 2
+3293            | Danny Faulkner                                        | 2
+;
+
 matchWithDisjunction
 required_capability: match_function
 

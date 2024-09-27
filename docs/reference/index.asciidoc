@@ -6,9 +6,9 @@ include::links.asciidoc[]
 
 include::landing-page.asciidoc[]
 
-include::intro.asciidoc[]
-
 include::release-notes/highlights.asciidoc[]
+
+include::intro.asciidoc[]
 
 include::quickstart/index.asciidoc[]
 

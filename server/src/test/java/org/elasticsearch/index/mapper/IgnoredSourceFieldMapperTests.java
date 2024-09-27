@@ -1549,6 +1549,66 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("{\"path\":{\"at\":\"A\"}}", syntheticSource);
     }
 
+    public void testCopyToRootWithSubobjectFlattening() throws IOException {
+        DocumentMapper documentMapper = createMapperService(topMapping(b -> {
+            b.startObject("_source").field("mode", "synthetic").endObject();
+            b.field("subobjects", randomFrom("false", "auto"));
+            b.startObject("properties");
+            {
+                b.startObject("k").field("type", "keyword").field("copy_to", "a.b.c").endObject();
+                b.startObject("a").startObject("properties");
+                {
+                    b.startObject("b").startObject("properties");
+                    {
+                        b.startObject("c").field("type", "keyword").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> b.field("k", "hey");
+
+        var doc = documentMapper.parse(source(document));
+        assertNotNull(doc.docs().get(0).getField("a.b.c"));
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"k\":\"hey\"}", syntheticSource);
+    }
+
+    public void testCopyToObjectWithSubobjectFlattening() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("subobjects", randomFrom("false", "auto")).startObject("properties");
+            {
+                b.startObject("k").field("type", "keyword").field("copy_to", "path.a.b.c").endObject();
+                b.startObject("a").startObject("properties");
+                {
+                    b.startObject("b").startObject("properties");
+                    {
+                        b.startObject("c").field("type", "keyword").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startObject("path");
+            b.field("k", "hey");
+            b.endObject();
+        };
+
+        var doc = documentMapper.parse(source(document));
+        assertNotNull(doc.docs().get(0).getField("path.a.b.c"));
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"path\":{\"k\":\"hey\"}}", syntheticSource);
+    }
+
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
         throws IOException {
         // We exclude ignored source field since in some cases it contains an exact copy of a part of document source.

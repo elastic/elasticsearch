@@ -2324,8 +2324,6 @@ public class DateFormatters {
         } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
             return STRICT_YEAR_MONTH_DAY;
         } else {
-            DateUtils.checkTextualDateFormats(input);
-
             try {
                 return newDateFormatter(
                     input,

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
@@ -19,12 +18,13 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
+// This test was previously disabled in CI due to the models being too large
+// See "https://github.com/elastic/elasticsearch/issues/105198".
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
-    // Tests disabled in CI due to the models being too large to download. Can be enabled (commented out) for local testing
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
-    public void testPutE5Small_withNoModelVariant() throws IOException {
+
+    public void testPutE5Small_withNoModelVariant() {
         {
-            String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+            String inferenceEntityId = "testPutE5Small_withNoModelVariant";
             expectThrows(
                 org.elasticsearch.client.ResponseException.class,
                 () -> putTextEmbeddingModel(inferenceEntityId, noModelIdVariantJsonEntity())
@@ -32,10 +32,8 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
         }
     }
 
-    // Tests disabled in CI due to the models being too large to download. Can be enabled (commented out) for local testing
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
     public void testPutE5Small_withPlatformAgnosticVariant() throws IOException {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "testPutE5Small_withPlatformAgnosticVariant";
         putTextEmbeddingModel(inferenceEntityId, platformAgnosticModelVariantJsonEntity());
         var models = getTrainedModel("_all");
         assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
@@ -53,7 +51,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     }
 
     public void testPutE5Small_withPlatformSpecificVariant() throws IOException {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "testPutE5Small_withPlatformSpecificVariant";
         if ("linux-x86_64".equals(Platforms.PLATFORM_NAME)) {
             putTextEmbeddingModel(inferenceEntityId, platformSpecificModelVariantJsonEntity());
             var models = getTrainedModel("_all");
@@ -78,15 +76,13 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     }
 
     public void testPutE5Small_withFakeModelVariant() {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "testPutE5Small_withFakeModelVariant";
         expectThrows(
             org.elasticsearch.client.ResponseException.class,
             () -> putTextEmbeddingModel(inferenceEntityId, fakeModelVariantJsonEntity())
         );
     }
 
-    // Tests disabled in CI due to the models being too large to download. Can be enabled (commented out) for local testing
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
     public void testPutE5WithTrainedModelAndInference() throws IOException {
         putE5TrainedModels();
         deployE5TrainedModels();

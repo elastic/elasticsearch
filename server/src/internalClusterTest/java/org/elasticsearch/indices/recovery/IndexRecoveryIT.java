@@ -84,6 +84,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.Engine;
@@ -120,6 +121,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -2034,6 +2036,69 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         ensureGreen(indexName);
         assertBusy(() -> assertThat(searchableSegmentCountSupplier.getAsLong(), lessThan((long) initialSegmentCount)));
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false; // need to set index.version.created to test difference in behaviour on older indices
+    }
+
+    public void testPostRecoveryMergeDisabledOnOlderIndices() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final var dataNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(INDEX_MERGE_ENABLED, false)
+                .put(
+                    IndexMetadata.SETTING_VERSION_CREATED,
+                    IndexVersionUtils.randomVersionBetween(
+                        random(),
+                        IndexVersionUtils.getFirstVersion(),
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.MERGE_ON_RECOVERY_VERSION)
+                    )
+                )
+                .build()
+        );
+
+        final var initialSegmentCount = 20;
+        for (int i = 0; i < initialSegmentCount; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName); // force a one-doc segment
+        }
+        flush(indexName); // commit all the one-doc segments
+
+        final LongSupplier searchableSegmentCountSupplier = () -> indicesAdmin().prepareSegments(indexName)
+            .get(SAFE_AWAIT_TIMEOUT)
+            .getIndices()
+            .get(indexName)
+            .getShards()
+            .get(0)
+            .shards()[0].getSegments()
+            .stream()
+            .filter(Segment::isSearch)
+            .count();
+
+        assertEquals(initialSegmentCount, searchableSegmentCountSupplier.getAsLong());
+
+        // force a recovery by restarting the node, re-enabling merges while the node is down
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                final var request = new UpdateSettingsRequest(Settings.builder().putNull(INDEX_MERGE_ENABLED).build(), indexName);
+                request.reopen(true);
+                safeGet(indicesAdmin().updateSettings(request));
+                return Settings.EMPTY;
+            }
+        });
+
+        ensureGreen(indexName);
+        final var mergeStats = indicesAdmin().prepareStats(indexName).clear().setMerge(true).get().getIndex(indexName).getShards()[0]
+            .getStats()
+            .getMerge();
+        assertEquals(0, mergeStats.getCurrent());
+        assertEquals(0, mergeStats.getTotal());
+        assertEquals(initialSegmentCount, searchableSegmentCountSupplier.getAsLong());
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

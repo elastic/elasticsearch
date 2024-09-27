@@ -19,6 +19,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.ResolverStyle;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -82,12 +83,12 @@ public class JavaDateMathParserTests extends ESTestCase {
         // the pattern has to be composite and the match should not be on the first one
         DateFormatter formatter = DateFormatter.forPattern("date||epoch_millis").withLocale(randomLocale(random()));
         DateMathParser parser = formatter.toDateMathParser();
-        long gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
+        Instant gotMillis = parser.parse("297276785531", () -> 0, true, null).truncatedTo(ChronoUnit.MILLIS);
         assertDateEquals(gotMillis, "297276785531", "297276785531");
 
         formatter = DateFormatter.forPattern("date||epoch_millis").withZone(ZoneOffset.UTC);
         parser = formatter.toDateMathParser();
-        gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
+        gotMillis = parser.parse("297276785531", () -> 0, true, null).truncatedTo(ChronoUnit.MILLIS);
         assertDateEquals(gotMillis, "297276785531", "297276785531");
     }
 
@@ -99,7 +100,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         // defaulting missing day of week
         formatter = DateFormatter.forPattern("YYYY'W'ww[e]");// YYYY'W'wwe
         // second week of 2022 is starting on Monday 10th Jan
-        assertDateMathEquals(formatter.toDateMathParser(), "2022W02", "2022-01-10T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2022W02", "2022-01-02T23:59:59.999Z", 0, true, ZoneOffset.UTC);
     }
 
     public void testDayOfYear() {
@@ -125,16 +126,16 @@ public class JavaDateMathParserTests extends ESTestCase {
 
     public void testWeekDates() {
         DateFormatter formatter = DateFormatter.forPattern("YYYY-ww");
-        assertDateMathEquals(formatter.toDateMathParser(), "2016-01", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2016-02", "2016-01-03T23:59:59.999Z", 0, true, ZoneOffset.UTC);
 
         formatter = DateFormatter.forPattern("YYYY");
-        assertDateMathEquals(formatter.toDateMathParser(), "2016", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2016", "2015-12-27T23:59:59.999Z", 0, true, ZoneOffset.UTC);
 
         formatter = DateFormatter.forPattern("YYYY-ww");
-        assertDateMathEquals(formatter.toDateMathParser(), "2015-01", "2014-12-29T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2015-02", "2015-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
 
         formatter = DateFormatter.forPattern("YYYY");
-        assertDateMathEquals(formatter.toDateMathParser(), "2015", "2014-12-29T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2015", "2014-12-28T23:59:59.999Z", 0, true, ZoneOffset.UTC);
     }
 
     public void testBasicDates() {
@@ -343,7 +344,7 @@ public class JavaDateMathParserTests extends ESTestCase {
 
         // also check other time units
         DateMathParser parser = DateFormatter.forPattern("epoch_second||date_optional_time").toDateMathParser();
-        long datetime = parser.parse("1418248078", () -> 0).toEpochMilli();
+        Instant datetime = parser.parse("1418248078", () -> 0).truncatedTo(ChronoUnit.MILLIS);
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
         // for date_optional_time a timestamp with more than 9digits is epoch
@@ -401,14 +402,14 @@ public class JavaDateMathParserTests extends ESTestCase {
         boolean roundUp,
         ZoneId timeZone
     ) {
-        long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).toEpochMilli();
+        Instant gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).truncatedTo(ChronoUnit.MILLIS);
         assertDateEquals(gotMillis, toTest, expected);
     }
 
-    private void assertDateEquals(long gotMillis, String original, String expected) {
-        long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
-        if (gotMillis != expectedMillis) {
-            ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);
+    private void assertDateEquals(Instant gotMillis, String original, String expected) {
+        Instant expectedMillis = parser.parse(expected, () -> 0).truncatedTo(ChronoUnit.MILLIS);
+        if (gotMillis.equals(expectedMillis) == false) {
+            ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(gotMillis, ZoneOffset.UTC);
             fail(Strings.format("""
                 Date math not equal
                 Original              : %s

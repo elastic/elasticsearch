@@ -452,7 +452,7 @@ Which responds with:
 The `nori_number` token filter normalizes Korean numbers
 to regular Arabic decimal numbers in half-width characters.
 
-Korean numbers are often written using a combination of Hangul and Arabic numbers with various kinds punctuation.
+Korean numbers are often written using a combination of Hangul and Arabic numbers with various kinds of punctuation.
 For example, ３．２천 means 3200.
 This filter does this kind of normalization and allows a search for 3200 to match ３．２천 in text,
 but can also be used to make range facets based on the normalized numbers and so on.

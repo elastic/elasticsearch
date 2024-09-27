@@ -1,0 +1,5 @@
+pr: 113687
+summary: Account for reserved cluster state role mappings
+area: Authentication
+type: bug
+issues: []

@@ -2,4 +2,5 @@ pr: 113437
 summary: Fix check on E5 model platform compatibility
 area: Machine Learning
 type: bug
-issues: []
+issues:
+ - 113577

@@ -448,43 +448,52 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param writeIndex    new write index
-     * @param generation    new generation
-     * @param timeSeries    whether the template that created this data stream is in time series mode
-     * @param autoShardingEvent the auto sharding event this rollover operation is applying
-     *
+     * @param writeIndex                new write index
+     * @param generation                new generation
+     * @param indexModeFromTemplate     the index mode that originates from the template that created this data stream
+     * @param autoShardingEvent         the auto sharding event this rollover operation is applying
      * @return new {@code DataStream} instance with the rollover operation applied
      */
     public DataStream rollover(
         Index writeIndex,
         long generation,
-        boolean timeSeries,
+        IndexMode indexModeFromTemplate,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         ensureNotReplicated();
 
-        return unsafeRollover(writeIndex, generation, timeSeries, autoShardingEvent);
+        return unsafeRollover(writeIndex, generation, indexModeFromTemplate, autoShardingEvent);
     }
 
     /**
-     * Like {@link #rollover(Index, long, boolean, DataStreamAutoShardingEvent)}, but does no validation, use with care only.
+     * Like {@link #rollover(Index, long, IndexMode, DataStreamAutoShardingEvent)}, but does no validation, use with care only.
      */
-    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries, DataStreamAutoShardingEvent autoShardingEvent) {
-        IndexMode indexMode = this.indexMode;
-        if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
+    public DataStream unsafeRollover(
+        Index writeIndex,
+        long generation,
+        IndexMode indexModeFromTemplate,
+        DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        IndexMode dsIndexMode = this.indexMode;
+        if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
             // This allows for migrating a data stream to be a tsdb data stream:
             // (only if index_mode=null|standard then allow it to be set to time_series)
-            indexMode = IndexMode.TIME_SERIES;
-        } else if (indexMode == IndexMode.TIME_SERIES && timeSeries == false) {
+            dsIndexMode = IndexMode.TIME_SERIES;
+        } else if (dsIndexMode == IndexMode.TIME_SERIES && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
             // Allow downgrading a time series data stream to a regular data stream
-            indexMode = null;
+            dsIndexMode = null;
+        } else if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {
+            dsIndexMode = IndexMode.LOGSDB;
+        } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
+            // Allow downgrading a time series data stream to a regular data stream
+            dsIndexMode = null;
         }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);
         return copy().setBackingIndices(
             this.backingIndices.copy().setIndices(backingIndices).setAutoShardingEvent(autoShardingEvent).setRolloverOnWrite(false).build()
-        ).setGeneration(generation).setIndexMode(indexMode).build();
+        ).setGeneration(generation).setIndexMode(dsIndexMode).build();
     }
 
     /**

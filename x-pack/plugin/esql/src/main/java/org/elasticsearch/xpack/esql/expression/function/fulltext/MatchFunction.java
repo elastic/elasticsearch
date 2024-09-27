@@ -29,6 +29,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isField;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -90,16 +91,15 @@ public class MatchFunction extends FullTextFunction {
         if (queryAsObject instanceof BytesRef == false) {
             throw new IllegalArgumentException("Query in MATCH function needs to be resolved to a string");
         }
-        if (field instanceof FieldAttribute == false) {
-            throw new IllegalArgumentException("Field in MATCH function needs to be a field");
-        }
 
         return new MatchQuery(source(), ((FieldAttribute) field).name(), ((BytesRef) queryAsObject).utf8ToString());
     }
 
     @Override
     protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.resolveNonQueryParamTypes());
+        return isNotNull(field, sourceText(), FIRST).and(isField(field, sourceText(), FIRST))
+            .and(isString(field, sourceText(), FIRST))
+            .and(super.resolveNonQueryParamTypes());
     }
 
     @Override
@@ -120,5 +120,10 @@ public class MatchFunction extends FullTextFunction {
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
         return SECOND;
+    }
+
+    @Override
+    public boolean hasFieldsInformation() {
+        return true;
     }
 }

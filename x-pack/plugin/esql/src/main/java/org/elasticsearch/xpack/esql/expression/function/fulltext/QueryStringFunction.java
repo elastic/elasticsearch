@@ -92,4 +92,10 @@ public class QueryStringFunction extends FullTextFunction {
     public String getWriteableName() {
         return ENTRY.name;
     }
+
+    @Override
+    public boolean hasFieldsInformation() {
+        return false;
+    }
+
 }

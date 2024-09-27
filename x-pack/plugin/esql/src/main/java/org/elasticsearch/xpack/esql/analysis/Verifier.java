@@ -650,7 +650,10 @@ public class Verifier {
                 // we can't check if it can be pushed down as we don't have yet information about the fields present in the
                 // StringQueryPredicate
                 plan.forEachDown(LogicalPlan.class, lp -> {
-                    if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
+                    if ((lp instanceof Filter
+                        || lp instanceof OrderBy
+                        || lp instanceof EsRelation
+                        || ftf.hasFieldsInformation()) == false) {
                         failures.add(
                             fail(
                                 plan,

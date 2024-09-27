@@ -9,7 +9,6 @@ steps:
           setup:
             image:
               - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -288,8 +287,8 @@ steps:
         env:
           BWC_VERSION: 8.14.3
 
-      - label: "{{matrix.image}} / 8.15.2 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.15.2
+      - label: "{{matrix.image}} / 8.15.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.15.3
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -303,7 +302,7 @@ steps:
           buildDirectory: /dev/shm/bk
           diskSizeGb: 250
         env:
-          BWC_VERSION: 8.15.2
+          BWC_VERSION: 8.15.3
 
       - label: "{{matrix.image}} / 8.16.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.16.0

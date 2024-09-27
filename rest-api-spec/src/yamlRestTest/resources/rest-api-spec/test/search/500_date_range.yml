@@ -123,3 +123,29 @@ setup:
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "4" }
+
+
+---
+"from, to, include_lower, include_upper deprecated":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'from, to, include_lower, include_upper parameters are deprecated since 8.16.0'
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [from] used, this field is unused and will be removed entirely"
+        - "Deprecated field [to] used, this field is unused and will be removed entirely"
+        - "Deprecated field [include_lower] used, this field is unused and will be removed entirely"
+        - "Deprecated field [include_upper] used, this field is unused and will be removed entirely"
+      search:
+        index: dates
+        body:
+          sort: field
+          query:
+            range:
+              date:
+                from: 1000
+                to: 2023
+                include_lower: false
+                include_upper: false

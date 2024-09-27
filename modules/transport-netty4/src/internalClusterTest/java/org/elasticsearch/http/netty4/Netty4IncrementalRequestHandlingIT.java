@@ -451,8 +451,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                     "request end",
                     HttpBodyTracer.class.getCanonicalName(),
                     Level.TRACE,
-                    "* request body (gzip compressed, base64-encoded, and split into * parts on preceding log lines; for details see "
-                        + "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-network.html#http-rest-request-tracer)"
+                    "* request body (gzip compressed, base64-encoded, and split into * parts on preceding log lines;*)"
                 )
             );
         }

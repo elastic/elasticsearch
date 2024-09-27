@@ -20,8 +20,40 @@ setup:
 
   - do:
       inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
         task_type: text_embedding
         inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
         body: >
           {
             "service": "text_embedding_test_service",
@@ -91,6 +123,147 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
+"Query using a sparse embedding model and inner hits":
+  - requires:
+      cluster_features: "semantic_text.inner_hits"
+      reason: semantic_text inner hits support added in 8.16.0
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: ["inference test", "another inference test", "yet another inference test"]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.1._source.embeddings
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.2._source.text: "inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.2._source.embeddings
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "size": 1
+              }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "from": 1
+              }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.1._source.embeddings
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "from": 1,
+                "size": 1
+              }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "from": 3
+              }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 0 }  # Hits total drops to zero when you page off the end
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 0 }
+
+---
 "Numeric query using a sparse embedding model":
   - skip:
       features: [ "headers", "close_to" ]
@@ -143,6 +316,51 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
 
 ---
+"Query using a sparse embedding model via a search inference ID":
+  - requires:
+      cluster_features: "semantic_text.search_inference_id"
+      reason: search_inference_id introduced in 8.16.0
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      indices.put_mapping:
+        index: test-sparse-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+              search_inference_id: sparse-inference-id-2
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
 "Query using a dense embedding model":
   - skip:
       features: [ "headers", "close_to" ]
@@ -172,6 +390,147 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
+"Query using a dense embedding model and inner hits":
+  - requires:
+      cluster_features: "semantic_text.inner_hits"
+      reason: semantic_text inner hits support added in 8.16.0
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: ["inference test", "another inference test", "yet another inference test"]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.1._source.embeddings
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.2._source.text: "another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.2._source.embeddings
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "size": 1
+              }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "from": 1
+              }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.1._source.text: "another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.1._source.embeddings
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "from": 1,
+                "size": 1
+              }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.hits.0._source.text: "yet another inference test" }
+  - not_exists: hits.hits.0.inner_hits.inference_field.hits.hits.0._source.embeddings
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "from": 3
+              }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field.hits.total.value: 0 }  # Hits total drops to zero when you page off the end
+  - length: { hits.hits.0.inner_hits.inference_field.hits.hits: 0 }
 
 ---
 "Numeric query using a dense embedding model":
@@ -287,6 +646,51 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
+"Query using a dense embedding model via a search inference ID":
+  - requires:
+      cluster_features: "semantic_text.search_inference_id"
+      reason: search_inference_id introduced in 8.16.0
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      indices.put_mapping:
+        index: test-dense-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              search_inference_id: dense-inference-id-2
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: ["inference test", "another inference test"]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
 "Apply boost and query name":
   - skip:
       features: [ "headers", "close_to" ]
@@ -355,6 +759,101 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
+"Query multiple semantic text fields with inner hits":
+  - requires:
+      cluster_features: "semantic_text.inner_hits"
+      reason: semantic_text inner hits support added in 8.16.0
+
+  - do:
+      indices.create:
+        index: test-multi-semantic-text-field-index
+        body:
+          mappings:
+            properties:
+              inference_field_1:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              inference_field_2:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-multi-semantic-text-field-index
+        id: doc_1
+        body:
+          inference_field_1: [ "inference test 1", "another inference test 1" ]
+          inference_field_2: [ "inference test 2", "another inference test 2", "yet another inference test 2" ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-multi-semantic-text-field-index
+        body:
+          query:
+            bool:
+              must:
+                - semantic:
+                    field: "inference_field_1"
+                    query: "inference test"
+                    inner_hits: { }
+                - semantic:
+                    field: "inference_field_2"
+                    query: "inference test"
+                    inner_hits: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0._source.inference_field_1.inference.chunks: 2 }
+  - length: { hits.hits.0._source.inference_field_2.inference.chunks: 3 }
+  - match: { hits.hits.0.inner_hits.inference_field_1.hits.total.value: 2 }
+  - length: { hits.hits.0.inner_hits.inference_field_1.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inference_field_2.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.inference_field_2.hits.hits: 3 }
+
+---
+"Query semantic text field in object with inner hits":
+  - requires:
+      cluster_features: "semantic_text.inner_hits"
+      reason: semantic_text inner hits support added in 8.16.0
+
+  - do:
+      indices.create:
+        index: test-semantic-text-in-object-index
+        body:
+          mappings:
+            properties:
+              container:
+                properties:
+                  inference_field:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-semantic-text-in-object-index
+        id: doc_1
+        body:
+          container.inference_field: ["inference test", "another inference test", "yet another inference test"]
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-text-in-object-index
+        body:
+          query:
+            semantic:
+              field: "container.inference_field"
+              query: "inference test"
+              inner_hits: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - exists: hits.hits.0.inner_hits.container\.inference_field
+  - match: { hits.hits.0.inner_hits.container\.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.container\.inference_field.hits.hits: 3 }
 
 ---
 "Query the wrong field type":
@@ -581,3 +1080,177 @@ setup:
 
   - match: { error.type: "resource_not_found_exception" }
   - match: { error.reason: "Inference endpoint not found [invalid-inference-id]" }
+
+---
+"Query a field with a search inference ID that uses the wrong task type":
+  - requires:
+      cluster_features: "semantic_text.search_inference_id"
+      reason: search_inference_id introduced in 8.16.0
+
+  - do:
+      indices.put_mapping:
+        index: test-sparse-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+              search_inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "Field [inference_field] expected query inference results to be of type
+                                    [text_expansion_result], got [text_embedding_result]. Is the search inference
+                                    endpoint [dense-inference-id] compatible with the inference endpoint
+                                    [sparse-inference-id]?" }
+
+---
+"Query a field with a search inference ID that uses the wrong dimension count":
+  - requires:
+      cluster_features: "semantic_text.search_inference_id"
+      reason: search_inference_id introduced in 8.16.0
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-20-dims
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 20,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.put_mapping:
+        index: test-dense-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              search_inference_id: dense-inference-id-20-dims
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: ["inference test", "another inference test"]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "Field [inference_field] expected query inference results with 10 dimensions, got
+                                      20 dimensions. Is the search inference endpoint [dense-inference-id-20-dims]
+                                      compatible with the inference endpoint [dense-inference-id]?" }
+
+---
+"Query a field with an invalid search inference ID":
+  - requires:
+      cluster_features: "semantic_text.search_inference_id"
+      reason: search_inference_id introduced in 8.16.0
+
+  - do:
+      indices.put_mapping:
+        index: test-dense-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              search_inference_id: invalid-inference-id
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: missing
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "Inference endpoint not found [invalid-inference-id]" }
+
+---
+"Query using inner hits with invalid args":
+  - requires:
+      cluster_features: "semantic_text.inner_hits"
+      reason: semantic_text inner hits support added in 8.16.0
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "from": -1
+              }
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "illegal from value, at least 0 or higher" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+              inner_hits: {
+                "size": -1
+              }
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "illegal size value, at least 0 or higher" }

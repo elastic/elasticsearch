@@ -105,19 +105,19 @@ public class RestRequest implements ToXContent.Params, Traceable {
     protected RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
-        String path,
+        String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
         HttpChannel httpChannel
     ) {
-        this(parserConfig, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
+        this(parserConfig, params, rawPath, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
     @SuppressWarnings("this-escape")
     private RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
-        String path,
+        String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
         HttpChannel httpChannel,
@@ -149,7 +149,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
             : parserConfig.withRestApiVersion(effectiveApiVersion);
         this.httpChannel = httpChannel;
         this.params = params;
-        this.rawPath = path;
+        this.rawPath = rawPath;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
     }
@@ -204,11 +204,10 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
-        String path = path(httpRequest.uri());
         return new RestRequest(
             parserConfig,
             params,
-            path,
+            httpRequest.rawPath(),
             httpRequest.getHeaders(),
             httpRequest,
             httpChannel,
@@ -227,15 +226,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
             }
         }
         return params;
-    }
-
-    private static String path(final String uri) {
-        final int index = uri.indexOf('?');
-        if (index >= 0) {
-            return uri.substring(0, index);
-        } else {
-            return uri;
-        }
     }
 
     /**

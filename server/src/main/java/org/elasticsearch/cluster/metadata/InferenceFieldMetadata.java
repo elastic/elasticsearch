@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_SEARCH_INFERENCE_ID;
+
 /**
  * Contains inference field data for fields.
  * As inference is done in the coordinator node to avoid re-doing it at shard / replica level, the coordinator needs to check for the need
@@ -32,21 +34,33 @@ import java.util.Objects;
  */
 public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFieldMetadata>, ToXContentFragment {
     private static final String INFERENCE_ID_FIELD = "inference_id";
+    private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
 
     private final String name;
     private final String inferenceId;
+    private final String searchInferenceId;
     private final String[] sourceFields;
 
     public InferenceFieldMetadata(String name, String inferenceId, String[] sourceFields) {
+        this(name, inferenceId, inferenceId, sourceFields);
+    }
+
+    public InferenceFieldMetadata(String name, String inferenceId, String searchInferenceId, String[] sourceFields) {
         this.name = Objects.requireNonNull(name);
         this.inferenceId = Objects.requireNonNull(inferenceId);
+        this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {
         this.name = input.readString();
         this.inferenceId = input.readString();
+        if (input.getTransportVersion().onOrAfter(SEMANTIC_TEXT_SEARCH_INFERENCE_ID)) {
+            this.searchInferenceId = input.readString();
+        } else {
+            this.searchInferenceId = this.inferenceId;
+        }
         this.sourceFields = input.readStringArray();
     }
 
@@ -54,6 +68,9 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(inferenceId);
+        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_SEARCH_INFERENCE_ID)) {
+            out.writeString(searchInferenceId);
+        }
         out.writeStringArray(sourceFields);
     }
 
@@ -64,12 +81,13 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         InferenceFieldMetadata that = (InferenceFieldMetadata) o;
         return Objects.equals(name, that.name)
             && Objects.equals(inferenceId, that.inferenceId)
+            && Objects.equals(searchInferenceId, that.searchInferenceId)
             && Arrays.equals(sourceFields, that.sourceFields);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, inferenceId);
+        int result = Objects.hash(name, inferenceId, searchInferenceId);
         result = 31 * result + Arrays.hashCode(sourceFields);
         return result;
     }
@@ -80,6 +98,10 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
 
     public String getInferenceId() {
         return inferenceId;
+    }
+
+    public String getSearchInferenceId() {
+        return searchInferenceId;
     }
 
     public String[] getSourceFields() {
@@ -94,6 +116,9 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(INFERENCE_ID_FIELD, inferenceId);
+        if (searchInferenceId.equals(inferenceId) == false) {
+            builder.field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId);
+        }
         builder.array(SOURCE_FIELDS_FIELD, sourceFields);
         return builder.endObject();
     }
@@ -106,6 +131,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
 
         String currentFieldName = null;
         String inferenceId = null;
+        String searchInferenceId = null;
         List<String> inputFields = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -113,6 +139,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (INFERENCE_ID_FIELD.equals(currentFieldName)) {
                     inferenceId = parser.text();
+                } else if (SEARCH_INFERENCE_ID_FIELD.equals(currentFieldName)) {
+                    searchInferenceId = parser.text();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (SOURCE_FIELDS_FIELD.equals(currentFieldName)) {
@@ -128,6 +156,11 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
                 parser.skipChildren();
             }
         }
-        return new InferenceFieldMetadata(name, inferenceId, inputFields.toArray(String[]::new));
+        return new InferenceFieldMetadata(
+            name,
+            inferenceId,
+            searchInferenceId == null ? inferenceId : searchInferenceId,
+            inputFields.toArray(String[]::new)
+        );
     }
 }

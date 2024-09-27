@@ -36,7 +36,7 @@ public class IncrementalBulkService {
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

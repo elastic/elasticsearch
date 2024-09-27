@@ -1050,6 +1050,63 @@ flattened field with ignore_above:
 
   - is_false: fields
 
+
+---
+flattened field with ignore_above and arrays:
+  - requires:
+      cluster_features: ["mapper.flattened.ignore_above_with_arrays_support"]
+      reason: requires support of ignore_above synthetic source with arrays
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              field:
+                type: flattened
+                ignore_above: 10
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: |
+          {
+            "field": [
+              { "key1": { "key2": "key2", "key3": "key3_ignored" }, "key4": "key4_ignored", "key5": { "key6": "key6_ignored" }, "key7": "key7" },
+              { "key1": { "key2": "key12", "key13": "key13_ignored" }, "key4": "key14_ignored", "key15": { "key16": "key16_ignored" }, "key17": [ "key17", "key18" ] }
+            ]
+          }
+
+  - do:
+      get:
+        index: test
+        id: 1
+
+  - match: { _index: "test" }
+  - match: { _id: "1" }
+  - match: { _version: 1 }
+  - match: { found: true }
+  - match:
+      _source:
+        field:
+          key1:
+            key2: [ "key12", "key2" ]
+            key3: "key3_ignored"
+            key13: "key13_ignored"
+          key4: [ "key14_ignored", "key4_ignored" ]
+          key5:
+            key6: "key6_ignored"
+          key7: "key7"
+          key15:
+            key16: "key16_ignored"
+          key17: [ "key17", "key18" ]
+
+  - is_false: fields
+
 ---
 completion:
   - requires:

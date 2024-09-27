@@ -103,6 +103,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
         var request = new Request("PUT", endpoint);
 
         request.setJsonEntity(jsonEntity);
+        request.addParameter("timeout", "90s");
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

@@ -471,52 +471,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         );
     }
 
-    public void testEmptyFirstLine1() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequestFromString("""
-
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-            """, RestApiVersion.V_7);
-        assertThat(request.requests().size(), equalTo(4));
-        for (SearchRequest searchRequest : request.requests()) {
-            assertThat(searchRequest.indices().length, equalTo(0));
-            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
-        }
-        assertCriticalWarnings(
-            "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
-                + "in the next major version"
-        );
-    }
-
-    public void testEmptyFirstLine2() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequestFromString("""
-
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            """, RestApiVersion.V_7);
-        assertThat(request.requests().size(), equalTo(4));
-        for (SearchRequest searchRequest : request.requests()) {
-            assertThat(searchRequest.indices().length, equalTo(0));
-            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
-        }
-        assertCriticalWarnings(
-            "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
-                + "in the next major version"
-        );
-    }
-
     public void testTaskDescription() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(new SearchRequest().preference("abc"));

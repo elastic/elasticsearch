@@ -54,7 +54,9 @@ public record Measurement(Number value, Map<String, Object> attributes, boolean 
             }
             byAttr.compute(
                 m.attributes,
-                (k, v) -> (v == null) ? m.value : isDouble ? v.doubleValue() + m.getDouble() : v.longValue() + m.getLong()
+                (k, v) -> (v == null) ? m.value
+                    : isDouble ? (Number) (v.doubleValue() + m.getDouble())
+                    : (Number) (v.longValue() + m.getLong())
             );
         });
         return byAttr.entrySet()

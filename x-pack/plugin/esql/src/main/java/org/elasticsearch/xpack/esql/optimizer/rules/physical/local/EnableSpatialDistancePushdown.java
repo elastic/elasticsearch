@@ -92,8 +92,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
                 nonPushable.add(alias);
             }
         });
-        // TODO support mixing pushable and non-pushable aliases
-        if (nonPushable.isEmpty()) {
+        if (pushable.isEmpty() == false) {
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
                 ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());

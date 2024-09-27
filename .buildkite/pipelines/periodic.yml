@@ -302,8 +302,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.15.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.2#bwcTest
+      - label: 8.15.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.3#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -313,7 +313,7 @@ steps:
           preemptible: true
           diskSizeGb: 250
         env:
-          BWC_VERSION: 8.15.2
+          BWC_VERSION: 8.15.3
         retry:
           automatic:
             - exit_status: "-1"
@@ -431,7 +431,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk17
-            BWC_VERSION: ["8.15.2", "8.16.0", "9.0.0"]
+            BWC_VERSION: ["8.15.3", "8.16.0", "9.0.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -475,7 +475,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
-            BWC_VERSION: ["8.15.2", "8.16.0", "9.0.0"]
+            BWC_VERSION: ["8.15.3", "8.16.0", "9.0.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -584,7 +584,7 @@ steps:
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
       diskSizeGb: 250
-    if: build.branch == "main" || build.branch == "8.x" || build.branch == "7.17"
+    if: build.branch == "main" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

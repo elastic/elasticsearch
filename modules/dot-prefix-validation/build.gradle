@@ -27,13 +27,3 @@ tasks.named('yamlRestTest') {
 tasks.named('yamlRestCompatTest') {
   usesDefaultDistribution()
 }
-
-tasks.named("yamlRestCompatTestTransform").configure(
-  { task ->
-    task.skipTest("tsdb/140_routing_path/multi-value routing path field", "Multi-value routing paths are allowed now. See #112645")
-    task.skipTest(
-      "dot_prefix/10_basic/Deprecated index template with a dot prefix index pattern",
-      "Tentantively disabled until #112092 gets backported to 8.x"
-    )
-  }
-)

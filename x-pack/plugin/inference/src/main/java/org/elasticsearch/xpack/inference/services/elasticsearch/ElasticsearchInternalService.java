@@ -75,8 +75,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     );
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
-
-    private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
 
     public ElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {

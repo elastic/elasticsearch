@@ -406,8 +406,7 @@ public class DateUtils {
             deprecationLogger.warn(
                 DeprecationCategory.PARSING,
                 "cldr_date_formats_" + format,
-                "Date format [{}] contains textual field specifiers that could change in JDK 23."
-                    + " See [{}] for more information.",
+                "Date format [{}] contains textual field specifiers that could change in JDK 23. See [{}] for more information.",
                 format,
                 ReferenceDocs.JDK_LOCALE_DIFFERENCES
             );
@@ -416,8 +415,7 @@ public class DateUtils {
             deprecationLogger.warn(
                 DeprecationCategory.PARSING,
                 "cldr_week_dates_" + format,
-                "Date format [{}] contains week-date field specifiers that are changing in JDK 23."
-                    + " See [{}] for more information.",
+                "Date format [{}] contains week-date field specifiers that are changing in JDK 23. See [{}] for more information.",
                 format,
                 ReferenceDocs.JDK_LOCALE_DIFFERENCES
             );

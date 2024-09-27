@@ -85,7 +85,7 @@ on those dates so they should be avoided.
 ====
 // tag::locale-warning[]
 The text strings accepted by textual date formats, and calculations for week-dates, depend on the JDK version
-that Elasticsearch is running on. For more information see <<jdk-locale,locale database>>.
+that Elasticsearch is running on. For more information see <<custom-date-format-locales,custom date formats>>.
 // end::locale-warning[]
 ====
 

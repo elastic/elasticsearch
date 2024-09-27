@@ -54,8 +54,6 @@ import java.io.InputStream;
 import java.net.PasswordAuthentication;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -500,16 +498,6 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         geoIpDownloader.updateDatabases();
         verifyNoInteractions(httpClient);
-    }
-
-    private GeoIpTaskState.Metadata newGeoIpTaskStateMetadata(boolean expired) {
-        Instant lastChecked;
-        if (expired) {
-            lastChecked = Instant.now().minus(randomIntBetween(31, 100), ChronoUnit.DAYS);
-        } else {
-            lastChecked = Instant.now().minus(randomIntBetween(0, 29), ChronoUnit.DAYS);
-        }
-        return new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), lastChecked.toEpochMilli());
     }
 
     private static class MockClient extends NoOpClient {

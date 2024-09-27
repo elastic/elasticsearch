@@ -1717,7 +1717,7 @@ See <<disk-based-shard-allocation>> for more information about disk watermarks a
 `io_stats` (Linux only)::
 (objects) Contains I/O statistics for the node.
 
-**NOTE**: Due to limitations of the Linux kernel, When running the application within a container such as Docker, these statistics may not be accurate.
+NOTE: Due to limitations of the Linux kernel, When running the application within a container such as Docker, these statistics may not be accurate.
 In this scenario, they represent activity for the entire host filesystem your data is stored on and are *not* scoped to the container.
 +
 .Properties of `io_stats`

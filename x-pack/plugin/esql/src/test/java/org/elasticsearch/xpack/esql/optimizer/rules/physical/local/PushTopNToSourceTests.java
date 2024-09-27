@@ -202,6 +202,27 @@ public class PushTopNToSourceTests extends ESTestCase {
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
+    public void testSortGeoDistanceFunctionAndFieldsAndManyAliases() {
+        // FROM index
+        // | EVAL loc = location, loc2 = loc, loc3 = loc2, distance = ST_DISTANCE(loc3, POINT(1 2)), x = field
+        // | SORT distance, x, integer
+        // | LIMIT 10
+        var query = from("index").eval("loc", b -> b.field("location"))
+            .eval("loc2", b -> b.ref("loc"))
+            .eval("loc3", b -> b.ref("loc2"))
+            .eval("distance", b -> b.distance("loc3", "POINT(1 2)"))
+            .eval("x", b -> b.field("field"))
+            .sort("distance", Order.OrderDirection.ASC)
+            .sort("x", Order.OrderDirection.DESC)
+            .sort("integer", Order.OrderDirection.DESC)
+            .limit(10);
+        // We can only push down the leading sorts that pushable, and the rest will be handled by the final SORT
+        var expectedSorts = List.of(query.orders.get(0));
+        // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
+        assertPushdownSort(query, expectedSorts, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
     private static void assertPushdownSort(TestPhysicalPlanBuilder builder) {
         assertPushdownSort(builder, null, List.of(EsQueryExec.class));
     }
@@ -397,6 +418,10 @@ public class PushTopNToSourceTests extends ESTestCase {
                 return fields.get(name);
             }
 
+            Expression ref(String name) {
+                return refs.get(name);
+            }
+
             Expression literal(Object value, DataType dataType) {
                 return new Literal(Source.EMPTY, value, dataType);
             }
@@ -433,6 +458,9 @@ public class PushTopNToSourceTests extends ESTestCase {
                 }
                 if (fields.containsKey(text)) {
                     return fields.get(text);
+                }
+                if (refs.containsKey(text)) {
+                    return refs.get(text);
                 }
                 throw new IllegalArgumentException("Unknown field: " + text);
             }

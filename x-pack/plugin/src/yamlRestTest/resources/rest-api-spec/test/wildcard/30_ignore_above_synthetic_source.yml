@@ -49,7 +49,7 @@ wildcard field type ignore_above:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.a_wildcard: "foo bar" }
   - match: { hits.hits.0._source.b_wildcard: "the quick brown" }
-  - match: { hits.hits.0._source.c_wildcard: ["bar", "foo"] }
+  - match: { hits.hits.0._source.c_wildcard: ["bar", "foo", "jumps over the lazy dog"] }
   - match: { hits.hits.0._source.d_wildcard: ["bar", "foo", "the quick"] }
   - match: { hits.hits.0.fields.a_wildcard.0: "foo bar" }
   - match: { hits.hits.0.fields.b_wildcard.0: "the quick brown" }

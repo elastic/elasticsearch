@@ -37,6 +37,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -1799,7 +1800,7 @@ public class IndexNameExpressionResolver {
                 return;
             }
             for (String index : indexExpressions) {
-                if (index.contains(":")) {
+                if (RemoteClusterAware.isRemoteIndexName(index)) {
                     failOnRemoteIndicesNotIgnoringUnavailable(indexExpressions);
                 }
             }
@@ -1808,7 +1809,7 @@ public class IndexNameExpressionResolver {
         private static void failOnRemoteIndicesNotIgnoringUnavailable(List<String> indexExpressions) {
             List<String> crossClusterIndices = new ArrayList<>();
             for (String index : indexExpressions) {
-                if (index.contains(":")) {
+                if (RemoteClusterAware.isRemoteIndexName(index)) {
                     crossClusterIndices.add(index);
                 }
             }

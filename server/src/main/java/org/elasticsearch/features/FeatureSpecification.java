@@ -43,8 +43,8 @@ public interface FeatureSpecification {
     /**
      * Returns a set of test features that this node supports.
      * <p>
-     * These features will only be exposed if the {@code test-features} plugin is loaded.
-     * This should only be used when deploying test clusters
+     * These features will only be exposed if the {@code tests.testfeatures.enabled} system property is set.
+     * This should only be used when deploying test clusters.
      */
     default Set<NodeFeature> getTestFeatures() {
         return Set.of();

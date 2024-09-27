@@ -57,4 +57,5 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestCompatTestTransform").configure({task ->
     task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
     task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+    task.skipTestsByFilePattern("indices.create/synthetic_source*.yml", "@UpdateForV9 -> tests do not pass after bumping API version to 9 [ES-9597]")
 })

@@ -133,11 +133,13 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
     static class ScoringPerShardCollector extends PerShardCollector {
 
         private final TopFieldCollector collector;
+
         ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             this.shardContext = shardContext;
             int numHits = 10_0000; // TODO : infer this
-            collector = new TopFieldCollectorManager(sort, numHits,  limit).newCollector();
+            collector = new TopFieldCollectorManager(sort, numHits, limit).newCollector();
         }
+
         @Override
         Collector getCollector() {
             return collector;

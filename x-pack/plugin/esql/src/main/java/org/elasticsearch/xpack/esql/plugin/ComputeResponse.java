@@ -74,7 +74,7 @@ final class ComputeResponse extends TransportResponse {
         } else {
             profiles = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
             this.took = in.readOptionalTimeValue();
             this.totalShards = in.readVInt();
             this.successfulShards = in.readVInt();
@@ -99,7 +99,7 @@ final class ComputeResponse extends TransportResponse {
                 out.writeCollection(profiles);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
             out.writeOptionalTimeValue(took);
             out.writeVInt(totalShards);
             out.writeVInt(successfulShards);

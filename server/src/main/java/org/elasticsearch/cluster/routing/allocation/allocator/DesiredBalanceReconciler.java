@@ -37,7 +37,6 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -519,7 +518,8 @@ public class DesiredBalanceReconciler {
 
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
             int totalAllocations = 0;
-            var undesiredAllocationsPerNode = new HashMap<String, Integer>(routingNodes.size());
+            int undesiredAllocationsExcludingShuttingDownNodes = 0;
+            int undesiredAllocations = 0;
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -545,7 +545,10 @@ public class DesiredBalanceReconciler {
                     continue;
                 }
 
-                undesiredAllocationsPerNode.compute(shardRouting.currentNodeId(), (id, count) -> count == null ? 1 : count + 1);
+                undesiredAllocations++;
+                if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
+                    undesiredAllocationsExcludingShuttingDownNodes++;
+                }
 
                 if (allocation.deciders().canRebalance(shardRouting, allocation).type() != Decision.Type.YES) {
                     // rebalancing disabled for this shard
@@ -578,16 +581,8 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            int totalUndesiredAllocations = 0;
-            int undesiredAllocationsExcludingShuttingDownNodes = 0;
-            for (var entry : undesiredAllocationsPerNode.entrySet()) {
-                totalUndesiredAllocations += entry.getValue();
-                if (allocation.metadata().nodeShutdowns().contains(entry.getKey()) == false) {
-                    undesiredAllocationsExcludingShuttingDownNodes += entry.getValue();
-                }
-            }
             DesiredBalanceReconciler.this.unassignedShards.set(unassignedShards);
-            DesiredBalanceReconciler.this.undesiredAllocations.set(totalUndesiredAllocations);
+            DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocations);
             DesiredBalanceReconciler.this.undesiredAllocationsExcludingShuttingDownNodes.set(
                 undesiredAllocationsExcludingShuttingDownNodes
             );
@@ -595,7 +590,7 @@ public class DesiredBalanceReconciler {
 
             maybeLogUndesiredAllocationsWarning(
                 totalAllocations,
-                totalUndesiredAllocations,
+                undesiredAllocations,
                 undesiredAllocationsExcludingShuttingDownNodes,
                 routingNodes.size()
             );

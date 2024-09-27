@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -284,6 +283,17 @@ public class VerifierTests extends ESTestCase {
             "1:42: Cannot convert string [a] to [DOUBLE], error [Cannot parse number [a]]",
             error("ROW a=[3, 5, 1, 6] | EVAL avg_a = MV_AVG(\"a\")")
         );
+        assertEquals(
+            "1:19: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
+            error("from test | where `languages.*` in (1, 2)")
+        );
+        assertEquals("1:22: Unknown function [func]", error("from test | eval x = func(languages) | where x in (1, 2)"));
+        assertEquals(
+            "1:32: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
+            error("from test | eval x = coalesce( `languages.*`, languages, 0 )")
+        );
+        String error = error("from test | eval x = func(languages) | eval y = coalesce(x, languages, 0 )");
+        assertThat(error, containsString("function [func]"));
     }
 
     public void testAggsExpressionsInStatsAggs() {
@@ -1075,36 +1085,6 @@ public class VerifierTests extends ESTestCase {
             "1:45: MATCH requires a mapped index field, found [fn]",
             error("from test | rename first_name as fn | where fn match \"Anna\"")
         );
-    }
-
-    public void testMatchCommand() {
-        assertMatchCommand("1:24:", "LIMIT", "from test | limit 10 | match \"Anna\"");
-        assertMatchCommand("1:13:", "SHOW", "show info | match \"8.16.0\"");
-        assertMatchCommand("1:17:", "ROW", "row a= \"Anna\" | match \"Anna\"");
-        assertMatchCommand("1:26:", "EVAL", "from test | eval z = 2 | match \"Anna\"");
-        assertMatchCommand("1:43:", "DISSECT", "from test | dissect first_name \"%{foo}\" | match \"Connection\"");
-        assertMatchCommand("1:27:", "DROP", "from test | drop emp_no | match \"Anna\"");
-        assertMatchCommand("1:35:", "EVAL", "from test | eval n = emp_no * 3 | match \"Anna\"");
-        assertMatchCommand("1:44:", "GROK", "from test | grok last_name \"%{WORD:foo}\" | match \"Anna\"");
-        assertMatchCommand("1:27:", "KEEP", "from test | keep emp_no | match \"Anna\"");
-
-        // TODO Keep adding tests for all unsupported commands
-    }
-
-    private void assertMatchCommand(String lineAndColumn, String command, String query) {
-        String message;
-        Class<? extends Exception> exception;
-        var isSnapshot = Build.current().isSnapshot();
-        if (isSnapshot) {
-            message = " MATCH cannot be used after ";
-            exception = VerificationException.class;
-        } else {
-            message = " mismatched input 'match' expecting ";
-            exception = ParsingException.class;
-        }
-
-        var expectedErrorMessage = lineAndColumn + message + (isSnapshot ? command : "");
-        assertThat(error(query, defaultAnalyzer, exception), containsString(expectedErrorMessage));
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {

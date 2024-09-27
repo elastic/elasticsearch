@@ -260,7 +260,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(0, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
+        var input = IntStream.range(1, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
 
         try {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);

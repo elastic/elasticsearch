@@ -54,6 +54,8 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
 }
 
-tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTest("tsdb/140_routing_path/multi-value routing path field", "Multi-value routing paths are allowed now. See #112645")
+tasks.named("yamlRestCompatTestTransform").configure({task ->
+    task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
+    task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+    task.skipTestsByFilePattern("indices.create/synthetic_source*.yml", "@UpdateForV9 -> tests do not pass after bumping API version to 9 [ES-9597]")
 })

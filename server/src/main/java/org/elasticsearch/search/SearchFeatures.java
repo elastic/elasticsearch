@@ -16,8 +16,11 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import java.util.Set;
 
 public final class SearchFeatures implements FeatureSpecification {
+
+    public static final NodeFeature LUCENE_10_0_0_UPGRADE = new NodeFeature("lucene_10_upgrade");
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(KnnVectorQueryBuilder.K_PARAM_SUPPORTED);
+        return Set.of(KnnVectorQueryBuilder.K_PARAM_SUPPORTED, LUCENE_10_0_0_UPGRADE);
     }
 }

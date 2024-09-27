@@ -237,9 +237,8 @@ dfs knn vector profiling:
 ---
 dfs knn vector profiling description:
   - requires:
-      cluster_features: "gte_v9.0.0"
-      reason: the profile description changed with the lucene 10 upgrade
-
+      cluster_features: ["lucene_10_upgrade"]
+      reason: "the profile description changed with Lucene 10"
   - do:
       indices.create:
         index: images

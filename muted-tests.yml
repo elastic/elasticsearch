@@ -323,6 +323,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
   method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
   issue: https://github.com/elastic/elasticsearch/issues/113659
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113721
 
 # Examples:
 #

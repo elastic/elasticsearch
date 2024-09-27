@@ -139,7 +139,6 @@ public interface RestHandler {
         private final RestApiVersion restApiVersion;
         @Nullable
         private final String deprecationMessage;
-        @Nullable
         private final Level deprecationLevel;
         @Nullable
         private final Route replacedRoute;
@@ -149,7 +148,7 @@ public interface RestHandler {
             String path,
             RestApiVersion restApiVersion,
             String deprecationMessage,
-            @Nullable Level deprecationLevel,
+            Level deprecationLevel,
             Route replacedRoute
         ) {
             this.method = Objects.requireNonNull(method);
@@ -174,7 +173,7 @@ public interface RestHandler {
          * @param path   the path, e.g. "/"
          */
         public Route(Method method, String path) {
-            this(method, path, RestApiVersion.current(), null, null, null);
+            this(method, path, RestApiVersion.current(), null, Level.OFF, null);
         }
 
         public static class RouteBuilder {
@@ -279,7 +278,7 @@ public interface RestHandler {
                     path,
                     restApiVersion,
                     deprecationMessage,
-                    deprecationLevel,
+                    deprecationLevel == null ? Level.OFF : deprecationLevel,
                     replacedRoute
                 );
 

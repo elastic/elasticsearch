@@ -38,6 +38,8 @@ public class DeprecationRestHandler extends FilterRestHandler implements RestHan
      * @param handler The rest handler to deprecate (it's possible that the handler is reused with a different name!)
      * @param method a method of a deprecated endpoint
      * @param path a path of a deprecated endpoint
+     * @param deprecationLevel The level of the deprecation warning, must be non-null
+     *                         and either {@link Level#WARN} or {@link DeprecationLogger#CRITICAL}
      * @param deprecationMessage The message to warn users with when they use the {@code handler}
      * @param deprecationLogger The deprecation logger
      * @param compatibleVersionWarning set to false so that a deprecation warning will be issued for the handled request,
@@ -60,7 +62,7 @@ public class DeprecationRestHandler extends FilterRestHandler implements RestHan
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
         this.compatibleVersionWarning = compatibleVersionWarning;
         this.deprecationKey = DEPRECATED_ROUTE_KEY + "_" + method + "_" + path;
-        if (deprecationLevel != Level.WARN || deprecationLevel != DeprecationLogger.CRITICAL) {
+        if (deprecationLevel != Level.WARN && deprecationLevel != DeprecationLogger.CRITICAL) {
             throw new IllegalArgumentException(
                 "unexpected deprecation logger level: " + deprecationLevel + ", expected either 'CRITICAL' or 'WARN'"
             );
@@ -136,5 +138,10 @@ public class DeprecationRestHandler extends FilterRestHandler implements RestHan
         }
 
         return value;
+    }
+
+    // test only
+    Level getDeprecationLevel() {
+        return deprecationLevel;
     }
 }

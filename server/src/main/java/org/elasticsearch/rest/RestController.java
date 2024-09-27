@@ -237,7 +237,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             + "] instead.";
 
         registerHandler(method, path, version, handler);
-        Level deprecationLevel = version == RestApiVersion.current() ? Level.WARN : DeprecationLogger.CRITICAL;
+        //TODO: test this variant
+        Level deprecationLevel = replacedVersion == RestApiVersion.current() ? Level.WARN : DeprecationLogger.CRITICAL;
         registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage, deprecationLevel);
     }
 
@@ -282,8 +283,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 handler,
                 replaced.getMethod(),
                 replaced.getPath(),
-                replaced.getRestApiVersion(),
-                replaced.getDeprecationLevel()
+                replaced.getRestApiVersion()
             );
         } else if (route.isDeprecated()) {
             registerAsDeprecatedHandler(

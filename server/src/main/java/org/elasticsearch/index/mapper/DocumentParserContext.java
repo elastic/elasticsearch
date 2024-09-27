@@ -208,11 +208,7 @@ public abstract class DocumentParserContext {
         );
     }
 
-    private static boolean checkForAutoFlatteningSupport(
-        MappingLookup mappingLookup,
-        RootObjectMapper rootObjectMapper,
-        Collection<ObjectMapper> dynamicObjectMappers
-    ) {
+    private static boolean checkForAutoFlatteningSupport(MappingLookup mappingLookup, RootObjectMapper rootObjectMapper) {
         if (rootObjectMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
             return true;
         }
@@ -226,11 +222,6 @@ public abstract class DocumentParserContext {
                 if (findSubobjects(dynamicTemplate.getMapping())) {
                     return true;
                 }
-            }
-        }
-        for (ObjectMapper objectMapper : dynamicObjectMappers) {
-            if (objectMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
-                return true;
             }
         }
         return false;
@@ -277,7 +268,7 @@ public abstract class DocumentParserContext {
             new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
             new DynamicMapperSize(),
             false,
-            checkForAutoFlatteningSupport(mappingLookup, mappingLookup.getMapping().getRoot(), List.of())
+            checkForAutoFlatteningSupport(mappingLookup, mappingLookup.getMapping().getRoot())
         );
     }
 

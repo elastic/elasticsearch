@@ -390,11 +390,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final BootstrapChecks.MaxFileSizeCheck check = new BootstrapChecks.MaxFileSizeCheck() {
             @Override
             protected ProcessLimits getProcessLimits() {
-                return new ProcessLimits(
-                    ProcessLimits.UNKNOWN,
-                    ProcessLimits.UNKNOWN,
-                    maxFileSize.get()
-                );
+                return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, maxFileSize.get());
             }
         };
 

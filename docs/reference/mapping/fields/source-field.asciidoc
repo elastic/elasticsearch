@@ -192,7 +192,7 @@ When the parameter is `true`, the results will show the vector fields in the res
 
 When the parameter is `false`, the results won't show the vector fields in the results:
 
-[source,console]
+[source,console-result]
 --------------------------------------------------
 (...)
 "_source": {

@@ -122,3 +122,96 @@ GET logs/_search
 
 <1> These fields will be removed from the stored `_source` field.
 <2> We can still search on this field, even though it is not in the stored `_source`.
+
+
+[[ifilter-vectors]]
+==== Filtering vectors from `_source`
+
+The `include_vectors` parameter enables you to include or exclude embeddings for `sparse_vector`, `dense_vector`, and `semantic_text` fields from `_source` when it's displayed in API results.
+
+The default behavior varies by field typse:
+
+* `sparse_vector` and `dense_vector` fields are included by default if `include_vectors` is not set to `false`
+* `semantic_text` fields are excluded by default if `include_vectors` is not set to `true`
+  * `update_by_query` and `reindex` operations on `semantic_text` fields are included by default if `include_vectors` is not set to `false`
+
+
+The `include_vectors` parameter can be used as follows:
+
+[source,console]
+--------------------------------------------------
+GET index-000001/_search
+{
+  "_source": { "include_vectors": true },
+  "query": {
+    "match": {
+      "content": "Test Data"
+    }
+  }
+}
+--------------------------------------------------
+
+When the parameter is `true`, the results will show the vector fields in the results:
+
+[source,console-result]
+--------------------------------------------------
+"_source": {
+  "data_value": 15,
+  "semantic_text_field": {
+    "text": "Test Data",
+    "inference": {
+      "inference_id": "my-elser-model",
+      "model_settings": {
+        "task_type": "sparse_embedding"
+        },
+        "chunks": [
+          {
+            "text": "Test Data",
+            "embeddings": {
+              "test": 2.7982168,
+              "data": 2.5768325,
+              "testing": 1.6320102,
+              "(...)",
+            }
+          }
+        ]
+    }
+  },
+  "sparse_vector": {
+    "Test": 1,
+    "Data": 2
+  },
+  "content": "Test Data",
+  "dense_vector": [
+    0.5,
+    10
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+When the parameter is `false`, the results won't show the vector fields in the results:
+
+[source,console]
+--------------------------------------------------
+(...)
+"_source": {
+  "data_value": 15,
+  "semantic_text_field": {
+    "text": "Test Data",
+    "inference": {
+      "inference_id": "my-elser-model",
+      "model_settings": {
+        "task_type": "sparse_embedding"
+        },
+        "chunks": [
+          {
+            "text": "Test Data"
+          }
+        ]
+      }
+    },
+  "content": "Test Data"
+}
+--------------------------------------------------
+// NOTCONSOLE

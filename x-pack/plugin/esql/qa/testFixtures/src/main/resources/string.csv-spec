@@ -1217,12 +1217,12 @@ Some Text       | txeT emoS
 reverseEmoji
 required_capability: fn_reverse
 // tag::reverseEmoji[]
-ROW bending_arts = "💧🔥🪨💨" | EVAL bending_arts_reversed = REVERSE(bending_arts);
+ROW bending_arts = "💧🪨🔥💨" | EVAL bending_arts_reversed = REVERSE(bending_arts);
 // end::reverseEmoji[]
 
 // tag::reverseEmoji-result[]
 bending_arts:keyword | bending_arts_reversed:keyword
-💧🔥🪨💨             | 💨🪨🔥💧
+💧🪨🔥💨             | 💨🔥🪨💧
 // end::reverseEmoji-result[]
 ;
 

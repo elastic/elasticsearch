@@ -44,7 +44,7 @@ NOTE: All connectors are available as self-managed <<es-build-connector,self-man
 |<<es-connectors-salesforce,Salesforce>>|*GA*|8.12+|8.12+|8.11+|8.13+|8.13+|https://github.com/elastic/connectors/tree/main/connectors/sources/salesforce.py[View code]
 |<<es-connectors-servicenow,ServiceNow>>|*GA*|8.10+|8.10+|8.11+|8.13+|8.13+|https://github.com/elastic/connectors/tree/main/connectors/sources/servicenow.py[View code]
 |<<es-connectors-sharepoint-online,Sharepoint Online>>|*GA*|8.9+|8.9+|8.9+|8.9+|8.9+|https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_online.py[View code]
-|<<es-connectors-sharepoint,Sharepoint Server>>|*Beta*|8.15+|8.13+|8.11+|8.13+|8.14+|https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py[View code]
+|<<es-connectors-sharepoint,Sharepoint Server>>|*Beta*|8.15+|-|8.11+|8.13+|8.14+|https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py[View code]
 |<<es-connectors-slack,Slack>>|*Preview*|8.14+|-|-|-|-|https://github.com/elastic/connectors/tree/main/connectors/sources/slack.py[View code]
 |<<es-connectors-teams,Teams>>|*Preview*|8.14+|-|-|8.13+|-|https://github.com/elastic/connectors/tree/main/connectors/sources/teams.py[View code]
 |<<es-connectors-zoom,Zoom>>|*Preview*|8.14+|-|8.11+|8.13+|-|https://github.com/elastic/connectors/tree/main/connectors/sources/zoom.py[View code]

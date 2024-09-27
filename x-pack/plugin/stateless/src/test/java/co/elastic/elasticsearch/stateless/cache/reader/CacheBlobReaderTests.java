@@ -36,7 +36,6 @@ import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -195,19 +194,19 @@ public class CacheBlobReaderTests extends ESTestCase {
                 }
 
                 // Upload vBCC to blob store
-                SetOnce<BatchedCompoundCommit> bcc = new SetOnce<>();
                 var indexBlobContainer = indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(getPrimaryTerm());
-                indexBlobContainer.writeMetadataBlob(
-                    OperationPurpose.INDICES,
-                    virtualBatchedCompoundCommit.getBlobName(),
-                    false,
-                    true,
-                    out -> {
-                        bcc.set(virtualBatchedCompoundCommit.writeToStore(out));
-                    }
-                );
+                try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
+                    indexBlobContainer.writeBlobAtomic(
+                        OperationPurpose.INDICES,
+                        virtualBatchedCompoundCommit.getBlobName(),
+                        vbccInputStream,
+                        virtualBatchedCompoundCommit.getTotalSizeInBytes(),
+                        false
+                    );
+                }
+                BatchedCompoundCommit bcc = virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit();
                 virtualBatchedCompoundCommit.decRef();
-                return Objects.requireNonNull(bcc.get());
+                return Objects.requireNonNull(bcc);
             }));
             return future.actionGet(30, TimeUnit.SECONDS);
         }

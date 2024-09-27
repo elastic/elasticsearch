@@ -19,7 +19,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.IndicesExpressionResolver;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -97,7 +97,7 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
-    private final IndicesExpressionResolver indicesExpressionResolver;
+    private final IndicesExpressionGrouper indicesExpressionGrouper;
 
     public EsqlSession(
         String sessionId,
@@ -110,7 +110,7 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanningMetrics planningMetrics,
-        IndicesExpressionResolver indicesExpressionResolver
+        IndicesExpressionGrouper indicesExpressionGrouper
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -123,7 +123,7 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
-        this.indicesExpressionResolver = indicesExpressionResolver;
+        this.indicesExpressionGrouper = indicesExpressionGrouper;
     }
 
     public String sessionId() {
@@ -320,7 +320,7 @@ public class EsqlSession {
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
 
-            Map<String, OriginalIndices> clusterIndices = indicesExpressionResolver.groupIndices(IndicesOptions.DEFAULT, table.index());
+            Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, table.index());
             for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
                 final String clusterAlias = entry.getKey();
                 String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());

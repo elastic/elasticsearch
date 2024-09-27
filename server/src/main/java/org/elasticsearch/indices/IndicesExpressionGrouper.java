@@ -16,23 +16,24 @@ import org.elasticsearch.common.Strings;
 import java.util.Map;
 
 /**
- * Interface for resolving index expressions, along with IndicesOptions.
+ * Interface for grouping index expressions, along with IndicesOptions by cluster alias.
  * Implementations should support the following:
  * - plain index names
  * - cluster:index notation
  * - date math expression, including date math prefixed by a clusterAlias
- * - multiple index expressions (e.g.,  logs1,logs2,cluster-a:logs1
+ * - wildcards
+ * - multiple index expressions (e.g., logs1,logs2,cluster-a:logs*)
  *
- * How wildcards are handled could be implementation dependent.
+ * Note: these methods do not resolve index expressions to concrete indices.
  */
-public interface IndicesExpressionResolver {
+public interface IndicesExpressionGrouper {
 
     /**
      * @param indicesOptions IndicesOptions to clarify how the index expression should be parsed/applied
      * @param indexExpressionCsv Multiple index expressions as CSV string (with no spaces), e.g., "logs1,logs2,cluster-a:logs1".
-     *                           A single index expression is also supported
+     *                           A single index expression is also supported.
      * @return Map where the key is the cluster alias (for "local" cluster, it is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
-     *         and the value is the resolved indices for that cluster from the index expression as an OriginalIndices object.
+     *         and the value for that cluster from the index expression is an OriginalIndices object.
      */
     default Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String indexExpressionCsv) {
         return groupIndices(indicesOptions, Strings.splitStringByCommaToArray(indexExpressionCsv));
@@ -41,10 +42,10 @@ public interface IndicesExpressionResolver {
     /**
      * Same behavior as the other groupIndices, except the incoming multiple index expressions must already be
      * parsed into a String array.
-     * @param indicesOptions IndicesOptions to clarify how the index expression should be parsed/applied
+     * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
      * @param indexExpressions Multiple index expressions as string[].
      * @return Map where the key is the cluster alias (for "local" cluster, it is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
-     *         and the value is the resolved indices for that cluster from the index expression as an OriginalIndices object.
+     *         and the value for that cluster from the index expression is an OriginalIndices object.
      */
     Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions);
 }

@@ -32,7 +32,7 @@ import static org.elasticsearch.features.FeatureService.CLUSTER_FEATURES_ADDED_V
 public class FeatureData {
 
     private static final Logger Log = LogManager.getLogger(FeatureData.class);
-    private static final boolean INCLUDE_TEST_FEATURES = System.getProperty("test.features.enabled", "").equals("true");
+    private static final boolean INCLUDE_TEST_FEATURES = System.getProperty("tests.testfeatures.enabled", "").equals("true");
 
     static {
         if (INCLUDE_TEST_FEATURES) {

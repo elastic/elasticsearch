@@ -333,6 +333,23 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         );
         assertDataStreamBackingIndexMode("logsdb", 0, DATA_STREAM_NAME);
 
+        putTemplate(client, "custom-template", LOGS_STANDARD_INDEX_MODE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(64),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("standard", 1, DATA_STREAM_NAME);
+
         putTemplate(client, "custom-template", TIME_SERIES_TEMPLATE);
         rolloverDataStream(client, DATA_STREAM_NAME);
         indexDocument(
@@ -348,7 +365,24 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("time_series", 1, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode("time_series", 2, DATA_STREAM_NAME);
+
+        putTemplate(client, "custom-template", LOGS_STANDARD_INDEX_MODE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(64),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("standard", 3, DATA_STREAM_NAME);
 
         putTemplate(client, "custom-template", LOGS_TEMPLATE);
         rolloverDataStream(client, DATA_STREAM_NAME);
@@ -365,7 +399,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("logsdb", 2, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode("logsdb", 4, DATA_STREAM_NAME);
     }
 
     public void testLogsDBToStandardReindex() throws IOException {

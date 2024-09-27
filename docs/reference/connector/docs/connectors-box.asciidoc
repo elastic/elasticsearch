@@ -16,9 +16,9 @@ View the {connectors-python}/connectors/sources/box.py[source code for this conn
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-box-native-connector-reference]
-==== *Managed connector reference*
+==== *Elastic managed connector reference*
 
-.View reference for the *Managed connector reference*.
+.View *Elastic managed connector* reference
 [%collapsible]
 ===============
 
@@ -188,9 +188,9 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-box-connector-client-reference]
-==== *Self-managed connector reference**
+==== *Self-managed connector reference*
 
-.View reference for the *Self-managed connector reference**.
+.View *self-managed connector* reference
 [%collapsible]
 ===============
 

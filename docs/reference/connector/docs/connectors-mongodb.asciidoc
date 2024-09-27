@@ -22,9 +22,9 @@ Are you using a managed connector on Elastic Cloud or a self-managed connector? 
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-mongodb-native-connector-reference]
-==== *Managed connector (Elastic Cloud)*
+==== *Elastic managed connector reference*
 
-.View *managed connector* reference
+.View *Elastic managed connector* reference
 
 [%collapsible]
 ===============

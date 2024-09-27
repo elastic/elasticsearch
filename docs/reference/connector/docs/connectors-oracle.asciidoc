@@ -14,9 +14,9 @@
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-oracle-native-connector-reference]
-==== *Managed connector reference*
+==== *Elastic managed connector reference*
 
-.View reference for the *Managed connector reference*.
+.View *Elastic managed connector* reference
 [%collapsible]
 ===============
 
@@ -177,9 +177,9 @@ View {connectors-python}/connectors/sources/oracle.py[additional code specific t
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-oracle-connector-client-reference]
-==== *Self-managed connector reference**
+==== *Self-managed connector reference*
 
-.View reference for the *Self-managed connector reference**.
+.View *self-managed connector* reference
 [%collapsible]
 ===============
 

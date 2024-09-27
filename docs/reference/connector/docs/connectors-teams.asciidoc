@@ -16,9 +16,9 @@ View the {connectors-python}/connectors/sources/microsoft_teams.py[source code f
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-teams-native-connector-reference]
-==== *Managed connector reference*
+==== *Elastic managed connector reference*
 
-.View reference for the *Managed connector reference*.
+.View *Elastic managed connector* reference
 [%collapsible]
 ===============
 
@@ -179,9 +179,9 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-teams-connector-client-reference]
-==== *Self-managed connector reference**
+==== *Self-managed connector reference*
 
-.View reference for the *Self-managed connector reference**.
+.View *self-managed connector* reference
 [%collapsible]
 ===============
 

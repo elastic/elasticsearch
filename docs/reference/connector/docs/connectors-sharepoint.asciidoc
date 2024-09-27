@@ -23,9 +23,9 @@ Looking for the SharePoint *Online* connector? See the <<es-connectors-sharepoin
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-sharepoint-native-connector-reference]
-==== *Managed connector reference*
+==== *Elastic managed connector reference*
 
-.View reference for the *Managed connector reference*.
+.View *Elastic managed connector* reference
 [%collapsible]
 ===============
 
@@ -200,9 +200,9 @@ View the {connectors-python}/connectors/sources/sharepoint_server.py[source code
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-sharepoint-connector-client-reference]
-==== *Self-managed connector reference**
+==== *Self-managed connector reference*
 
-.View reference for the *Self-managed connector reference**.
+.View *self-managed connector* reference
 [%collapsible]
 ===============
 

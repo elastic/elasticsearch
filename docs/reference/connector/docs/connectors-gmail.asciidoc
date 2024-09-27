@@ -15,9 +15,9 @@ The _Elastic GMail connector_ is a <<es-connectors,connector>> for GMail.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-gmail-native-connector-reference]
-==== *Managed connector reference*
+==== *Elastic managed connector reference*
 
-.View reference for the *Managed connector reference*.
+.View *Elastic managed connector* reference
 [%collapsible]
 ===============
 
@@ -189,9 +189,9 @@ View the {connectors-python}/connectors/sources/gmail.py[source code for this co
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-gmail-connector-client-reference]
-==== *Self-managed connector reference**
+==== *Self-managed connector reference*
 
-.View reference for the *Self-managed connector reference**.
+.View *self-managed connector* reference
 [%collapsible]
 ===============
 

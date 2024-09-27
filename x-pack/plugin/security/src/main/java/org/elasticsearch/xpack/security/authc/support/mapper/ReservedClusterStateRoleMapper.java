@@ -55,7 +55,7 @@ public final class ReservedClusterStateRoleMapper extends AbstractRoleMapperClea
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         // this role mapper is disabled by default and only code in other plugins can enable it
-        // TODO find a better way to configure this
+        // TODO its likely not viable to default to true; we need a different way to configure this
         this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, true);
         if (this.enabled) {
             clusterService.addListener(this);

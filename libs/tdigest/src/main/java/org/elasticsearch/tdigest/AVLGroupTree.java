@@ -51,55 +51,79 @@ final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasa
     private final IntAVLTree tree;
 
     static AVLGroupTree create(TDigestArrays arrays) {
-        arrays.adjustBreaker(AVLGroupTree.SHALLOW_SIZE);
-        return new AVLGroupTree(arrays);
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new AVLGroupTree(arrays);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     private AVLGroupTree(TDigestArrays arrays) {
         this.arrays = arrays;
+
+        IntAVLTree tree = null;
+        TDigestDoubleArray centroids = null;
+        TDigestLongArray counts = null;
+        TDigestLongArray aggregatedCounts = null;
+
         arrays.adjustBreaker(IntAVLTree.SHALLOW_SIZE);
-        tree = new IntAVLTree(arrays) {
-
-            @Override
-            protected void resize(int newCapacity) {
-                super.resize(newCapacity);
-                centroids.resize(newCapacity);
-                counts.resize(newCapacity);
-                aggregatedCounts.resize(newCapacity);
+        try {
+            this.tree = tree = new InternalIntAvlTree(arrays);
+            this.centroids = centroids = arrays.newDoubleArray(tree.capacity());
+            this.counts = counts = arrays.newLongArray(tree.capacity());
+            this.aggregatedCounts = aggregatedCounts = arrays.newLongArray(tree.capacity());
+        } catch (Exception e) {
+            if (tree == null) {
+                arrays.adjustBreaker(-IntAVLTree.SHALLOW_SIZE);
             }
+            Releasables.close(tree, centroids, counts, aggregatedCounts);
+            throw e;
+        }
+    }
 
-            @Override
-            protected void merge(int node) {
-                // two nodes are never considered equal
-                throw new UnsupportedOperationException();
+    private class InternalIntAvlTree extends IntAVLTree {
+        private InternalIntAvlTree(TDigestArrays arrays) {
+            super(arrays);
+        }
+
+        @Override
+        protected void resize(int newCapacity) {
+            super.resize(newCapacity);
+            centroids.resize(newCapacity);
+            counts.resize(newCapacity);
+            aggregatedCounts.resize(newCapacity);
+        }
+
+        @Override
+        protected void merge(int node) {
+            // two nodes are never considered equal
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void copy(int node) {
+            centroids.set(node, centroid);
+            counts.set(node, count);
+        }
+
+        @Override
+        protected int compare(int node) {
+            if (centroid < centroids.get(node)) {
+                return -1;
+            } else {
+                // upon equality, the newly added node is considered greater
+                return 1;
             }
+        }
 
-            @Override
-            protected void copy(int node) {
-                centroids.set(node, centroid);
-                counts.set(node, count);
-            }
+        @Override
+        protected void fixAggregates(int node) {
+            super.fixAggregates(node);
+            aggregatedCounts.set(node, counts.get(node) + aggregatedCounts.get(left(node)) + aggregatedCounts.get(right(node)));
+        }
 
-            @Override
-            protected int compare(int node) {
-                if (centroid < centroids.get(node)) {
-                    return -1;
-                } else {
-                    // upon equality, the newly added node is considered greater
-                    return 1;
-                }
-            }
-
-            @Override
-            protected void fixAggregates(int node) {
-                super.fixAggregates(node);
-                aggregatedCounts.set(node, counts.get(node) + aggregatedCounts.get(left(node)) + aggregatedCounts.get(right(node)));
-            }
-
-        };
-        centroids = arrays.newDoubleArray(tree.capacity());
-        counts = arrays.newLongArray(tree.capacity());
-        aggregatedCounts = arrays.newLongArray(tree.capacity());
     }
 
     @Override

@@ -52,6 +52,7 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
     private final TDigestArrays arrays;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+
     private final NodeAllocator nodeAllocator;
     private int root;
     private final TDigestIntArray parent;
@@ -61,13 +62,24 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
     IntAVLTree(TDigestArrays arrays, int initialCapacity) {
         this.arrays = arrays;
-        arrays.adjustBreaker(NodeAllocator.SHALLOW_SIZE);
-        nodeAllocator = new NodeAllocator(arrays);
         root = NIL;
-        parent = arrays.newIntArray(initialCapacity);
-        left = arrays.newIntArray(initialCapacity);
-        right = arrays.newIntArray(initialCapacity);
-        depth = arrays.newByteArray(initialCapacity);
+
+        NodeAllocator nodeAllocator = null;
+        TDigestIntArray parent = null;
+        TDigestIntArray left = null;
+        TDigestIntArray right = null;
+        TDigestByteArray depth = null;
+
+        try {
+            this.nodeAllocator = nodeAllocator = NodeAllocator.create(arrays);
+            this.parent = parent = arrays.newIntArray(initialCapacity);
+            this.left = left = arrays.newIntArray(initialCapacity);
+            this.right = right = arrays.newIntArray(initialCapacity);
+            this.depth = depth = arrays.newByteArray(initialCapacity);
+        } catch (Exception e) {
+            Releasables.close(nodeAllocator, parent, left, right, depth);
+            throw e;
+        }
     }
 
     IntAVLTree(TDigestArrays arrays) {
@@ -597,11 +609,26 @@ abstract class IntAVLTree implements Releasable, Accountable {
         private int nextNode;
         private final IntStack releasedNodes;
 
-        NodeAllocator(TDigestArrays arrays) {
+        static NodeAllocator create(TDigestArrays arrays) {
+            arrays.adjustBreaker(SHALLOW_SIZE);
+            try {
+                return new NodeAllocator(arrays);
+            } catch (Exception e) {
+                arrays.adjustBreaker(-SHALLOW_SIZE);
+                throw e;
+            }
+        }
+
+        private NodeAllocator(TDigestArrays arrays) {
             this.arrays = arrays;
             nextNode = NIL + 1;
             arrays.adjustBreaker(IntStack.SHALLOW_SIZE);
-            releasedNodes = new IntStack(arrays);
+            try {
+                releasedNodes = new IntStack(arrays);
+            } catch (Exception e) {
+                arrays.adjustBreaker(-IntStack.SHALLOW_SIZE);
+                throw e;
+            }
         }
 
         @Override

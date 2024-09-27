@@ -55,7 +55,12 @@ public class HybridDigest extends AbstractTDigest {
 
     static HybridDigest create(TDigestArrays arrays, double compression) {
         arrays.adjustBreaker(SHALLOW_SIZE);
-        return new HybridDigest(arrays, compression);
+        try {
+            return new HybridDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     /**

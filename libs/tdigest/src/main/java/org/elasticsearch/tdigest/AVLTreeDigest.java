@@ -50,7 +50,12 @@ public class AVLTreeDigest extends AbstractTDigest {
 
     static AVLTreeDigest create(TDigestArrays arrays, double compression) {
         arrays.adjustBreaker(SHALLOW_SIZE);
-        return new AVLTreeDigest(arrays, compression);
+        try {
+            return new AVLTreeDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     /**

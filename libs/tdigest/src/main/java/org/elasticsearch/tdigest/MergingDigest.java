@@ -116,12 +116,22 @@ public class MergingDigest extends AbstractTDigest {
 
     static MergingDigest create(TDigestArrays arrays, double compression) {
         arrays.adjustBreaker(SHALLOW_SIZE);
-        return new MergingDigest(arrays, compression);
+        try {
+            return new MergingDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     static MergingDigest create(TDigestArrays arrays, double compression, int bufferSize, int size) {
         arrays.adjustBreaker(SHALLOW_SIZE);
-        return new MergingDigest(arrays, compression, bufferSize, size);
+        try {
+            return new MergingDigest(arrays, compression, bufferSize, size);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     /**
@@ -229,12 +239,23 @@ public class MergingDigest extends AbstractTDigest {
             bufferSize = 2 * size;
         }
 
-        weight = arrays.newDoubleArray(size);
-        mean = arrays.newDoubleArray(size);
+        TDigestDoubleArray weight = null;
+        TDigestDoubleArray mean = null;
+        TDigestDoubleArray tempWeight = null;
+        TDigestDoubleArray tempMean = null;
+        TDigestIntArray order = null;
 
-        tempWeight = arrays.newDoubleArray(bufferSize);
-        tempMean = arrays.newDoubleArray(bufferSize);
-        order = arrays.newIntArray(bufferSize);
+        try {
+            this.weight = weight = arrays.newDoubleArray(size);
+            this.mean = mean = arrays.newDoubleArray(size);
+
+            this.tempWeight = tempWeight = arrays.newDoubleArray(bufferSize);
+            this.tempMean = tempMean = arrays.newDoubleArray(bufferSize);
+            this.order = order = arrays.newIntArray(bufferSize);
+        } catch (Exception e) {
+            Releasables.close(weight, mean, tempWeight, tempMean, order);
+            throw e;
+        }
 
         lastUsedCell = 0;
     }

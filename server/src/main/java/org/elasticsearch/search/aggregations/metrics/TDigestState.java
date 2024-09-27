@@ -77,7 +77,22 @@ public class TDigestState implements Releasable, Accountable {
      */
     public static TDigestState create(CircuitBreaker breaker, double compression) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create");
-        return new TDigestState(breaker, Type.defaultValue(), compression);
+        try {
+            return new TDigestState(breaker, Type.defaultValue(), compression);
+        } catch (Exception e) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
+    static TDigestState create(CircuitBreaker breaker, Type type, double compression) {
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-with-type");
+        try {
+            return new TDigestState(breaker, type, compression);
+        } catch (Exception e) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     /**

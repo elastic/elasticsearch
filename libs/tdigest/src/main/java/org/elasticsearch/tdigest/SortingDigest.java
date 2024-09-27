@@ -48,7 +48,12 @@ public class SortingDigest extends AbstractTDigest {
 
     static SortingDigest create(TDigestArrays arrays) {
         arrays.adjustBreaker(SHALLOW_SIZE);
-        return new SortingDigest(arrays);
+        try {
+            return new SortingDigest(arrays);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     private SortingDigest(TDigestArrays arrays) {

@@ -43,7 +43,11 @@ public class Reverse extends UnaryScalarFunction {
         description = "Returns a new string representing the input string in reverse order.",
         examples = {
             @Example(file = "string", tag = "reverse"),
-            @Example(file = "string", tag = "reverseEmoji", description = "`REVERSE` works with unicode, too! It keeps unicode grapheme clusters together during reversal.") }
+            @Example(
+                file = "string",
+                tag = "reverseEmoji",
+                description = "`REVERSE` works with unicode, too! It keeps unicode grapheme clusters together during reversal."
+            ) }
     )
     public Reverse(
         Source source,

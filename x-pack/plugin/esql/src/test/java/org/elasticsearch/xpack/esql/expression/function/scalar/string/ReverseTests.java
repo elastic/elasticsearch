@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,14 +33,13 @@ public class ReverseTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        for (DataType stringType : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+            for (var supplier : TestCaseSupplier.stringCases(stringType)) {
+                suppliers.add(makeSupplier(supplier));
+            }
+        }
 
-        suppliers.add(supplier("keyword ascii", DataType.KEYWORD, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10)));
-        suppliers.add(supplier("text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
-
-        // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override
@@ -47,16 +47,19 @@ public class ReverseTests extends AbstractScalarFunctionTestCase {
         return new Reverse(source, args.get(0));
     }
 
-    private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {
-        return new TestCaseSupplier(name, List.of(type), () -> {
-            List<TestCaseSupplier.TypedData> values = new ArrayList<>();
+    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+        return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
+            var fieldTypedData = fieldSupplier.get();
             String expectedToString = "ReverseEvaluator[val=Attribute[channel=0]]";
+            String value = BytesRefs.toString(fieldTypedData.data());
+            String expectedValue = Reverse.reverseStringWithUnicodeCharacters(value);
 
-            String value = valueSupplier.get();
-            values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));
-
-            String expectedValue = new StringBuilder(value).reverse().toString();
-            return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(new BytesRef(expectedValue)));
+            return new TestCaseSupplier.TestCase(
+                List.of(fieldTypedData),
+                expectedToString,
+                fieldSupplier.type(),
+                equalTo(new BytesRef(expectedValue))
+            );
         });
     }
 }

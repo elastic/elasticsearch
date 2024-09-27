@@ -141,22 +141,22 @@ final class RemoteRequestBuilders {
                 }
             }
 
-            if (searchRequest.source().fetchSource() != null) {
-                FetchSourceContext fetchSource = searchRequest.source().fetchSource();
-                if (remoteVersion.before(Version.V_8_16_0)) {
-                    // Versions before 8.16 do not support the include_vectors param. They include all vector fields by default.
-                    // Set the include_vectors param to the default value so that it is not included in XContent.
-                    fetchSource = FetchSourceContext.of(
-                        fetchSource.fetchSource(),
-                        fetchSource.includes(),
-                        fetchSource.excludes(),
-                        FetchSourceContext.DEFAULT_INCLUDE_VECTORS
-                    );
-                }
-                entity.field("_source", fetchSource);
-            } else {
-                if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
-                    // Versions before 1.0 don't support `"_source": true` so we have to ask for the source as a stored field.
+            if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
+                // Versions before 1.0 don't support `_source` so we have to ask for the source as a stored field.
+                if (searchRequest.source().fetchSource() != null) {
+                    FetchSourceContext fetchSource = searchRequest.source().fetchSource();
+                    if (remoteVersion.before(Version.V_8_16_0)) {
+                        // Versions before 8.16 do not support the include_vectors param. They include all vector fields by default.
+                        // Set the include_vectors param to the default value so that it is not included in XContent.
+                        fetchSource = FetchSourceContext.of(
+                            fetchSource.fetchSource(),
+                            fetchSource.includes(),
+                            fetchSource.excludes(),
+                            FetchSourceContext.DEFAULT_INCLUDE_VECTORS
+                        );
+                    }
+                    entity.field("_source", fetchSource);
+                } else {
                     entity.field("_source", true);
                 }
             }

@@ -548,7 +548,15 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
                 vbcc.freeze();
 
-                blobContainer.writeMetadataBlob(OperationPurpose.INDICES, vbcc.getBlobName(), false, true, vbcc::writeToStore);
+                try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                    blobContainer.writeBlobAtomic(
+                        OperationPurpose.INDICES,
+                        vbcc.getBlobName(),
+                        vbccInputStream,
+                        vbcc.getTotalSizeInBytes(),
+                        false
+                    );
+                }
 
                 var scc = vbcc.lastCompoundCommit();
 

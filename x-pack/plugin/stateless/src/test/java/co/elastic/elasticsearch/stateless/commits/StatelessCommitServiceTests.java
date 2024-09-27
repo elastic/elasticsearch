@@ -2545,10 +2545,21 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         boolean atomic,
                         CheckedConsumer<OutputStream, IOException> writer
                     ) throws IOException {
+                        throw new AssertionError("writeMetadataBlob should not be called");
+                    }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        InputStream inputStream,
+                        long blobSize,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
                         assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
                         compoundCommitFileConsumer.accept(
                             blobName,
-                            () -> super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer)
+                            () -> super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists)
                         );
                     }
 
@@ -2559,7 +2570,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         BytesReference bytes,
                         boolean failIfAlreadyExists
                     ) {
-                        throw new AssertionError("should not be called");
+                        throw new AssertionError("writeBlobAtomic with BytesReference should not be called");
                     }
                 }
 

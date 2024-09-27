@@ -23,6 +23,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 public class SlicedInputStreamTests extends ESTestCase {
 
@@ -135,13 +136,17 @@ public class SlicedInputStreamTests extends ESTestCase {
             }
         };
 
-        // Read up to a random point
+        // Read or skip up to a random point
         final int mark = randomIntBetween(0, bytes.length);
         if (mark > 0) {
-            final var bytesReadUntilMark = new byte[mark];
-            input.readNBytes(bytesReadUntilMark, 0, mark);
-            final var expectedBytesUntilMark = new ByteArrayInputStream(bytes, 0, mark).readAllBytes();
-            assertArrayEquals(expectedBytesUntilMark, bytesReadUntilMark);
+            if (randomBoolean()) {
+                final var bytesReadUntilMark = new byte[mark];
+                input.readNBytes(bytesReadUntilMark, 0, mark);
+                final var expectedBytesUntilMark = new ByteArrayInputStream(bytes, 0, mark).readAllBytes();
+                assertArrayEquals(expectedBytesUntilMark, bytesReadUntilMark);
+            } else {
+                input.skip(mark);
+            }
         }
 
         // Reset should throw since there is no mark
@@ -150,13 +155,17 @@ public class SlicedInputStreamTests extends ESTestCase {
         // Mark
         input.mark(randomNonNegativeInt());
 
-        // Read up to another random point
+        // Read or skip up to another random point
         final int moreBytes = randomIntBetween(0, bytes.length - mark);
         if (moreBytes > 0) {
-            final var moreBytesRead = new byte[moreBytes];
-            input.readNBytes(moreBytesRead, 0, moreBytes);
-            final var expectedMoreBytes = new ByteArrayInputStream(bytes, mark, moreBytes).readAllBytes();
-            assertArrayEquals(expectedMoreBytes, moreBytesRead);
+            if (randomBoolean()) {
+                final var moreBytesRead = new byte[moreBytes];
+                input.readNBytes(moreBytesRead, 0, moreBytes);
+                final var expectedMoreBytes = new ByteArrayInputStream(bytes, mark, moreBytes).readAllBytes();
+                assertArrayEquals(expectedMoreBytes, moreBytesRead);
+            } else {
+                input.skip(moreBytes);
+            }
         }
 
         // Randomly read to EOF

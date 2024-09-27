@@ -343,7 +343,7 @@ public interface RestHandler {
             return replacedRoute;
         }
 
-        public boolean isReplacement() {
+        public boolean hasReplacement() {
             return replacedRoute != null;
         }
     }

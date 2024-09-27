@@ -163,20 +163,22 @@ public class RestController implements HttpServerTransport.Dispatcher {
         Level deprecationLevel
     ) {
         assert (handler instanceof DeprecationRestHandler) == false;
-        registerHandler(
-            method,
-            path,
-            version,
-            new DeprecationRestHandler(
-                handler,
+        if (RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()).test(version)) {
+            registerHandler(
                 method,
                 path,
-                deprecationLevel,
-                deprecationMessage,
-                deprecationLogger,
-                version != RestApiVersion.current()
-            )
-        );
+                version,
+                new DeprecationRestHandler(
+                    handler,
+                    method,
+                    path,
+                    deprecationLevel,
+                    deprecationMessage,
+                    deprecationLogger,
+                    version != RestApiVersion.current()
+                )
+            );
+        }
     }
 
     /**
@@ -237,7 +239,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler) {
         assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
-            : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
+            : "REST API compatibility is only supported for version "
+                + RestApiVersion.minimumSupported().major
+                + " [method="
+                + method
+                + ", path="
+                + path
+                + ", handler="
+                + handler.getClass().getCanonicalName()
+                + "]";
 
         if (RESERVED_PATHS.contains(path)) {
             throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
@@ -252,7 +262,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     public void registerHandler(final Route route, final RestHandler handler) {
-        if (route.isReplacement()) {
+        if (route.hasReplacement()) {
             Route replaced = route.getReplacedRoute();
             registerAsReplacedHandler(
                 route.getMethod(),

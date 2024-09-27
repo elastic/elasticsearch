@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -280,7 +281,7 @@ public class EsqlSession {
         Set<String> clustersWithResolvedIndices = new HashSet<>();
         // determine missing clusters
         for (String indexName : indexResolution.get().indexNameWithModes().keySet()) {
-            clustersWithResolvedIndices.add(IndexResolver.parseClusterAlias(indexName));
+            clustersWithResolvedIndices.add(RemoteClusterAware.parseClusterAlias(indexName));
         }
         Set<String> clustersRequested = executionInfo.clusterAliases();
         Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);

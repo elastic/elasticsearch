@@ -169,41 +169,12 @@ public class IndexResolver {
             if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
                 for (String indexExpression : failure.getIndices()) {
                     if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
-                        unavailableRemotes.add(parseClusterAlias(indexExpression));
+                        unavailableRemotes.add(RemoteClusterAware.parseClusterAlias(indexExpression));
                     }
                 }
             }
         }
         return unavailableRemotes;
-    }
-
-    /**
-     * @param indexExpression expects a single index expression at a time
-     * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
-     */
-    public static String parseClusterAlias(String indexExpression) {
-        assert indexExpression != null : "Must not pass null indexExpression";
-        String trimmed = indexExpression.trim();
-        if (trimmed.startsWith("<") || trimmed.startsWith("-<")) {
-            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        }
-
-        String sep = String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-        if (trimmed.startsWith(sep) || trimmed.endsWith(sep)) {
-            throw new IllegalArgumentException(
-                "Unable to parse one single valid index name from the provided index expression: [" + indexExpression + "]"
-            );
-        }
-        String[] parts = indexExpression.split(sep, 2);
-        if (parts.length == 1) {
-            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        } else if (parts.length == 2) {
-            return parts[0];
-        } else {
-            throw new IllegalArgumentException(
-                "Unable to parse one single valid index name from the provided index expression: [" + indexExpression + "]"
-            );
-        }
     }
 
     private boolean allNested(List<IndexFieldCapabilities> caps) {

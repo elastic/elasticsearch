@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -33,7 +33,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class Reverse extends EsqlScalarFunction {
+public class Reverse extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Reverse", Reverse::new);
 
     private final Expression field;
@@ -43,8 +43,7 @@ public class Reverse extends EsqlScalarFunction {
         description = "Returns a new string representing the input string in reverse order.",
         examples = {
             @Example(file = "string", tag = "reverse"),
-            @Example(file = "string", tag = "reverseEmoji", description = "`REVERSE` works with unicode, too!") },
-        note = "This function keeps unicode grapheme clusters together during reversal."
+            @Example(file = "string", tag = "reverseEmoji", description = "`REVERSE` works with unicode, too! It keeps unicode grapheme clusters together during reversal.") }
     )
     public Reverse(
         Source source,
@@ -54,7 +53,7 @@ public class Reverse extends EsqlScalarFunction {
             description = "String expression. If `null`, the function returns `null`."
         ) Expression field
     ) {
-        super(source, List.of(field));
+        super(source, field);
         this.field = field;
     }
 
@@ -147,10 +146,6 @@ public class Reverse extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         return new ReverseEvaluator.Factory(source(), fieldEvaluator);
-    }
-
-    public Expression field() {
-        return field;
     }
 
     @Override

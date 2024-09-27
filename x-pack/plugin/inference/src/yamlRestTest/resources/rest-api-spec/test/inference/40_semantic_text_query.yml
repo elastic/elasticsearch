@@ -149,6 +149,8 @@ setup:
       search:
         index: test-sparse-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -175,6 +177,8 @@ setup:
       search:
         index: test-sparse-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -199,6 +203,8 @@ setup:
       search:
         index: test-sparse-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -225,6 +231,8 @@ setup:
       search:
         index: test-sparse-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -250,6 +258,8 @@ setup:
       search:
         index: test-sparse-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -356,6 +366,8 @@ setup:
       search:
         index: test-sparse-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -424,6 +436,8 @@ setup:
       search:
         index: test-dense-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -450,6 +464,8 @@ setup:
       search:
         index: test-dense-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -474,6 +490,8 @@ setup:
       search:
         index: test-dense-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -500,6 +518,8 @@ setup:
       search:
         index: test-dense-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -525,6 +545,8 @@ setup:
       search:
         index: test-dense-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -694,6 +716,8 @@ setup:
       search:
         index: test-dense-index
         body:
+          _source:
+            include_vectors: true
           query:
             semantic:
               field: "inference_field"
@@ -810,6 +834,8 @@ setup:
       search:
         index: test-multi-semantic-text-field-index
         body:
+          _source:
+            include_vectors: true
           query:
             bool:
               must:

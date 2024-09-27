@@ -91,7 +91,9 @@ public class SemanticQueryInnerHitBuilder implements Writeable, ToXContentObject
 
         return new InnerHitBuilder(fieldName).setFrom(from)
             .setSize(size)
-            .setFetchSourceContext(FetchSourceContext.of(true, null, new String[] { SemanticTextField.getEmbeddingsFieldName(fieldName) }));
+            .setFetchSourceContext(
+                FetchSourceContext.of(true, null, new String[] { SemanticTextField.getEmbeddingsFieldName(fieldName) }, true)
+            );
     }
 
     @Override

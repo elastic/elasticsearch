@@ -13,9 +13,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +29,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         final ContentPath contentPath = new ContentPath();
         try (
             XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
-            XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath)
+            XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath, null)
         ) {
             expandedParser.allowDuplicateKeys(true);
 
@@ -37,7 +40,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
                 expectedParser.allowDuplicateKeys(true);
                 try (
                     var p = createParser(JsonXContent.jsonXContent, withDots);
-                    XContentParser actualParser = DotExpandingXContentParser.expandDots(p, contentPath)
+                    XContentParser actualParser = DotExpandingXContentParser.expandDots(p, contentPath, null)
                 ) {
                     XContentParser.Token currentToken;
                     while ((currentToken = actualParser.nextToken()) != null) {
@@ -127,7 +130,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testDotsCollapsingFlatPaths() throws IOException {
         ContentPath contentPath = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath);
+            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath, null);
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -197,7 +200,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
                 },
                 "foo" : "value"
               }
-            }"""), contentPath);
+            }"""), contentPath, null);
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -235,7 +238,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testSkipChildren() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : "value", "nodots" : "value2" }"""), new ContentPath());
+            { "test.with.dots" : "value", "nodots" : "value2" }"""), new ContentPath(), null);
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -258,7 +261,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testSkipChildrenWithinInnerObject() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), new ContentPath());
+            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), new ContentPath(), null);
 
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -306,7 +309,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, jsonInput);
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, jsonInput),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
 
         assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
@@ -364,7 +368,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseMapUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::map);
     }
@@ -372,7 +377,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseMapOrderedUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapOrdered);
     }
@@ -380,7 +386,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseMapStringsUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapStrings);
     }
@@ -388,7 +395,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseMapSupplierUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, () -> dotExpandedParser.map(HashMap::new, XContentParser::text));
     }
@@ -403,7 +411,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         contentPath.setWithinLeafObject(true);
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, jsonInput),
-            contentPath
+            contentPath,
+            null
         );
         assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
@@ -418,7 +427,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseListUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::list);
     }
@@ -426,7 +436,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseListOrderedUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::listOrderedMap);
     }
@@ -440,7 +451,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         contentPath.setWithinLeafObject(true);
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, jsonInput),
-            contentPath
+            contentPath,
+            null
         );
         assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
@@ -449,5 +461,105 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(2, list.size());
         assertEquals("one", list.get(0));
         assertEquals("two", list.get(1));
+    }
+
+    private static DocumentParserContext createContext(XContentBuilder builder) throws IOException {
+        var documentMapper = new MapperServiceTestCase() {
+        }.createDocumentMapper(builder);
+        return new TestDocumentParserContext(documentMapper.mappers(), null);
+    }
+
+    private static List<String> getSubPaths(XContentBuilder builder, String... path) throws IOException {
+        DocumentParserContext context = createContext(builder);
+        return DotExpandingXContentParser.maybeFlattenPaths(Arrays.stream(path).toList(), context, new ContentPath());
+    }
+
+    private static List<String> getSubPaths(XContentBuilder builder, List<String> contentPath, List<String> path) throws IOException {
+        DocumentParserContext context = createContext(builder);
+        ContentPath content = new ContentPath();
+        for (String c : contentPath) {
+            content.add(c);
+        }
+        return DotExpandingXContentParser.maybeFlattenPaths(path, context, content);
+    }
+
+    public void testAutoFlattening() throws Exception {
+        var b = XContentBuilder.builder(XContentType.JSON.xContent());
+        b.startObject().startObject("_doc");
+        {
+            b.field("subobjects", "auto");
+            b.startObject("properties");
+            {
+                b.startObject("path").startObject("properties");
+                {
+                    b.startObject("to").startObject("properties");
+                    {
+                        b.startObject("field").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+                b.startObject("path.auto").field("subobjects", "auto").startObject("properties");
+                {
+                    b.startObject("to").startObject("properties");
+                    {
+                        b.startObject("some.field").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
+                    b.startObject("inner.enabled").field("dynamic", "false").startObject("properties");
+                    {
+                        b.startObject("field").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+                b.startObject("path.disabled").field("subobjects", "false").startObject("properties");
+                {
+                    b.startObject("to").startObject("properties");
+                    {
+                        b.startObject("some.field").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject();
+        }
+        b.endObject().endObject();
+
+        // inner [subobjects:enabled] gets flattened
+        assertThat(getSubPaths(b, "field"), Matchers.contains("field"));
+        assertThat(getSubPaths(b, "path", "field"), Matchers.contains("path.field"));
+        assertThat(getSubPaths(b, "path", "to", "field"), Matchers.contains("path.to.field"));
+        assertThat(getSubPaths(b, "path", "to", "any"), Matchers.contains("path.to.any"));
+
+        // inner [subobjects:auto] does not get flattened
+        assertThat(getSubPaths(b, "path", "auto", "field"), Matchers.contains("path.auto", "field"));
+        assertThat(getSubPaths(b, "path", "auto", "some", "field"), Matchers.contains("path.auto", "some.field"));
+        assertThat(getSubPaths(b, "path", "auto", "to", "some", "field"), Matchers.contains("path.auto", "to.some.field"));
+        assertThat(getSubPaths(b, "path", "auto", "to", "some", "other"), Matchers.contains("path.auto", "to.some.other"));
+        assertThat(getSubPaths(b, "path", "auto", "inner", "enabled", "field"), Matchers.contains("path.auto", "inner.enabled", "field"));
+        assertThat(
+            getSubPaths(b, "path", "auto", "inner", "enabled", "to", "some", "field"),
+            Matchers.contains("path.auto", "inner.enabled", "to", "some", "field")
+        );
+
+        // inner [subobjects:disabled] gets flattened
+        assertThat(getSubPaths(b, "path", "disabled", "field"), Matchers.contains("path.disabled.field"));
+        assertThat(getSubPaths(b, "path", "disabled", "some", "field"), Matchers.contains("path.disabled.some.field"));
+        assertThat(getSubPaths(b, "path", "disabled", "to", "some", "field"), Matchers.contains("path.disabled.to.some.field"));
+        assertThat(getSubPaths(b, "path", "disabled", "to", "some", "other"), Matchers.contains("path.disabled.to.some.other"));
+
+        // Non-empty content path.
+        assertThat(getSubPaths(b, List.of("path"), List.of("field")), Matchers.contains("field"));
+        assertThat(getSubPaths(b, List.of("path"), List.of("to", "field")), Matchers.contains("to", "field"));
+        assertThat(getSubPaths(b, List.of("path", "to"), List.of("field")), Matchers.contains("field"));
+        assertThat(getSubPaths(b, List.of("path"), List.of("auto", "field")), Matchers.contains("auto", "field"));
+        assertThat(getSubPaths(b, List.of("path", "auto"), List.of("to", "some", "field")), Matchers.contains("to.some.field"));
+        assertThat(
+            getSubPaths(b, List.of("path", "auto"), List.of("inner", "enabled", "to", "some", "field")),
+            Matchers.contains("inner.enabled", "to", "some", "field")
+        );
+        assertThat(getSubPaths(b, List.of("path", "disabled"), List.of("to", "some", "field")), Matchers.contains("to", "some", "field"));
     }
 }

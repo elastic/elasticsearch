@@ -479,8 +479,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // This allows for migrating a data stream to be a tsdb data stream:
             // (only if index_mode=null|standard then allow it to be set to time_series)
             dsIndexMode = IndexMode.TIME_SERIES;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES &&
-            (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
+        } else if (dsIndexMode == IndexMode.TIME_SERIES && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
             // Allow downgrading a time series data stream to a regular data stream
             dsIndexMode = null;
         } else if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {

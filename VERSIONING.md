@@ -232,9 +232,12 @@ and the feature checks removed from the code of major version N.
 Tests often want to check if a certain feature is implemented / available on all nodes,
 particularly BwC or mixed cluster test.
 
-Note that cluster features are not meant to be fine-grained, and should be introduced
-sparingly; it is not appropriate to introduce a cluster feature just to use
-as a test condition. Capabilities should be used instead.
+Rather than introducing a production feature just for a test condition,
+this can be done by adding a _test feature_ in an implementation of
+`FeatureSpecification.getTestFeatures`. These features will only be set
+on clusters running as part of an integration test. Even so, cluster features
+should be used sparingly if possible; Capabilities is generally a better
+option for test conditions.
 
 In Java Rest tests, checking cluster features can be done using
 `ESRestTestCase.clusterHasFeature(feature)`
@@ -245,7 +248,7 @@ that use cluster features; see [here](https://github.com/elastic/elasticsearch/b
 To aid with backwards compatibility tests, the test framework adds synthetic features
 for each previously released Elasticsearch version, of the form `gte_v{VERSION}`
 (for example `gte_v8.14.2`).
-This can be used to add conditions based on previous releases. It cannot be used
+This can be used to add conditions based on previous releases. It _cannot_ be used
 to check the current snapshot version; real features or capabilities should be
 used instead.
 

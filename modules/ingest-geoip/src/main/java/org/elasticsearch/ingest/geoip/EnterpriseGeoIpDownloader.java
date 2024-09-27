@@ -158,7 +158,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             }
         }
 
-        logger.trace("Updating geoip databases");
+        logger.trace("Updating databases");
         IngestGeoIpMetadata geoIpMeta = clusterState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         // if there are entries in the cs that aren't in the persistent task state,
@@ -293,7 +293,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             updateTimestamp(name, metadata);
             return;
         }
-        logger.debug("downloading geoip database [{}]", name);
+        logger.debug("downloading database [{}]", name);
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(auth, url)) {
             int firstChunk = metadata.lastChunk() + 1; // if there is no metadata, then Metadata.EMPTY + 1 = 0
@@ -303,11 +303,11 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start, sha256));
                 updateTaskState();
-                logger.info("successfully downloaded geoip database [{}]", name);
+                logger.info("successfully downloaded database [{}]", name);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
-            logger.error(() -> "error downloading geoip database [" + name + "]", e);
+            logger.error(() -> "error downloading database [" + name + "]", e);
         }
     }
 
@@ -321,13 +321,13 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         client.execute(
             DeleteByQueryAction.INSTANCE,
             request,
-            ActionListener.wrap(r -> {}, e -> logger.warn("could not delete old chunks for geoip database [" + name + "]", e))
+            ActionListener.wrap(r -> {}, e -> logger.warn("could not delete old chunks for database [" + name + "]", e))
         );
     }
 
     // visible for testing
     protected void updateTimestamp(String name, Metadata old) {
-        logger.debug("geoip database [{}] is up to date, updated timestamp", name);
+        logger.debug("database [{}] is up to date, updated timestamp", name);
         state = state.put(
             name,
             new Metadata(old.lastUpdate(), old.firstChunk(), old.lastChunk(), old.md5(), System.currentTimeMillis(), old.sha256())
@@ -420,12 +420,12 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         try {
             updateDatabases(); // n.b. this downloads bytes from the internet, it can take a while
         } catch (Exception e) {
-            logger.error("exception during geoip databases update", e);
+            logger.error("exception during databases update", e);
         }
         try {
             cleanDatabases();
         } catch (Exception e) {
-            logger.error("exception during geoip databases cleanup", e);
+            logger.error("exception during databases cleanup", e);
         }
     }
 

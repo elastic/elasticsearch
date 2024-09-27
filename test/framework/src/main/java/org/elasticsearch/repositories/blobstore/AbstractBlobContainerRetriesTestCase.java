@@ -349,9 +349,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(
             exception.getMessage().toLowerCase(Locale.ROOT),
             anyOf(
+                // closing the connection after sending the headers and some incomplete body might yield one of these:
                 containsString("premature end of chunk coded message body: closing chunk expected"),
                 containsString("premature end of content-length delimited message body"),
                 containsString("connection closed prematurely"),
+                // if we didn't call exchange.getResponseBody().flush() then we might not even have sent the response headers:
                 alwaysFlushBody ? never() : containsString("the target server failed to respond")
             )
         );

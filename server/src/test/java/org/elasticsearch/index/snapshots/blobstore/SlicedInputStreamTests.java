@@ -236,6 +236,23 @@ public class SlicedInputStreamTests extends ESTestCase {
         readAndAssert.accept(mark);
     }
 
+    public void testMarkBeyondEOF() throws IOException {
+        final int slices = randomIntBetween(1, 20);
+        SlicedInputStream input = new SlicedInputStream(slices) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                return new ByteArrayInputStream(new byte[] { 0 }, 0, 1);
+            }
+        };
+
+        input.readAllBytes();
+        assertThat(input.read(), equalTo(-1));
+        input.mark(randomNonNegativeInt());
+        assertThat(input.read(), equalTo(-1));
+        input.reset();
+        assertThat(input.read(), equalTo(-1));
+    }
+
     public void testMarkResetClosedStream() throws IOException {
         final int slices = randomIntBetween(1, 20);
         SlicedInputStream input = new SlicedInputStream(slices) {

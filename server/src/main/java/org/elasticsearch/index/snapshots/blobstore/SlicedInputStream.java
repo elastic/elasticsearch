@@ -153,7 +153,7 @@ public abstract class SlicedInputStream extends InputStream {
         // According to JDK documentation, marking a closed InputStream should have no effect.
         if (markSupported() && isClosed() == false && numSlices > 0) {
             if (initialized) {
-                markedSlice = nextSlice - 1;
+                markedSlice = (currentStream == null) ? numSlices : nextSlice - 1;
                 markedSliceOffset = currentSliceOffset;
             } else {
                 markedSlice = 0;

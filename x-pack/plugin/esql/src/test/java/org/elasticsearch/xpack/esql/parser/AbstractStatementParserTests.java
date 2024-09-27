@@ -126,7 +126,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 
-    void expectError(String query, String arg, String errorMessage) {
-        expectError(LoggerMessageFormat.format(null, query, arg), errorMessage);
+    void expectInvalidIndexNameErrorWithLineNumber(String query, String arg, String lineNumber, String indexString) {
+        expectError(LoggerMessageFormat.format(null, query, arg), lineNumber + "Invalid index name [" + indexString);
     }
 }

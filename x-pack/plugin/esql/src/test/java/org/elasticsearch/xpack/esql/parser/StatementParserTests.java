@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -377,6 +378,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
                 command + " <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
             );
+            assertStringAsIndexPattern(
+                "-<logstash-{now/M{yyyy.MM}}>,-<-logstash-{now/M{yyyy.MM}}>,"
+                    + "-<logstash-{now/d{yyyy.MM.dd|+12:00}}>,-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+                command
+                    + " -<logstash-{now/M{yyyy.MM}}>, -<-logstash-{now/M{yyyy.MM}}>, "
+                    + "\"-<logstash-{now/d{yyyy.MM.dd|+12:00}}>\", \"-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
+            );
             assertStringAsIndexPattern("foo,test,xyz", command + " \"\"\"foo\"\"\",   test,\"xyz\"");
             assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
             assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
@@ -420,38 +428,110 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidCharacterInIndexPattern() {
-        for (String command : List.of("FROM {}", "METRICS {}", "ROW x = 1 | LOOKUP {} ON j")) {
-            expectError(command, " cluster:\"index|pattern\"", "Invalid index name [index|pattern]");
-            expectError(command, " *:\"index|pattern\"", "Invalid index name [index|pattern]");
-            expectError(command, " cluster:\"index#pattern\"", "Invalid index name [index#pattern]");
-            expectError(command, " cluster:index#pattern", "Invalid index name [index#pattern]");
-            expectError(command, " cluster:\"index pattern\"", "Invalid index name [index pattern]");
-            expectError(command, " cluster:\"index?pattern\"", "Invalid index name [index?pattern]");
-            expectError(command, " cluster:index?pattern", "Invalid index name [index?pattern]");
-            expectError(command, " cluster:\"index>pattern\"", "Invalid index name [index>pattern]");
-            expectError(command, " cluster:index>pattern", "Invalid index name [index>pattern]");
-            expectError(command, " cluster:\"index<pattern\"", "Invalid index name [index<pattern]");
-            expectError(command, " cluster:index<pattern", "Invalid index name [index<pattern]");
-            expectError(command, " cluster:\"index/pattern\"", "Invalid index name [index/pattern]");
-            expectError(command, " cluster:index/pattern", "Invalid index name [index/pattern]");
-            expectError(command, " cluster:\"index\\\\pattern\"", "Invalid index name [index\\pattern]");
-            expectError(command, " cluster:index\\pattern", "Invalid index name [index\\pattern]");
-            expectError(command, " cluster:\"..\"", "Invalid index name [..]");
-            expectError(command, " cluster:..", "Invalid index name [..]");
-            expectError(command, " cluster:\"_indexpattern\"", "Invalid index name [_indexpattern]");
-            expectError(command, " cluster:_indexpattern", "Invalid index name [_indexpattern]");
-            expectError(command, " cluster:\"+indexpattern\"", "Invalid index name [+indexpattern]");
-            expectError(command, " cluster:+indexpattern", "Invalid index name [+indexpattern]");
-            expectError(command, " cluster:\"--indexpattern\"", "Invalid index name [-indexpattern]");
-            expectError(command, " cluster:--indexpattern", "Invalid index name [-indexpattern]");
-            expectError(command, " cluster:\"<--logstash-{now/M{yyyy.MM}}>\"", "Invalid index name [-logstash-");
-            expectError(command, "  --<logstash-{now/M{yyyy.MM}}>", "Invalid index name [-<logstash-{now/M{yyyy.MM}}>]");
-            expectError(command, "  <logstash#{now/d}>", "Invalid index name [logstash#");
-            expectError(command, "  \"-<logstash- {now/d{yyyy.MM.dd|+12:00}}>\"", "Invalid index name [logstash- ");
-            expectError(command, "  \"+<logstash-{now/d}>\"", "Invalid index name [+<logstash-{now/d}>]");
-            expectError(command, "  \"_<logstash-{now/d}>\"", "Invalid index name [_<logstash-{now/d}>]");
-            expectError(command, "  <<logstash{now/d}>>", "Invalid index name [<logstash");
-            expectError(command, "  <<logstash<{now/d}>>>", "Invalid index name [<logstash<");
+        Map<String, String> commands = new HashMap<>();
+        commands.put("FROM {}", "line 1:8: ");
+        if (Build.current().isSnapshot()) {
+            commands.put("METRICS {}", "line 1:11: ");
+            commands.put("ROW x = 1 | LOOKUP {} ON j", "line 1:22: ");
+        }
+        List<String> clusterStrings = List.of(" ", " *:", " cluster:");
+        String lineNumber;
+        for (String command : commands.keySet()) {
+            lineNumber = commands.get(command);
+            for (String clusterString : clusterStrings) {
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index|pattern\"", lineNumber, "index|pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index pattern\"", lineNumber, "index pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index#pattern\"", lineNumber, "index#pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index#pattern", lineNumber, "index#pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index?pattern\"", lineNumber, "index?pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index?pattern", lineNumber, "index?pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index>pattern\"", lineNumber, "index>pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index>pattern", lineNumber, "index>pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index<pattern\"", lineNumber, "index<pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index<pattern", lineNumber, "index<pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index/pattern\"", lineNumber, "index/pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index/pattern", lineNumber, "index/pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index\\\\pattern\"", lineNumber, "index\\pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index\\pattern", lineNumber, "index\\pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"..\"", lineNumber, "..");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "..", lineNumber, "..");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"_indexpattern\"", lineNumber, "_indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "_indexpattern", lineNumber, "_indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"+indexpattern\"", lineNumber, "+indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "+indexpattern", lineNumber, "+indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"--indexpattern\"", lineNumber, "-indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "--indexpattern", lineNumber, "-indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"<--logstash-{now/M{yyyy.MM}}>\"",
+                    lineNumber,
+                    "-logstash-"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "--<logstash-{now/M{yyyy.MM}}>",
+                    lineNumber,
+                    "-<logstash-{now/M{yyyy.MM}}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"<logstash#{now/d}>\"", lineNumber, "logstash#");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "<logstash#{now/d}>", lineNumber, "logstash#");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"+<logstash-{now/d}>\"",
+                    lineNumber,
+                    "+<logstash-{now/d}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "+<logstash-{now/d}>",
+                    lineNumber,
+                    "+<logstash-{now/d}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"_<logstash-{now/d}>\"",
+                    lineNumber,
+                    "_<logstash-{now/d}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "_<logstash-{now/d}>",
+                    lineNumber,
+                    "_<logstash-{now/d}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"<<logstash{now/d}>>\"", lineNumber, "<logstash");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "<<logstash{now/d}>>", lineNumber, "<logstash");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"<<logstash<{now/d}>>>\"", lineNumber, "<logstash<");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "<<logstash<{now/d}>>>", lineNumber, "<logstash<");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"-<logstash- {now/d{yyyy.MM.dd|+12:00}}>\"",
+                    lineNumber,
+                    "logstash- "
+                );
+            }
+        }
+
+        // comma separated indices
+        for (String command : commands.keySet()) {
+            if (command.contains("LOOKUP")) {
+                continue;
+            }
+            lineNumber = commands.get(command);
+            for (String clusterString : clusterStrings) {
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "--indexpattern, indexpattern",
+                    lineNumber,
+                    "-indexpattern"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"--indexpattern\", indexpattern",
+                    lineNumber,
+                    "-indexpattern"
+                );
+            }
         }
     }
 

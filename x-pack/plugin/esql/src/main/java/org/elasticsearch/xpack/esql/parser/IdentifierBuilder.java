@@ -70,6 +70,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 }
                 index = removeExclusion(index.strip());
                 String temp = IndexNameExpressionResolver.resolveDateMathExpression(index);
+                // remove the double exclusion from index names with DateMath -<-logstash-{now/d}>
                 index = temp.equals(index) ? index : removeExclusion(temp);
                 MetadataCreateIndexService.validateIndexOrAliasName(index, InvalidIndexNameException::new);
             }

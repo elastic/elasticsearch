@@ -15,3 +15,33 @@ template:
         type: keyword
         time_series_dimension: true
         ignore_above: 1024
+    dynamic_templates:
+      - histogram:
+          mapping:
+            type: histogram
+            ignore_malformed: true
+      - counter_long:
+          mapping:
+            type: long
+            time_series_metric: counter
+            ignore_malformed: true
+      - gauge_long:
+          mapping:
+            type: long
+            time_series_metric: gauge
+            ignore_malformed: true
+      - counter_double:
+          mapping:
+            type: double
+            time_series_metric: counter
+            ignore_malformed: true
+      - gauge_double:
+          mapping:
+            type: double
+            time_series_metric: gauge
+            ignore_malformed: true
+      - summary:
+          mapping:
+            type: aggregate_metric_double
+            metrics: sum, value_count
+            default_metric: value_count

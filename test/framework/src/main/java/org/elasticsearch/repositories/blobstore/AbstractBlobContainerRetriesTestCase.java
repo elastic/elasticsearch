@@ -282,9 +282,12 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(exception, readTimeoutExceptionMatcher());
         assertThat(
             exception.getMessage().toLowerCase(Locale.ROOT),
-            either(containsString("read timed out")).or(containsString("premature end of chunk coded message body: closing chunk expected"))
-                .or(containsString("Read timed out"))
-                .or(containsString("unexpected end of file from server"))
+            anyOf(
+                containsString("read timed out"),
+                containsString("premature end of chunk coded message body: closing chunk expected"),
+                containsString("Read timed out"),
+                containsString("unexpected end of file from server")
+            )
         );
         assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
     }

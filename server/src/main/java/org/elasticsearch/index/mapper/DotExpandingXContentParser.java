@@ -424,6 +424,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     static List<String> maybeFlattenPaths(List<String> subpaths, DocumentParserContext context, ContentPath contentPath) {
         String prefixWithDots = contentPath.pathAsText("");
+        if (prefixWithDots.equals(".")) {
+            prefixWithDots = "";
+        }
         ObjectMapper parent = contentPath.length() == 0
             ? context.root()
             : context.findObject(prefixWithDots.substring(0, prefixWithDots.length() - 1));

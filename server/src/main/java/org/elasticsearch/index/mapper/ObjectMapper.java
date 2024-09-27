@@ -217,8 +217,15 @@ public class ObjectMapper extends Mapper {
                     candidateObject.append(fullPathTokens[i]);
                     String candidateFullObject = candidateObjectPrefix.isEmpty()
                         ? candidateObject.toString()
-                        : candidateObjectPrefix + candidateObject.toString();
-                    ObjectMapper parent = context.findObject(candidateFullObject);
+                        : candidateObjectPrefix + candidateObject;
+                    ObjectMapper parent = context.mappingLookup().objectMappers().get(candidateFullObject);
+                    if (parent == null) {
+                        parent = context.getDynamicObjectMapper(candidateFullObject);
+                        if (parent != null && parent.mappers.isEmpty()) {
+                            // Flatten empty dynamic object.
+                            parent = null;
+                        }
+                    }
                     if (parent != null) {
                         var parentBuilder = parent.newBuilder(context.indexSettings().getIndexVersionCreated());
                         parentBuilder.addDynamic(name.substring(candidateObject.length() + 1), candidateFullObject, mapper, context);

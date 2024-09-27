@@ -904,6 +904,10 @@ public final class DocumentParser {
             throwOnNoFieldName(context);
         }
         Mapper mapper = getLeafMapper(context, currentFieldName);
+        if (mapper == null) {
+            // Check if there's an existing mapper for the same path, due to object auto-flattening.
+            mapper = context.mappingLookup().getMapper(context.path().pathAsText(currentFieldName));
+        }
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {

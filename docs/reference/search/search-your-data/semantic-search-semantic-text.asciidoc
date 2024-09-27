@@ -201,10 +201,7 @@ query from the `semantic-embedding` index:
           },
           "chunks": [
             {
-              "text": "There are a few foods and food groups that will help to fight inflammation and delayed onset muscle soreness (both things that are inevitable after a long, hard workout) when you incorporate them into your postworkout eats, whether immediately after your run or at a meal later in the day. Advertisement. Advertisement.",
-              "embeddings": {
-                (...)
-              }
+              "text": "There are a few foods and food groups that will help to fight inflammation and delayed onset muscle soreness (both things that are inevitable after a long, hard workout) when you incorporate them into your postworkout eats, whether immediately after your run or at a meal later in the day. Advertisement. Advertisement."
             }
           ]
         }
@@ -226,10 +223,7 @@ query from the `semantic-embedding` index:
           },
           "chunks": [
             {
-              "text": "During Your Workout. There are a few things you can do during your workout to help prevent muscle injury and soreness. According to personal trainer and writer for Iron Magazine, Marc David, doing warm-ups and cool-downs between sets can help keep muscle soreness to a minimum.",
-              "embeddings": {
-                (...)
-              }
+              "text": "During Your Workout. There are a few things you can do during your workout to help prevent muscle injury and soreness. According to personal trainer and writer for Iron Magazine, Marc David, doing warm-ups and cool-downs between sets can help keep muscle soreness to a minimum."
             }
           ]
         }
@@ -251,10 +245,7 @@ query from the `semantic-embedding` index:
           },
           "chunks": [
             {
-              "text": "This is especially important if the soreness is due to a weightlifting routine. For this time period, do not exert more than around 50% of the level of effort (weight, distance and speed) that caused the muscle groups to be sore.",
-              "embeddings": {
-                (...)
-              }
+              "text": "This is especially important if the soreness is due to a weightlifting routine. For this time period, do not exert more than around 50% of the level of effort (weight, distance and speed) that caused the muscle groups to be sore."
             }
           ]
         }

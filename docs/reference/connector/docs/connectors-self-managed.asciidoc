@@ -1,10 +1,15 @@
 [#es-build-connector]
 == Self-managed connectors
 
+.Naming history
+****
+Self-managed connectors were initially known as "connector clients". You might find this term in older documentation.
+****
+
 Self-managed <<es-connectors,Elastic connectors>> are run on your own infrastructure.
 This means they run outside of your Elastic deployment.
 
-You can run connectors from source or from a Docker container.
+You can run the <<es-connectors-deploy-connector-service, connectors service>> from source or from a Docker container.
 
 We also have a quickstart option using *Docker Compose*, to spin up all the required services at once: Elasticsearch, Kibana, and the connectors service.
 Refer to <<es-connectors-docker-compose-quickstart>> for more information.
@@ -19,11 +24,11 @@ include::_connectors-list-clients.asciidoc[]
 [NOTE]
 ====
 Self-managed connectors currently don't support Windows.
-Use this https://www.elastic.co/support/matrix#matrix_os[compatability matrix^] to check which operating systems are supported by self-managed connectors.
+Use this https://www.elastic.co/support/matrix#matrix_os[compatibility matrix^] to check which operating systems are supported by self-managed connectors.
 Find this information under *self-managed connectors* on that page.
 ====
 
-.*Expand* to see the Elastic prerequisites
+.*Expand* for Elastic prerequisites information
 [%collapsible]
 ====
 Your Elastic deployment must include the following Elastic services:
@@ -45,8 +50,6 @@ In future releases, you may still need to run Enterprise Search for the purpose 
 ======
 
 You must have access to Kibana and have `write` {ref}/security-privileges.html[indices privileges^] for the `.elastic-connectors` index.
-
-You must additionally deploy the *connector service*.
 
 To use connector clients in a self-managed environment, you must deploy the <<es-connectors-deploy-connector-service, connectors service>>.
 
@@ -87,7 +90,7 @@ You can run the connector service from source or use Docker:
 
 * <<es-connectors-run-from-source, Run the connectors from source>>. Use this option if you're comfortable working with Python and want to iterate quickly locally.
 * <<es-connectors-run-from-docker, Run the connectors from Docker>>. Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
-** See also our <<es-connectors-docker-compose-quickstart, Docker Compose quickstart>> for a quick way to spin up all the required services at once.
+** Refer to our <<es-connectors-docker-compose-quickstart, Docker Compose quickstart>> for a quick way to spin up all the required services at once.
 
 [discrete#es-build-connector-example]
 === Tutorials

@@ -6,7 +6,7 @@
 
 .Connectors documentation history
 ****
-Please note that the connectors documentation lived in the Enterprise Search documentation prior to version 8.16.0.
+Please note that the connectors documentation lived in the https://www.elastic.co/guide/en/enterprise-search/8.15/connectors-references.html[Enterprise Search documentation] prior to version 8.16.0.
 ****
 
 A _connector_ is a type of https://www.elastic.co/integrations/data-integrations[Elastic integration^] that syncs content from an original data source to an *Elasticsearch index*. 
@@ -32,9 +32,11 @@ You can also access the source code for these (and additional) connectors, and r
 _Managed connectors_ are available directly within your Elastic Cloud deployment, as a managed service.
 No additional infrastructure is required.
 
-See <<es-native-connectors>> for details on how to configure and use Elastic managed connectors.
+Please note that Elastic managed connectors were previously known as "native connectors".
 
-.*Expand* to see list of available Elastic managed connectors
+Refer to <<es-native-connectors,Elastic managed connectors>> for details on how to configure and use Elastic managed connectors.
+
+.*Expand* for list of available Elastic managed connectors
 [%collapsible]
 ====
 include::_connectors-list-native.asciidoc[]
@@ -46,9 +48,11 @@ include::_connectors-list-native.asciidoc[]
 Self-managed connectors enable you to run connectors locally on your own infrastructure.
 This means you can try out new connectors before they are available natively within Elastic Cloud, and/or customize existing connectors.
 
-See <<es-build-connector>> for details on how to deploy self-managed connectors.
+Please note that self-managed connectors were previously known as "connector clients".
 
-.*Expand* to see list of available self-managed connectors
+Refer to <<es-build-connector>> for details on how to deploy self-managed connectors.
+
+.*Expand* for list of available self-managed connectors
 [%collapsible]
 ====
 include::_connectors-list-clients.asciidoc[]

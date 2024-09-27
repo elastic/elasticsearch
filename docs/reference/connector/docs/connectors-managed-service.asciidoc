@@ -1,6 +1,12 @@
 [#es-native-connectors]
 == Elastic managed connectors
 
+.Naming history
+****
+Elastic managed connectors were initially known as "native connectors".
+You might find this term in older documentation.
+****
+
 Managed <<es-connectors,Elastic connectors>> are available directly within your Elastic Cloud deployment.
 No additional infrastructure is required.
 
@@ -8,7 +14,7 @@ Managed connectors sync data sources directly to Elasticsearch indices.
 Create these indices using the *Connector* workflow within {kib}.
 
 The following connectors are available as Elastic managed connectors.
-See each connector reference for additional information specific to each connector.
+Refer to each connector reference for additional information specific to each connector.
 
 include::_connectors-list-native.asciidoc[]
 
@@ -86,8 +92,8 @@ Your team can use this information to differentiate this index from other connec
 . Save your changes.
 . Edit the data source configuration.
 The fields here vary by connector.
-Refer to the documentation for each connector for details (see list of Elastic managed connectors, above).
-See <<es-connectors-security>> for security considerations.
+Refer to the documentation for each connector for details (refer to list of Elastic managed connectors, above).
+Refer to <<es-connectors-security>> for security considerations.
 . Save your changes.
 
 Optionally choose *Edit sync schedule* to begin <<es-native-connectors-management,managing the connector>>.
@@ -103,7 +109,7 @@ This operation requires:
 [discrete#es-native-connectors-management]
 ==== Manage connector
 
-To manage documents, syncs, sync rules, ingest pipelines, and other connector features, see <<es-connectors-usage>>.
+To manage documents, syncs, sync rules, ingest pipelines, and other connector features, refer to <<es-connectors-usage>>.
 
 [discrete#es-native-connectors-manage-API-keys]
 === Manage API keys
@@ -112,7 +118,7 @@ To manage documents, syncs, sync rules, ingest pipelines, and other connector fe
 ====
 API keys for Elastic managed connectors were introduced in Elastic version *8.13.0*.
 Managed connectors created in earlier versions will not automatically use API keys upon upgrading to *8.13.0*.
-See <<es-native-connectors-enabling-API-keys-for-upgraded-connectors,enabling API keys>> for more information.
+Refer to <<es-native-connectors-enabling-API-keys-for-upgraded-connectors,enabling API keys>> for more information.
 ====
 
 Managed connectors communicate with Elasticsearch using API keys.
@@ -133,7 +139,7 @@ This index can only be written to through API requests by users with the `write_
 Only the Enterprise Search instance has permission to read from this index.
 
 Users managing Elastic managed connectors will need the `write_connector_secrets` cluster privilege assigned to their role.
-See <<es-connectors-security>> for security considerations.
+Refer to <<es-connectors-security>> for security considerations.
 
 [discrete#es-native-connectors-manage-API-keys-programmatically]
 ==== Manage API keys programmatically

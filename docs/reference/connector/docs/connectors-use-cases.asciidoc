@@ -1,5 +1,8 @@
 [#es-connectors-use-cases]
 == Connectors use cases
+++++
+<titleabbrev>Use cases</titleabbrev>
+++++
 
 Learn how to use connectors for your use case.
 

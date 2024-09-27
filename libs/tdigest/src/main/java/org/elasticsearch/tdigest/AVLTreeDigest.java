@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 
 public class AVLTreeDigest extends AbstractTDigest {
-    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLTreeDigest.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLTreeDigest.class);
 
     private final TDigestArrays arrays;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -49,7 +49,7 @@ public class AVLTreeDigest extends AbstractTDigest {
     private boolean needsCompression;
 
     static AVLTreeDigest create(TDigestArrays arrays, double compression) {
-        arrays.adjustBreaker(AVLTreeDigest.SHALLOW_SIZE);
+        arrays.adjustBreaker(SHALLOW_SIZE);
         return new AVLTreeDigest(arrays, compression);
     }
 

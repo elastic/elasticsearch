@@ -69,7 +69,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * what the AVLTreeDigest uses and no dynamic allocation is required at all.
  */
 public class MergingDigest extends AbstractTDigest {
-    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MergingDigest.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MergingDigest.class);
 
     private final TDigestArrays arrays;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -115,12 +115,12 @@ public class MergingDigest extends AbstractTDigest {
     public static boolean useWeightLimit = true;
 
     static MergingDigest create(TDigestArrays arrays, double compression) {
-        arrays.adjustBreaker(MergingDigest.SHALLOW_SIZE);
+        arrays.adjustBreaker(SHALLOW_SIZE);
         return new MergingDigest(arrays, compression);
     }
 
     static MergingDigest create(TDigestArrays arrays, double compression, int bufferSize, int size) {
-        arrays.adjustBreaker(MergingDigest.SHALLOW_SIZE);
+        arrays.adjustBreaker(SHALLOW_SIZE);
         return new MergingDigest(arrays, compression, bufferSize, size);
     }
 

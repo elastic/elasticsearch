@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * bounded memory allocation and acceptable speed and accuracy for larger ones.
  */
 public class HybridDigest extends AbstractTDigest {
-    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HybridDigest.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HybridDigest.class);
 
     private final TDigestArrays arrays;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -54,7 +54,7 @@ public class HybridDigest extends AbstractTDigest {
     private MergingDigest mergingDigest;
 
     static HybridDigest create(TDigestArrays arrays, double compression) {
-        arrays.adjustBreaker(HybridDigest.SHALLOW_SIZE);
+        arrays.adjustBreaker(SHALLOW_SIZE);
         return new HybridDigest(arrays, compression);
     }
 

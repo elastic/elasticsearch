@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SlicedInputStreamTests extends ESTestCase {
+
     public void testReadRandom() throws IOException {
         int parts = randomIntBetween(1, 20);
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -79,6 +80,42 @@ public class SlicedInputStreamTests extends ESTestCase {
         for (int i = 0; i < streams.length; i++) {
             assertTrue(streams[i].closed);
         }
+    }
+
+    public void testSkip() throws IOException {
+        final int slices = randomIntBetween(1, 20);
+        final var bytes = randomByteArrayOfLength(randomIntBetween(1000, 10000));
+        final int sliceSize = bytes.length / slices;
+
+        final var streamsOpened = new ArrayList<CheckClosedInputStream>();
+        SlicedInputStream input = new SlicedInputStream(slices) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                final int sliceOffset = slice * sliceSize;
+                final int length = slice == slices - 1 ? bytes.length - sliceOffset : sliceSize;
+                final var stream = new CheckClosedInputStream(new ByteArrayInputStream(bytes, sliceOffset, length));
+                streamsOpened.add(stream);
+                return stream;
+            }
+        };
+
+        // Skip up to a random point
+        final int skip = randomIntBetween(0, bytes.length);
+        input.skip(skip);
+
+        // Read all remaining bytes, which should be the bytes from skip up to the end
+        final int remainingBytes = bytes.length - skip;
+        if (remainingBytes > 0) {
+            final var remainingBytesRead = new byte[remainingBytes];
+            input.readNBytes(remainingBytesRead, 0, remainingBytes);
+            final var expectedRemainingBytes = new ByteArrayInputStream(bytes, skip, remainingBytes).readAllBytes();
+            assertArrayEquals(expectedRemainingBytes, remainingBytesRead);
+        }
+
+        // Confirm we reached the end and close the stream
+        assertThat(input.read(), equalTo(-1));
+        input.close();
+        streamsOpened.forEach(stream -> assertTrue(stream.closed));
     }
 
     public void testRandomMarkReset() throws IOException {
@@ -140,7 +177,7 @@ public class SlicedInputStreamTests extends ESTestCase {
         streamsOpened.forEach(stream -> assertTrue(stream.closed));
     }
 
-    public void testRandomMarkResetInBigSlice() throws IOException {
+    public void testMarkSkipResetInBigSlice() throws IOException {
         AtomicReference<IncreasingBytesUnlimitedInputStream> stream = new AtomicReference<>();
         SlicedInputStream input = new SlicedInputStream(1) {
             @Override
@@ -152,23 +189,34 @@ public class SlicedInputStreamTests extends ESTestCase {
         };
 
         // Skip up to a random point that is larger than 4GiB so that the marked offset is larger than an int (ES-9639).
-        final long mark = ByteSizeValue.ofGb(randomIntBetween(5, 6)).getBytes() + randomLongBetween(1, 1024);
+        final long mark = ByteSizeValue.ofGb(randomIntBetween(5, 128)).getBytes() + randomNonNegativeInt();
         input.skip(mark);
 
         // Mark
         input.mark(randomNonNegativeInt());
 
-        // Skip a few more bytes
-        input.skip(randomLongBetween(0, 1024));
+        // Skip a large amount of bytes
+        final long skip = ByteSizeValue.ofGb(randomIntBetween(5, 128)).getBytes() + randomNonNegativeInt();
+        input.skip(skip);
+
+        // Read a few KiB, asserting the bytes are what they are expected
+        final byte[] buffer = new byte[Math.toIntExact(ByteSizeValue.ofKb(randomIntBetween(1, 8)).getBytes())];
+        input.read(buffer);
+        for (int i = 0; i < buffer.length; i++) {
+            assertThat(
+                "Unexpected value for mark=" + mark + ", skip=" + skip + ", and i=" + i,
+                buffer[i],
+                equalTo((byte) ((mark + skip + i) % 255))
+            );
+        }
 
         // Reset
         input.reset();
 
-        // Read some bytes, asserting they are what is expected
-        final byte[] buffer = new byte[randomIntBetween(1024, 8192)];
+        // Read a few KiB, asserting the bytes are what they are expected
         input.read(buffer);
         for (int i = 0; i < buffer.length; i++) {
-            assertThat("Unexpected value for mark=" + mark + " and i=" + i, buffer[i], equalTo((byte) ((mark + i) % 256)));
+            assertThat("Unexpected value for mark=" + mark + " and i=" + i, buffer[i], equalTo((byte) ((mark + i) % 255)));
         }
     }
 
@@ -272,7 +320,13 @@ public class SlicedInputStreamTests extends ESTestCase {
 
         @Override
         public int read() throws IOException {
-            return (int) (currentByte++ % 256);
+            return (int) (currentByte++ % 255);
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            currentByte += n;
+            return n;
         }
     }
 }

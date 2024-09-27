@@ -99,6 +99,24 @@ public abstract class SlicedInputStream extends InputStream {
     }
 
     @Override
+    public long skip(long n) throws IOException {
+        long remaining = n;
+        while (remaining > 0) {
+            final InputStream stream = currentStream();
+            if (stream == null) {
+                break;
+            }
+            final long skipped = stream.skip(remaining);
+            currentSliceOffset += skipped;
+            if (skipped == 0) {
+                nextStream();
+            }
+            remaining -= skipped;
+        }
+        return n - remaining;
+    }
+
+    @Override
     public void close() throws IOException {
         closed = true;
         initialized = true;

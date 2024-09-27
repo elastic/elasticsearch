@@ -43,12 +43,24 @@ public class GenericSubObjectFieldDataGenerator {
 
             if (context.shouldAddDynamicObjectField(dynamicMapping)) {
                 result.add(
-                    new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, DynamicMapping.FORCED, subobjects)), true)
+                    new ChildField(
+                        fieldName,
+                        new ObjectFieldDataGenerator(context.subObject(fieldName, DynamicMapping.FORCED, subobjects)),
+                        true
+                    )
                 );
             } else if (context.shouldAddObjectField()) {
-                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, dynamicMapping, subobjects)), false));
+                result.add(
+                    new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, dynamicMapping, subobjects)), false)
+                );
             } else if (context.shouldAddNestedField(subobjects)) {
-                result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject(fieldName, dynamicMapping, subobjects)), false));
+                result.add(
+                    new ChildField(
+                        fieldName,
+                        new NestedFieldDataGenerator(context.nestedObject(fieldName, dynamicMapping, subobjects)),
+                        false
+                    )
+                );
             } else {
                 var fieldTypeInfo = context.fieldTypeGenerator(dynamicMapping).generator().get();
 

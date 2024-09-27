@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 public class DataGenerationHelper {
@@ -36,7 +35,9 @@ public class DataGenerationHelper {
     public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator) {
         this.keepArraySource = ESTestCase.randomBoolean();
 
-        var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(ESTestCase.randomBoolean()).withPredefinedFields(
+        var specificationBuilder = DataGeneratorSpecification.builder()
+            .withFullyDynamicMapping(ESTestCase.randomBoolean())
+            .withPredefinedFields(
                 List.of(
                     // Customized because it always needs doc_values for aggregations.
                     new PredefinedField.WithGenerator("host.name", new FieldDataGenerator() {
@@ -76,7 +77,8 @@ public class DataGenerationHelper {
                             return b -> b.value(ESTestCase.randomLongBetween(1000, 2000));
                         }
                     })
-                );
+                )
+            );
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);

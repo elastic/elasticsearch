@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
@@ -167,6 +168,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     ) {
         return List.of(
             new RestInferenceAction(),
+            new RestStreamInferenceAction(),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
             new RestDeleteInferenceEndpointAction(),
@@ -255,16 +257,31 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+
+        var inferenceIndexV1Descriptor = SystemIndexDescriptor.builder()
+            .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+            .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+            .setAliasName(InferenceIndex.INDEX_ALIAS)
+            .setPrimaryIndex(InferenceIndex.INDEX_NAME)
+            .setDescription("Contains inference service and model configuration")
+            .setMappings(InferenceIndex.mappingsV1())
+            .setSettings(InferenceIndex.settings())
+            .setVersionMetaKey("version")
+            .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+            .build();
+
         return List.of(
             SystemIndexDescriptor.builder()
                 .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
                 .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+                .setAliasName(InferenceIndex.INDEX_ALIAS)
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
                 .setDescription("Contains inference service and model configuration")
                 .setMappings(InferenceIndex.mappings())
                 .setSettings(InferenceIndex.settings())
                 .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
                 .build(),
             SystemIndexDescriptor.builder()
                 .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

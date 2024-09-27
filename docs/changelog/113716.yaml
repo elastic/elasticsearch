@@ -1,0 +1,6 @@
+pr: 113716
+summary: Fix bootstrap file size checks
+area: Infra/Core
+type: bug
+issues:
+ - 113705

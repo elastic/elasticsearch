@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -41,6 +42,7 @@ import java.util.Objects;
  * Context used to fetch the {@code _source}.
  */
 public class FetchSourceContext implements Writeable, ToXContentObject {
+    public static final NodeFeature HIDE_VECTORS_IN_SOURCE = new NodeFeature("search.hide_vectors_in_source");
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");

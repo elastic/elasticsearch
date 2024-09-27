@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.16.0"
+      cluster_features: "search.hide_vectors_in_source"
       reason: semantic_text _source filtering added in 8.16.0
 
   - do:

@@ -190,7 +190,7 @@ setup:
 ---
 "Include sparse embeddings in _source by default":
   - requires:
-      cluster_features: "gte_v8.16.0"
+      cluster_features: "search.hide_vectors_in_source"
       reason: vector _source filtering added in 8.16.0
 
   - do:
@@ -245,7 +245,7 @@ setup:
 ---
 "Exclude sparse embeddings from _source":
   - requires:
-      cluster_features: "gte_v8.16.0"
+      cluster_features: "search.hide_vectors_in_source"
       reason: vector _source filtering added in 8.16.0
 
   - do:
@@ -302,7 +302,7 @@ setup:
 ---
 "Explicitly include sparse embeddings in _source":
   - requires:
-      cluster_features: "gte_v8.16.0"
+      cluster_features: "search.hide_vectors_in_source"
       reason: vector _source filtering added in 8.16.0
 
   - do:

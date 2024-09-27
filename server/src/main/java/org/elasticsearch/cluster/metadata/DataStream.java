@@ -474,26 +474,27 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         IndexMode indexModeFromTemplate,
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
-        IndexMode indexMode = this.indexMode;
-        if ((indexMode == null || indexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
+        IndexMode dsIndexMode = this.indexMode;
+        if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
             // This allows for migrating a data stream to be a tsdb data stream:
             // (only if index_mode=null|standard then allow it to be set to time_series)
-            indexMode = IndexMode.TIME_SERIES;
-        } else if (indexMode == IndexMode.TIME_SERIES && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
+            dsIndexMode = IndexMode.TIME_SERIES;
+        } else if (dsIndexMode == IndexMode.TIME_SERIES &&
+            (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
             // Allow downgrading a time series data stream to a regular data stream
-            indexMode = null;
-        } else if ((indexMode == null || indexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {
-            indexMode = IndexMode.LOGSDB;
-        } else if (indexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
+            dsIndexMode = null;
+        } else if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {
+            dsIndexMode = IndexMode.LOGSDB;
+        } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
             // Allow downgrading a time series data stream to a regular data stream
-            indexMode = null;
+            dsIndexMode = null;
         }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);
         return copy().setBackingIndices(
             this.backingIndices.copy().setIndices(backingIndices).setAutoShardingEvent(autoShardingEvent).setRolloverOnWrite(false).build()
-        ).setGeneration(generation).setIndexMode(indexMode).build();
+        ).setGeneration(generation).setIndexMode(dsIndexMode).build();
     }
 
     /**

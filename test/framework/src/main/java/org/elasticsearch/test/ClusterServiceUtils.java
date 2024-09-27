@@ -287,7 +287,7 @@ public class ClusterServiceUtils {
         if (predicate.test(clusterService.state())) {
             listener.onResponse(null);
         } else {
-            listener.addTimeout(ESTestCase.SAFE_AWAIT_TIMEOUT, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            listener.addTimeout(TimeValue.timeValueSeconds(10), clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
         return listener;
     }

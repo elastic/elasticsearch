@@ -12,13 +12,13 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 
+import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
@@ -220,7 +220,7 @@ public class JavaDateMathParser implements DateMathParser {
 
                 return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
-        } catch (IllegalArgumentException | DateTimeParseException e) {
+        } catch (IllegalArgumentException | DateTimeException e) {
             throw new ElasticsearchParseException(
                 "failed to parse date field [{}] with format [{}]: [{}]",
                 e,

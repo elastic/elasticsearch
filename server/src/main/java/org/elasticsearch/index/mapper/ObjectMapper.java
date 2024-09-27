@@ -45,6 +45,7 @@ public class ObjectMapper extends Mapper {
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
     static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto");
+    static final NodeFeature SUBOBJECTS_AUTO_FIXES = new NodeFeature("mapper.subobjects_auto_fixes");
 
     /**
      * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
@@ -176,42 +177,84 @@ public class ObjectMapper extends Mapper {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
             if (name.contains(".") == false || (subobjects.isPresent() && (subobjects.get() == Subobjects.DISABLED))) {
-                add(name, mapper);
-            } else {
-                // We strip off the first object path of the mapper name, load or create
-                // the relevant object mapper, and then recurse down into it, passing the remainder
-                // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
-                // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
-                int firstDotIndex = name.indexOf('.');
-                String immediateChild = name.substring(0, firstDotIndex);
-                String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
-                Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
-                if (parentBuilder != null) {
-                    parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
-                    add(parentBuilder);
-                } else if (subobjects.isPresent() && subobjects.get() == Subobjects.AUTO) {
-                    // No matching parent object was found, the mapper is added as a leaf - similar to subobjects false.
-                    add(name, mapper);
-                } else {
-                    // Expected to find a matching parent object but got null.
-                    throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);
+                if (mapper instanceof ObjectMapper objectMapper
+                    && isFlatteningCandidate(subobjects, objectMapper)
+                    && objectMapper.checkFlattenable(null).isEmpty()) {
+                    // Subobjects auto and false don't allow adding subobjects dynamically.
+                    return;
                 }
+                add(name, mapper);
+                return;
             }
-        }
+            if (subobjects.isPresent() && subobjects.get() == Subobjects.AUTO) {
+                // Check if there's an existing field with the sanme, to avoid no-op dynamic updates.
+                ObjectMapper objectMapper = (prefix == null) ? context.root() : context.mappingLookup().objectMappers().get(prefix);
+                if (objectMapper != null && objectMapper.mappers.containsKey(name)) {
+                    return;
+                }
 
-        private static Builder findObjectBuilder(String fullName, DocumentParserContext context) {
-            // does the object mapper already exist? if so, use that
-            ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
-            if (objectMapper != null) {
-                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+                // Check for parent objects. Due to auto-flattening, names with dots are allowed so we need to check for all possible
+                // object names. For instance, for mapper 'foo.bar.baz.bad', we have the following options:
+                // -> object 'foo' found => call addDynamic on 'bar.baz.bad'
+                // ---> object 'bar' found => call addDynamic on 'baz.bad'
+                // -----> object 'baz' found => add field 'bad' to it
+                // -----> no match found => add field 'baz.bad' to 'bar'
+                // ---> object 'bar.baz' found => add field 'bad' to it
+                // ---> no match found => add field 'bar.baz.bad' to 'foo'
+                // -> object 'foo.bar' found => call addDynamic on 'baz.bad'
+                // ---> object 'baz' found => add field 'bad' to it
+                // ---> no match found=> add field 'baz.bad' to 'foo.bar'
+                // -> object 'foo.bar.baz' found => add field 'bad' to it
+                // -> no match found => add field 'foo.bar.baz.bad' to parent
+                String fullPathToMapper = name.substring(0, name.lastIndexOf(mapper.leafName()));
+                String[] fullPathTokens = fullPathToMapper.split("\\.");
+                StringBuilder candidateObject = new StringBuilder();
+                String candidateObjectPrefix = prefix == null ? "" : prefix + ".";
+                for (int i = 0; i < fullPathTokens.length; i++) {
+                    if (candidateObject.isEmpty() == false) {
+                        candidateObject.append(".");
+                    }
+                    candidateObject.append(fullPathTokens[i]);
+                    String candidateFullObject = candidateObjectPrefix.isEmpty()
+                        ? candidateObject.toString()
+                        : candidateObjectPrefix + candidateObject.toString();
+                    ObjectMapper parent = context.findObject(candidateFullObject);
+                    if (parent != null) {
+                        var parentBuilder = parent.newBuilder(context.indexSettings().getIndexVersionCreated());
+                        parentBuilder.addDynamic(name.substring(candidateObject.length() + 1), candidateFullObject, mapper, context);
+                        if (parentBuilder.mappersBuilders.isEmpty() == false) {
+                            add(parentBuilder);
+                        }
+                        return;
+                    }
+                }
+
+                // No matching parent object was found, the mapper is added as a leaf - similar to subobjects false.
+                // This only applies to field mappers, as subobjects get auto-flattened.
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    FieldMapper.Builder fieldBuilder = fieldMapper.getMergeBuilder();
+                    fieldBuilder.setLeafName(name);  // Update to reflect the current, possibly flattened name.
+                    add(fieldBuilder);
+                }
+                return;
             }
-            // has the object mapper been added as a dynamic update already?
-            objectMapper = context.getDynamicObjectMapper(fullName);
-            if (objectMapper != null) {
-                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+
+            // We strip off the first object path of the mapper name, load or create
+            // the relevant object mapper, and then recurse down into it, passing the remainder
+            // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
+            // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
+            int firstDotIndex = name.indexOf('.');
+            String immediateChild = name.substring(0, firstDotIndex);
+            String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
+            Builder parentBuilder = context.findObjectBuilder(immediateChildFullName);
+            if (parentBuilder != null) {
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
+                add(parentBuilder);
+            } else {
+                // Expected to find a matching parent object but got null.
+                throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);
             }
-            // no object mapper found
-            return null;
+
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
@@ -227,9 +270,10 @@ public class ObjectMapper extends Mapper {
                     // mix of object notation and dot notation.
                     mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
-                if (subobjects.isPresent() && subobjects.get() == Subobjects.DISABLED && mapper instanceof ObjectMapper objectMapper) {
-                    // We're parsing a mapping that has set `subobjects: false` but has defined sub-objects
-                    objectMapper.asFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.leafName(), m));
+                if (mapper instanceof ObjectMapper objectMapper && isFlatteningCandidate(subobjects, objectMapper)) {
+                    // We're parsing a mapping that has defined sub-objects, may need to flatten them.
+                    objectMapper.asFlattenedFieldMappers(mapperBuilderContext, throwOnFlattenableError(subobjects))
+                        .forEach(m -> mappers.put(m.leafName(), m));
                 } else {
                     mappers.put(mapper.leafName(), mapper);
                 }
@@ -624,12 +668,11 @@ public class ObjectMapper extends Mapper {
             Optional<Subobjects> subobjects
         ) {
             Map<String, Mapper> mergedMappers = new HashMap<>();
+            var context = objectMergeContext.getMapperBuilderContext();
             for (Mapper childOfExistingMapper : existing.mappers.values()) {
-                if (subobjects.isPresent()
-                    && subobjects.get() == Subobjects.DISABLED
-                    && childOfExistingMapper instanceof ObjectMapper objectMapper) {
-                    // An existing mapping with sub-objects is merged with a mapping that has set `subobjects: false`
-                    objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
+                if (childOfExistingMapper instanceof ObjectMapper objectMapper && isFlatteningCandidate(subobjects, objectMapper)) {
+                    // An existing mapping with sub-objects is merged with a mapping that has `subobjects` set to false or auto.
+                    objectMapper.asFlattenedFieldMappers(context, throwOnFlattenableError(subobjects))
                         .forEach(m -> mergedMappers.put(m.leafName(), m));
                 } else {
                     putMergedMapper(mergedMappers, childOfExistingMapper);
@@ -638,11 +681,9 @@ public class ObjectMapper extends Mapper {
             for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.leafName());
                 if (mergeIntoMapper == null) {
-                    if (subobjects.isPresent()
-                        && subobjects.get() == Subobjects.DISABLED
-                        && mergeWithMapper instanceof ObjectMapper objectMapper) {
-                        // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects
-                        objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
+                    if (mergeWithMapper instanceof ObjectMapper objectMapper && isFlatteningCandidate(subobjects, objectMapper)) {
+                        // An existing mapping with `subobjects` set to false or auto is merged with a mapping with sub-objects
+                        objectMapper.asFlattenedFieldMappers(context, throwOnFlattenableError(subobjects))
                             .stream()
                             .filter(m -> objectMergeContext.decrementFieldBudgetIfPossible(m.getTotalFieldsCount()))
                             .forEach(m -> putMergedMapper(mergedMappers, m));
@@ -699,57 +740,83 @@ public class ObjectMapper extends Mapper {
      *
      * @throws IllegalArgumentException if the mapper cannot be flattened
      */
-    List<FieldMapper> asFlattenedFieldMappers(MapperBuilderContext context) {
-        List<FieldMapper> flattenedMappers = new ArrayList<>();
+    List<Mapper> asFlattenedFieldMappers(MapperBuilderContext context, boolean throwOnFlattenableError) {
+        List<Mapper> flattenedMappers = new ArrayList<>();
         ContentPath path = new ContentPath();
-        asFlattenedFieldMappers(context, flattenedMappers, path);
+        asFlattenedFieldMappers(context, flattenedMappers, path, throwOnFlattenableError);
         return flattenedMappers;
     }
 
-    private void asFlattenedFieldMappers(MapperBuilderContext context, List<FieldMapper> flattenedMappers, ContentPath path) {
-        ensureFlattenable(context, path);
+    static boolean isFlatteningCandidate(Optional<Subobjects> subobjects, ObjectMapper mapper) {
+        return subobjects.isPresent() && subobjects.get() != Subobjects.ENABLED && mapper instanceof NestedObjectMapper == false;
+    }
+
+    private static boolean throwOnFlattenableError(Optional<Subobjects> subobjects) {
+        return subobjects.isPresent() && subobjects.get() == Subobjects.DISABLED;
+    }
+
+    private void asFlattenedFieldMappers(
+        MapperBuilderContext context,
+        List<Mapper> flattenedMappers,
+        ContentPath path,
+        boolean throwOnFlattenableError
+    ) {
+        var error = checkFlattenable(context);
+        if (error.isPresent()) {
+            if (throwOnFlattenableError) {
+                throw new IllegalArgumentException(
+                    "Object mapper ["
+                        + path.pathAsText(leafName())
+                        + "] was found in a context where subobjects is set to false. "
+                        + "Auto-flattening ["
+                        + path.pathAsText(leafName())
+                        + "] failed because "
+                        + error.get()
+                );
+            }
+            // The object can't be auto-flattened under the parent object, so it gets added at the current level.
+            // [subobjects=auto] applies auto-flattening to names, so the leaf name may need to change.
+            // Since mapper objects are immutable, we create a clone of the current one with the updated leaf name.
+            flattenedMappers.add(
+                path.pathAsText("").isEmpty()
+                    ? this
+                    : new ObjectMapper(path.pathAsText(leafName()), fullPath, enabled, subobjects, storeArraySource, dynamic, mappers)
+            );
+            return;
+        }
         path.add(leafName());
         for (Mapper mapper : mappers.values()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 FieldMapper.Builder fieldBuilder = fieldMapper.getMergeBuilder();
                 fieldBuilder.setLeafName(path.pathAsText(mapper.leafName()));
                 flattenedMappers.add(fieldBuilder.build(context));
-            } else if (mapper instanceof ObjectMapper objectMapper) {
-                objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path);
+            } else if (mapper instanceof ObjectMapper objectMapper && mapper instanceof NestedObjectMapper == false) {
+                objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path, throwOnFlattenableError);
             }
         }
         path.remove();
     }
 
-    private void ensureFlattenable(MapperBuilderContext context, ContentPath path) {
-        if (dynamic != null && context.getDynamic() != dynamic) {
-            throwAutoFlatteningException(
-                path,
+    Optional<String> checkFlattenable(MapperBuilderContext context) {
+        if (dynamic != null && (context == null || context.getDynamic() != dynamic)) {
+            return Optional.of(
                 "the value of [dynamic] ("
                     + dynamic
                     + ") is not compatible with the value from its parent context ("
-                    + context.getDynamic()
+                    + (context != null ? context.getDynamic() : "")
                     + ")"
             );
         }
+        if (storeArraySource()) {
+            return Optional.of("the value of [store_array_source] is [true]");
+        }
         if (isEnabled() == false) {
-            throwAutoFlatteningException(path, "the value of [enabled] is [false]");
+            return Optional.of("the value of [enabled] is [false]");
         }
-        if (subobjects.isPresent() && subobjects.get() == Subobjects.ENABLED) {
-            throwAutoFlatteningException(path, "the value of [subobjects] is [true]");
+        if (subobjects.isPresent() && subobjects.get() != Subobjects.DISABLED) {
+            return Optional.of("the value of [subobjects] is [" + subobjects().printedValue + "]");
         }
-    }
-
-    private void throwAutoFlatteningException(ContentPath path, String reason) {
-        throw new IllegalArgumentException(
-            "Object mapper ["
-                + path.pathAsText(leafName())
-                + "] was found in a context where subobjects is set to false. "
-                + "Auto-flattening ["
-                + path.pathAsText(leafName())
-                + "] failed because "
-                + reason
-        );
+        return Optional.empty();
     }
 
     @Override

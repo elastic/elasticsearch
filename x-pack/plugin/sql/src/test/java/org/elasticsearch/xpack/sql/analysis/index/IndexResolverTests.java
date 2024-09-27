@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.analysis.index;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapsUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
@@ -466,8 +467,9 @@ public class IndexResolverTests extends ESTestCase {
     private static FieldCapabilitiesResponse readFieldCapsResponse(String resourceName) throws IOException {
         InputStream stream = IndexResolverTests.class.getResourceAsStream("/" + resourceName);
         BytesReference ref = Streams.readFully(stream);
-        XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, ref, XContentType.JSON);
-        return FieldCapabilitiesResponse.fromXContent(parser);
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, ref, XContentType.JSON)) {
+            return FieldCapsUtils.parseFieldCapsResponse(parser);
+        }
     }
 
     public static IndexResolution merge(EsIndex... indices) {

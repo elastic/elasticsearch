@@ -58,6 +58,8 @@ The ServiceNow connector is compatible with the following versions of ServiceNow
 * ServiceNow "Rome"
 * ServiceNow "Utah"
 * ServiceNow "Vancouver"
+* ServiceNow "Washington"
+* ServiceNow "Xanadu"
 
 [discrete#es-connectors-servicenow-configuration]
 ===== Configuration
@@ -271,6 +273,8 @@ The ServiceNow connector is compatible with the following versions of ServiceNow
 * ServiceNow "Rome"
 * ServiceNow "Utah"
 * ServiceNow "Vancouver"
+* ServiceNow "Washington"
+* ServiceNow "Xanadu"
 
 [discrete#es-connectors-servicenow-client-configuration]
 ===== Configuration

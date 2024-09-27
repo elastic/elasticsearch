@@ -119,7 +119,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         FieldCapabilitiesResponse parsedResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsedResponse = FieldCapabilitiesResponse.fromXContent(parser);
+            parsedResponse = FieldCapsUtils.parseFieldCapsResponse(parser);
             assertNull(parser.nextToken());
         }
         assertNotSame(parsedResponse, randomResponse);

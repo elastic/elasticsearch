@@ -45,7 +45,7 @@ emp_no:integer | x:date
 
 
 evalDateFormat
-from employees | sort hire_date | eval x = date_format(hire_date), y = date_format("YYYY-MM-dd", hire_date) | keep emp_no, x, y | limit 5;
+from employees | sort hire_date | eval x = date_format(hire_date), y = date_format("yyyy-MM-dd", hire_date) | keep emp_no, x, y | limit 5;
 
 emp_no:integer | x:keyword                     | y:keyword
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18            
@@ -956,7 +956,7 @@ docsDateFormat
 // tag::docsDateFormat[]
 FROM employees
 | KEEP first_name, last_name, hire_date
-| EVAL hired = DATE_FORMAT("YYYY-MM-dd", hire_date)
+| EVAL hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
 // end::docsDateFormat[]
 | SORT first_name
 | LIMIT 3
@@ -974,7 +974,7 @@ evalDateFormatString
 required_capability: string_literal_auto_casting
 
 ROW a = 1
-| EVAL df = DATE_FORMAT("YYYY-MM-dd", "1989-06-02T00:00:00.000Z")
+| EVAL df = DATE_FORMAT("yyyy-MM-dd", "1989-06-02T00:00:00.000Z")
 ;
 
 a:integer | df:keyword

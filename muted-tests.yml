@@ -159,15 +159,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testPutJob_GivenFarequoteConfig
   issue: https://github.com/elastic/elasticsearch/issues/112382
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
-  method: testWhenKeyTabWithInvalidContentFailsValidation
-  issue: https://github.com/elastic/elasticsearch/issues/112631
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
-  method: testValidKebrerosTicket
-  issue: https://github.com/elastic/elasticsearch/issues/112632
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
-  method: testKerbTicketGeneratedForDifferentServerFailsValidation
-  issue: https://github.com/elastic/elasticsearch/issues/112639
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -221,8 +212,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testResponse
   issue: https://github.com/elastic/elasticsearch/issues/113148
-- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/113152
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test30StartStop
   issue: https://github.com/elastic/elasticsearch/issues/113160
@@ -232,9 +221,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testErrorMidStream
   issue: https://github.com/elastic/elasticsearch/issues/113179
-- class: org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests
-  method: testHasPrivilegesOtherThanIndex
-  issue: https://github.com/elastic/elasticsearch/issues/113202
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113054
@@ -250,15 +236,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: "testFold {TestCase=<double> #2}"
   issue: https://github.com/elastic/elasticsearch/issues/113225
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testGetMappings
-  issue: https://github.com/elastic/elasticsearch/issues/113260
-- class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
-  method: testSearchAndClearScroll
-  issue: https://github.com/elastic/elasticsearch/issues/113285
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testGetIndex
-  issue: https://github.com/elastic/elasticsearch/issues/113311
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test81JavaOptsInJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/113313
@@ -274,36 +251,78 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_force_delete/Test force deleting a running transform}
   issue: https://github.com/elastic/elasticsearch/issues/113327
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testValidateQuery
-  issue: https://github.com/elastic/elasticsearch/issues/113328
-- class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
-  method: testOnIndexAvailableForSearchIndexAlreadyAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/113336
-- class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
-  method: testScrollIsPerUser
-  issue: https://github.com/elastic/elasticsearch/issues/113338
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=analytics/top_metrics/sort by scaled float field}
   issue: https://github.com/elastic/elasticsearch/issues/113340
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testFieldMappings
-  issue: https://github.com/elastic/elasticsearch/issues/113341
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/ccr/apis/follow/post-resume-follow/line_84}
   issue: https://github.com/elastic/elasticsearch/issues/113343
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testSearchAndMSearch
-  issue: https://github.com/elastic/elasticsearch/issues/113345
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testBulkLevelBulkFailureAfterFirstIncrementalRequest
-  issue: https://github.com/elastic/elasticsearch/issues/113365
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJob_TimingStatsDocumentIsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/113370
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/500_date_range/from, to, include_lower, include_upper deprecated}
+  issue: https://github.com/elastic/elasticsearch/pull/113286
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testLimitedPrivilege
   issue: https://github.com/elastic/elasticsearch/issues/113419
+- class: org.elasticsearch.index.mapper.extras.TokenCountFieldMapperTests
+  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/113427
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {categorize.Categorize}
+  issue: https://github.com/elastic/elasticsearch/issues/113428
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testSupportedStream
+  issue: https://github.com/elastic/elasticsearch/issues/113430
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testOutOfOrderData
+  issue: https://github.com/elastic/elasticsearch/issues/113477
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testCreateJobsWithIndexNameOption
+  issue: https://github.com/elastic/elasticsearch/issues/113528
+- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
+  method: test {p0=dot_prefix/10_basic/Deprecated index template with a dot prefix index pattern}
+  issue: https://github.com/elastic/elasticsearch/issues/113529
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}
+  issue: https://github.com/elastic/elasticsearch/issues/113537
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5WithTrainedModelAndInference
+  issue: https://github.com/elastic/elasticsearch/issues/113565
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5Small_withPlatformAgnosticVariant
+  issue: https://github.com/elastic/elasticsearch/issues/113577
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testCantCreateJobWithSameID
+  issue: https://github.com/elastic/elasticsearch/issues/113581
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testFieldMappings
+  issue: https://github.com/elastic/elasticsearch/issues/113592
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testSearchAndMSearch
+  issue: https://github.com/elastic/elasticsearch/issues/113593
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  method: testStopWaitForCheckpoint
+  issue: https://github.com/elastic/elasticsearch/issues/106113
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
+  issue: https://github.com/elastic/elasticsearch/issues/101458
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
+  issue: https://github.com/elastic/elasticsearch/issues/113648
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJobs_GivenMultipleJobs
+  issue: https://github.com/elastic/elasticsearch/issues/113654
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJobs_GivenSingleJob
+  issue: https://github.com/elastic/elasticsearch/issues/113655
+- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
+  method: testHasRemoteIndices
+  issue: https://github.com/elastic/elasticsearch/issues/113660
+- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
+  method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
+  issue: https://github.com/elastic/elasticsearch/issues/113659
 
 # Examples:
 #

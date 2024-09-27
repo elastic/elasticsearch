@@ -80,3 +80,8 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
 
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("security/10_forbidden/Test bulk response with invalid credentials", "warning does not exist for compatibility")
+  task.skipTest("wildcard/30_ignore_above_synthetic_source/wildcard field type ignore_above", "Temporary until backported")
+})
+

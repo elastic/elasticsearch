@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -44,35 +46,46 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.SEMANTIC_QUERY_INNER_HITS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
+    public static final NodeFeature SEMANTIC_TEXT_INNER_HITS = new NodeFeature("semantic_text.inner_hits");
+
     public static final String NAME = "semantic";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
 
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        args -> new SemanticQueryBuilder((String) args[0], (String) args[1])
+        args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (SemanticQueryInnerHitBuilder) args[2])
     );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareString(constructorArg(), QUERY_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SemanticQueryInnerHitBuilder.fromXContent(p), INNER_HITS_FIELD);
         declareStandardFields(PARSER);
     }
 
     private final String fieldName;
     private final String query;
+    private final SemanticQueryInnerHitBuilder innerHitBuilder;
     private final SetOnce<InferenceServiceResults> inferenceResultsSupplier;
     private final InferenceResults inferenceResults;
     private final boolean noInferenceResults;
 
     public SemanticQueryBuilder(String fieldName, String query) {
+        this(fieldName, query, null);
+    }
+
+    public SemanticQueryBuilder(String fieldName, String query, @Nullable SemanticQueryInnerHitBuilder innerHitBuilder) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
@@ -81,15 +94,25 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         this.fieldName = fieldName;
         this.query = query;
+        this.innerHitBuilder = innerHitBuilder;
         this.inferenceResults = null;
         this.inferenceResultsSupplier = null;
         this.noInferenceResults = false;
+
+        if (this.innerHitBuilder != null) {
+            this.innerHitBuilder.setFieldName(fieldName);
+        }
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
         this.query = in.readString();
+        if (in.getTransportVersion().onOrAfter(SEMANTIC_QUERY_INNER_HITS)) {
+            this.innerHitBuilder = in.readOptionalWriteable(SemanticQueryInnerHitBuilder::new);
+        } else {
+            this.innerHitBuilder = null;
+        }
         this.inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
         this.noInferenceResults = in.readBoolean();
         this.inferenceResultsSupplier = null;
@@ -102,6 +125,21 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         out.writeString(fieldName);
         out.writeString(query);
+        if (out.getTransportVersion().onOrAfter(SEMANTIC_QUERY_INNER_HITS)) {
+            out.writeOptionalWriteable(innerHitBuilder);
+        } else if (innerHitBuilder != null) {
+            throw new IllegalStateException(
+                "Transport version must be at least ["
+                    + SEMANTIC_QUERY_INNER_HITS.toReleaseVersion()
+                    + "] to use [ "
+                    + INNER_HITS_FIELD.getPreferredName()
+                    + "] in ["
+                    + NAME
+                    + "], current transport version is ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]. Are you running a mixed-version cluster?"
+            );
+        }
         out.writeOptionalNamedWriteable(inferenceResults);
         out.writeBoolean(noInferenceResults);
     }
@@ -114,11 +152,16 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     ) {
         this.fieldName = other.fieldName;
         this.query = other.query;
+        this.innerHitBuilder = other.innerHitBuilder;
         this.boost = other.boost;
         this.queryName = other.queryName;
         this.inferenceResultsSupplier = inferenceResultsSupplier;
         this.inferenceResults = inferenceResults;
         this.noInferenceResults = noInferenceResults;
+    }
+
+    public SemanticQueryInnerHitBuilder innerHit() {
+        return innerHitBuilder;
     }
 
     @Override
@@ -140,6 +183,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         builder.field(QUERY_FIELD.getPreferredName(), query);
+        if (innerHitBuilder != null) {
+            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -166,7 +212,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName());
+            return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName(), innerHitBuilder);
         } else {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
@@ -284,7 +330,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         String inferenceId = null;
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
-            String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getInferenceId() : null;
+            String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getSearchInferenceId() : null;
             if (indexInferenceId != null) {
                 if (inferenceId != null && inferenceId.equals(indexInferenceId) == false) {
                     throw new IllegalArgumentException("Field [" + fieldName + "] has multiple inference IDs associated with it");
@@ -301,11 +347,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     protected boolean doEquals(SemanticQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
+            && Objects.equals(innerHitBuilder, other.innerHitBuilder)
             && Objects.equals(inferenceResults, other.inferenceResults);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResults);
+        return Objects.hash(fieldName, query, innerHitBuilder, inferenceResults);
     }
 }

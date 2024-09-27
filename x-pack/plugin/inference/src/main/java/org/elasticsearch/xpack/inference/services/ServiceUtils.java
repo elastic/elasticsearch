@@ -202,6 +202,13 @@ public final class ServiceUtils {
         );
     }
 
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithEmbeddingDetails(Class<? extends Model> invalidModelType) {
+        throw new ElasticsearchStatusException(
+            Strings.format("Can't update embedding details for model with unexpected type %s", invalidModelType),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
     public static String missingSettingErrorMsg(String settingName, String scope) {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
     }
@@ -405,6 +412,24 @@ public final class ServiceUtils {
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
+        }
+
+        return field;
+    }
+
+    public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
+        Map<String, Object> map,
+        String settingName,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+
+        if (field != null && field > maxValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue)
+            );
         }
 
         return field;
@@ -641,6 +666,7 @@ public final class ServiceUtils {
             model,
             null,
             List.of(TEST_EMBEDDING_INPUT),
+            false,
             Map.of(),
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,

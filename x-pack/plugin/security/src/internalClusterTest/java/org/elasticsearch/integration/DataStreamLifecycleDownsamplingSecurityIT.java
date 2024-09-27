@@ -342,7 +342,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings, null, lifecycle))
+                .template(Template.builder().settings(settings).mappings(mappings).lifecycle(lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
@@ -442,7 +442,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                         SystemDataStreamDescriptor.Type.EXTERNAL,
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
-                            .template(new Template(settings.build(), getTSDBMappings(), null, LIFECYCLE))
+                            .template(Template.builder().settings(settings).mappings(getTSDBMappings()).lifecycle(LIFECYCLE))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
                         Map.of(),

@@ -188,8 +188,8 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         }
 
         while (data.size() > chunks) {
-            byte[] last = data.removeLast();
-            byte[] secondLast = data.removeLast();
+            byte[] last = data.remove(data.size() - 1);
+            byte[] secondLast = data.remove(data.size() - 1);
             byte[] merged = new byte[secondLast.length + last.length];
             System.arraycopy(secondLast, 0, merged, 0, secondLast.length);
             System.arraycopy(last, 0, merged, secondLast.length, last.length);

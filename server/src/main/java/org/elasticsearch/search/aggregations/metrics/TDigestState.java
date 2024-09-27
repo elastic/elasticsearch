@@ -102,7 +102,12 @@ public class TDigestState implements Releasable, Accountable {
      */
     static TDigestState createOptimizedForAccuracy(CircuitBreaker breaker, double compression) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-optimized-for-accuracy");
-        return new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+        try {
+            return new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+        } catch (Exception e) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     /**
@@ -137,7 +142,12 @@ public class TDigestState implements Releasable, Accountable {
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
         state.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-using-params-from");
-        return new TDigestState(state.breaker, state.type, state.compression);
+        try {
+            return new TDigestState(state.breaker, state.type, state.compression);
+        } catch (Exception e) {
+            state.breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     protected TDigestState(CircuitBreaker breaker, Type type, double compression) {
@@ -190,11 +200,16 @@ public class TDigestState implements Releasable, Accountable {
         TDigestState state;
         long size = 0;
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-read");
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
-            size = in.readVLong();
-        } else {
-            state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+        try {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
+                size = in.readVLong();
+            } else {
+                state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+            }
+        } catch (Exception e) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
         }
         int n = in.readVInt();
         if (size > 0) {

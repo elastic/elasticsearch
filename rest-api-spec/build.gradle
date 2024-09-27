@@ -59,4 +59,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
   task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
   task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+  task.skipTestsByFilePattern("indices.create/synthetic_source*.yml", "@UpdateForV9 -> tests do not pass after bumping API version to 9 [ES-9597]")
 })

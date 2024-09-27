@@ -141,12 +141,9 @@ public class ShardSearchFailure extends ShardOperationFailedException {
                 if (SHARD_FIELD.equals(currentFieldName)) {
                     shardId = parser.intValue();
                 } else if (INDEX_FIELD.equals(currentFieldName)) {
-                    indexName = parser.text();
-                    int indexOf = indexName.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-                    if (indexOf > 0) {
-                        clusterAlias = indexName.substring(0, indexOf);
-                        indexName = indexName.substring(indexOf + 1);
-                    }
+                    String[] split = RemoteClusterAware.splitIndexName(parser.text());
+                    clusterAlias = split[0];
+                    indexName = split[1];
                 } else if (NODE_FIELD.equals(currentFieldName)) {
                     nodeId = parser.text();
                 } else {

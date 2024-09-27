@@ -41,7 +41,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
@@ -111,8 +110,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (p, r) -> fail("this shouldn't happen");
-        IndicesExpressionResolver resolveClusterIndices = (indicesOptions, indexExpressions) ->
-            Map.of("", new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT));
+        IndicesExpressionResolver resolveClusterIndices = (indicesOptions, indexExpressions) -> Map.of(
+            "",
+            new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
+        );
 
         planExecutor.esql(
             request,

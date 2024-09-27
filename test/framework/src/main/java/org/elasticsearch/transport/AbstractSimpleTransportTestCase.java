@@ -3507,9 +3507,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         DiscoveryNode node,
         ConnectionProfile connectionProfile
     ) {
-        return asInstanceOf(
+        return safeAwaitFailure(
             ConnectTransportException.class,
-            safeAwaitFailure(Releasable.class, listener -> service.connectToNode(node, connectionProfile, listener))
+            Releasable.class,
+            listener -> service.connectToNode(node, connectionProfile, listener)
         );
     }
 
@@ -3532,9 +3533,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         DiscoveryNode node,
         ConnectionProfile connectionProfile
     ) {
-        return asInstanceOf(
+        return safeAwaitFailure(
             ConnectTransportException.class,
-            safeAwaitFailure(Transport.Connection.class, listener -> service.openConnection(node, connectionProfile, listener))
+            Transport.Connection.class,
+            listener -> service.openConnection(node, connectionProfile, listener)
         );
     }
 

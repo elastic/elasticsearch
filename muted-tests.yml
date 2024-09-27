@@ -311,6 +311,18 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/101458
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
+  issue: https://github.com/elastic/elasticsearch/issues/113648
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJobs_GivenMultipleJobs
+  issue: https://github.com/elastic/elasticsearch/issues/113654
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJobs_GivenSingleJob
+  issue: https://github.com/elastic/elasticsearch/issues/113655
+- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
+  method: testHasRemoteIndices
+  issue: https://github.com/elastic/elasticsearch/issues/113660
 
 # Examples:
 #

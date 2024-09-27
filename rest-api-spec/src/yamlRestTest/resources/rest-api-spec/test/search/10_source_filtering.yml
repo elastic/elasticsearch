@@ -188,14 +188,14 @@ setup:
   - gte: { hits.hits.0.fields.d.0: 3.14 }
 
 ---
-"Include sparse embeddings in _source by default":
+"Include embeddings in _source by default":
   - requires:
       cluster_features: "search.hide_vectors_in_source"
       reason: vector _source filtering added in 8.16.0
 
   - do:
       indices.create:
-        index: sparse-vector-test
+        index: vector-test
         body:
           mappings:
             properties:
@@ -203,10 +203,13 @@ setup:
                 type: text
               sparse:
                 type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
 
   - do:
       index:
-        index: sparse-vector-test
+        index: vector-test
         id: 1
         body:
           text: running is good for you
@@ -227,11 +230,12 @@ setup:
             health: 0.1
             marathon: 0.61555296
             gym: 0.5652374
+          dense: [1.0, 2.0, 3.0]
         refresh: true
 
   - do:
       search:
-        index: sparse-vector-test
+        index: vector-test
         body:
           query:
             match:
@@ -241,16 +245,17 @@ setup:
   - match: { hits.hits.0._id: "1" }
   - exists: hits.hits.0._source.text
   - exists: hits.hits.0._source.sparse
+  - exists: hits.hits.0._source.dense
 
 ---
-"Exclude sparse embeddings from _source":
+"Exclude embeddings from _source":
   - requires:
       cluster_features: "search.hide_vectors_in_source"
       reason: vector _source filtering added in 8.16.0
 
   - do:
       indices.create:
-        index: sparse-vector-test
+        index: vector-test
         body:
           mappings:
             properties:
@@ -258,10 +263,13 @@ setup:
                 type: text
               sparse:
                 type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
 
   - do:
       index:
-        index: sparse-vector-test
+        index: vector-test
         id: 1
         body:
           text: running is good for you
@@ -282,11 +290,12 @@ setup:
             health: 0.1
             marathon: 0.61555296
             gym: 0.5652374
+          dense: [1.0, 2.0, 3.0]
         refresh: true
 
   - do:
       search:
-        index: sparse-vector-test
+        index: vector-test
         body:
           _source:
             include_vectors: false
@@ -298,16 +307,17 @@ setup:
   - match: { hits.hits.0._id: "1" }
   - exists: hits.hits.0._source.text
   - not_exists: hits.hits.0._source.sparse
+  - not_exists: hits.hits.0._source.dense
 
 ---
-"Explicitly include sparse embeddings in _source":
+"Explicitly include embeddings in _source":
   - requires:
       cluster_features: "search.hide_vectors_in_source"
       reason: vector _source filtering added in 8.16.0
 
   - do:
       indices.create:
-        index: sparse-vector-test
+        index: vector-test
         body:
           mappings:
             properties:
@@ -315,10 +325,13 @@ setup:
                 type: text
               sparse:
                 type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
 
   - do:
       index:
-        index: sparse-vector-test
+        index: vector-test
         id: 1
         body:
           text: running is good for you
@@ -339,11 +352,12 @@ setup:
             health: 0.1
             marathon: 0.61555296
             gym: 0.5652374
+          dense: [1.0, 2.0, 3.0]
         refresh: true
 
   - do:
       search:
-        index: sparse-vector-test
+        index: vector-test
         body:
           _source:
             include_vectors: true
@@ -355,3 +369,4 @@ setup:
   - match: { hits.hits.0._id: "1" }
   - exists: hits.hits.0._source.text
   - exists: hits.hits.0._source.sparse
+  - exists: hits.hits.0._source.dense

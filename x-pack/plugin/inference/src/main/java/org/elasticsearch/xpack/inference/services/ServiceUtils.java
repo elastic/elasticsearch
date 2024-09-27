@@ -209,7 +209,9 @@ public final class ServiceUtils {
         );
     }
 
-    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(Class<? extends Model> invalidModelType) {
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(
+        Class<? extends Model> invalidModelType
+    ) {
         throw new ElasticsearchStatusException(
             Strings.format("Can't update chat completion details for model with unexpected type %s", invalidModelType),
             RestStatus.BAD_REQUEST

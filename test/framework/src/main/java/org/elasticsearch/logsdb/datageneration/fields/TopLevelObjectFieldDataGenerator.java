@@ -54,11 +54,13 @@ public class TopLevelObjectFieldDataGenerator {
         }
         var subobjects = ObjectMapper.Subobjects.from(mappingParameters.getOrDefault("subobjects", "true"));
 
-        this.context = new Context(specification, dynamicMapping, subobjects);
+        // Value of subobjects here is for a parent of this object.
+        // Since there is no parent we pass ENABLED to allow to set subobjects to any value at top level.
+        this.context = new Context(specification, dynamicMapping, ObjectMapper.Subobjects.ENABLED);
         var genericGenerator = new GenericSubObjectFieldDataGenerator(context);
 
         this.predefinedFields = genericGenerator.generateChildFields(specification.predefinedFields());
-        this.generatedChildFields = genericGenerator.generateChildFields(dynamicMapping);
+        this.generatedChildFields = genericGenerator.generateChildFields(dynamicMapping, subobjects);
     }
 
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter(Map<String, Object> customMappingParameters) {

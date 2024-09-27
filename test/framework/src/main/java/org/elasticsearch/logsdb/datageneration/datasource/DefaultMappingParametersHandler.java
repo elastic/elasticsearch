@@ -97,11 +97,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
             if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED) {
                 // "enabled: false" is not compatible with subobjects: false
-                // "dynamic: false/strict/runtime" is not compatible with subobjects: false
+                // changing "dynamic" from parent context is not compatible with subobjects: false
                 // changing subobjects value is not compatible with subobjects: false
-                if (ESTestCase.randomBoolean()) {
-                    parameters.put("dynamic", "true");
-                }
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("enabled", "true");
                 }

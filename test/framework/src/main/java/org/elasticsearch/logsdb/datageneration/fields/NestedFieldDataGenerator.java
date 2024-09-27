@@ -32,9 +32,10 @@ public class NestedFieldDataGenerator implements FieldDataGenerator {
             .mappingGenerator()
             .get();
         var dynamicMapping = context.determineDynamicMapping(mappingParameters);
+        var subobjects = context.determineSubobjects(mappingParameters);
 
         var genericGenerator = new GenericSubObjectFieldDataGenerator(context);
-        this.childFields = genericGenerator.generateChildFields(dynamicMapping);
+        this.childFields = genericGenerator.generateChildFields(dynamicMapping, subobjects);
     }
 
     @Override

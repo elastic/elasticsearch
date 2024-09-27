@@ -74,7 +74,7 @@ class Context {
         return specification.dataSource().get(new DataSourceRequest.FieldTypeGenerator(dynamicMapping));
     }
 
-    public Context subObject(String name, DynamicMapping dynamicMapping) {
+    public Context subObject(String name, DynamicMapping dynamicMapping, ObjectMapper.Subobjects subobjects) {
         return new Context(
             specification,
             pathToField(name),
@@ -82,11 +82,11 @@ class Context {
             nestedFieldsCount,
             eligibleCopyToDestinations,
             dynamicMapping,
-            currentSubobjectsConfig
+            subobjects
         );
     }
 
-    public Context nestedObject(String name, DynamicMapping dynamicMapping) {
+    public Context nestedObject(String name, DynamicMapping dynamicMapping, ObjectMapper.Subobjects subobjects) {
         nestedFieldsCount.incrementAndGet();
         // copy_to can't be used across nested documents so all currently eligible fields are not eligible inside nested document.
         return new Context(
@@ -96,7 +96,7 @@ class Context {
             nestedFieldsCount,
             new HashSet<>(),
             dynamicMapping,
-            currentSubobjectsConfig
+            subobjects
         );
     }
 
@@ -116,11 +116,11 @@ class Context {
         return childFieldGenerator.generateRegularSubObject();
     }
 
-    public boolean shouldAddNestedField() {
+    public boolean shouldAddNestedField(ObjectMapper.Subobjects subobjects) {
         if (objectDepth >= specification.maxObjectDepth()
             || nestedFieldsCount.get() >= specification.nestedFieldsLimit()
             || parentDynamicMapping == DynamicMapping.FORCED
-            || currentSubobjectsConfig == ObjectMapper.Subobjects.DISABLED) {
+            || subobjects == ObjectMapper.Subobjects.DISABLED) {
             return false;
         }
 
@@ -147,6 +147,14 @@ class Context {
         }
 
         return dynamicParameter.equals("strict") ? DynamicMapping.FORBIDDEN : DynamicMapping.SUPPORTED;
+    }
+
+    public ObjectMapper.Subobjects determineSubobjects(Map<String, Object> mappingParameters) {
+        if (currentSubobjectsConfig == ObjectMapper.Subobjects.DISABLED) {
+            return ObjectMapper.Subobjects.DISABLED;
+        }
+
+        return ObjectMapper.Subobjects.from(mappingParameters.getOrDefault("subobjects", "true"));
     }
 
     public Set<String> getEligibleCopyToDestinations() {

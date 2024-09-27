@@ -934,7 +934,11 @@ class RepositoryIntegrityVerifier {
                         if (cancellableThreads.isCancelled()) {
                             runnable.onFailure(new TaskCancelledException("task cancelled"));
                         } else {
-                            cancellableThreads.execute(runnable::run);
+                            try {
+                                cancellableThreads.execute(runnable::run);
+                            } catch (RuntimeException e) {
+                                runnable.onFailure(e);
+                            }
                         }
                     }
                 }

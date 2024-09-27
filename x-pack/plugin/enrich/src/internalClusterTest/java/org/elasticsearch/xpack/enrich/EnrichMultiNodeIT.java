@@ -18,9 +18,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
@@ -29,7 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
@@ -352,11 +349,9 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createPipeline(String policyName, String pipelineName) {
-        String pipelineBody = Strings.format("""
+        putJsonPipeline(pipelineName, Strings.format("""
             {
               "processors": [ { "enrich": { "policy_name": "%s", "field": "%s", "target_field": "user" } } ]
-            }""", policyName, MATCH_FIELD);
-        PutPipelineRequest request = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
-        clusterAdmin().putPipeline(request).actionGet();
+            }""", policyName, MATCH_FIELD));
     }
 }

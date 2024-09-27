@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.qa.mixed.MixedClusterSpecTestCase.bwcVersion;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -29,6 +29,7 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
 
     private static final String OPEN_AI_EMBEDDINGS_ADDED = "8.12.0";
     private static final String OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED = "8.13.0";
+    private static final String OPEN_AI_EMBEDDINGS_CHUNKING_SETTINGS_ADDED = "8.16.0";
     private static final String OPEN_AI_COMPLETIONS_ADDED = "8.14.0";
     private static final String MINIMUM_SUPPORTED_VERSION = "8.15.0";
 
@@ -50,6 +51,7 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         openAiChatCompletionsServer.close();
     }
 
+    @AwaitsFix(bugUrl = "Backport #112074 to 8.16")
     @SuppressWarnings("unchecked")
     public void testOpenAiEmbeddings() throws IOException {
         var openAiEmbeddingsSupported = bwcVersion.onOrAfter(Version.fromString(OPEN_AI_EMBEDDINGS_ADDED));
@@ -64,7 +66,23 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         String inferenceConfig = oldClusterVersionCompatibleEmbeddingConfig();
         // queue a response as PUT will call the service
         openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
-        put(inferenceId, inferenceConfig, TaskType.TEXT_EMBEDDING);
+
+        try {
+            put(inferenceId, inferenceConfig, TaskType.TEXT_EMBEDDING);
+        } catch (Exception e) {
+            if (getOldClusterTestVersion().before(OPEN_AI_EMBEDDINGS_CHUNKING_SETTINGS_ADDED)) {
+                // Chunking settings were added in 8.16.0. if the version is before that, an exception will be thrown if the index mapping
+                // was created based on a mapping from an old node
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "One or more nodes in your cluster does not support chunking_settings. "
+                            + "Please update all nodes in your cluster to use chunking_settings."
+                    )
+                );
+                return;
+            }
+        }
 
         var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, inferenceId).get("endpoints");
         assertThat(configs, hasSize(1));
@@ -95,6 +113,8 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         final String inferenceId = "mixed-cluster-completions";
         final String upgradedClusterId = "upgraded-cluster-completions";
 
+        // queue a response as PUT will call the service
+        openAiChatCompletionsServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionsResponse()));
         put(inferenceId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
 
         var configsMap = get(TaskType.COMPLETION, inferenceId);

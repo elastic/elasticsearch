@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.util.function.Consumer;
 
 public class OutputExec extends UnaryExec {
@@ -26,6 +28,16 @@ public class OutputExec extends UnaryExec {
     public OutputExec(Source source, PhysicalPlan child, Consumer<Page> pageConsumer) {
         super(source, child);
         this.pageConsumer = pageConsumer;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     public Consumer<Page> getPageConsumer() {

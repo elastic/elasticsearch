@@ -21,6 +21,9 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+
 import java.util.Collection;
 import java.util.Locale;
 
@@ -35,7 +38,7 @@ import java.util.Locale;
  * - test coverage roughly at 90%
  * - easy to adapt for use with map-reduce
  */
-public abstract class TDigest {
+public abstract class TDigest implements Releasable {
     protected ScaleFunction scale = ScaleFunction.K_2;
     double min = Double.POSITIVE_INFINITY;
     double max = Double.NEGATIVE_INFINITY;
@@ -48,8 +51,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the MergingDigest
      */
-    public static TDigest createMergingDigest(double compression) {
-        return new MergingDigest(compression);
+    public static TDigest createMergingDigest(TDigestArrays arrays, double compression) {
+        return new MergingDigest(arrays, compression);
     }
 
     /**
@@ -61,8 +64,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the AvlTreeDigest
      */
-    public static TDigest createAvlTreeDigest(double compression) {
-        return new AVLTreeDigest(compression);
+    public static TDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
+        return new AVLTreeDigest(arrays, compression);
     }
 
     /**
@@ -71,8 +74,8 @@ public abstract class TDigest {
      *
      * @return the SortingDigest
      */
-    public static TDigest createSortingDigest() {
-        return new SortingDigest();
+    public static TDigest createSortingDigest(TDigestArrays arrays) {
+        return new SortingDigest(arrays);
     }
 
     /**
@@ -84,8 +87,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the HybridDigest
      */
-    public static TDigest createHybridDigest(double compression) {
-        return new HybridDigest(compression);
+    public static TDigest createHybridDigest(TDigestArrays arrays, double compression) {
+        return new HybridDigest(arrays, compression);
     }
 
     /**

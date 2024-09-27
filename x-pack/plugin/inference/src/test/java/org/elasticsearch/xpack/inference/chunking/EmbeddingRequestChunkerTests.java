@@ -94,6 +94,50 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         }
     }
 
+    public void testChunkingSettingsProvided() {
+        int maxNumInputsPerBatch = 10;
+        int numInputs = maxNumInputsPerBatch * 3 + 1; // requires 4 batches
+        var inputs = new ArrayList<String>();
+
+        for (int i = 0; i < numInputs; i++) {
+            inputs.add("input " + i);
+        }
+        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
+
+        var batches = new EmbeddingRequestChunker(
+            inputs,
+            maxNumInputsPerBatch,
+            embeddingType,
+            ChunkingSettingsTests.createRandomChunkingSettings()
+        ).batchRequestsWithListeners(testListener());
+        assertThat(batches, hasSize(4));
+        assertThat(batches.get(0).batch().inputs(), hasSize(maxNumInputsPerBatch));
+        assertThat(batches.get(1).batch().inputs(), hasSize(maxNumInputsPerBatch));
+        assertThat(batches.get(2).batch().inputs(), hasSize(maxNumInputsPerBatch));
+        assertThat(batches.get(3).batch().inputs(), hasSize(1));
+
+        assertEquals("input 0", batches.get(0).batch().inputs().get(0));
+        assertEquals("input 9", batches.get(0).batch().inputs().get(9));
+        assertThat(
+            batches.get(1).batch().inputs(),
+            contains("input 10", "input 11", "input 12", "input 13", "input 14", "input 15", "input 16", "input 17", "input 18", "input 19")
+        );
+        assertEquals("input 20", batches.get(2).batch().inputs().get(0));
+        assertEquals("input 29", batches.get(2).batch().inputs().get(9));
+        assertThat(batches.get(3).batch().inputs(), contains("input 30"));
+
+        int inputIndex = 0;
+        var subBatches = batches.get(0).batch().subBatches();
+        for (int i = 0; i < batches.size(); i++) {
+            var subBatch = subBatches.get(i);
+            assertThat(subBatch.requests(), contains(inputs.get(i)));
+            assertEquals(0, subBatch.positions().chunkIndex());
+            assertEquals(inputIndex, subBatch.positions().inputIndex());
+            assertEquals(1, subBatch.positions().embeddingCount());
+            inputIndex++;
+        }
+    }
+
     public void testLongInputChunkedOverMultipleBatches() {
         int batchSize = 5;
         int chunkSize = 20;

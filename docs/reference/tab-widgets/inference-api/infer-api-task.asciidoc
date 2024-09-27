@@ -50,6 +50,14 @@ is the unique identifier of the {infer} endpoint is `elser_embeddings`.
 You don't need to download and deploy the ELSER model upfront, the API request
 above will download the model if it's not downloaded yet and then deploy it.
 
+[NOTE]
+====
+You might see a 502 bad gateway error in the response when using the {kib} Console.
+This error usually just reflects a timeout, while the model downloads in the background.
+You can check the download progress in the {ml-app} UI.
+If using the Python client, you can set the `timeout` parameter to a higher value.
+====
+
 // end::elser[]
 
 // tag::hugging-face[]

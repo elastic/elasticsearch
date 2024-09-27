@@ -128,5 +128,6 @@
   "examples" : [
     "ROW a=[3, 5, 1]\n| EVAL max_a = MV_MAX(a)",
     "ROW a=[\"foo\", \"zoo\", \"bar\"]\n| EVAL max_a = MV_MAX(a)"
-  ]
+  ],
+  "preview" : false
 }

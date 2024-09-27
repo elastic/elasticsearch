@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -185,9 +186,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             )
         ) {
             assertThat(
-                asInstanceOf(
+                safeAwaitFailure(
                     IllegalStateException.class,
-                    safeAwaitFailure(DiscoveryNode.class, listener -> transportServiceA.handshake(connection, timeout, listener))
+                    DiscoveryNode.class,
+                    listener -> transportServiceA.handshake(connection, timeout, listener)
                 ).getMessage(),
                 containsString(
                     "handshake with [" + discoveryNode + "] failed: remote cluster name [b] does not match local cluster name [a]"
@@ -230,9 +232,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             )
         ) {
             assertThat(
-                asInstanceOf(
+                safeAwaitFailure(
                     IllegalStateException.class,
-                    safeAwaitFailure(DiscoveryNode.class, listener -> transportServiceA.handshake(connection, timeout, listener))
+                    DiscoveryNode.class,
+                    listener -> transportServiceA.handshake(connection, timeout, listener)
                 ).getMessage(),
                 containsString(
                     "handshake with ["
@@ -302,12 +305,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             .version(transportServiceB.getLocalNode().getVersionInformation())
             .build();
         assertThat(
-            asInstanceOf(
+            safeAwaitFailure(
                 ConnectTransportException.class,
-                safeAwaitFailure(
-                    Releasable.class,
-                    listener -> transportServiceA.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE, listener)
-                )
+                Releasable.class,
+                listener -> transportServiceA.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE, listener)
             ).getMessage(),
             allOf(
                 containsString("Connecting to [" + discoveryNode.getAddress() + "] failed"),
@@ -359,9 +360,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         ) {
             assertThat(
                 ExceptionsHelper.unwrap(
-                    asInstanceOf(
+                    safeAwaitFailure(
                         TransportSerializationException.class,
-                        safeAwaitFailure(DiscoveryNode.class, listener -> transportServiceA.handshake(connection, timeout, listener))
+                        DiscoveryNode.class,
+                        listener -> transportServiceA.handshake(connection, timeout, listener)
                     ),
                     IllegalArgumentException.class
                 ).getMessage(),

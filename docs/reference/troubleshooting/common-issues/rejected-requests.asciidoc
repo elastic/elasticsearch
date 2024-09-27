@@ -23,8 +23,51 @@ To check the number of rejected tasks for each thread pool, use the
 
 [source,console]
 ----
-GET /_cat/thread_pool?v=true&h=id,name,active,rejected,completed
+GET /_cat/thread_pool?v=true&h=id,name,queue,active,rejected,completed
 ----
+
+`write` thread pool rejections frequently appear in the erring API and
+correlating log as `EsRejectedExecutionException` with either
+`QueueResizingEsThreadPoolExecutor` or `queue capacity`.
+
+These errors are often related to <<task-queue-backlog,backlogged tasks>>.
+
+[discrete]
+[[check-circuit-breakers]]
+==== Check circuit breakers
+
+To check the number of tripped <<circuit-breaker,circuit breakers>>, use the
+<<cluster-nodes-stats,node stats API>>.
+
+[source,console]
+----
+GET /_nodes/stats/breaker
+----
+
+These statistics are cumulative from node startup. For more information, see
+<<circuit-breaker,circuit breaker errors>>.
+
+[discrete]
+[[check-indexing-pressure]]
+==== Check indexing pressure
+
+To check the number of <<index-modules-indexing-pressure,indexing pressure>>
+rejections, use the <<cluster-nodes-stats,node stats API>>.
+
+[source,console]
+----
+GET _nodes/stats?human&filter_path=nodes.*.indexing_pressure
+----
+
+These stats are cumulative from node startup. 
+
+Indexing pressure rejections appear as an
+`EsRejectedExecutionException`, and indicate that they were rejected due
+to `coordinating_and_primary_bytes`, `coordinating`, `primary`, or `replica`.
+
+These errors are often related to <<task-queue-backlog,backlogged tasks>>,
+<<docs-bulk,bulk index>> sizing, or the ingest target's
+<<index-modules,`refresh_interval` setting>>.
 
 [discrete]
 [[prevent-rejected-requests]]
@@ -35,8 +78,3 @@ GET /_cat/thread_pool?v=true&h=id,name,active,rejected,completed
 If {es} regularly rejects requests and other tasks, your cluster likely has high
 CPU usage or high JVM memory pressure. For tips, see <<high-cpu-usage>> and
 <<high-jvm-memory-pressure>>.
-
-**Prevent circuit breaker errors**
-
-If you regularly trigger circuit breaker errors, see <<circuit-breaker-errors>>
-for tips on diagnosing and preventing them.

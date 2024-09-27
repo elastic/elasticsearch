@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.nodes;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -22,18 +22,15 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -52,7 +49,8 @@ public abstract class TransportNodesAction<
     NodesRequest extends BaseNodesRequest<NodesRequest>,
     NodesResponse extends BaseNodesResponse<?>,
     NodeRequest extends TransportRequest,
-    NodeResponse extends BaseNodeResponse> extends TransportAction<NodesRequest, NodesResponse> {
+    NodeResponse extends BaseNodeResponse,
+    ActionContext> extends TransportAction<NodesRequest, NodesResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
 
@@ -98,6 +96,7 @@ public abstract class TransportNodesAction<
 
         new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
+            final ActionContext actionContext = createActionContext(task, request);
             final ArrayList<NodeResponse> responses = new ArrayList<>(concreteNodes.length);
             final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
 
@@ -165,7 +164,7 @@ public abstract class TransportNodesAction<
                 // ref releases all happen-before here so no need to be synchronized
                 return l -> {
                     try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
-                        newResponseAsync(task, request, responses, exceptions, l);
+                        newResponseAsync(task, request, actionContext, responses, exceptions, l);
                     }
                 };
             }
@@ -184,6 +183,16 @@ public abstract class TransportNodesAction<
     private Writeable.Reader<NodeResponse> nodeResponseReader(DiscoveryNode discoveryNode) {
         // not an inline lambda to avoid capturing CancellableFanOut.this.
         return in -> TransportNodesAction.this.newNodeResponse(in, discoveryNode);
+    }
+
+    /**
+     * Create an (optional) {@link ActionContext}: called when starting to execute this action, and the result passed to
+     * {@link #newResponseAsync} on completion. NB runs on the transport worker thread, must not do anything expensive without dispatching
+     * to a different executor.
+     */
+    @Nullable
+    protected ActionContext createActionContext(Task task, NodesRequest request) {
+        return null;
     }
 
     /**
@@ -210,6 +219,7 @@ public abstract class TransportNodesAction<
     protected void newResponseAsync(
         Task task,
         NodesRequest request,
+        ActionContext actionContext,
         List<NodeResponse> responses,
         List<FailedNodeException> failures,
         ActionListener<NodesResponse> listener
@@ -252,43 +262,4 @@ public abstract class TransportNodesAction<
             );
         }
     }
-
-    /**
-     * Some {@link TransportNodesAction} implementations send the whole top-level request out to each individual node. However, the
-     * top-level request contains a lot of unnecessary junk, particularly the heavyweight {@link DiscoveryNode} instances, so we are
-     * migrating away from this practice. This method allows to skip over the unnecessary data received from an older node.
-     *
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/100878">#100878</a>
-     * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
-     * @param in            The {@link StreamInput} in which to skip the unneeded data.
-     */
-    @UpdateForV9 // no longer necessary in v9
-    public static void skipLegacyNodesRequestHeader(TransportVersion fixVersion, StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(fixVersion)) {
-            TaskId.readFromStream(in);
-            in.readStringArray();
-            in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-            in.readOptionalTimeValue();
-        }
-    }
-
-    /**
-     * Some {@link TransportNodesAction} implementations send the whole top-level request out to each individual node. However, the
-     * top-level request contains a lot of unnecessary junk, particularly the heavyweight {@link DiscoveryNode} instances, so we are
-     * migrating away from this practice. This method allows to send a well-formed, but empty, header to older nodes that require it.
-     *
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/100878">#100878</a>
-     * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
-     * @param out           The {@link StreamOutput} to which to send the dummy data.
-     */
-    @UpdateForV9 // no longer necessary in v9
-    public static void sendLegacyNodesRequestHeader(TransportVersion fixVersion, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(fixVersion)) {
-            TaskId.EMPTY_TASK_ID.writeTo(out);
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-            out.writeOptionalArray(null);
-            out.writeOptionalTimeValue(null);
-        }
-    }
-
 }

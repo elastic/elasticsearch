@@ -610,6 +610,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    @Override
     protected boolean supportsCopyTo() {
         return false;
     }

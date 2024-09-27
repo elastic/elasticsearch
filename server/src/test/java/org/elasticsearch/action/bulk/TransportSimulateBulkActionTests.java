@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -132,9 +133,9 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testIndexData() {
+    public void testIndexData() throws IOException {
         Task task = mock(Task.class); // unused
-        BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
+        BulkRequest bulkRequest = new SimulateBulkRequest(null, null);
         int bulkItemCount = randomIntBetween(0, 200);
         for (int i = 0; i < bulkItemCount; i++) {
             Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
@@ -217,7 +218,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
          * (7) An indexing request to a nonexistent index that matches no templates
          */
         Task task = mock(Task.class); // unused
-        BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
+        BulkRequest bulkRequest = new SimulateBulkRequest(null, null);
         int bulkItemCount = randomIntBetween(0, 200);
         Map<String, IndexMetadata> indicesMap = new HashMap<>();
         Map<String, IndexTemplateMetadata> v1Templates = new HashMap<>();

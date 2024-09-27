@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -2304,6 +2305,60 @@ public class DocumentParserTests extends MapperServiceTestCase {
             """));
         assertNotNull(doc.rootDoc().getField("attributes.complex.attribute"));
         assertNotNull(doc.rootDoc().getField("attributes.simple.attribute"));
+    }
+
+    public void testSubobjectsAutoFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("attributes");
+            {
+                b.field("dynamic", false);
+                b.field("subobjects", "auto");
+                b.startObject("properties");
+                {
+                    b.startObject("simple.attribute").field("type", "keyword").endObject();
+                    b.startObject("complex.attribute").field("type", "flattened").endObject();
+                    b.startObject("path").field("type", "object");
+                    {
+                        b.field("store_array_source", "true").field("subobjects", "auto");
+                        b.startObject("properties");
+                        {
+                            b.startObject("nested.attribute").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.startObject("flattened_object").field("type", "object");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("nested.attribute").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "attributes": {
+                "complex.attribute": {
+                  "foo" : "bar"
+                },
+                "simple.attribute": "sa",
+                "path": {
+                  "nested.attribute": "na"
+                },
+                "flattened_object.nested.attribute": "fna"
+              }
+            }
+            """));
+        assertNotNull(doc.rootDoc().getField("attributes.complex.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.simple.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.path.nested.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.flattened_object.nested.attribute"));
     }
 
     public void testWriteToFieldAlias() throws Exception {

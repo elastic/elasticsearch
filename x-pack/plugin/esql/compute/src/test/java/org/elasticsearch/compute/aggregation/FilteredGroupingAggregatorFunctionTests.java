@@ -116,7 +116,7 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
      * This checks if *any* of the integers are > 0. If so we push the group to
      * the aggregation.
      */
-    private record AnyGreaterThanFactory(List<Exception> unclosed, List<Integer> inputChannels)
+    record AnyGreaterThanFactory(List<Exception> unclosed, List<Integer> inputChannels)
         implements
             EvalOperator.ExpressionEvaluator.Factory {
         @Override

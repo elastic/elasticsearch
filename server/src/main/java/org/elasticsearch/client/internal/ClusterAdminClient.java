@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal;
@@ -94,16 +95,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
-import org.elasticsearch.action.ingest.GetPipelineAction;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
@@ -368,38 +359,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public SnapshotsStatusRequestBuilder prepareSnapshotStatus(TimeValue masterNodeTimeout) {
         return new SnapshotsStatusRequestBuilder(this, masterNodeTimeout);
-    }
-
-    public void putPipeline(PutPipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        execute(PutPipelineTransportAction.TYPE, request, listener);
-    }
-
-    public ActionFuture<AcknowledgedResponse> putPipeline(PutPipelineRequest request) {
-        return execute(PutPipelineTransportAction.TYPE, request);
-    }
-
-    public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType) {
-        return new PutPipelineRequestBuilder(this, id, source, xContentType);
-    }
-
-    public void deletePipeline(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        execute(DeletePipelineTransportAction.TYPE, request, listener);
-    }
-
-    public ActionFuture<AcknowledgedResponse> deletePipeline(DeletePipelineRequest request) {
-        return execute(DeletePipelineTransportAction.TYPE, request);
-    }
-
-    public DeletePipelineRequestBuilder prepareDeletePipeline(String id) {
-        return new DeletePipelineRequestBuilder(this, id);
-    }
-
-    public void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
-        execute(GetPipelineAction.INSTANCE, request, listener);
-    }
-
-    public GetPipelineRequestBuilder prepareGetPipeline(String... ids) {
-        return new GetPipelineRequestBuilder(this, ids);
     }
 
     public void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {

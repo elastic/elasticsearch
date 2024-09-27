@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration.fields;
@@ -20,7 +21,7 @@ public interface PredefinedField {
 
     FieldDataGenerator generator(DataSource dataSource);
 
-    record WithType(String fieldName, FieldType fieldType) implements PredefinedField {
+    record WithType(String fieldName, FieldType fieldType, DynamicMapping dynamicMapping) implements PredefinedField {
         @Override
         public String name() {
             return fieldName;
@@ -30,7 +31,7 @@ public interface PredefinedField {
         public FieldDataGenerator generator(DataSource dataSource) {
             // copy_to currently not supported for predefined fields, use WithGenerator if needed
             var mappingParametersGenerator = dataSource.get(
-                new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldType, Set.of())
+                new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldType, Set.of(), dynamicMapping)
             );
             return fieldType().generator(fieldName, dataSource, mappingParametersGenerator);
         }

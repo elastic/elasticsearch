@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.kuromoji;
@@ -32,6 +33,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private static final String NBEST_COST = "nbest_cost";
     private static final String NBEST_EXAMPLES = "nbest_examples";
     private static final String DISCARD_COMPOUND_TOKEN = "discard_compound_token";
+    private static final String LENIENT = "lenient";
 
     private final UserDictionary userDictionary;
     private final Mode mode;
@@ -57,7 +59,15 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
             );
         }
-        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, false, true);
+        List<String> ruleList = Analysis.getWordList(
+            env,
+            settings,
+            USER_DICT_PATH_OPTION,
+            USER_DICT_RULES_OPTION,
+            LENIENT,
+            false,  // typically don't want to remove comments as deduplication will provide better feedback
+            true
+        );
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
         }
@@ -65,6 +75,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         for (String line : ruleList) {
             sb.append(line).append(System.lineSeparator());
         }
+
         try (Reader rulesReader = new StringReader(sb.toString())) {
             return UserDictionary.open(rulesReader);
         } catch (IOException e) {

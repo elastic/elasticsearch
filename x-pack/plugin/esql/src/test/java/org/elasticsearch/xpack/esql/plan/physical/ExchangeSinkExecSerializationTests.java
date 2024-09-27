@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexSerializationTests;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -115,21 +114,11 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         Project project = new Project(randomSource(), limit, limit.output());
         FragmentExec fragmentExec = new FragmentExec(project);
         ExchangeSinkExec exchangeSinkExec = new ExchangeSinkExec(randomSource(), fragmentExec.output(), false, fragmentExec);
-        try (
-            BytesStreamOutput out = new BytesStreamOutput();
-            PlanStreamOutput pso = new PlanStreamOutput(out, new PlanNameRegistry(), configuration())
-        ) {
-            pso.writePhysicalPlanNode(exchangeSinkExec);
+        try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput pso = new PlanStreamOutput(out, configuration())) {
+            pso.writeNamedWriteable(exchangeSinkExec);
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
-            try (
-                PlanStreamInput psi = new PlanStreamInput(
-                    out.bytes().streamInput(),
-                    new PlanNameRegistry(),
-                    getNamedWriteableRegistry(),
-                    configuration()
-                )
-            ) {
-                assertThat(psi.readPhysicalPlanNode(), equalTo(exchangeSinkExec));
+            try (PlanStreamInput psi = new PlanStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry(), configuration())) {
+                assertThat(psi.readNamedWriteable(PhysicalPlan.class), equalTo(exchangeSinkExec));
             }
         }
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core;
@@ -21,14 +22,13 @@ public enum RestApiVersion {
 
     V_8(8),
 
+    @UpdateForV9 // remove all references to V_7 then delete this annotation
     V_7(7);
 
     public final byte major;
 
-    @UpdateForV9
-    // We need to bump current and previous to V_9 and V_8, respectively
-    private static final RestApiVersion CURRENT = V_8;
-    private static final RestApiVersion PREVIOUS = V_7;
+    private static final RestApiVersion CURRENT = V_9;
+    private static final RestApiVersion PREVIOUS = V_8;
 
     RestApiVersion(int major) {
         this.major = (byte) major;
@@ -66,8 +66,6 @@ public enum RestApiVersion {
         };
     }
 
-    @UpdateForV9
-    // Right now we return api version 8 for major version 9 until we bump the api version above
     public static RestApiVersion forMajor(int major) {
         switch (major) {
             case 7 -> {
@@ -77,7 +75,7 @@ public enum RestApiVersion {
                 return V_8;
             }
             case 9 -> {
-                return V_8;
+                return V_9;
             }
             default -> throw new IllegalArgumentException("Unknown REST API version " + major);
         }

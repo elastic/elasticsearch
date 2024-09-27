@@ -115,6 +115,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
      * This is because comparing two doc-values fields is not supported in the current implementation.
      */
     private boolean allowedForDocValues(FieldAttribute fieldAttribute, AggregateExec agg, Set<FieldAttribute> foundAttributes) {
+        if (fieldAttribute.field().isAggregatable() == false) {
+            return false;
+        }
         var candidateDocValuesAttributes = new HashSet<>(foundAttributes);
         candidateDocValuesAttributes.add(fieldAttribute);
         var spatialRelatesAttributes = new HashSet<FieldAttribute>();

@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.hamcrest.CustomTypeSafeMatcher;
@@ -164,8 +164,6 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         assertThat(requestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyPresent()), not(isCompatible()));
     }
 
-    @UpdateForV9
-    @AwaitsFix(bugUrl = "this can be re-enabled once our rest api version is bumped to V_9")
     public void testObsoleteVersion() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
@@ -212,14 +210,11 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Content-Type version must be either version "
-                    + CURRENT_VERSION
-                    + " or "
-                    + PREVIOUS_VERSION
-                    + ", but found "
-                    + OBSOLETE_VERSION
-                    + ". "
-                    + "Content-Type="
+                "A compatible version is required on both Content-Type and Accept headers if either one has requested a "
+                    + "compatible version and the compatible versions must match. "
+                    + "Accept="
+                    + acceptHeader(PREVIOUS_VERSION)
+                    + ", Content-Type="
                     + contentTypeHeader(OBSOLETE_VERSION)
             )
         );
@@ -241,8 +236,8 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
         assertThat(
             requestWith(
-                acceptHeader("application/vnd.elasticsearch+json;compatible-with=7"),
-                contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=7"),
+                acceptHeader("application/vnd.elasticsearch+json;compatible-with=8"),
+                contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=8"),
                 bodyPresent()
             ),
             isCompatible()
@@ -252,8 +247,8 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(
-                acceptHeader("application/vnd.elasticsearch+json;compatible-with=7"),
-                contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=8"),
+                acceptHeader("application/vnd.elasticsearch+json;compatible-with=8"),
+                contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=9"),
                 bodyPresent()
             )
         );
@@ -272,20 +267,20 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         // versioned
         assertThat(
             requestWith(
-                acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=7"),
-                contentTypeHeader(7),
+                acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=8"),
+                contentTypeHeader(8),
                 bodyNotPresent()
             ),
             isCompatible()
         );
 
         assertThat(
-            requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
+            requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=8"), contentTypeHeader(8), bodyNotPresent()),
             isCompatible()
         );
 
         assertThat(
-            requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
+            requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=8"), contentTypeHeader(8), bodyNotPresent()),
             isCompatible()
         );
     }

@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.shards;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -144,17 +144,13 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             enableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
             assertBlocked(
                 null,
-                asInstanceOf(
+                safeAwaitAndUnwrapFailure(
                     ClusterBlockException.class,
-                    ExceptionsHelper.unwrapCause(
-                        safeAwaitFailure(
-                            ClusterSearchShardsResponse.class,
-                            l -> client().execute(
-                                TransportClusterSearchShardsAction.TYPE,
-                                new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test-blocks"),
-                                l
-                            )
-                        )
+                    ClusterSearchShardsResponse.class,
+                    l -> client().execute(
+                        TransportClusterSearchShardsAction.TYPE,
+                        new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test-blocks"),
+                        l
                     )
                 )
             );

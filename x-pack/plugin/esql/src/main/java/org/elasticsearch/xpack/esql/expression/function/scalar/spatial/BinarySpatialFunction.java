@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -86,20 +84,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     /**
      * Mark the function as expecting the specified fields to arrive as doc-values.
      */
-    public abstract BinarySpatialFunction withDocValues(Set<FieldAttribute> attributes);
-
-    /**
-     * When performing local physical plan optimization, it is necessary to know if this function has a field attribute.
-     * This is because the planner might push down a spatial aggregation to lucene, which results in the field being provided
-     * as doc-values instead of source values, and this function needs to know if it should use doc-values or not.
-     */
-    public boolean hasFieldAttribute(Set<FieldAttribute> foundAttributes) {
-        return foundField(left(), foundAttributes) || foundField(right(), foundAttributes);
-    }
-
-    protected boolean foundField(Expression expression, Set<FieldAttribute> foundAttributes) {
-        return expression instanceof FieldAttribute field && foundAttributes.contains(field);
-    }
+    public abstract BinarySpatialFunction withDocValues(boolean foundLeft, boolean foundRight);
 
     @Override
     public int hashCode() {

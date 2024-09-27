@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
@@ -66,14 +67,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
             if (exec instanceof EvalExec evalExec) {
                 List<Alias> fields = evalExec.fields();
                 List<Alias> changed = fields.stream()
-                    .map(
-                        f -> (Alias) f.transformDown(
-                            BinarySpatialFunction.class,
-                            spatialFunction -> spatialFunction.hasFieldAttribute(foundAttributes)
-                                ? spatialFunction.withDocValues(foundAttributes)
-                                : spatialFunction
-                        )
-                    )
+                    .map(f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes)))
                     .toList();
                 if (changed.equals(fields) == false) {
                     exec = new EvalExec(exec.source(), exec.child(), changed);
@@ -82,13 +76,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
             if (exec instanceof FilterExec filterExec) {
                 // Note that ST_CENTROID does not support shapes, but SpatialRelatesFunction does, so when we extend the centroid
                 // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
-                var condition = filterExec.condition()
-                    .transformDown(
-                        SpatialRelatesFunction.class,
-                        spatialRelatesFunction -> (spatialRelatesFunction.hasFieldAttribute(foundAttributes))
-                            ? spatialRelatesFunction.withDocValues(foundAttributes)
-                            : spatialRelatesFunction
-                    );
+                var condition = filterExec.condition().transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes));
                 if (filterExec.condition().equals(condition) == false) {
                     exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
                 }
@@ -111,6 +99,21 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
         return plan;
     }
 
+    private BinarySpatialFunction withDocValues(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
+        // Only update the docValues flags if the field is found in the attributes
+        boolean foundLeft = foundField(spatial.left(), foundAttributes);
+        boolean foundRight = foundField(spatial.right(), foundAttributes);
+        return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
+    }
+
+    private boolean hasFieldAttribute(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
+        return foundField(spatial.left(), foundAttributes) || foundField(spatial.right(), foundAttributes);
+    }
+
+    private boolean foundField(Expression expression, Set<FieldAttribute> foundAttributes) {
+        return expression instanceof FieldAttribute field && foundAttributes.contains(field);
+    }
+
     /**
      * This function disallows the use of more than one field for doc-values extraction in the same spatial relation function.
      * This is because comparing two doc-values fields is not supported in the current implementation.
@@ -124,7 +127,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
         var spatialRelatesAttributes = new HashSet<FieldAttribute>();
         agg.forEachExpressionDown(SpatialRelatesFunction.class, relatesFunction -> {
             candidateDocValuesAttributes.forEach(candidate -> {
-                if (relatesFunction.hasFieldAttribute(Set.of(candidate))) {
+                if (hasFieldAttribute(relatesFunction, Set.of(candidate))) {
                     spatialRelatesAttributes.add(candidate);
                 }
             });

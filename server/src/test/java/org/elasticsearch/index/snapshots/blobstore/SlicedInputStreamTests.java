@@ -19,6 +19,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.function.Consumer;
 
@@ -109,7 +110,7 @@ public class SlicedInputStreamTests extends ESTestCase {
         if (remainingBytes > 0) {
             final var remainingBytesRead = new byte[remainingBytes];
             input.readNBytes(remainingBytesRead, 0, remainingBytes);
-            final var expectedRemainingBytes = new ByteArrayInputStream(bytes, skip, remainingBytes).readAllBytes();
+            final var expectedRemainingBytes = Arrays.copyOfRange(bytes, skip, bytes.length);
             assertArrayEquals(expectedRemainingBytes, remainingBytesRead);
         }
 
@@ -142,7 +143,7 @@ public class SlicedInputStreamTests extends ESTestCase {
             if (randomBoolean()) {
                 final var bytesReadUntilMark = new byte[mark];
                 input.readNBytes(bytesReadUntilMark, 0, mark);
-                final var expectedBytesUntilMark = new ByteArrayInputStream(bytes, 0, mark).readAllBytes();
+                final var expectedBytesUntilMark = Arrays.copyOfRange(bytes, 0, mark);
                 assertArrayEquals(expectedBytesUntilMark, bytesReadUntilMark);
             } else {
                 input.skipNBytes(mark);
@@ -161,7 +162,7 @@ public class SlicedInputStreamTests extends ESTestCase {
             if (randomBoolean()) {
                 final var moreBytesRead = new byte[moreBytes];
                 input.readNBytes(moreBytesRead, 0, moreBytes);
-                final var expectedMoreBytes = new ByteArrayInputStream(bytes, mark, moreBytes).readAllBytes();
+                final var expectedMoreBytes = Arrays.copyOfRange(bytes, mark, mark + moreBytes);
                 assertArrayEquals(expectedMoreBytes, moreBytesRead);
             } else {
                 input.skipNBytes(moreBytes);
@@ -181,7 +182,7 @@ public class SlicedInputStreamTests extends ESTestCase {
         if (remainingBytes > 0) {
             final var remainingBytesRead = new byte[remainingBytes];
             input.readNBytes(remainingBytesRead, 0, remainingBytes);
-            final var expectedRemainingBytes = new ByteArrayInputStream(bytes, mark, remainingBytes).readAllBytes();
+            final var expectedRemainingBytes = Arrays.copyOfRange(bytes, mark, bytes.length);
             assertArrayEquals(expectedRemainingBytes, remainingBytesRead);
         }
 
@@ -214,7 +215,7 @@ public class SlicedInputStreamTests extends ESTestCase {
             }
         };
 
-        // Skip up to a random point that is larger than 4GiB so that the marked offset is larger than an int (ES-9639).
+        // Skip up to a random point that is larger than 2GiB so that the marked offset is larger than an int (ES-9639).
         final long mark = randomLongBetween(Integer.MAX_VALUE, Long.MAX_VALUE - buffer.length);
         input.skipNBytes(mark);
 

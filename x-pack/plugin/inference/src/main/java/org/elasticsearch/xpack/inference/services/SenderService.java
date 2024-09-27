@@ -51,6 +51,7 @@ public abstract class SenderService implements InferenceService {
         Model model,
         @Nullable String query,
         List<String> input,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -58,9 +59,9 @@ public abstract class SenderService implements InferenceService {
     ) {
         init();
         if (query != null) {
-            doInfer(model, new QueryAndDocsInputs(query, input), taskSettings, inputType, timeout, listener);
+            doInfer(model, new QueryAndDocsInputs(query, input, stream), taskSettings, inputType, timeout, listener);
         } else {
-            doInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, timeout, listener);
+            doInfer(model, new DocumentsOnlyInput(input, stream), taskSettings, inputType, timeout, listener);
         }
     }
 

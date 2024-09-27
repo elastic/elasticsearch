@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction.C
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
@@ -136,11 +137,12 @@ public class AuthorizationService {
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final RestrictedIndices restrictedIndices;
-    private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
+    private final AuthorizationDenialMessages authorizationDenialMessages;
+    private final ProjectResolver projectResolver;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
-    private final AuthorizationDenialMessages authorizationDenialMessages;
+    private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
 
     public AuthorizationService(
         Settings settings,
@@ -157,7 +159,8 @@ public class AuthorizationService {
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
         RestrictedIndices restrictedIndices,
-        AuthorizationDenialMessages authorizationDenialMessages
+        AuthorizationDenialMessages authorizationDenialMessages,
+        ProjectResolver projectResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -182,6 +185,7 @@ public class AuthorizationService {
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
+        this.projectResolver = projectResolver;
     }
 
     public void checkPrivileges(
@@ -490,7 +494,7 @@ public class AuthorizationService {
                     authzEngine.loadAuthorizedIndices(
                         requestInfo,
                         authzInfo,
-                        metadata.getProject().getIndicesLookup(),
+                        projectResolver.getProjectMetadata(metadata).getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
                                 indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
@@ -511,7 +515,7 @@ public class AuthorizationService {
                 requestInfo,
                 authzInfo,
                 resolvedIndicesAsyncSupplier,
-                metadata.getProject().getIndicesLookup(),
+                projectResolver.getProjectMetadata(metadata).getIndicesLookup(),
                 wrapPreservingContext(
                     new AuthorizationResultListener<>(
                         result -> handleIndexActionAuthorizationResult(
@@ -586,7 +590,7 @@ public class AuthorizationService {
                         ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
                         l.onResponse(withAliases);
                     })),
-                    metadata.getProject().getIndicesLookup(),
+                    projectResolver.getProjectMetadata(metadata).getIndicesLookup(),
                     wrapPreservingContext(
                         new AuthorizationResultListener<>(
                             authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
@@ -867,7 +871,7 @@ public class AuthorizationService {
                     bulkItemInfo,
                     authzInfo,
                     ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                    metadata.getProject().getIndicesLookup(),
+                    projectResolver.getProjectMetadata(metadata).getIndicesLookup(),
                     groupedActionListener.delegateFailureAndWrap(
                         (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
                     )

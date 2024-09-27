@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -753,7 +754,8 @@ public class Security extends Plugin
                 services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
-                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client())
+                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
+                services.projectResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -773,7 +775,8 @@ public class Security extends Plugin
         NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        ProjectResolver projectResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -1150,7 +1153,8 @@ public class Security extends Plugin
             expressionResolver,
             operatorPrivilegesService.get(),
             restrictedIndices,
-            authorizationDenialMessages.get()
+            authorizationDenialMessages.get(),
+            projectResolver
         );
 
         components.add(nativeRolesStore); // used by roles actions

@@ -67,7 +67,9 @@ import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecut
 public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloader.class);
-    private static final Pattern CHECKSUM_PATTERN = Pattern.compile("(\\w{64})\\s\\s(.*)");
+
+    // a sha256 checksum followed by two spaces followed by an (ignored) file name
+    private static final Pattern SHA256_CHECKSUM_PATTERN = Pattern.compile("(\\w{64})\\s\\s(.*)");
 
     // for overriding in tests
     static String DEFAULT_MAXMIND_ENDPOINT = System.getProperty(
@@ -265,7 +267,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         final String tgzUrl = downloadUrl(name, "tar.gz");
 
         String result = new String(httpClient.getBytes(auth, sha256Url), StandardCharsets.UTF_8).trim(); // this throws if the auth is bad
-        var matcher = CHECKSUM_PATTERN.matcher(result);
+        var matcher = SHA256_CHECKSUM_PATTERN.matcher(result);
         boolean match = matcher.matches();
         if (match == false) {
             throw new RuntimeException("Unexpected sha256 response from [" + sha256Url + "]");

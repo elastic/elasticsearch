@@ -263,3 +263,21 @@ ROW a = TO_DATE_NANOS(null), b = TO_DATE_NANOS(null + 1::long), c = TO_DATE_NANO
 a:date_nanos | b:date_nanos | c:date_nanos
 null         | null         | null
 ;
+
+Coalasce date nanos
+required_capability: to_date_nanos
+
+ROW a = COALESCE(null, TO_DATE_NANOS(1698069301543123456));
+
+a:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+Case date nanos result
+required_capability: to_date_nanos
+
+ROW a = CASE(false, TO_DATE_NANOS(0::long), TO_DATE_NANOS(1698069301543123456));
+
+a:date_nanos
+2023-10-23T13:55:01.543123456Z
+;

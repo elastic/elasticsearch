@@ -259,7 +259,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
     }
 
     public void testStepInfoPreservedOnAutoRetry() throws Exception {
-        String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase();
+        String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         Request createPolice = new Request("PUT", "_ilm/policy/" + policyName);
         createPolice.setJsonEntity(
@@ -280,7 +280,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         assertOK(client().performRequest(createPolice));
 
         String aliasName = "step-info-test";
-        String indexName = aliasName + "-" + randomAlphaOfLength(5).toLowerCase();
+        String indexName = aliasName + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
         templateRequest.setJsonEntity(

@@ -3,7 +3,6 @@
   "type" : "eval",
   "name" : "reverse",
   "description" : "Returns a new string representing the input string in reverse order.",
-  "note" : "This function keeps unicode grapheme clusters together during reversal.",
   "signatures" : [
     {
       "params" : [
@@ -32,7 +31,7 @@
   ],
   "examples" : [
     "ROW message = \"Some Text\" | EVAL message_reversed = REVERSE(message);",
-    "ROW off_on_holiday = \"🏠➡️🚌➡️✈️➡️🏝️\" | EVAL back_home_again = REVERSE(off_on_holiday);"
+    "ROW bending_arts = \"💧🔥🪨💨\" | EVAL bending_arts_reversed = REVERSE(bending_arts);"
   ],
   "preview" : false
 }

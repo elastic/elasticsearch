@@ -10,7 +10,7 @@ include::{esql-specs}/string.csv-spec[tag=reverse]
 |===
 include::{esql-specs}/string.csv-spec[tag=reverse-result]
 |===
-`REVERSE` works with unicode, too!
+`REVERSE` works with unicode, too! It keeps unicode grapheme clusters together during reversal.
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=reverseEmoji]

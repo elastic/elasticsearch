@@ -110,15 +110,9 @@ public final class TransportSearchHelper {
 
     private static SearchContextIdForNode innerReadSearchContextIdForNode(String contextUUID, StreamInput in) throws IOException {
         long id = in.readLong();
-        String target = in.readString();
-        String clusterAlias;
-        final int index = target.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-        if (index == -1) {
-            clusterAlias = null;
-        } else {
-            clusterAlias = target.substring(0, index);
-            target = target.substring(index + 1);
-        }
+        String[] split = RemoteClusterAware.splitIndexName(in.readString());
+        String clusterAlias = split[0];
+        String target = split[1];
         return new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
     }
 

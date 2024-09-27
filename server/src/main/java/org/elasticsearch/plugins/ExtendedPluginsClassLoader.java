@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.plugins.loader;
+package org.elasticsearch.plugins;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * A classloader that is a union over the parent core classloader and classloaders of extended plugins.
  */
-public class ExtendedPluginsClassLoader extends ClassLoader {
+class ExtendedPluginsClassLoader extends ClassLoader {
 
     /** Loaders of plugins extended by a plugin. */
     private final List<ClassLoader> extendedLoaders;

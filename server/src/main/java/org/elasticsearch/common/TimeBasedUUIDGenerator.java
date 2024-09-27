@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common;
 
-import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,8 +34,6 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     static {
         assert SECURE_MUNGED_ADDRESS.length == 6;
     }
-
-    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getUrlEncoder().withoutPadding();
 
     // protected for testing
     protected long currentTimeMillis() {
@@ -105,6 +102,6 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
 
         assert i == uuidBytes.length;
 
-        return BASE_64_NO_PADDING.encodeToString(uuidBytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(uuidBytes);
     }
 }

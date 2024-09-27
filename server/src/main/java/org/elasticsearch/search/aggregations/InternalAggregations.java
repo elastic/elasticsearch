@@ -268,7 +268,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             return from(reduced);
         }
         // general case
-        try (AggregatorsReducer reducer = new AggregatorsReducer(context, aggregationsList.size())) {
+        try (AggregatorsReducer reducer = new AggregatorsReducer(aggregationsList.get(0), context, aggregationsList.size())) {
             for (InternalAggregations aggregations : aggregationsList) {
                 reducer.accept(aggregations);
             }

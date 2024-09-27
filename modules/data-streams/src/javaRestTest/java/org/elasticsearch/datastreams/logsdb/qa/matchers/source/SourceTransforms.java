@@ -11,10 +11,10 @@ package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -32,7 +32,7 @@ class SourceTransforms {
      * @return flattened map
      */
     public static Map<String, List<Object>> normalize(Map<String, Object> map) {
-        var flattened = new HashMap<String, List<Object>>();
+        var flattened = new TreeMap<String, List<Object>>();
 
         descend(null, map, flattened);
 

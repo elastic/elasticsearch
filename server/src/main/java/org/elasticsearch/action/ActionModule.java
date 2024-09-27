@@ -160,6 +160,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -448,6 +449,7 @@ public class ActionModule extends AbstractModule {
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
     private final ActionFilters actionFilters;
+    private final IncrementalBulkService bulkService;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -476,7 +478,8 @@ public class ActionModule extends AbstractModule {
         ClusterService clusterService,
         RerouteService rerouteService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
-        RestExtension restExtension
+        RestExtension restExtension,
+        IncrementalBulkService bulkService
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -488,6 +491,7 @@ public class ActionModule extends AbstractModule {
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
+        this.bulkService = bulkService;
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -928,7 +932,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCountAction());
         registerHandler.accept(new RestTermVectorsAction());
         registerHandler.accept(new RestMultiTermVectorsAction());
-        registerHandler.accept(new RestBulkAction(settings));
+        registerHandler.accept(new RestBulkAction(settings, bulkService));
         registerHandler.accept(new RestUpdateAction());
 
         registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature));

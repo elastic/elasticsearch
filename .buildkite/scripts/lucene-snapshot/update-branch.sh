@@ -7,21 +7,12 @@ if [[ "$BUILDKITE_BRANCH" != "lucene_snapshot"* ]]; then
   exit 1
 fi
 
-if [[ "$BUILDKITE_BRANCH" == "lucene_snapshot_10" ]]; then
-  UPSTREAM="main"
-elif [[ "$BUILDKITE_BRANCH" == "lucene_snapshot" ]]; then
-  UPSTREAM="8.x"
-else
-  echo "Error: unknown branch: $BUILDKITE_BRANCH"
-  exit 1
-fi
-
-echo --- Updating "$BUILDKITE_BRANCH" branch with "$UPSTREAM"
+echo --- Updating "$BUILDKITE_BRANCH" branch with main
 
 git config --global user.name elasticsearchmachine
 git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 
 git checkout "$BUILDKITE_BRANCH"
-git fetch origin "$UPSTREAM"
-git merge --no-edit "origin/$UPSTREAM"
+git fetch origin main
+git merge --no-edit origin/main
 git push origin "$BUILDKITE_BRANCH"

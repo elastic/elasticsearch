@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -71,10 +72,12 @@ public class DataStreamsRestIT extends DisabledSecurityDataStreamTestCase {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
         putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\".hidden\"], \"data_stream\": {\"hidden\": true}}");
+        putComposableIndexTemplateRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         Request createDocRequest = new Request("POST", "/.hidden/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
+        createDocRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
 
         assertOK(client().performRequest(createDocRequest));
 

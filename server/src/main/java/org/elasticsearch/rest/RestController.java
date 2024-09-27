@@ -425,8 +425,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         MethodHandlers methodHandlers,
         ThreadContext threadContext
     ) throws Exception {
-        final int contentLength = request.contentLength();
-        if (contentLength > 0) {
+        if (request.hasContent()) {
             if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
@@ -454,6 +453,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
+        // TODO: estimate streamed content size for circuit breaker,
+        // something like http_max_chunk_size * avg_compression_ratio(for compressed content)
+        final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");

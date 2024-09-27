@@ -533,7 +533,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                     int i, docValueCount;
 
                     @Override
-                    public long nextValue() throws IOException {
+                    public long nextValue() {
                         return ords[i++];
                     }
 
@@ -543,7 +543,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                     }
 
                     @Override
-                    public boolean advanceExact(int target) throws IOException {
+                    public boolean advanceExact(int target) {
                         throw new UnsupportedOperationException();
                     }
 

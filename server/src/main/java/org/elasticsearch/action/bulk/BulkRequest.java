@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -27,9 +28,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -72,6 +75,7 @@ public class BulkRequest extends ActionRequest
     private final Set<String> indices = new HashSet<>();
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
+    private IncrementalState incrementalState = IncrementalState.EMPTY;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
     private String globalPipeline;
@@ -92,6 +96,11 @@ public class BulkRequest extends ActionRequest
         timeout = in.readTimeValue();
         for (DocWriteRequest<?> request : requests) {
             indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+            incrementalState = new BulkRequest.IncrementalState(in);
+        } else {
+            incrementalState = BulkRequest.IncrementalState.EMPTY;
         }
     }
 
@@ -327,6 +336,10 @@ public class BulkRequest extends ActionRequest
         return this;
     }
 
+    public void incrementalState(IncrementalState incrementalState) {
+        this.incrementalState = incrementalState;
+    }
+
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
@@ -363,6 +376,10 @@ public class BulkRequest extends ActionRequest
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    public IncrementalState incrementalState() {
+        return incrementalState;
     }
 
     public String pipeline() {
@@ -436,6 +453,9 @@ public class BulkRequest extends ActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+            incrementalState.writeTo(out);
+        }
     }
 
     @Override
@@ -484,6 +504,20 @@ public class BulkRequest extends ActionRequest
      */
     public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
         return Map.of();
+    }
+
+    record IncrementalState(Map<ShardId, Exception> shardLevelFailures, boolean indexingPressureAccounted) implements Writeable {
+
+        static final IncrementalState EMPTY = new IncrementalState(Collections.emptyMap(), false);
+
+        IncrementalState(StreamInput in) throws IOException {
+            this(in.readMap(ShardId::new, input -> input.readException()), false);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeMap(shardLevelFailures, (o, s) -> s.writeTo(o), StreamOutput::writeException);
+        }
     }
 
     /*

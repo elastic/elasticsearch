@@ -4744,6 +4744,92 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
     }
 
+    public void testPushCompoundTopNDistanceWithDeeplyNestedCompoundEvalToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL poi = TO_GEOPOINT("POINT(12.565 55.673)")
+            | EVAL poi2 = poi, poi3 = poi2
+            | EVAL loc2 = location
+            | EVAL loc3 = loc2
+            | EVAL distance = ST_DISTANCE(loc3, poi3)
+            | SORT scalerank, distance
+            | LIMIT 15
+            """, airports));
+
+        var topN = as(optimized, TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        var project = as(exchange.child(), ProjectExec.class);
+        assertThat(
+            names(project.projections()),
+            containsInAnyOrder(
+                "abbrev",
+                "name",
+                "type",
+                "location",
+                "country",
+                "city",
+                "city_location",
+                "scalerank",
+                "poi",
+                "poi2",
+                "poi3",
+                "loc2",
+                "loc3",
+                "distance"
+            )
+        );
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(
+            names(extract.attributesToExtract()),
+            containsInAnyOrder("abbrev", "name", "type", "country", "city", "city_location", "scalerank")
+        );
+        var evalExec = as(extract.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(6));
+        var alias1 = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias1.name(), is("poi"));
+        var poi = as(alias1.child(), Literal.class);
+        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        var alias4 = as(evalExec.fields().get(3), Alias.class);
+        assertThat(alias4.name(), is("loc2"));
+        as(alias4.child(), FieldAttribute.class);
+        var alias5 = as(evalExec.fields().get(4), Alias.class);
+        assertThat(alias5.name(), is("loc3"));
+        as(alias5.child(), ReferenceAttribute.class);
+        var alias6 = as(evalExec.fields().get(5), Alias.class);
+        assertThat(alias6.name(), is("distance"));
+        var stDistance = as(alias6.child(), StDistance.class);
+        var refLocation = as(stDistance.left(), ReferenceAttribute.class);
+        assertThat(refLocation.name(), is("loc3"));
+        var poiRef = as(stDistance.right(), Literal.class);
+        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
+        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(15)));
+        assertThat(source.sorts().size(), is(2));
+        EsQueryExec.Sort fieldSort = source.sorts().get(0);
+        assertThat(fieldSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(fieldSort.field()), is("scalerank"));
+        assertThat(fieldSort.sortBuilder(), isA(FieldSortBuilder.class));
+        EsQueryExec.Sort distSort = source.sorts().get(1);
+        assertThat(distSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(distSort.field()), is("location"));
+        assertThat(distSort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+
+        // No filter is pushed down
+        assertThat(source.query(), nullValue());
+    }
+
     private Set<String> orderAsSet(List<Order> sorts) {
         return sorts.stream().map(o -> ((Attribute) o.child()).name() + "->" + o.direction()).collect(Collectors.toSet());
     }

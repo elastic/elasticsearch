@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, LocalPhysicalOptimizerContext> {
@@ -75,17 +78,36 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             return new EsQueryExec.GeoDistanceSort(fieldAttribute.exactAttribute(), order.direction(), point.getLat(), point.getLon());
         }
 
-        private static PushableGeoDistance from(StDistance distance, Order order) {
-            if (distance.left() instanceof FieldAttribute fieldAttribute && distance.right().foldable()) {
-                Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(distance.right());
+        private static PushableGeoDistance from(StDistance distance, Order order, Map<NameId, FieldAttribute> refAttributes) {
+            if (distance.left() instanceof Attribute attr && distance.right().foldable()) {
+                return from(attr, distance.right(), order, refAttributes);
+            } else if (distance.right() instanceof Attribute attr && distance.left().foldable()) {
+                return from(attr, distance.left(), order, refAttributes);
+            }
+            return null;
+        }
+
+        private static PushableGeoDistance from(
+            Attribute attr,
+            Expression literal,
+            Order order,
+            Map<NameId, FieldAttribute> refAttributes
+        ) {
+            FieldAttribute fieldAttribute = fieldAttribute(attr, refAttributes);
+            if (fieldAttribute != null) {
+                Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literal);
                 if (geometry instanceof Point point) {
                     return new PushableGeoDistance(fieldAttribute, order, point);
                 }
-            } else if (distance.right() instanceof FieldAttribute fieldAttribute && distance.left().foldable()) {
-                Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(distance.left());
-                if (geometry instanceof Point point) {
-                    return new PushableGeoDistance(fieldAttribute, order, point);
-                }
+            }
+            return null;
+        }
+
+        private static FieldAttribute fieldAttribute(Attribute attr, Map<NameId, FieldAttribute> refAttributes) {
+            if (attr instanceof FieldAttribute fieldAttribute) {
+                return fieldAttribute;
+            } else if (attr instanceof ReferenceAttribute ref && refAttributes.containsKey(ref.id())) {
+                return refAttributes.get(ref.id());
             }
             return null;
         }
@@ -118,13 +140,19 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             // a distance function defined in the EVAL. We also move the EVAL to after the SORT.
             List<Order> orders = topNExec.order();
             List<Alias> fields = evalExec.fields();
-            LinkedHashMap<NameId, StDistance> refs = fields.stream().reduce(new LinkedHashMap<>(), (m, a) -> {
+            LinkedHashMap<NameId, StDistance> refs = new LinkedHashMap<>();
+            LinkedHashMap<NameId, FieldAttribute> refAttributes = new LinkedHashMap<>();
+            fields.forEach(alias -> {
                 // TODO: can we support CARTESIAN also?
-                if (a.child() instanceof StDistance distance && distance.crsType() == BinarySpatialFunction.SpatialCrsType.GEO) {
-                    m.put(a.id(), distance);
+                if (alias.child() instanceof StDistance distance && distance.crsType() == BinarySpatialFunction.SpatialCrsType.GEO) {
+                    refs.put(alias.id(), distance);
+                } else if (alias.child() instanceof FieldAttribute fieldAttribute) {
+                    refAttributes.put(alias.id(), fieldAttribute);
+                } else if (alias.child() instanceof ReferenceAttribute ref && refAttributes.containsKey(ref.id())) {
+                    FieldAttribute fieldAttribute = refAttributes.get(ref.id());
+                    refAttributes.put(alias.id(), fieldAttribute);
                 }
-                return m;
-            }, (m1, m2) -> m1);
+            });
             List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
             for (Order order : orders) {
                 if (LucenePushDownUtils.isPushableFieldAttribute(order.child(), hasIdenticalDelegate)) {
@@ -138,7 +166,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                 } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
                     if (refs.containsKey(referenceAttribute.id())) {
                         StDistance distance = refs.get(referenceAttribute.id());
-                        PushableGeoDistance pushableGeoDistance = PushableGeoDistance.from(distance, order);
+                        PushableGeoDistance pushableGeoDistance = PushableGeoDistance.from(distance, order, refAttributes);
                         if (pushableGeoDistance != null) {
                             pushableSorts.add(pushableGeoDistance.sort());
                         } else {

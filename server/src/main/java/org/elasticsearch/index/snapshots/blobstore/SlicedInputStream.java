@@ -40,7 +40,15 @@ public abstract class SlicedInputStream extends InputStream {
     }
 
     private InputStream nextStream() throws IOException {
-        assert initialized == false || currentStream != null;
+        assert initialized == false || currentStream != null || (markedSlice >= 0 && markedSliceOffset >= 0)
+            : "attempted to get next stream when initialized="
+                + initialized
+                + ", currentStream="
+                + currentStream
+                + ", markedSlice="
+                + markedSlice
+                + ", markedSliceOffset="
+                + markedSliceOffset;
         assert closed == false : "attempted to get next stream when closed";
         initialized = true;
         IOUtils.close(currentStream);
@@ -106,10 +114,15 @@ public abstract class SlicedInputStream extends InputStream {
             if (stream == null) {
                 break;
             }
-            final long skipped = stream.skip(remaining);
+            long skipped = stream.skip(remaining);
             currentSliceOffset += skipped;
             if (skipped == 0) {
-                nextStream();
+                // read one more byte to see if we reached EOF in order to proceed to the next stream.
+                if (stream.read() < 0) {
+                    nextStream();
+                } else {
+                    skipped++;
+                }
             }
             remaining -= skipped;
         }
@@ -166,15 +179,11 @@ public abstract class SlicedInputStream extends InputStream {
                     throw new IOException("Mark has not been set");
                 }
 
+                // We do not call the SlicedInputStream's skipNBytes but call skipNBytes directly on the returned stream, to ensure that
+                // the skip is performed on the marked slice and no other slices are involved. This may help uncover any bugs.
                 nextSlice = markedSlice;
-                if (currentStream == null) {
-                    // In case EOF has been reached, we set the currentStream to a non-null value so that nextStream() does not complain.
-                    currentStream = InputStream.nullInputStream();
-                }
                 final InputStream stream = nextStream();
                 if (stream != null) {
-                    // We do not call the SlicedInputStream's skipNBytes but call skipNBytes directly on the returned stream, to ensure that
-                    // the skip is performed on the marked slice and no other slices are involved. This may help uncover any bugs.
                     stream.skipNBytes(markedSliceOffset);
                 }
                 currentSliceOffset = markedSliceOffset;

@@ -102,7 +102,7 @@ public class SlicedInputStreamTests extends ESTestCase {
 
         // Skip up to a random point
         final int skip = randomIntBetween(0, bytes.length);
-        input.skip(skip);
+        input.skipNBytes(skip);
 
         // Read all remaining bytes, which should be the bytes from skip up to the end
         final int remainingBytes = bytes.length - skip;
@@ -145,7 +145,7 @@ public class SlicedInputStreamTests extends ESTestCase {
                 final var expectedBytesUntilMark = new ByteArrayInputStream(bytes, 0, mark).readAllBytes();
                 assertArrayEquals(expectedBytesUntilMark, bytesReadUntilMark);
             } else {
-                input.skip(mark);
+                input.skipNBytes(mark);
             }
         }
 
@@ -164,7 +164,7 @@ public class SlicedInputStreamTests extends ESTestCase {
                 final var expectedMoreBytes = new ByteArrayInputStream(bytes, mark, moreBytes).readAllBytes();
                 assertArrayEquals(expectedMoreBytes, moreBytesRead);
             } else {
-                input.skip(moreBytes);
+                input.skipNBytes(moreBytes);
             }
         }
 
@@ -216,14 +216,14 @@ public class SlicedInputStreamTests extends ESTestCase {
 
         // Skip up to a random point that is larger than 4GiB so that the marked offset is larger than an int (ES-9639).
         final long mark = randomLongBetween(Integer.MAX_VALUE, Long.MAX_VALUE - buffer.length);
-        input.skip(mark);
+        input.skipNBytes(mark);
 
         // Mark
         input.mark(randomNonNegativeInt());
 
         // Skip a large amount of bytes
         final long skipTo = randomLongBetween(mark, Long.MAX_VALUE - buffer.length);
-        input.skip(skipTo - mark);
+        input.skipNBytes(skipTo - mark);
 
         // Read a few KiB, asserting the bytes are what they are expected
         readAndAssert.accept(skipTo);
@@ -244,7 +244,7 @@ public class SlicedInputStreamTests extends ESTestCase {
             }
         };
 
-        input.skip(randomIntBetween(1, slices));
+        input.skipNBytes(randomIntBetween(1, slices));
         input.mark(randomNonNegativeInt());
         input.close();
         // SlicedInputStream supports reading -1 after close without throwing

@@ -32,11 +32,13 @@ public class ReverseTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType stringType : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
-            suppliers.add(supplier( stringType + " ascii", stringType, () -> randomAlphaOfLengthBetween(1, 10)));
-            suppliers.add(supplier(stringType + " unicode", stringType, () -> randomUnicodeOfLengthBetween(1, 10)));
-        }
 
+        suppliers.add(supplier("keyword ascii", DataType.KEYWORD, () -> randomAlphaOfLengthBetween(1, 10)));
+        suppliers.add(supplier("keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10)));
+        suppliers.add(supplier("text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
+        suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
+
+        // add null as parameter
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
     }
 

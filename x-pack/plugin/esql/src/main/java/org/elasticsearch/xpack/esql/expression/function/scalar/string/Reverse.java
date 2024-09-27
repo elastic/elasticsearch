@@ -90,11 +90,12 @@ public class Reverse extends UnaryScalarFunction {
         return field.foldable();
     }
 
-    private static String reverseSimpleString(String str) {
-        return new StringBuilder(str).reverse().toString();
-    }
-
-    private static String reverseStringWithUnicodeCharacters(String str) {
+    /**
+     * Reverses a unicode string, keeping grapheme clusters together
+     * @param str
+     * @return
+     */
+    public static String reverseStringWithUnicodeCharacters(String str) {
         BreakIterator boundary = BreakIterator.getCharacterInstance(Locale.ROOT);
         boundary.setText(str);
 
@@ -135,6 +136,7 @@ public class Reverse extends UnaryScalarFunction {
     @Evaluator
     static BytesRef process(BytesRef val) {
         if (isOneByteUTF8(val)) {
+            // this is the fast path. we know we can just reverse the bytes.
             BytesRef reversed = BytesRef.deepCopyOf(val);
             reverseArray(reversed.bytes, reversed.offset, reversed.offset + reversed.length - 1);
             return reversed;

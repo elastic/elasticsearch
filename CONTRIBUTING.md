@@ -111,9 +111,9 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 17 is required to build Elasticsearch. You must have a JDK 17 installation
+JDK 21 is required to build Elasticsearch. You must have a JDK 21 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 17 installation.
+your JDK 21 installation.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
@@ -152,9 +152,9 @@ The definition of this Elasticsearch cluster can be found [here](build-tools-int
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1.
-Elasticsearch builds using Java 17. When importing into IntelliJ you will need
+Elasticsearch builds using Java 21. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"17"** so that the project import will detect it automatically. For more details
+"21"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will

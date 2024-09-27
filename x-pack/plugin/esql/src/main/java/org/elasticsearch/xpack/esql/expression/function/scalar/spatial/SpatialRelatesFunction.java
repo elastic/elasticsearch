@@ -22,7 +22,6 @@ import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
@@ -54,24 +52,6 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
-    }
-
-    /**
-     * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
-     */
-    public boolean canPushToSource(Predicate<FieldAttribute> isAggregatable) {
-        // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
-        // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
-        // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableFieldAttribute(left(), isAggregatable) && right().foldable()
-            || isPushableFieldAttribute(right(), isAggregatable) && left().foldable();
-    }
-
-    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> isAggregatable) {
-        return exp instanceof FieldAttribute fa
-            && fa.getExactInfo().hasExact()
-            && isAggregatable.test(fa)
-            && DataType.isSpatial(fa.dataType());
     }
 
     /**

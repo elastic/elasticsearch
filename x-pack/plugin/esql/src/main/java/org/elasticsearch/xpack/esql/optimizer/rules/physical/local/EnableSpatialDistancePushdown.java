@@ -37,6 +37,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushSpatialFunctionToSource;
+
 /**
  * When a spatial distance predicate can be pushed down to lucene, this is done by capturing the distance within the same function.
  * In principle this is like re-writing the predicate:
@@ -79,7 +81,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
 
     private boolean isPushableAlias(Alias alias) {
         // TODO: Add support for more pushable aliases, like simple field references
-        return alias.child() instanceof StDistance;
+        return alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, Map.of());
     }
 
     private PhysicalPlan rewrite(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {

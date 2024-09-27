@@ -1294,8 +1294,6 @@ FROM books
 | SORT book_no
 | LIMIT 2;
 
-warning:Line 2:25: evaluation of [REVERSE(title)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 warning:Line 2:73: evaluation of [REVERSE(author)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 2:73: java.lang.IllegalArgumentException: single-value function encountered multi-value
 

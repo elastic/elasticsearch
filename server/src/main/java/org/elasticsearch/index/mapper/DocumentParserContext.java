@@ -156,7 +156,8 @@ public abstract class DocumentParserContext {
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
-        boolean recordedSource
+        boolean recordedSource,
+        boolean supportsObjectAutoFlattening
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -178,7 +179,7 @@ public abstract class DocumentParserContext {
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.recordedSource = recordedSource;
-        this.supportsObjectAutoFlattening = checkForAutoFlatteningSupport();
+        this.supportsObjectAutoFlattening = supportsObjectAutoFlattening;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -202,12 +203,13 @@ public abstract class DocumentParserContext {
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.recordedSource
+            in.recordedSource,
+            in.supportsObjectAutoFlattening
         );
     }
 
-    private boolean checkForAutoFlatteningSupport() {
-        if (root().subobjects() != ObjectMapper.Subobjects.ENABLED) {
+    private static boolean checkForAutoFlatteningSupport(MappingLookup mappingLookup, RootObjectMapper rootObjectMapper) {
+        if (rootObjectMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
             return true;
         }
         for (ObjectMapper objectMapper : mappingLookup.objectMappers().values()) {
@@ -215,16 +217,11 @@ public abstract class DocumentParserContext {
                 return true;
             }
         }
-        if (root().dynamicTemplates() != null) {
-            for (DynamicTemplate dynamicTemplate : root().dynamicTemplates()) {
+        if (rootObjectMapper.dynamicTemplates() != null) {
+            for (DynamicTemplate dynamicTemplate : rootObjectMapper.dynamicTemplates()) {
                 if (findSubobjects(dynamicTemplate.getMapping())) {
                     return true;
                 }
-            }
-        }
-        for (ObjectMapper objectMapper : dynamicObjectMappers.values()) {
-            if (objectMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
-                return true;
             }
         }
         return false;
@@ -270,7 +267,8 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
             new DynamicMapperSize(),
-            false
+            false,
+            checkForAutoFlatteningSupport(mappingLookup, mappingLookup.getMapping().getRoot())
         );
     }
 

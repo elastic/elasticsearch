@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.rule;
+package org.elasticsearch.xpack.esql.rule;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

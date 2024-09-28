@@ -642,7 +642,7 @@ public class ObjectMapper extends Mapper {
             if (mergeWithObject.sourceKeepMode.isPresent()) {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     sourceKeepMode = mergeWithObject.sourceKeepMode;
-                } else if (existing.sourceKeepMode != mergeWithObject.sourceKeepMode) {
+                } else if (existing.sourceKeepMode.isEmpty() || existing.sourceKeepMode.get() != mergeWithObject.sourceKeepMode.get()) {
                     throw new MapperException(
                         "the [ "
                             + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM

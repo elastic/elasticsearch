@@ -272,7 +272,7 @@ object param - nested object with stored array:
                 type: nested
               nested_array_stored:
                 type: nested
-                synthetic_source_keep: arrays
+                synthetic_source_keep: all
 
   - do:
       bulk:

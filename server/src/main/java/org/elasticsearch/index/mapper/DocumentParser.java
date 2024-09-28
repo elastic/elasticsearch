@@ -810,9 +810,10 @@ public final class DocumentParser {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
-                && (objectMapper instanceof NestedObjectMapper == false
-                    && (getSourceKeepMode(context, objectMapper.sourceKeepMode()) != Mapper.SourceKeepMode.NONE)
-                    || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
+                && (objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME
+                    || (getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
+                        || getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS
+                            && objectMapper instanceof NestedObjectMapper == false));
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             boolean fieldWithStoredArraySource = mapper instanceof FieldMapper fieldMapper

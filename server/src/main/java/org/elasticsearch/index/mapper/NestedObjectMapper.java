@@ -322,7 +322,7 @@ public class NestedObjectMapper extends ObjectMapper {
             builder.field("enabled", enabled.value());
         }
         if (sourceKeepMode.isPresent()) {
-            builder.field("synthetic_source_keep", sourceKeepMode.get());
+            builder.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, sourceKeepMode.get());
         }
         serializeMappers(builder, params);
         return builder.endObject();

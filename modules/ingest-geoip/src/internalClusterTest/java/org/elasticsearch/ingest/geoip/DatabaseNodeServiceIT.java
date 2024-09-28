@@ -44,15 +44,17 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
      * This test makes sure that if we index an ordinary mmdb file into the .geoip_databases index, it is correctly handled upon retrieval.
      */
     public void testNonGzippedDatabase() throws Exception {
-        String databaseName = "GeoLite2-Country";
-        String databaseFileName = databaseName + ".mmdb";
+        String databaseType = "GeoLite2-Country";
+        String databaseFileName = databaseType + ".mmdb";
+        // making the dabase name unique so we know we're not using another one:
+        String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
-        assertNull(databaseNodeService.getDatabase(databaseFileName));
-        int numChunks = indexData(databaseFileName, mmdbBytes);
-        retrieveDatabase(databaseNodeService, databaseFileName, mmdbBytes, numChunks);
-        assertBusy(() -> assertNotNull(databaseNodeService.getDatabase(databaseFileName)));
-        assertValidDatabase(databaseNodeService, databaseFileName, databaseName);
+        assertNull(databaseNodeService.getDatabase(databaseName));
+        int numChunks = indexData(databaseName, mmdbBytes);
+        retrieveDatabase(databaseNodeService, databaseName, mmdbBytes, numChunks);
+        assertBusy(() -> assertNotNull(databaseNodeService.getDatabase(databaseName)));
+        assertValidDatabase(databaseNodeService, databaseName, databaseType);
     }
 
     /*
@@ -60,16 +62,18 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
      * handled upon retrieval.
      */
     public void testGzippedDatabase() throws Exception {
-        String databaseName = "GeoLite2-Country";
-        String databaseFileName = databaseName + ".mmdb";
+        String databaseType = "GeoLite2-Country";
+        String databaseFileName = databaseType + ".mmdb";
+        // making the dabase name unique so we know we're not using another one:
+        String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
-        byte[] gzipBytes = gzipFileBytes(databaseFileName, mmdbBytes);
+        byte[] gzipBytes = gzipFileBytes(databaseName, mmdbBytes);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
-        assertNull(databaseNodeService.getDatabase(databaseFileName));
-        int numChunks = indexData(databaseFileName, gzipBytes);
-        retrieveDatabase(databaseNodeService, databaseFileName, gzipBytes, numChunks);
-        assertBusy(() -> assertNotNull(databaseNodeService.getDatabase(databaseFileName)));
-        assertValidDatabase(databaseNodeService, databaseFileName, databaseName);
+        assertNull(databaseNodeService.getDatabase(databaseName));
+        int numChunks = indexData(databaseName, gzipBytes);
+        retrieveDatabase(databaseNodeService, databaseName, gzipBytes, numChunks);
+        assertBusy(() -> assertNotNull(databaseNodeService.getDatabase(databaseName)));
+        assertValidDatabase(databaseNodeService, databaseName, databaseType);
     }
 
     /*

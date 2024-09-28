@@ -240,7 +240,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             e3.getCause().getMessage(),
             containsString(
                 "Failed to parse params: [2:16] [v] is not a valid param attribute, "
-                    + "a valid attribute is value, identifier or identifierpattern"
+                    + "a valid attribute is any of value, identifier, identifierpattern"
             )
         );
         assertThat(e3.getCause().getMessage(), containsString("[2:39] [id] is not a valid param attribute"));
@@ -255,7 +255,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "[3:46] [true] is not a valid value for pattern parameter, a valid value for pattern parameter is a string and contains *"
             )
         );
-        assertThat(e3.getCause().getMessage(), containsString("[4:40] [n7 = {identifier=true, v=v7}] does not have a value provided"));
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString(
+                "[4:40] [v] is not a valid param attribute, " + "a valid attribute is any of value, identifier, identifierpattern"
+            )
+        );
         assertThat(
             e3.getCause().getMessage(),
             containsString(
@@ -275,14 +280,14 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(
             e3.getCause().getMessage(),
             containsString(
-                "[6:48] [[x, y]] is not a valid value for identifier parameter, " + "a valid value for identifier parameter is a string"
+                "[6:48] [[x, y]] is not a valid value for identifier parameter, a valid value for identifier parameter is a string"
             )
         );
         assertThat(
             e3.getCause().getMessage(),
             containsString(
-                "[7:1] [n12 = {identifier=true, identifierpattern=true, value=v12}] "
-                    + "can be either an identifier or an identifier pattern, but cannot be both"
+                "[7:1] [n12 = {value=v12, identifier=true, identifierpattern=true}] "
+                    + "can be either an identifier or an identifierpattern, but cannot be both"
             )
         );
     }

@@ -443,12 +443,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 TopDocsCollector<?> topDocsCollector;
                 MaxScoreCollector maxScoreCollector = null;
                 if (sort() != null) {
-                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, Integer.MAX_VALUE).newCollector();
+                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, null, Integer.MAX_VALUE, false).newCollector();
                     if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                 } else {
-                    topDocsCollector = new TopScoreDocCollectorManager(topN, Integer.MAX_VALUE).newCollector();
+                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE, false).newCollector();
                     maxScoreCollector = new MaxScoreCollector();
                 }
                 intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);

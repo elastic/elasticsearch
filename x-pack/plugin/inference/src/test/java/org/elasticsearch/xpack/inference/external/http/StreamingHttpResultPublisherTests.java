@@ -498,6 +498,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
 
             publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
             publisher.responseReceived(mock(HttpResponse.class));
+            publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
             // create an infinitely running Subscriber
             var subscriber = new Flow.Subscriber<HttpResult>() {
                 Flow.Subscription subscription;

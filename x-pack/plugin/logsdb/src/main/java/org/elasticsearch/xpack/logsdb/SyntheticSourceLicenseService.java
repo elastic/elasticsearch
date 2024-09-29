@@ -16,7 +16,7 @@ import org.elasticsearch.license.XPackLicenseState;
 /**
  * Determines based on license and fallback setting whether synthetic source usages should fallback to stored source.
  */
-final class SyntheticSourceLicenseService {
+public final class SyntheticSourceLicenseService {
 
     private static final String MAPPINGS_FEATURE_FAMILY = "mappings";
 
@@ -39,7 +39,7 @@ final class SyntheticSourceLicenseService {
     private XPackLicenseState licenseState;
     private volatile boolean syntheticSourceFallback;
 
-    SyntheticSourceLicenseService(Settings settings) {
+    public SyntheticSourceLicenseService(Settings settings) {
         syntheticSourceFallback = FALLBACK_SETTING.get(settings);
     }
 

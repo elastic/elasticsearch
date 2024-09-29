@@ -35,6 +35,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -1201,7 +1202,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     }
                     SyntheticSourceExample example = support.example(maxValues);
                     expected[i] = example.expected();
-                    iw.addDocument(mapper.parse(source(example::buildInput)).rootDoc());
+                    logger.info("expected[{}]:{}", i, expected[i]);
+                    var sourceToParse = source(example::buildInput);
+                    iw.addDocument(mapper.parse(sourceToParse).rootDoc());
                 }
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
@@ -1580,6 +1583,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         buildInput.accept(builder);
         builder.endObject();
         String expected = Strings.toString(builder);
+        logger.info("expected:\n {}", expected);
         assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
     }
 

@@ -807,7 +807,7 @@ public final class DocumentParser {
         String fullPath = context.path().pathAsText(arrayFieldName);
 
         // Check if we need to record the array source. This only applies to synthetic source.
-        if (context.canAddIgnoredField()) {
+        if (context.canAddIgnoredField() && (mapper instanceof KeywordFieldMapper == false /* hard coded exclusion keyword mapper */)) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource()
                     || (context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS
@@ -834,10 +834,13 @@ public final class DocumentParser {
                 }
         }
 
-        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
-        // elements from regular source loading that are then skipped from the synthesized array source.
-        // To prevent this, we track each array name, to check if it contains any sub-arrays in its elements.
-        context = context.cloneForArray(fullPath);
+        // hard coded exclusion keyword mapper:
+        if (mapper instanceof KeywordFieldMapper == false) {
+            // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+            // elements from regular source loading that are then skipped from the synthesized array source.
+            // To prevent this, we track each array name, to check if it contains any sub-arrays in its elements.
+            context = context.cloneForArray(fullPath);
+        }
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
@@ -854,6 +857,10 @@ public final class DocumentParser {
                 assert token.isValue();
                 parseValue(context, lastFieldName);
             }
+        }
+        // hard coded post processing of arrays:
+        if (mapper instanceof KeywordFieldMapper k) {
+            k.processOffsets(context);
         }
         postProcessDynamicArrayMapping(context, lastFieldName);
     }

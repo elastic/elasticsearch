@@ -1547,10 +1547,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Index documents until all the shards are at least bytesPerShard in size.
-     * @return ShardStats for the newly populated shards.
+     * Runs random indexing until each shard in the given index is at least minBytesPerShard in size.
+     * Force merges all cluster shards down to one segment, and then invokes refresh to ensure all shard data is visible for readers,
+     * before returning.
+     *
+     * @return The final {@link ShardStats} for all shards of the index.
      */
-    protected ShardStats[] populateIndexShards(final String indexName, long bytesPerShard) {
+    protected ShardStats[] indexAllShardsToAnEqualOrGreaterMinimumSize(final String indexName, long minBytesPerShard) {
         while (true) {
             indexRandom(false, indexName, scaledRandomIntBetween(100, 10000));
             forceMerge();
@@ -1568,7 +1571,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .min()
                 .orElseThrow(() -> new AssertionError("no shards"));
 
-            if (smallestShardSize > bytesPerShard) {
+            if (smallestShardSize >= minBytesPerShard) {
                 return shardStats;
             }
         }

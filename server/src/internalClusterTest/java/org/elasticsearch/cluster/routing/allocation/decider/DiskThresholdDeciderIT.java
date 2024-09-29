@@ -257,7 +257,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
      * @return the shard sizes.
      */
     private ShardSizes createReasonableSizedShards(final String indexName) {
-        ShardStats[] shardStats = populateIndexShards(indexName, WATERMARK_BYTES);
+        ShardStats[] shardStats = indexAllShardsToAnEqualOrGreaterMinimumSize(indexName, WATERMARK_BYTES);
         var shardSizes = Arrays.stream(shardStats)
             .map(it -> new ShardSize(removeIndexUUID(it.getShardRouting().shardId()), it.getStats().getStore().sizeInBytes()))
             .sorted(Comparator.comparing(ShardSize::size))

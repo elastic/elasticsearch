@@ -53,7 +53,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.snapshots.SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_INTERVAL_TIME_SETTING;
+import static org.elasticsearch.snapshots.SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -89,15 +89,15 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
      * Tests that shard snapshots on a node with RESTART shutdown metadata will finish on the same node.
      */
     @TestLogging(
-        value = "org.elasticsearch.snapshots.SnapshotShutdownProgressTracker:TRACE",
-        reason = "Testing SnapshotShutdownProgressTracker's progress, which is reported at the TRACE logging level"
+        value = "org.elasticsearch.snapshots.SnapshotShutdownProgressTracker:DEBUG",
+        reason = "Testing SnapshotShutdownProgressTracker's progress, which is reported at the DEBUG logging level"
     )
     public void testRestartNodeDuringSnapshot() throws Exception {
         // Marking a node for restart has no impact on snapshots (see #71333 for how to handle this case)
         internalCluster().ensureAtLeastNumDataNodes(1);
         final var originalNode = internalCluster().startDataOnlyNode(
             // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
-            Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
+            Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
         );
         final String originalNodeId = internalCluster().getInstance(NodeEnvironment.class, originalNode).nodeId();
 
@@ -125,11 +125,12 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         });
         addUnassignedShardsWatcher(clusterService, indexName);
 
+        // Ensure that the SnapshotShutdownProgressTracker does not start logging in RESTART mode.
         mockLog.addExpectation(
-            new MockLog.SeenEventExpectation(
+            new MockLog.UnseenEventExpectation(
                 "SnapshotShutdownProgressTracker start log message",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
-                Level.TRACE,
+                Level.DEBUG,
                 "Starting shutdown snapshot progress logging on node [" + originalNodeId + "]"
             )
         );
@@ -147,26 +148,13 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         );
         assertFalse(snapshotCompletesWithoutPausingListener.isDone());
 
-        // Check that the SnapshotShutdownProgressTracker registers the snapshot successfully completing.
-        assertBusy(mockLog::assertAllExpectationsMatched);
+        // Verify no SnapshotShutdownProgressTracker logging in RESTART mode.
+        mockLog.awaitAllExpectationsMatched();
         resetMockLog();
-
-        mockLog.addExpectation(
-            new MockLog.SeenEventExpectation(
-                "SnapshotShutdownProgressTracker shard snapshot has paused log message",
-                SnapshotShutdownProgressTracker.class.getCanonicalName(),
-                Level.INFO,
-                "Current active shard snapshot stats on data node [" + originalNodeId + "]*Done [1]; Failed [0]; Aborted [0]; Paused [0]"
-            )
-        );
 
         unblockAllDataNodes(repoName); // lets the shard snapshot continue so the snapshot can succeed
         assertEquals(SnapshotState.SUCCESS, snapshotFuture.get(10, TimeUnit.SECONDS).getSnapshotInfo().state());
         safeAwait(snapshotCompletesWithoutPausingListener);
-
-        // Check that the SnapshotShutdownProgressTracker registers the snapshot successfully completing.
-        assertBusy(mockLog::assertAllExpectationsMatched);
-        resetMockLog();
 
         clearShutdownMetadata(clusterService);
     }
@@ -504,12 +492,12 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         final var nodeForRemoval = internalCluster().startDataOnlyNode(
             // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
-            Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
+            Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
         );
         final String nodeForRemovalId = internalCluster().getInstance(NodeEnvironment.class, nodeForRemoval).nodeId();
         final var indexName = randomIdentifier();
         createIndexWithContent(indexName, indexSettings(numShards, 0).put(REQUIRE_NODE_NAME_SETTING, nodeForRemoval).build());
-        populateIndexShards(indexName, new ByteSizeValue(2, ByteSizeUnit.KB).getBytes());
+        indexAllShardsToAnEqualOrGreaterMinimumSize(indexName, new ByteSizeValue(2, ByteSizeUnit.KB).getBytes());
 
         // Start the snapshot with blocking in place on the data node not to allow shard snapshots to finish yet.
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -524,7 +512,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             new MockLog.SeenEventExpectation(
                 "SnapshotShutdownProgressTracker start log message",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
-                Level.TRACE,
+                Level.DEBUG,
                 "Starting shutdown snapshot progress logging on node [" + nodeForRemovalId + "]"
             )
         );
@@ -532,7 +520,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             new MockLog.SeenEventExpectation(
                 "SnapshotShutdownProgressTracker pause set log message",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
-                Level.TRACE,
+                Level.DEBUG,
                 "Pause signals have been set for all shard snapshots on data node [" + nodeForRemovalId + "]"
             )
         );
@@ -540,7 +528,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         putShutdownForRemovalMetadata(nodeForRemoval, clusterService);
 
         // Check that the SnapshotShutdownProgressTracker was turned on after the shutdown metadata is set above.
-        assertBusy(mockLog::assertAllExpectationsMatched);
+        mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 
         mockLog.addExpectation(
@@ -553,7 +541,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         );
 
         // Check that the SnapshotShutdownProgressTracker is tracking the active (not yet paused) shard snapshots.
-        assertBusy(mockLog::assertAllExpectationsMatched);
+        mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 
         // Block on the master when a shard snapshot request comes in, until we can verify that the Tracker saw the outgoing request.
@@ -584,7 +572,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, nodeForRemoval);
 
         // Check that the SnapshotShutdownProgressTracker observed the request sent to the master node.
-        assertBusy(mockLog::assertAllExpectationsMatched);
+        mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 
         mockLog.addExpectation(
@@ -603,7 +591,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         safeAwait(snapshotPausedListener);
 
         // Check that the SnapshotShutdownProgressTracker observed the shard snapshot finishing as paused.
-        assertBusy(mockLog::assertAllExpectationsMatched);
+        mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 
         // Remove the allocation filter so that the shard moves off of the node shutting down.
@@ -640,7 +628,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             new MockLog.SeenEventExpectation(
                 "SnapshotShutdownProgressTracker cancelled log message",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
-                Level.TRACE,
+                Level.DEBUG,
                 "Cancelling shutdown snapshot progress logging on node [" + nodeForRemovalId + "]"
             )
         );
@@ -648,7 +636,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
 
         // Check that the SnapshotShutdownProgressTracker logging was cancelled by the removal of the shutdown metadata.
-        assertBusy(mockLog::assertAllExpectationsMatched);
+        mockLog.awaitAllExpectationsMatched();
         resetMockLog();
     }
 

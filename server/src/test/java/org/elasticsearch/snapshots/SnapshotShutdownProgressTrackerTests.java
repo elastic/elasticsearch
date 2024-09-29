@@ -10,48 +10,68 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.concurrent.TimeUnit;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(SnapshotShutdownProgressTrackerTests.class);
 
-    private final ClusterService mockClusterService = mock(ClusterService.class);
-    private final ClusterState mockClusterState = mock(ClusterState.class);
-    private final DiscoveryNodes mockDiscoveryNodes = mock(DiscoveryNodes.class);
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        when(mockClusterService.state()).thenReturn(mockClusterState);
-        when(mockClusterState.nodes()).thenReturn(mockDiscoveryNodes);
-        when(mockDiscoveryNodes.getLocalNodeId()).thenReturn("localNodeIdForTest");
-    }
-
     final Settings settings = Settings.builder()
         .put(
-            SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_INTERVAL_TIME_SETTING.getKey(),
+            SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(),
             TimeValue.timeValueMillis(200)
         )
         .build();
+
+    // Construction parameters for the Tracker.
     TestThreadPool testThreadPool;
+    private final Supplier<String> getLocalNodeIdSupplier = () -> "local-node-id-for-test";
+    private final BiConsumer<Setting<TimeValue>, Consumer<TimeValue>> addSettingsUpdateConsumerNoOp = (setting, updateMethod) -> {};
+
+    // Set up some dummy shard snapshot information to feed the Tracker.
+    private final ShardId dummyShardId = new ShardId(new Index("index-name-for-test", "index-uuid-for-test"), 0);
+    private final Snapshot dummySnapshot = new Snapshot(
+        "snapshot-repo-name-for-test",
+        new SnapshotId("snapshot-name-for-test", "snapshot-uuid-for-test")
+    );
+    Function<IndexShardSnapshotStatus.Stage, IndexShardSnapshotStatus> dummyShardSnapshotStatusSupplier = (stage) -> {
+        var shardGen = new ShardGeneration("shard-gen-string-for-test");
+        IndexShardSnapshotStatus newStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("shard-gen-string-for-test"));
+        switch (stage) {
+            case DONE -> {
+                newStatus.moveToStarted(0L, 1, 10, 2L, 20L);
+                newStatus.moveToFinalize();
+                newStatus.moveToDone(10L, new ShardSnapshotResult(shardGen, ByteSizeValue.MINUS_ONE, 2));
+            }
+            case ABORTED -> newStatus.abortIfNotCompleted("snapshot-aborted-for-test", (listener) -> {});
+            case FAILURE -> newStatus.moveToFailed(300, "shard-snapshot-failure-string for-test");
+            case PAUSED -> {
+                newStatus.pauseIfNotCompleted((listener) -> {});
+                newStatus.moveToUnsuccessful(IndexShardSnapshotStatus.Stage.PAUSED, "shard-paused-string-for-test", 100L);
+            }
+            default -> newStatus.pauseIfNotCompleted((listener) -> {});
+        }
+        ;
+        return newStatus;
+    };
 
     @Before
     public void setUpThreadPool() {
@@ -60,7 +80,8 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
 
     @After
     public void shutdownThreadPool() {
-        assert TestThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        boolean successfulTermination = terminate(testThreadPool);
+        assert successfulTermination;
     }
 
     /**
@@ -69,19 +90,28 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
      */
     void simulateShardSnapshotsCompleting(SnapshotShutdownProgressTracker tracker, int numShardSnapshots) {
         for (int i = 0; i < numShardSnapshots; ++i) {
-            tracker.incNumberOfShardSnapshotsInProgress();
-            tracker.decNumberOfShardSnapshotsInProgress(switch (i % 4) {
-                case 0 -> IndexShardSnapshotStatus.Stage.DONE;
-                case 1 -> IndexShardSnapshotStatus.Stage.ABORTED;
-                case 2 -> IndexShardSnapshotStatus.Stage.FAILURE;
-                case 3 -> IndexShardSnapshotStatus.Stage.PAUSED;
-                default -> IndexShardSnapshotStatus.Stage.PAUSING;  // decNumberOfShardSnapshotsInProgress will assert receiving this value.
-            });
+            tracker.incNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot);
+            IndexShardSnapshotStatus status;
+            switch (i % 4) {
+                case 0 -> status = dummyShardSnapshotStatusSupplier.apply(IndexShardSnapshotStatus.Stage.DONE);
+                case 1 -> status = dummyShardSnapshotStatusSupplier.apply(IndexShardSnapshotStatus.Stage.ABORTED);
+                case 2 -> status = dummyShardSnapshotStatusSupplier.apply(IndexShardSnapshotStatus.Stage.FAILURE);
+                case 3 -> status = dummyShardSnapshotStatusSupplier.apply(IndexShardSnapshotStatus.Stage.PAUSED);
+                // decNumberOfShardSnapshotsInProgress will throw an assertion if this value is ever set.
+                default -> status = dummyShardSnapshotStatusSupplier.apply(IndexShardSnapshotStatus.Stage.PAUSING);
+            }
+            logger.info("---> Generated shard snapshot status in stage (" + status.getStage() + ") for switch case (" + (i % 4) + ")");
+            tracker.decNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot, status);
         }
     }
 
     public void testTrackerLogsStats() throws Exception {
-        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(mockClusterService, settings, testThreadPool);
+        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
+            getLocalNodeIdSupplier,
+            addSettingsUpdateConsumerNoOp,
+            settings,
+            testThreadPool
+        );
 
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
             mockLog.addExpectation(
@@ -120,7 +150,12 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     }
 
     public void testTrackerPauseTimestamp() throws Exception {
-        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(mockClusterService, settings, testThreadPool);
+        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
+            getLocalNodeIdSupplier,
+            addSettingsUpdateConsumerNoOp,
+            settings,
+            testThreadPool
+        );
 
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
             mockLog.addExpectation(
@@ -144,7 +179,12 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     }
 
     public void testTrackerRequestsToMaster() throws Exception {
-        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(mockClusterService, settings, testThreadPool);
+        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
+            getLocalNodeIdSupplier,
+            addSettingsUpdateConsumerNoOp,
+            settings,
+            testThreadPool
+        );
         Snapshot snapshot = new Snapshot("repositoryName", new SnapshotId("snapshotName", "snapshotUUID"));
         ShardId shardId = new ShardId(new Index("indexName", "indexUUID"), 0);
 
@@ -188,7 +228,12 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     }
 
     public void testTrackerClearShutdown() throws Exception {
-        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(mockClusterService, settings, testThreadPool);
+        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
+            getLocalNodeIdSupplier,
+            addSettingsUpdateConsumerNoOp,
+            settings,
+            testThreadPool
+        );
 
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
             mockLog.addExpectation(

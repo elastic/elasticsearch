@@ -433,4 +433,31 @@ public class IndexShardSnapshotStatus {
                 + ')';
         }
     }
+
+    @Override
+    public String toString() {
+        return "index shard snapshot status ("
+            + "stage="
+            + stage
+            + ", startTime="
+            + startTime
+            + ", totalTime="
+            + totalTime
+            + ", incrementalFileCount="
+            + incrementalFileCount
+            + ", totalFileCount="
+            + totalFileCount
+            + ", processedFileCount="
+            + processedFileCount
+            + ", incrementalSize="
+            + incrementalSize
+            + ", totalSize="
+            + totalSize
+            + ", processedSize="
+            + processedSize
+            + ", failure='"
+            + failure
+            + '\''
+            + ')';
+    }
 }

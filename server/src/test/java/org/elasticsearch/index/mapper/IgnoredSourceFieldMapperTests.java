@@ -578,13 +578,39 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         })).documentMapper();
         var syntheticSource = syntheticSource(documentMapper, b -> {
             b.startArray("path");
-            b.startObject().field("int_value", 10).endObject();
             b.startObject().field("int_value", 20).endObject();
+            b.startObject().field("int_value", 10).endObject();
             b.endArray();
             b.field("bool_value", true);
         });
         assertEquals("""
-            {"bool_value":true,"path":[{"int_value":10},{"int_value":20}]}""", syntheticSource);
+            {"bool_value":true,"path":[{"int_value":20},{"int_value":10}]}""", syntheticSource);
+    }
+
+    public void testIndexStoredArraySourceRootObjectArrayWithBypass() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.field("synthetic_source_keep", "none");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("bool_value").field("type", "boolean").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            b.startObject().field("int_value", 20).endObject();
+            b.startObject().field("int_value", 10).endObject();
+            b.endArray();
+            b.field("bool_value", true);
+        });
+        assertEquals("""
+            {"bool_value":true,"path":{"int_value":[10,20]}}""", syntheticSource);
     }
 
     public void testIndexStoredArraySourceNestedValueArray() throws IOException {
@@ -622,6 +648,12 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                 {
                     b.startObject("int_value").field("type", "integer").field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "none").endObject();
                     b.startObject("bool_value").field("type", "boolean").endObject();
+                    b.startObject("obj").field("type", "object").field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "none");
+                    b.startObject("properties");
+                    {
+                        b.startObject("foo").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
                 }
                 b.endObject();
             }
@@ -632,11 +664,19 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {
                 b.array("int_value", new int[] { 30, 20, 10 });
                 b.field("bool_value", true);
+                b.startArray("obj");
+                {
+                    b.startObject().field("foo", 2).endObject();
+                    b.startObject().field("foo", 1).endObject();
+                }
+                b.endArray();
             }
             b.endObject();
         });
         assertEquals("""
-            {"path":{"bool_value":true,"int_value":[10,20,30]}}""", syntheticSource);
+            {"path":{"bool_value":true,"int_value":[10,20,30],"obj":{"foo":[1,2]}}}
+
+            """, syntheticSource);
     }
 
     public void testFieldStoredArraySourceNestedValueArray() throws IOException {
@@ -902,7 +942,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })).documentMapper();
-        // { "path": [ { "stored":[ { "leaf": 10 } ] }, { "stored": { "leaf": 20 } } ] }
         var syntheticSource = syntheticSource(documentMapper, b -> {
             b.startArray("path");
             {
@@ -1021,6 +1060,42 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals(String.format(Locale.ROOT, """
             {"path":{"to":[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"}]}}""", booleanValue), syntheticSource);
+    }
+
+    public void testObjectWithKeepAll() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object").field("synthetic_source_keep", "all");
+                b.startObject("properties");
+                {
+                    b.startObject("a").field("type", "object").endObject();
+                    b.startObject("b").field("type", "integer").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("id").field("type", "integer").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startArray("a");
+                {
+                    b.startObject().field("foo", 30).endObject();
+                    b.startObject().field("foo", 20).endObject();
+                    b.startObject().field("foo", 10).endObject();
+                    b.startObject().field("bar", 20).endObject();
+                    b.startObject().field("bar", 10).endObject();
+                }
+                b.endArray();
+                b.array("b", 4, 1, 3, 2);
+            }
+            b.endObject();
+            b.field("id", 10);
+        });
+        assertEquals("""
+            {"id":10,"path":{"a":[{"foo":30},{"foo":20},{"foo":10},{"bar":20},{"bar":10}],"b":[4,1,3,2]}}""", syntheticSource);
     }
 
     public void testFallbackFieldWithinHigherLevelArray() throws IOException {

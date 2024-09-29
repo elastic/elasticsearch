@@ -25,7 +25,7 @@ GET my-index-000001/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 
 [discrete]
@@ -40,8 +40,208 @@ The `semantic_text` field to perform the query on.
 (Required, string)
 The query text to be searched for on the field.
 
+`inner_hits`::
+(Optional, object)
+Retrieves the specific passages that match the query.
+See <<semantic-query-passage-ranking, passage ranking with the `semantic` query>> for more information.
++
+.Properties of `inner_hits`
+[%collapsible%open]
+====
+`from`::
+(Optional, integer)
+The offset from the first matching passage to fetch.
+Used to paginate through the passages.
+Defaults to `0`.
+
+`size`::
+(Optional, integer)
+The maximum number of matching passages to return.
+Defaults to `3`.
+====
 
 Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about semantic search using `semantic_text` and `semantic` query.
+
+[discrete]
+[[semantic-query-passage-ranking]]
+==== Passage ranking with the `semantic` query
+The `inner_hits` parameter can be used for _passage ranking_, which allows you to determine which passages in the document best match the query.
+For example, if you have a document that covers varying topics:
+
+[source,console]
+------------------------------------------------------------
+POST my-index/_doc/lake_tahoe
+{
+  "inference_field": [
+    "Lake Tahoe is the largest alpine lake in North America",
+    "When hiking in the area, please be on alert for bears"
+  ]
+}
+------------------------------------------------------------
+// TEST[skip: Requires inference endpoints]
+
+You can use passage ranking to find the passage that best matches your query:
+
+[source,console]
+------------------------------------------------------------
+GET my-index/_search
+{
+  "query": {
+    "semantic": {
+      "field": "inference_field",
+      "query": "mountain lake",
+      "inner_hits": { }
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip: Requires inference endpoints]
+
+[source,console-result]
+------------------------------------------------------------
+{
+    "took": 67,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 1,
+            "relation": "eq"
+        },
+        "max_score": 10.844536,
+        "hits": [
+            {
+                "_index": "my-index",
+                "_id": "lake_tahoe",
+                "_score": 10.844536,
+                "_source": {
+                    ...
+                },
+                "inner_hits": { <1>
+                    "inference_field": {
+                        "hits": {
+                            "total": {
+                                "value": 2,
+                                "relation": "eq"
+                            },
+                            "max_score": 10.844536,
+                            "hits": [
+                                {
+                                    "_index": "my-index",
+                                    "_id": "lake_tahoe",
+                                    "_nested": {
+                                        "field": "inference_field.inference.chunks",
+                                        "offset": 0
+                                    },
+                                    "_score": 10.844536,
+                                    "_source": {
+                                        "text": "Lake Tahoe is the largest alpine lake in North America"
+                                    }
+                                },
+                                {
+                                    "_index": "my-index",
+                                    "_id": "lake_tahoe",
+                                    "_nested": {
+                                        "field": "inference_field.inference.chunks",
+                                        "offset": 1
+                                    },
+                                    "_score": 3.2726858,
+                                    "_source": {
+                                        "text": "When hiking in the area, please be on alert for bears"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}
+------------------------------------------------------------
+<1> Ranked passages will be returned using the <<inner-hits,`inner_hits` response format>>, with `<inner_hits_name>` set to the `semantic_text` field name.
+
+By default, the top three matching passages will be returned.
+You can use the `size` parameter to control the number of passages returned and the `from` parameter to page through the matching passages:
+
+[source,console]
+------------------------------------------------------------
+GET my-index/_search
+{
+  "query": {
+    "semantic": {
+      "field": "inference_field",
+      "query": "mountain lake",
+      "inner_hits": {
+        "from": 1,
+        "size": 1
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip: Requires inference endpoints]
+
+[source,console-result]
+------------------------------------------------------------
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 1,
+            "relation": "eq"
+        },
+        "max_score": 10.844536,
+        "hits": [
+            {
+                "_index": "my-index",
+                "_id": "lake_tahoe",
+                "_score": 10.844536,
+                "_source": {
+                    ...
+                },
+                "inner_hits": {
+                    "inference_field": {
+                        "hits": {
+                            "total": {
+                                "value": 2,
+                                "relation": "eq"
+                            },
+                            "max_score": 10.844536,
+                            "hits": [
+                                {
+                                    "_index": "my-index",
+                                    "_id": "lake_tahoe",
+                                    "_nested": {
+                                        "field": "inference_field.inference.chunks",
+                                        "offset": 1
+                                    },
+                                    "_score": 3.2726858,
+                                    "_source": {
+                                        "text": "When hiking in the area, please be on alert for bears"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}
+------------------------------------------------------------
 
 [discrete]
 [[hybrid-search-semantic]]
@@ -79,7 +279,7 @@ POST my-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can also use semantic_text as part of <<rrf,Reciprocal Rank Fusion>> to make ranking relevant results easier:
 
@@ -116,12 +316,12 @@ GET my-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 
 [discrete]
 [[advanced-search]]
-=== Advanced search on `semantic_text` fields
+==== Advanced search on `semantic_text` fields
 
 The `semantic` query uses default settings for searching on `semantic_text` fields for ease of use.
 If you want to fine-tune a search on a `semantic_text` field, you need to know the task type used by the `inference_id` configured in `semantic_text`.
@@ -135,7 +335,7 @@ on a `semantic_text` field, it is not supported to use the `semantic_query` on a
 
 [discrete]
 [[search-sparse-inference]]
-==== Search with `sparse_embedding` inference
+===== Search with `sparse_embedding` inference
 
 When the {infer} endpoint uses a `sparse_embedding` model, you can use a <<query-dsl-sparse-vector-query,`sparse_vector` query>> on a <<semantic-text,`semantic_text`>> field in the following way:
 
@@ -157,14 +357,14 @@ GET test-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can customize the `sparse_vector` query to include specific settings, like <<sparse-vector-query-with-pruning-config-and-rescore-example,pruning configuration>>.
 
 
 [discrete]
 [[search-text-inferece]]
-==== Search with `text_embedding` inference
+===== Search with `text_embedding` inference
 
 When the {infer} endpoint uses a `text_embedding` model, you can use a <<query-dsl-knn-query,`knn` query>> on a `semantic_text` field in the following way:
 
@@ -190,6 +390,6 @@ GET test-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can customize the `knn` query to include specific settings, like `num_candidates` and `k`.

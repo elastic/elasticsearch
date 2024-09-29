@@ -41,12 +41,7 @@ public interface InferenceService extends Closeable {
      * @param config                Configuration options including the secrets
      * @param parsedModelListener   A listener which will handle the resulting model or failure
      */
-    void parseRequestConfig(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    );
+    void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that

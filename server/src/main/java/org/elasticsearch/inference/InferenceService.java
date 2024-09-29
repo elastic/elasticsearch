@@ -151,17 +151,6 @@ public interface InferenceService extends Closeable {
     }
 
     /**
-     * Checks if the modelId has been downloaded to the local Elasticsearch cluster using the trained models API
-     * The default action does nothing except acknowledge the request (false).
-     * Any internal services should Override this method.
-     * @param model
-     * @param listener The listener
-     */
-    default void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
-        listener.onResponse(false);
-    };
-
-    /**
      * Optionally test the new model configuration in the inference service.
      * This function should be called when the model is first created, the
      * default action is to do nothing.
@@ -181,14 +170,6 @@ public interface InferenceService extends Closeable {
      */
     default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         return model;
-    }
-
-    /**
-     * Return true if this model is hosted in the local Elasticsearch cluster
-     * @return True if in cluster
-     */
-    default boolean isInClusterService() {
-        return false;
     }
 
     /**

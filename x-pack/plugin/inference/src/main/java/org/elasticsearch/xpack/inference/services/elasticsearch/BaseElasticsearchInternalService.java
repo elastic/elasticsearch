@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
@@ -77,24 +78,33 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     protected abstract EnumSet<TaskType> supportedTaskTypes();
 
     @Override
-    public void start(Model model, ActionListener<Boolean> listener) {
-        if (model instanceof ElasticsearchInternalModel == false) {
-            listener.onFailure(notElasticsearchModelException(model));
-            return;
+    public void start(Model model, ActionListener<Boolean> finalListener) {
+        if (model instanceof ElasticsearchInternalModel esModel) {
+
+            if (supportedTaskTypes().contains(model.getTaskType()) == false) {
+                finalListener.onFailure(
+                    new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()))
+                );
+                return;
+            }
+
+            SubscribableListener.<Boolean>newForked(forkedListener -> { isBuiltinModelPut(model, forkedListener); })
+                .<Boolean>andThen((l, modelConfigExists) -> {
+                    if (modelConfigExists == false) {
+                        putModel(model, l);
+                    } else {
+                        l.onResponse(true);
+                    }
+                })
+                .<Boolean>andThen((l2, modelDidPut) -> {
+                    var startRequest = esModel.getStartTrainedModelDeploymentActionRequest();
+                    var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, finalListener);
+                    client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
+                });
+
+        } else {
+            finalListener.onFailure(notElasticsearchModelException(model));
         }
-
-        if (supportedTaskTypes().contains(model.getTaskType()) == false) {
-            listener.onFailure(
-                new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()))
-            );
-            return;
-        }
-
-        var esModel = (ElasticsearchInternalModel) model;
-        var startRequest = esModel.getStartTrainedModelDeploymentActionRequest();
-        var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, listener);
-
-        client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
     }
 
     @Override
@@ -158,8 +168,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
-    @Override
-    public void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
+    protected void isBuiltinModelPut(Model model, ActionListener<Boolean> listener) {
         ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
             if (response.getResources().count() < 1) {
                 delegate.onResponse(Boolean.FALSE);
@@ -183,11 +192,6 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                 )
             );
         }
-    }
-
-    @Override
-    public boolean isInClusterService() {
-        return true;
     }
 
     @Override

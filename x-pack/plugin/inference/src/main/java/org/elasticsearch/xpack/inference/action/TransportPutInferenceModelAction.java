@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -165,7 +164,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
             (delegate, verifiedModel) -> modelRegistry.storeModel(
                 verifiedModel,
-                ActionListener.wrap(r -> putAndStartModel(service, verifiedModel, delegate), e -> {
+                ActionListener.wrap(r -> startInferenceEndpoint(service, verifiedModel, delegate), e -> {
                     if (e.getCause() instanceof StrictDynamicMappingException && e.getCause().getMessage().contains("chunking_settings")) {
                         delegate.onFailure(
                             new ElasticsearchStatusException(
@@ -192,32 +191,12 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
     }
 
-    private void putAndStartModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
-        SubscribableListener.<Boolean>newForked(listener -> {
-            var errorCatchingListener = ActionListener.<Boolean>wrap(listener::onResponse, e -> { listener.onResponse(false); });
-            service.isModelDownloaded(model, errorCatchingListener);
-        }).<Boolean>andThen((listener, isDownloaded) -> {
-            if (isDownloaded == false) {
-                service.putModel(model, listener);
-            } else {
-                listener.onResponse(true);
-            }
-        }).<PutInferenceModelAction.Response>andThen((listener, modelDidPut) -> {
-            if (modelDidPut) {
-                if (skipValidationAndStart) {
-                    listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
-                } else {
-                    service.start(
-                        model,
-                        listener.delegateFailureAndWrap(
-                            (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
-                        )
-                    );
-                }
-            } else {
-                logger.warn("Failed to put model [{}]", model.getInferenceEntityId());
-            }
-        }).addListener(finalListener);
+    private void startInferenceEndpoint(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
+        if (skipValidationAndStart) {
+            listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
+        } else {
+            service.start(model, listener.map(started -> new PutInferenceModelAction.Response(model.getConfigurations())));
+        }
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {

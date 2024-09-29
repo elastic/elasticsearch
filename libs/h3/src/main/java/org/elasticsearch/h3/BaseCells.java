@@ -27,7 +27,7 @@ package org.elasticsearch.h3;
  */
 final class BaseCells {
 
-    record BaseCellData(
+    private record BaseCellData(
         int homeFace, // "home" face and normalized ijk coordinates on that face
         int homeI,
         int homeJ,

@@ -329,8 +329,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113722
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/113730
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
   issue: https://github.com/elastic/elasticsearch/issues/113661
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT

@@ -140,7 +140,7 @@ public class ModelRegistry {
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
         if (DEFAULT_CONFIGS.containsKey(inferenceEntityId)) {
-            listener.onResponse(DEFAULT_CONFIGS.get(inferenceEntityId));
+            listener.onResponse(deepCopyDefaultConfig(DEFAULT_CONFIGS.get(inferenceEntityId)));
             return;
         }
 

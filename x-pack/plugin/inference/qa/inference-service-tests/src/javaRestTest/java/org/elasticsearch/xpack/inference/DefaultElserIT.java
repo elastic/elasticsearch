@@ -103,7 +103,7 @@ public class DefaultElserIT extends InferenceBaseRestTest {
         assertThat(modelConfig.toString(), serviceSettings.get("model_id"), is(oneOf(".elser_model_2", ".elser_model_2_linux-x86_64")));
         assertEquals(modelConfig.toString(), 1, serviceSettings.get("num_threads"));
 
-        var adaptiveAllocations = (Map<String, Object>) modelConfig.get("adaptive_allocations");
+        var adaptiveAllocations = (Map<String, Object>) serviceSettings.get("adaptive_allocations");
         assertThat(
             modelConfig.toString(),
             adaptiveAllocations,

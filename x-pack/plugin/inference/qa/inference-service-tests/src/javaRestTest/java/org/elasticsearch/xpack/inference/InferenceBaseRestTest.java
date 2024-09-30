@@ -311,7 +311,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input, Map<String, String> queryParameters)
         throws IOException {
-        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        var endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
         return inferInternal(endpoint, input, queryParameters);
     }
 

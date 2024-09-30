@@ -81,7 +81,6 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     @Override
     public void start(Model model, ActionListener<Boolean> finalListener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
-
             if (supportedTaskTypes().contains(model.getTaskType()) == false) {
                 finalListener.onFailure(
                     new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()))

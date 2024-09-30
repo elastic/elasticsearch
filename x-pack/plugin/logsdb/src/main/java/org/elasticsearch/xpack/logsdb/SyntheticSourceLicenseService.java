@@ -46,12 +46,16 @@ public final class SyntheticSourceLicenseService {
     /**
      * @return whether synthetic source mode should fallback to stored source.
      */
-    public boolean fallbackToStoredSource() {
+    public boolean fallbackToStoredSource(boolean isTemplateValidation) {
         if (syntheticSourceFallback) {
             return true;
         }
 
-        return SYNTHETIC_SOURCE_FEATURE.check(licenseState) == false;
+        if (isTemplateValidation) {
+            return SYNTHETIC_SOURCE_FEATURE.checkWithoutTracking(licenseState) == false;
+        } else {
+            return SYNTHETIC_SOURCE_FEATURE.check(licenseState) == false;
+        }
     }
 
     void setSyntheticSourceFallback(boolean syntheticSourceFallback) {

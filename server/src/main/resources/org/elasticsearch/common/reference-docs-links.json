@@ -33,5 +33,6 @@
   "CONTACT_SUPPORT": "troubleshooting.html#troubleshooting-contact-support",
   "UNASSIGNED_SHARDS": "red-yellow-cluster-status.html",
   "EXECUTABLE_JNA_TMPDIR": "executable-jna-tmpdir.html",
-  "NETWORK_THREADING_MODEL": "modules-network.html#modules-network-threading-model"
+  "NETWORK_THREADING_MODEL": "modules-network.html#modules-network-threading-model",
+  "JDK_LOCALE_DIFFERENCES": "mapping-date-format.html#custom-date-format-locales"
 }

@@ -59,6 +59,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final PackagingTypes packagingTypes;
     private final IngestStats ingestStats;
     private final IndexPressureStats indexPressureStats;
+    private final DeprecationStats deprecationStats;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -89,6 +90,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.packagingTypes = new PackagingTypes(nodeInfos);
         this.ingestStats = new IngestStats(nodeStats);
         this.indexPressureStats = new IndexPressureStats(nodeStats);
+        this.deprecationStats = new DeprecationStats(nodeResponses);
     }
 
     public Counts getCounts() {
@@ -135,6 +137,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.startObject(Fields.COUNT);
         counts.toXContent(builder, params);
         builder.endObject();
+
+        deprecationStats.toXContent(builder, params);
 
         builder.startArray(Fields.VERSIONS);
         for (var v : versions) {
@@ -847,6 +851,27 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return indexingPressureStats.toXContent(builder, params);
         }
 
+    }
+
+    static class DeprecationStats implements ToXContentFragment {
+        private final Map<String, Long> deprecationStats;
+
+        private DeprecationStats(List<ClusterStatsNodeResponse> nodeStatsList) {
+            deprecationStats = new HashMap<>();
+            for (ClusterStatsNodeResponse nodeStats : nodeStatsList) {
+                nodeStats.getDeprecatedUsageStats().forEach((key, value) -> deprecationStats.merge(key, value, (v1, v2) -> v1 + v2));
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("deprecations");
+            for (final Map.Entry<String, Long> entry : deprecationStats.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+            return builder;
+        }
     }
 
     static class ClusterFsStatsDeduplicator {

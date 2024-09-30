@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.usage.DeprecatedUsageHolder;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 
@@ -87,6 +88,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
 
+    private final DeprecatedUsageHolder deprecatedUsageHolder;
+
     private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
@@ -115,6 +118,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.repositoriesService = repositoriesService;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
         this.ccsUsageHolder = usageService.getCcsUsageHolder();
+        this.deprecatedUsageHolder = usageService.getDeprecatedUsageHolder();
         this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
@@ -250,6 +254,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             : null;
 
         final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        final Map<String, Long> deprecatedUsageStats = deprecatedUsageHolder.getDeprecatedUsageStats();
 
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
         final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
@@ -261,6 +266,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             nodeStats,
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
             searchUsageStats,
+            deprecatedUsageStats,
             repositoryUsageStats,
             ccsTelemetry
         );

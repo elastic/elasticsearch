@@ -21,6 +21,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
@@ -30,6 +32,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final ShardStats[] shardsStats;
     private final ClusterHealthStatus clusterStatus;
     private final SearchUsageStats searchUsageStats;
+    private final Map<String, Long> deprecatedUsageStats;
     private final RepositoryUsageStats repositoryUsageStats;
     private final CCSTelemetrySnapshot ccsMetrics;
 
@@ -54,6 +57,12 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         } else {
             ccsMetrics = new CCSTelemetrySnapshot();
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATIONS_TELEMETRY_STATS)) {
+            deprecatedUsageStats = in.readMap(StreamInput::readLong);
+        } else {
+            deprecatedUsageStats = Collections.emptyMap();
+        }
     }
 
     public ClusterStatsNodeResponse(
@@ -63,6 +72,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         NodeStats nodeStats,
         ShardStats[] shardsStats,
         SearchUsageStats searchUsageStats,
+        Map<String, Long> deprecatedUsageStats,
         RepositoryUsageStats repositoryUsageStats,
         CCSTelemetrySnapshot ccsTelemetrySnapshot
     ) {
@@ -72,6 +82,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
         this.searchUsageStats = Objects.requireNonNull(searchUsageStats);
+        this.deprecatedUsageStats = Objects.requireNonNull(deprecatedUsageStats);
         this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
         this.ccsMetrics = ccsTelemetrySnapshot;
     }
@@ -104,6 +115,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return repositoryUsageStats;
     }
 
+    public Map<String, Long> getDeprecatedUsageStats() {
+        return deprecatedUsageStats;
+    }
+
     public CCSTelemetrySnapshot getCcsMetrics() {
         return ccsMetrics;
     }
@@ -123,6 +138,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         } // else just drop these stats, ok for bwc
         if (out.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
             ccsMetrics.writeTo(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATIONS_TELEMETRY_STATS)) {
+            out.writeMap(deprecatedUsageStats, StreamOutput::writeLong);
         }
     }
 

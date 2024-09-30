@@ -898,6 +898,9 @@ class NodeConstruction {
             threadPool.getThreadContext()
         );
 
+        UsageService usageService = createUsageService();
+        DeprecationLogger.setUsageService(usageService);
+
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
@@ -909,7 +912,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(ActionPlugin.class).toList(),
             client,
             circuitBreakerService,
-            createUsageService(),
+            usageService,
             systemIndices,
             telemetryProvider,
             clusterService,

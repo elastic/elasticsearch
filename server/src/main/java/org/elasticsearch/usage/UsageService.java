@@ -27,10 +27,13 @@ public class UsageService {
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
 
+    private final DeprecatedUsageHolder deprecatedUsageHolder;
+
     public UsageService() {
         this.handlers = new HashMap<>();
         this.searchUsageHolder = new SearchUsageHolder();
         this.ccsUsageHolder = new CCSUsageTelemetry();
+        this.deprecatedUsageHolder = new DeprecatedUsageHolder();
     }
 
     /**
@@ -88,5 +91,9 @@ public class UsageService {
 
     public CCSUsageTelemetry getCcsUsageHolder() {
         return ccsUsageHolder;
+    }
+
+    public DeprecatedUsageHolder getDeprecatedUsageHolder() {
+        return deprecatedUsageHolder;
     }
 }

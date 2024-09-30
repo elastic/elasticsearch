@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.cluster.settings.ClusterSettings.CLUSTER_LOGSDB_ENABLED;
+import static org.elasticsearch.xpack.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin {
@@ -51,10 +51,7 @@ public class LogsDBPlugin extends Plugin {
         if (DiscoveryNode.isStateless(settings)) {
             return List.of(logsdbIndexModeSettingsProvider);
         }
-        return List.of(
-            new SyntheticSourceIndexSettingsProvider(licenseService, parameters.mapperServiceFactory()),
-            logsdbIndexModeSettingsProvider
-        );
+        return List.of(new SyntheticSourceIndexSettingsProvider(licenseService), logsdbIndexModeSettingsProvider);
     }
 
     @Override

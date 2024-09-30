@@ -24,7 +24,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
     public void testPutE5Small_withNoModelVariant() {
         {
-            String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+            String inferenceEntityId = "testPutE5Small_withNoModelVariant";
             expectThrows(
                 org.elasticsearch.client.ResponseException.class,
                 () -> putTextEmbeddingModel(inferenceEntityId, noModelIdVariantJsonEntity())
@@ -33,7 +33,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     }
 
     public void testPutE5Small_withPlatformAgnosticVariant() throws IOException {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "teste5mall_withplatformagnosticvariant";
         putTextEmbeddingModel(inferenceEntityId, platformAgnosticModelVariantJsonEntity());
         var models = getTrainedModel("_all");
         assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
@@ -50,9 +50,8 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
         deleteTextEmbeddingModel(inferenceEntityId);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
     public void testPutE5Small_withPlatformSpecificVariant() throws IOException {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "teste5mall_withplatformspecificvariant";
         if ("linux-x86_64".equals(Platforms.PLATFORM_NAME)) {
             putTextEmbeddingModel(inferenceEntityId, platformSpecificModelVariantJsonEntity());
             var models = getTrainedModel("_all");
@@ -77,7 +76,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     }
 
     public void testPutE5Small_withFakeModelVariant() {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "teste5mall_withfakevariant";
         expectThrows(
             org.elasticsearch.client.ResponseException.class,
             () -> putTextEmbeddingModel(inferenceEntityId, fakeModelVariantJsonEntity())
@@ -112,7 +111,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String noModelIdVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1

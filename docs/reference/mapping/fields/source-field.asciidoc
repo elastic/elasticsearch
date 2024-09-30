@@ -124,7 +124,7 @@ GET logs/_search
 <2> We can still search on this field, even though it is not in the stored `_source`.
 
 
-[[ifilter-vectors]]
+[[filter-vectors]]
 ==== Filtering vectors from `_source`
 
 The `include_vectors` parameter enables you to include or exclude embeddings for `sparse_vector`, `dense_vector`, and `semantic_text` fields from `_source` when it's displayed in API results.
@@ -138,16 +138,16 @@ The default behavior varies by field typse:
 
 The `include_vectors` parameter can be used as follows:
 
-[source,console]
+[source,js]
 --------------------------------------------------
 GET my-index-000001/_search
 {
+  "_source": { "include_vectors": true },
   "query": {
     "match": {
       "content": "Test Data"
     }
-  },
-  "_source": { "include_vectors": true }
+  }
 }
 --------------------------------------------------
 // TEST[skip: TBD]

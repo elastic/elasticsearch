@@ -387,7 +387,7 @@ deployment to be responsive to production workloads.
 {es} is built to be always available and to scale with your needs. It does this using a distributed architecture.
 By distributing your cluster, you can keep Elastic online and responsive to requests.
 
-In case of failure, {es} also offers tools for cross-cluster replication and cluster snapshots that can
+In case of failure, {es} offers tools for cross-cluster replication and cluster snapshots that can
 help you fall back or recover quickly. You can also use cross-cluster replication to serve requests based on the
 geographic location of your users and your resources.
 

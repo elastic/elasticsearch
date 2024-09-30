@@ -333,8 +333,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112980
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/113753
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/113764
+
 
 # Examples:
 #

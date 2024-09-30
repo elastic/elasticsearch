@@ -1292,10 +1292,8 @@ FROM books
 | EVAL title_reversed = REVERSE(title), author_reversed_twice = REVERSE(REVERSE(author)), eq = author_reversed_twice == author 
 | KEEP title, title_reversed, author, author_reversed_twice, eq, book_no
 | SORT book_no
+| WHERE book_no IN ("1211", "1463")
 | LIMIT 2;
-
-warning:Line 2:73: evaluation of [REVERSE(author)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:73: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 title:text                                      | title_reversed:text                           | author:text               | author_reversed_twice:text    | eq:boolean    | book_no:keyword
 The brothers Karamazov                          | vozamaraK srehtorb ehT                        | Fyodor Dostoevsky         | Fyodor Dostoevsky             | true          | 1211

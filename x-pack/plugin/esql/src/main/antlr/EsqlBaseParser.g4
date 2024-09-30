@@ -102,7 +102,7 @@ primaryExpression
     ;
 
 functionExpression
-    : identifier LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : identifierOrParameter LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
     ;
 
 dataType
@@ -166,7 +166,7 @@ statsCommand
     ;
 
 qualifiedName
-    : identifier (DOT identifier)*
+    : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
@@ -180,7 +180,6 @@ qualifiedNamePatterns
 identifier
     : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
-    | parameter
     ;
 
 identifierPattern
@@ -204,6 +203,11 @@ constant
 parameter
     : PARAM                        #inputParam
     | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
+    ;
+
+identifierOrParameter
+    : identifier
+    | parameter
     ;
 
 limitCommand

@@ -249,8 +249,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx == null) {
             return null;
         }
-
-        List<String> strings = visitList(this, ctx.identifier(), String.class);
+        List<Object> items = visitList(this, ctx.identifierOrParameter(), Object.class);
+        List<String> strings = new ArrayList<>(items.size());
+        for (Object item : items) {
+            if (item instanceof String s) {
+                strings.add(s);
+            } else if (item instanceof Expression e) {
+                strings.add(unresolvedAttributeNameInParam(ctx, e));
+            }
+        }
         return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
     }
 
@@ -584,8 +591,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
-        String name = visitIdentifier(ctx.identifier());
+        EsqlBaseParser.IdentifierOrParameterContext identifierOrParameter = ctx.identifierOrParameter();
+        String name;
+        if (identifierOrParameter.identifier() != null) {
+            name = visitIdentifier(identifierOrParameter.identifier());
+        } else {
+            name = unresolvedAttributeNameInParam(identifierOrParameter.parameter(), expression(identifierOrParameter.parameter()));
+        }
         List<Expression> args = expressions(ctx.booleanExpression());
+        if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
+            throw new ParsingException(
+                source(ctx),
+                "is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            );
+        }
         if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases
             if (args.isEmpty() || ctx.ASTERISK() != null) {
@@ -829,6 +848,32 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 params.addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
             }
             return params.get(nameOrPosition);
+        }
+    }
+
+    String unresolvedAttributeNameInParam(ParserRuleContext ctx, Expression param) {
+        String invalidParam = "Query parameter [{}]{}, cannot be used as an identifier";
+        switch (param) {
+            case Literal lit -> throw new ParsingException(
+                source(ctx),
+                invalidParam,
+                ctx.getText(),
+                lit.value() != null ? " with value [" + lit.value() + "] declared as a constant" : " is null or undefined"
+            );
+            case UnresolvedNamePattern up -> throw new ParsingException(
+                source(ctx),
+                invalidParam,
+                ctx.getText(),
+                "[" + up.name() + "] declared as a pattern"
+            );
+            case UnresolvedAttribute ua -> {
+                if (ua.name() != null) {
+                    return ua.name();
+                } else { // this should not happen
+                    throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[null]");
+                }
+            }
+            default -> throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[null]");
         }
     }
 

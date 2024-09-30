@@ -330,7 +330,7 @@ final class RequestXContent {
                     )
                 )
             );
-        } else {
+        } else if (identifierOrPattern.cardinality() == 1) {
             classification = identifierOrPattern.get(0)
                 ? ParserUtils.ParamClassification.IDENTIFIER
                 : ParserUtils.ParamClassification.PATTERN;

@@ -648,9 +648,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testErrorMessageForArrayValuesInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
+            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("Failed to parse params: [1:45] n1=[5, 6, 7] is not supported as a parameter")
+        );
     }
 
     public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {

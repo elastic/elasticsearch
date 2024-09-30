@@ -650,6 +650,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#identifierOrParameter}.
+   * @param ctx the parse tree
+   */
+  void enterIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#identifierOrParameter}.
+   * @param ctx the parse tree
+   */
+  void exitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
    */

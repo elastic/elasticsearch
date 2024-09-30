@@ -9,10 +9,6 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
@@ -20,45 +16,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
-        String invalidParam = "Query parameter [{}]{}, cannot be used as an identifier";
-        if (ctx == null) {
-            return null;
-        } else if (ctx.QUOTED_IDENTIFIER() != null || ctx.UNQUOTED_IDENTIFIER() != null) {
-            return unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
-        } else {
-            Expression exp = typedParsing(this, ctx.parameter(), Expression.class);
-            switch (exp) {
-                case Literal lit -> throw new ParsingException(
-                    source(ctx),
-                    invalidParam,
-                    ctx.getText(),
-                    lit.value() != null ? " with value [" + lit.value() + "] declared as a constant" : " is null or undefined"
-                );
-                case UnresolvedNamePattern up -> throw new ParsingException(
-                    source(ctx),
-                    invalidParam,
-                    ctx.getText(),
-                    "[" + up.name() + "] declared as a pattern"
-                );
-                case UnresolvedAttribute ua -> {
-                    if (ua.name() != null) {
-                        return ua.name();
-                    } else { // this should not happen
-                        throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[" + ua.name() + "]");
-                    }
-                }
-                default -> {
-                    return null;
-                }
-            }
-        }
+        return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
     }
 
     protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {

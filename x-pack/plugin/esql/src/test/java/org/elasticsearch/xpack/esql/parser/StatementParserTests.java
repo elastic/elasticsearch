@@ -722,6 +722,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row x = is_null(f)",
             "line 1:10: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
         );
+        expectError(
+            "from test | eval x = ?fn1(f)",
+            List.of(paramAsIdentifier("fn1", "IS_NULL")),
+            "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+        );
     }
 
     public void testMetadataFieldOnOtherSources() {
@@ -1807,7 +1812,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "keep ?f1",
             "drop ?f1"
         );
-        List<String> missingParamGroupB = List.of("eval x = ?f1(f1)", "dissect f1 \"%{bar}\" ?f1=true", "mv_expand ?f1");
+        List<String> missingParamGroupB = List.of("eval x = ?f1(f1)", "mv_expand ?f1");
         for (String missingParam : Stream.concat(missingParamGroupA.stream(), missingParamGroupB.stream()).toList()) {
             for (String identifierOrPattern : List.of("identifier", "identifierpattern")) {
                 expectError(

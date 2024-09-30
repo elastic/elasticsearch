@@ -709,6 +709,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLimitCommand(EsqlBaseParser.LimitCommandContext ctx) { }
   /**
    * {@inheritDoc}

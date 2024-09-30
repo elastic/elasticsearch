@@ -49,9 +49,6 @@ public class MapperFeatures implements FeatureSpecification {
         );
     }
 
-    /**
-     * for fixes that do not introduce new capabilities but do change bwc behavior
-     */
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(

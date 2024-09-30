@@ -142,12 +142,12 @@ The `include_vectors` parameter can be used as follows:
 --------------------------------------------------
 GET my-index-000001/_search
 {
-  "_source": { "include_vectors": true },
   "query": {
     "match": {
       "content": "Test Data"
     }
-  }
+  },
+  "_source": { "include_vectors": true }
 }
 --------------------------------------------------
 // TEST[skip: TBD]

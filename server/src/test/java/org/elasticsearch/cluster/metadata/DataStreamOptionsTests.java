@@ -29,11 +29,11 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected DataStreamOptions mutateInstance(DataStreamOptions instance) throws IOException {
-        var failureStore = instance.getFailureStore();
+        var failureStore = instance.failureStore();
         if (failureStore == null) {
             failureStore = DataStreamFailureStoreTests.randomFailureStore();
         } else {
-            failureStore = randomBoolean() ? null : new DataStreamFailureStore(failureStore.enabled() == false);
+            failureStore = randomBoolean() ? null : randomValueOtherThan(failureStore, DataStreamFailureStoreTests::randomFailureStore);
         }
         return new DataStreamOptions(failureStore);
     }

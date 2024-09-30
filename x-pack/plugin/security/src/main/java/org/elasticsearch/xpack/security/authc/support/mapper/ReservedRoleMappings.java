@@ -21,30 +21,18 @@ public class ReservedRoleMappings {
         this.clusterStateRoleMapper = clusterStateRoleMapper;
     }
 
-    // TODO don't need this?
-    public List<ExpressionRoleMapping> filterOutExcluded(List<ExpressionRoleMapping> roleMappings) {
-        if (roleMappings.isEmpty()) {
-            return roleMappings;
-        }
-        final Set<ExpressionRoleMapping> excludedRoleMappings = clusterStateRoleMapper.getMappings();
-        if (excludedRoleMappings.isEmpty()) {
-            return roleMappings;
-        }
-        final Set<String> namesToExclude = excludedRoleMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
-        return roleMappings.stream().filter(it -> false == namesToExclude.contains(it.getName())).toList();
-    }
-
     public List<ExpressionRoleMapping> combineWithReserved(List<ExpressionRoleMapping> roleMappings) {
-        final Set<ExpressionRoleMapping> excludedRoleMappings = clusterStateRoleMapper.getMappings();
-        if (excludedRoleMappings.isEmpty()) {
+        // TODO ensure these are sorted
+        final Set<ExpressionRoleMapping> reservedRoleMappings = clusterStateRoleMapper.getMappings();
+        if (reservedRoleMappings.isEmpty()) {
             return roleMappings;
         }
-        final Set<String> namesToExclude = excludedRoleMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
+        final Set<String> reservedNames = reservedRoleMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
         final List<ExpressionRoleMapping> filteredNativeRoleMappings = roleMappings.stream()
-            .filter(it -> false == namesToExclude.contains(it.getName()))
+            .filter(roleMapping -> false == reservedNames.contains(roleMapping.getName()))
             .toList();
         // TODO optimize
-        final var combined = new ArrayList<>(excludedRoleMappings);
+        final List<ExpressionRoleMapping> combined = new ArrayList<>(reservedRoleMappings);
         combined.addAll(filteredNativeRoleMappings);
         return List.copyOf(combined);
     }

@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult;
 
@@ -61,7 +62,11 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 /**
  * Basic service for accessing remote clusters via gateway nodes
  */
-public final class RemoteClusterService extends RemoteClusterAware implements Closeable, ReportingService<RemoteClusterServerInfo> {
+public final class RemoteClusterService extends RemoteClusterAware
+    implements
+        Closeable,
+        ReportingService<RemoteClusterServerInfo>,
+        IndicesExpressionGrouper {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 

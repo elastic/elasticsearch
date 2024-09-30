@@ -167,7 +167,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             String name = e.getKey();
             List<Measurement> measurements = telemetry.getLongGaugeMeasurement(name);
             assertThat(name, measurements, hasSize(times));
-            assertThat(name, measurements.getLast().getLong(), e.getValue());
+            assertThat(name, measurements.get(measurements.size() - 1).getLong(), e.getValue());
         }
     }
 

@@ -411,7 +411,7 @@ to apply sensible defaults for your use case. A basic understanding of nodes, sh
 on the serverless platform, which is designed to scale with your workload.
 ====
 
-You can add servers _(nodes)_ to a cluster to increase capacity, and {es} automatically distributes your data and query load
+You can add servers (_nodes_) to a cluster to increase capacity, and {es} automatically distributes your data and query load
 across all of the available nodes.
 
 Elastic is able to distribute your data across nodes by subdividing an index into _shards_. Each index in {es} is a grouping

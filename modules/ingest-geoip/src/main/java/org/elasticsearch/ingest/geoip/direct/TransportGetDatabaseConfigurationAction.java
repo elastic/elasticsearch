@@ -200,7 +200,9 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     ) {
         ActionListener.run(listener, l -> {
             List<DatabaseConfigurationMetadata> combinedResults = new ArrayList<>(results);
-            combinedResults.addAll(deduplicateNodeResponses(responses));
+            combinedResults.addAll(
+                deduplicateNodeResponses(responses, results.stream().map(result -> result.database().name()).collect(Collectors.toSet()))
+            );
             ActionListener.respondAndRelease(
                 l,
                 new GetDatabaseConfigurationAction.Response(combinedResults, clusterService.getClusterName(), responses, failures)
@@ -208,8 +210,16 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
         });
     }
 
-    private Collection<DatabaseConfigurationMetadata> deduplicateNodeResponses(
-        List<GetDatabaseConfigurationAction.NodeResponse> nodeResponses
+    /*
+     * This deduplicates the nodeResponses by name, favoring the most recent. This is because each node is reporting the local databases
+     * that it has, and we don't want to report duplicates to the user. It also filters out any that already exist in the set of
+     * preExistingNames. This is because the non-local databases take precedence, so any local database with the same name as a non-local
+     * one will not be used.
+     * Non-private for unit testing
+     */
+    static Collection<DatabaseConfigurationMetadata> deduplicateNodeResponses(
+        List<GetDatabaseConfigurationAction.NodeResponse> nodeResponses,
+        Set<String> preExistingNames
     ) {
         /*
          * Each node reports the list of databases that are in its config/ingest-geoip directory. For the sake of this API we assume all
@@ -227,6 +237,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
             .stream()
             .filter(Optional::isPresent)
             .map(Optional::get)
+            .filter(database -> preExistingNames.contains(database.database().name()) == false)
             .toList();
     }
 

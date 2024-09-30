@@ -20,7 +20,7 @@ import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.FloatVector;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -85,20 +85,20 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
     }
 
     @Override
-    protected FloatVector.Builder scoreVectorOrNull(int size) {
-        return blockFactory.newFloatVectorFixedBuilder(size);
+    protected DoubleVector.Builder scoreVectorOrNull(int size) {
+        return blockFactory.newDoubleVectorFixedBuilder(size);
     }
 
     @Override
-    protected void consumeScore(ScoreDoc scoreDoc, FloatVector.Builder currentScoresBuilder) {
+    protected void consumeScore(ScoreDoc scoreDoc, DoubleVector.Builder currentScoresBuilder) {
         if (currentScoresBuilder != null) {
             float score = getScore(scoreDoc);
-            currentScoresBuilder.appendFloat(score);
+            currentScoresBuilder.appendDouble(score);
         }
     }
 
     @Override
-    protected Page maybeAppendScore(Page page, FloatVector.Builder currentScoresBuilder) {
+    protected Page maybeAppendScore(Page page, DoubleVector.Builder currentScoresBuilder) {
         return page.appendBlocks(new Block[] { currentScoresBuilder.build().asBlock() });
     }
 

@@ -255,8 +255,7 @@ public class PlannerUtils {
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> ElementType.BYTES_REF;
             case PARTIAL_AGG -> ElementType.COMPOSITE;
-            case FLOAT -> ElementType.FLOAT;
-            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
+            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };
     }

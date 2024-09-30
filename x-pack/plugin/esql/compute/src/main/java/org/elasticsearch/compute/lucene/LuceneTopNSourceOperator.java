@@ -22,7 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.FloatVector;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -193,7 +193,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         try (
             IntVector.Builder currentSegmentBuilder = blockFactory.newIntVectorFixedBuilder(size);
             IntVector.Builder currentDocsBuilder = blockFactory.newIntVectorFixedBuilder(size);
-            FloatVector.Builder currentScoresBuilder = scoreVectorOrNull(size);
+            DoubleVector.Builder currentScoresBuilder = scoreVectorOrNull(size);
         ) {
             int start = offset;
             offset += size;
@@ -220,16 +220,16 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         return page;
     }
 
-    protected FloatVector.Builder scoreVectorOrNull(int size) {
+    protected DoubleVector.Builder scoreVectorOrNull(int size) {
         return null; // no scoring
     }
 
-    protected void consumeScore(ScoreDoc scoreDoc, FloatVector.Builder currentScoresBuilder) {
+    protected void consumeScore(ScoreDoc scoreDoc, DoubleVector.Builder currentScoresBuilder) {
         // no scoring
         assert currentScoresBuilder == null;
     }
 
-    protected Page maybeAppendScore(Page page, FloatVector.Builder currentScoresBuilder) {
+    protected Page maybeAppendScore(Page page, DoubleVector.Builder currentScoresBuilder) {
         // no scoring
         assert currentScoresBuilder == null;
         return page;

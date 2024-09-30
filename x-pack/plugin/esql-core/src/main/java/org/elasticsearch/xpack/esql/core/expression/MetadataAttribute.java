@@ -52,7 +52,7 @@ public class MetadataAttribute extends TypedAttribute {
         IndexModeFieldMapper.NAME,
         tuple(DataType.KEYWORD, true),
         SCORE,
-        tuple(DataType.FLOAT, false)
+        tuple(DataType.DOUBLE, false)
     );
 
     private final boolean searchable;

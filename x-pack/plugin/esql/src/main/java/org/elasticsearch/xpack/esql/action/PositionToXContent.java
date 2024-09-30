@@ -174,14 +174,7 @@ abstract class PositionToXContent {
                     }
                 }
             };
-            case FLOAT -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    return builder.value(((FloatBlock) block).getFloat(valueIndex));
-                }
-            };
-            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, SHORT, BYTE, OBJECT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
+            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
                 throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }

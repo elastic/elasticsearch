@@ -33,7 +33,10 @@ public enum DockerBase {
         "docker.elastic.co/wolfi/chainguard-base:latest@sha256:c16d3ad6cebf387e8dd2ad769f54320c4819fbbaa21e729fad087c7ae223b4d0",
         "-wolfi",
         "apk"
-    );
+    ),
+
+    // Chainguard based wolfi image with latest jdk
+    WOLFI_ESS(null, "-wolfi-ess", "apk");
 
     private final String image;
     private final String suffix;

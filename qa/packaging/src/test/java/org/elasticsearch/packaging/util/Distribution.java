@@ -79,7 +79,8 @@ public class Distribution {
         DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker()),
         DOCKER_CLOUD(".cloud.tar", Platforms.isDocker()),
         DOCKER_CLOUD_ESS(".cloud-ess.tar", Platforms.isDocker()),
-        DOCKER_WOLFI(".wolfi.tar", Platforms.isDocker());
+        DOCKER_WOLFI(".wolfi.tar", Platforms.isDocker()),
+        DOCKER_WOLFI_ESS(".wolfi-ess.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

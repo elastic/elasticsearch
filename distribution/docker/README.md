@@ -7,6 +7,13 @@ the [DockerBase] enum.
    * UBI - the same as the default image, but based upon [RedHat's UBI
      images][ubi], specifically their minimal flavour.
    * Wolfi - the same as the default image, but based upon [Wolfi](https://github.com/wolfi-dev)
+   * Wolfi ESS - this directly extends the Wolfi image, and adds all ES plugins
+     that the ES build generates in an archive directory. It also sets an
+     environment variable that points at this directory. This allows plugins to
+     be installed from the archive instead of the internet, speeding up
+     deployment times. Furthermore this image has
+     * `filebeat` and `metricbeat` included
+     * `wget` included
    * Iron Bank - this is the US Department of Defence's repository of digitally
      signed, binary container images including both Free and Open-Source
      software (FOSS) and Commercial off-the-shelf (COTS). In practice, this is

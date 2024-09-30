@@ -70,7 +70,7 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
     }
 
     @Before
-    private void clearRoleMappings() throws InterruptedException {
+    public void clearRoleMappings() throws InterruptedException {
         publishRoleMappings(Set.of());
     }
 

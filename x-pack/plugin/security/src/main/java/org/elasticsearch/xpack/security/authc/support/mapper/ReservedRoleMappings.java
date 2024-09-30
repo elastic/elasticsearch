@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.util.LinkedHashMap;
@@ -15,6 +18,8 @@ import java.util.Map;
 import java.util.Set;
 
 public class ReservedRoleMappings {
+
+    private static final Logger logger = LogManager.getLogger(ReservedRoleMappings.class);
     private final ClusterStateRoleMapper clusterStateRoleMapper;
 
     public ReservedRoleMappings(ClusterStateRoleMapper clusterStateRoleMapper) {
@@ -24,10 +29,12 @@ public class ReservedRoleMappings {
     public List<ExpressionRoleMapping> mergeWithReserved(List<ExpressionRoleMapping> roleMappings) {
         final Set<ExpressionRoleMapping> reservedRoleMappings = clusterStateRoleMapper.getMappings();
         if (reservedRoleMappings.isEmpty()) {
+            logger.debug("Reserved role mappings empty.");
             return roleMappings;
         }
 
         if (roleMappings.isEmpty()) {
+            logger.debug("Role mappings empty.");
             return List.copyOf(reservedRoleMappings);
         }
 
@@ -43,5 +50,10 @@ public class ReservedRoleMappings {
 
     public boolean isReserved(String roleMappingName) {
         return clusterStateRoleMapper.getMappings().stream().anyMatch(roleMapping -> roleMapping.getName().equals(roleMappingName));
+    }
+
+    // TODO find a cleaner way
+    public void clearRealmCacheOnChange(CachingRealm realm) {
+        clusterStateRoleMapper.clearRealmCacheOnChange(realm);
     }
 }

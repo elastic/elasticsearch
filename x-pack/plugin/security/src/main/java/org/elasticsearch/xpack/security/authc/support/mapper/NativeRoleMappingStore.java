@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -340,6 +341,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         } else if (names == null || names.isEmpty()) {
             getMappings(listener);
         } else {
+            // TODO make sure order in which we are filtering is as expected...
             getMappings(listener.safeMap(mappings -> mappings.stream().filter(m -> names.contains(m.getName())).toList()));
         }
     }
@@ -417,6 +419,12 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
             // this means that here we need only to invalidate the local realm caches only
             clearRealmCachesOnLocalNode();
         }
+    }
+
+    @Override
+    public void clearRealmCacheOnChange(CachingRealm realm) {
+        super.clearRealmCacheOnChange(realm);
+        reservedRoleMappings.clearRealmCacheOnChange(realm);
     }
 
     @Override

@@ -262,44 +262,39 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         Request createPolice = new Request("PUT", "_ilm/policy/" + policyName);
-        createPolice.setJsonEntity(
-            "{"
-                + "\"policy\": {"
-                + "  \"phases\": {"
-                + "    \"hot\": {"
-                + "      \"actions\": {"
-                + "        \"rollover\": {"
-                + "          \"max_docs\": 1"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-                + "}"
-        );
+        createPolice.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_docs": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
         assertOK(client().performRequest(createPolice));
 
         String aliasName = "step-info-test";
         String indexName = aliasName + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
-        templateRequest.setJsonEntity(
-            "{"
-                + "\"index_patterns\": [\""
-                + aliasName
-                + "-*\"],"
-                + "\"template\": {"
-                + "  \"settings\": {"
-                + "    \"index.lifecycle.name\": \""
-                + policyName
-                + "\","
-                + "    \"index.lifecycle.rollover_alias\": \""
-                + aliasName
-                + "\""
-                + "  }"
-                + "}"
-                + "}"
-        );
+        String templateBodyTemplate = """
+            {
+              "index_patterns": ["%s-*"],
+              "template": {
+                "settings": {
+                  "index.lifecycle.name": "%s",
+                  "index.lifecycle.rollover_alias": "%s"
+                }
+              }
+            }
+            """;
+        templateRequest.setJsonEntity(templateBodyTemplate.formatted(aliasName, policyName, aliasName));
         assertOK(client().performRequest(templateRequest));
 
         Request indexRequest = new Request("POST", "/" + indexName + "/_doc/1");

@@ -57,12 +57,12 @@ public class MatchFunction extends FullTextFunction {
         @Param(
             name = "field",
             type = { "keyword", "text" },
-            description = "Field or field pattern that the query will target."
+            description = "Field that the query will target."
         ) Expression field,
         @Param(
             name = "query",
             type = { "keyword", "text" },
-            description = "Query string in Lucene query string format."
+            description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
         super(source, matchQuery, field);

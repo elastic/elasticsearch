@@ -3,7 +3,7 @@
 *Parameters*
 
 `field`::
-Field or field pattern that the query will target.
+Field that the query will target.
 
 `query`::
-Query string in Lucene query string format.
+Text you wish to find in the provided field.

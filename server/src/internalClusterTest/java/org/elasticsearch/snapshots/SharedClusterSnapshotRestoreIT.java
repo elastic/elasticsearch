@@ -1464,21 +1464,23 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 ensureGreen(indexName);
             } else {
                 logger.info("--> failing index [{}] to trigger recovery", indexName);
+                IndexShard indexShard = null;
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, blockingNode)) {
                     if (indexService.index().getName().equals(indexName)) {
-                        final var indexShard = indexService.getShard(0);
-                        final var primaryTerm = indexShard.getOperationPrimaryTerm();
-                        indexShard.failShard("simulated", new ElasticsearchException("simulated"));
-                        safeAwait(
-                            ClusterServiceUtils.addTemporaryStateListener(
-                                internalCluster().getInstance(ClusterService.class),
-                                cs -> cs.metadata().index(indexName).primaryTerm(0) > primaryTerm
-                            )
-                        );
-                        ensureGreen(indexName);
+                        indexShard = indexService.getShard(0);
                         break;
                     }
                 }
+                assertNotNull(indexShard);
+                final var primaryTerm = indexShard.getOperationPrimaryTerm();
+                indexShard.failShard("simulated", new ElasticsearchException("simulated"));
+                safeAwait(
+                    ClusterServiceUtils.addTemporaryStateListener(
+                        internalCluster().getInstance(ClusterService.class),
+                        cs -> cs.metadata().index(indexName).primaryTerm(0) > primaryTerm
+                    )
+                );
+                ensureGreen(indexName);
             }
         } finally {
             keepGoing.set(false);

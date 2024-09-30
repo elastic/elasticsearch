@@ -58,7 +58,7 @@
 # result in less optimal vector performance
 20-:--add-modules=jdk.incubator.vector
 
-# Required to workaround perform issue in JDK 23, https://github.com/elastic/elasticsearch/issues/113030
+# Required to workaround performance issue in JDK 23, https://github.com/elastic/elasticsearch/issues/113030
 23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.setAsTypeCache
 23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.asTypeUncached
 

@@ -201,9 +201,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     MULTILINGUAL_E5_SMALL_MODEL_ID
                 )
             );
-        }
-
-        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, esServiceSettingsBuilder.getModelId())) {
+        } else if (modelVariantValidForArchitecture(platformArchitectures, esServiceSettingsBuilder.getModelId()) == false) {
             throw new IllegalArgumentException(
                 "Error parsing request config, model id does not match any models available on this platform. Was ["
                     + esServiceSettingsBuilder.getModelId()
@@ -224,17 +222,19 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
     }
 
-    private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
-        Set<String> platformArchitectures,
-        String modelId
-    ) {
+    static boolean modelVariantValidForArchitecture(Set<String> platformArchitectures, String modelId) {
+        if (modelId.equals(MULTILINGUAL_E5_SMALL_MODEL_ID)) {
+            // platform agnostic model is always compatible
+            return true;
+        }
+
         return modelId.equals(
             selectDefaultModelVariantBasedOnClusterArchitecture(
                 platformArchitectures,
                 MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
                 MULTILINGUAL_E5_SMALL_MODEL_ID
             )
-        ) && modelId.equals(MULTILINGUAL_E5_SMALL_MODEL_ID) == false;
+        );
     }
 
     @Override

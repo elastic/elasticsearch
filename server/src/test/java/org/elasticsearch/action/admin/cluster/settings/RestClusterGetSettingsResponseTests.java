@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestResponseParsers;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ public class RestClusterGetSettingsResponseTests extends AbstractXContentTestCas
 
     @Override
     protected RestClusterGetSettingsResponse doParseInstance(XContentParser parser) throws IOException {
-        return ESRestTestCase.parseClusterSettingsResponse(parser);
+        return TestResponseParsers.parseClusterSettingsResponse(parser);
     }
 
     @Override

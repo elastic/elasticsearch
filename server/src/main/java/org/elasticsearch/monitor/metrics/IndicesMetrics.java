@@ -43,6 +43,8 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
 
     public IndicesMetrics(MeterRegistry meterRegistry, IndicesService indicesService, TimeValue metricsInterval) {
         this.registry = meterRegistry;
+        // Use half of the update interval to ensure that results aren't cached across updates,
+        // while preventing the cache from expiring when reading different gauges within the same update.
         var cacheExpiry = new TimeValue(metricsInterval.getMillis() / 2);
         this.stateCache = new IndicesStatsCache(indicesService, cacheExpiry);
     }

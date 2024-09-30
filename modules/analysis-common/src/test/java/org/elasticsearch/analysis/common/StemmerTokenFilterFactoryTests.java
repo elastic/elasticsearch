@@ -106,35 +106,17 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         assertEquals("Invalid stemmer class specified: [english, light_english]", e.getMessage());
     }
 
-    public void testGermanVsGerman2Stemmer() throws IOException {
-        {
-            IndexVersion v = IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersionUtils.getFirstVersion(),
-                IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
-            );
-            Analyzer analyzer = createGermanStemmer("german", v);
-            assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buech", "Buch" });
+    public void testGermanAndGerman2Stemmer() throws IOException {
+        IndexVersion v = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
+        Analyzer analyzer = createGermanStemmer("german", v);
+        assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
 
-            analyzer = createGermanStemmer("german2", v);
-            assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
-        }
-        {
-            IndexVersion v = IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
-                IndexVersion.current()
-            );
-            Analyzer analyzer = createGermanStemmer("german", v);
-            assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
-
-            analyzer = createGermanStemmer("german2", v);
-            assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
-            assertWarnings(
-                "The 'german2' stemmer has been deprecated and folged into the 'german' Stemmer. "
-                    + "Replace all usages of 'german2' with 'german'."
-            );
-        }
+        analyzer = createGermanStemmer("german2", v);
+        assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
+        assertWarnings(
+            "The 'german2' stemmer has been deprecated and folded into the 'german' Stemmer. "
+                + "Replace all usages of 'german2' with 'german'."
+        );
     }
 
     public Analyzer createGermanStemmer(String variant, IndexVersion v) throws IOException {

@@ -173,12 +173,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
                 // German stemmers
             } else if ("german".equalsIgnoreCase(language)) {
-                if (this.version.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
-                    return new SnowballFilter(tokenStream, new GermanStemmer());
-                } else {
-                    // use pre-L10 GermanStemmer that doesn't normalize umlauts etc...
-                    return new SnowballFilter(tokenStream, new LegacyGermanStemmer());
-                }
+                return new SnowballFilter(tokenStream, new GermanStemmer());
             } else if ("german2".equalsIgnoreCase(language)) {
                 DEPRECATION_LOGGER.critical(
                     DeprecationCategory.ANALYSIS,

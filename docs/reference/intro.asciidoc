@@ -474,7 +474,7 @@ You can also take <<snapshot-restore,snapshots>> of your cluster that can be res
 ==== Security and monitoring
 
 As with any enterprise system, you need tools to secure, manage, and monitor your {es} clusters. Security,
-monitoring, and administrative features that are integrated into {es} enable you to use https://www.elastic.co/guide/en/kibana/8.15/introduction.html[Kibana] as a
+monitoring, and administrative features that are integrated into {es} enable you to use {kibana-ref}/introduction.html[Kibana] as a
 control center for managing a cluster.
 
 <<secure-cluster,Learn about securing an {es} cluster>>.

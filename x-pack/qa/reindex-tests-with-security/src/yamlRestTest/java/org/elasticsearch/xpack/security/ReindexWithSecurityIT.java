@@ -25,6 +25,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestResponseParsers;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -233,7 +234,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             request.toXContent(builder, null);
             restRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
             Response restResponse = client().performRequest(restRequest);
-            AcknowledgedResponse response = AcknowledgedResponse.fromXContent(responseAsParser(restResponse));
+            AcknowledgedResponse response = TestResponseParsers.parseAcknowledgedResponse(responseAsParser(restResponse));
             assertThat(response.isAcknowledged(), is(true));
         }
 

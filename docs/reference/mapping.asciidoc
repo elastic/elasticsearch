@@ -76,8 +76,22 @@ balance resource usage and performance. Your index will be smaller, but with
 slower search performance.
 
 [discrete]
+[[mapping-combine-explicit-dynamic]]
+== Combine explicit and dynamic mappings
+
+Explicit mappings should almost always be defined at index creation, because
+you can't change mappings for fields that already contain data.
+
+You can _update_ mappings for existing fields under certain conditions:
+
+. You can add new fields to an existing mapping.
+. You can change the mapping for fields that don't contain any data.
+. You can add new <<multi-fields,multi-fields>> for existing fields.
+
+[discrete]
 [[mapping-limit-settings]]
-== Settings to prevent mapping explosion
+== Prevent mapping explosions
+
 Defining too many fields in an index can lead to a mapping explosion, which can
 cause out of memory errors and difficult situations to recover from.
 

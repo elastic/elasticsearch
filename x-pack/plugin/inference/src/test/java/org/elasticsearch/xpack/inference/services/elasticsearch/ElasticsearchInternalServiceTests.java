@@ -206,7 +206,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
                 null
             );
 

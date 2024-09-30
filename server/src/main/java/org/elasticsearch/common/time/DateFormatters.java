@@ -82,7 +82,7 @@ public class DateFormatters {
         );
     }
 
-    public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(Locale.ROOT);
+    public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.ISO;
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder().appendOffset("+HHmm", "Z")
         .toFormatter(Locale.ROOT)

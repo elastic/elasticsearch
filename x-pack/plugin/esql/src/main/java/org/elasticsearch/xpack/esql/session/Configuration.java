@@ -163,7 +163,7 @@ public class Configuration implements Writeable {
      * Note: Currently, it returns {@link System#currentTimeMillis()}, but this value will be serialized between nodes.
      */
     public long absoluteStartedTimeInMillis() {
-        return System.currentTimeMillis();
+        return now.toInstant().toEpochMilli();
     }
 
     /**

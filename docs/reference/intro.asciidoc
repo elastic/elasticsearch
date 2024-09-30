@@ -378,7 +378,7 @@ Does not yet support full-text search.
 
 // New html page
 [[scalability]]
-=== Getting ready for production
+=== Get ready for production
 
 Many teams rely on {es} to run their key services. To keep these services running, you can design your {es} deployment
 to keep {es} available, even in case of large-scale outages. To keep it running fast, you also can design your

@@ -54,9 +54,12 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
             ? new NodesCapabilitiesRequest(client.getLocalNodeId())
             : new NodesCapabilitiesRequest();
 
+        // Handle the 'path' parameter, use "/" as default if not provided
+        String path = URLDecoder.decode(request.param("path", "/"), StandardCharsets.UTF_8);
+
         NodesCapabilitiesRequest r = requestNodes.timeout(getTimeout(request))
             .method(RestRequest.Method.valueOf(request.param("method", "GET")))
-            .path(URLDecoder.decode(request.param("path"), StandardCharsets.UTF_8))
+            .path(path)
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))
             .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY))
             .restApiVersion(request.getRestApiVersion());

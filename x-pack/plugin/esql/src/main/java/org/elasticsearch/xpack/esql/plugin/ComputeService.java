@@ -561,11 +561,6 @@ public class ComputeService {
             int skippedShards = 0;
             for (SearchShardsGroup group : resp.getGroups()) {
                 var shardId = group.shardId();
-                if (group.skipped()) {
-                    totalShards++;
-                    skippedShards++;
-                    continue;
-                }
                 if (group.allocatedNodes().isEmpty()) {
                     throw new ShardNotFoundException(group.shardId(), "no shard copies found {}", group.shardId());
                 }
@@ -573,6 +568,10 @@ public class ComputeService {
                     continue;
                 }
                 totalShards++;
+                if (group.skipped()) {
+                    skippedShards++;
+                    continue;
+                }
                 String targetNode = group.allocatedNodes().get(0);
                 nodeToShards.computeIfAbsent(targetNode, k -> new ArrayList<>()).add(shardId);
                 AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
@@ -790,11 +789,11 @@ public class ComputeService {
     private class ClusterRequestHandler implements TransportRequestHandler<ClusterComputeRequest> {
         @Override
         public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
-            ChannelActionListener<ComputeResponse> lnr = new ChannelActionListener<>(channel);
+            ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             RemoteClusterPlan remoteClusterPlan = request.remoteClusterPlan();
             var plan = remoteClusterPlan.plan();
             if (plan instanceof ExchangeSinkExec == false) {
-                lnr.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
+                listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
                 return;
             }
             String clusterAlias = request.clusterAlias();
@@ -807,7 +806,7 @@ public class ComputeService {
             execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
             CancellableTask cancellable = (CancellableTask) task;
             long start = request.configuration().getQueryStartTimeNanos();
-            try (var computeListener = ComputeListener.create(clusterAlias, transportService, cancellable, execInfo, start, lnr)) {
+            try (var computeListener = ComputeListener.create(clusterAlias, transportService, cancellable, execInfo, start, listener)) {
                 runComputeOnRemoteCluster(
                     clusterAlias,
                     request.sessionId(),

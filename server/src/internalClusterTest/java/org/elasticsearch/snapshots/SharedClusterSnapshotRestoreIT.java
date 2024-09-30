@@ -1440,11 +1440,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         safeAwait(barrier);
 
         final var snapshotName = randomIdentifier();
+        final var partialSnapshot = randomBoolean();
         ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
             TEST_REQUEST_TIMEOUT,
             repoName,
             snapshotName
-        ).setIndices(indexName).setWaitForCompletion(true).setPartial(true).execute();
+        ).setIndices(indexName).setWaitForCompletion(true).setPartial(partialSnapshot).execute();
 
         // we have currently blocked the start-snapshot task from running, and it will be followed by at least three blob uploads
         // (segments_N, .cfe, .cfs), executed one-at-a-time because of throttling to the max threadpool size, so it's safe to let up to
@@ -1458,7 +1459,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertFalse(snapshotFuture.isDone());
 
         try {
-            if (randomBoolean()) {
+            if (partialSnapshot && randomBoolean()) {
                 logger.info("--> closing index [{}]", indexName);
                 safeGet(indicesAdmin().prepareClose(indexName).execute());
                 ensureGreen(indexName);

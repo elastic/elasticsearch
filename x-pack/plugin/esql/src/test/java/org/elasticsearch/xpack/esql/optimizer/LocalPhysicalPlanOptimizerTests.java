@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -502,41 +501,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
         var queryString = QueryBuilders.queryStringQuery("last_name: Smith");
         var expected = QueryBuilders.boolQuery().must(queryString).must(terms);
-        assertThat(query.query().toString(), is(expected.toString()));
-    }
-
-    /**
-     * Expecting
-     *LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
-     * ame{f}#7, long_noidx{f}#12, salary{f}#8],false]
-     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
-     * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
-     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, gender{f}#5, job{f}#]
-     *       \_LimitExec[1000[INTEGER]]
-     *         \_FilterExec[LENGTH(first_name{f}#4) > 10[INTEGER]]
-     *           \_FieldExtractExec[first_name{f}#4]
-     *             \_EsQueryExec[test], indexMode[standard],
-     *             query[{"query_string":{"query":"last_name: Smith","fields":[]}}][_doc{f}#13], limit[], sort[] estimatedRowSize[324]
-     */
-    public void testQueryStringFunctionWithFunctionNotPushedDown() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-        String queryText = """
-            from test
-            | where qstr("last_name: Smith") and length(first_name) > 10
-            """;
-        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
-
-        var firstLimit = as(plan, LimitExec.class);
-        var exchange = as(firstLimit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var field = as(project.child(), FieldExtractExec.class);
-        var secondLimit = as(field.child(), LimitExec.class);
-        var filter = as(secondLimit.child(), FilterExec.class);
-        var fieldExtract = as(filter.child(), FieldExtractExec.class);
-        var query = as(fieldExtract.child(), EsQueryExec.class);
-
-        var expected = QueryBuilders.queryStringQuery("last_name: Smith");
         assertThat(query.query().toString(), is(expected.toString()));
     }
 

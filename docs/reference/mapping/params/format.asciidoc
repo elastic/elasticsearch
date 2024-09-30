@@ -54,8 +54,7 @@ which are not affected by locale information.
 There can also be differences in week-date calculations using the `Y`, `W`, and `w` field specifiers.
 The underlying data used to calculate week-dates can vary depending on the JDK version and locale;
 this can cause differences in the calculated week-date for the same calendar dates.
-It is recommended that the built-in week-date formats are used, which will always use ISO rules
-for calculating week-dates.
+It is recommended that the built-in week-date formats that use ISO week-date definitions are used.
 
 In particular, there is a significant change in locale information between JDK releases 22 and 23.
 Elasticsearch will use the _COMPAT_ locale database when run on JDK 22 and before,

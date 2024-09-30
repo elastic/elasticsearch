@@ -141,7 +141,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     if (shardRouting.primary() == false) {
                         continue; // count primaries only
                     }
-                    if (shardRouting.relocating()) {
+                    if (shardRouting.recoverySource() != null) {
                         continue; // exclude relocating shards
                     }
                     final IndexMode indexMode = indexShard.indexSettings().getMode();

@@ -64,6 +64,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -165,6 +167,36 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
             service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
         }
+    }
+
+    public void testParseRequestConfig_E5() {
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
+                        MULTILINGUAL_E5_SMALL_MODEL_ID
+                    )
+                )
+            );
+
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(1, 4, MULTILINGUAL_E5_SMALL_MODEL_ID);
+
+            service.parseRequestConfig(
+                randomInferenceEntityId,
+                TaskType.TEXT_EMBEDDING,
+                settings,
+                Set.of(),
+                getModelVerificationActionListener(e5ServiceSettings)
+            );
+        }
 
         // Invalid service settings
         {
@@ -178,9 +210,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
-                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
-                                                                                     // the threadpool within the client
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
+                        MULTILINGUAL_E5_SMALL_MODEL_ID,
                         "not_a_valid_service_setting",
                         randomAlphaOfLength(10)
                     )
@@ -419,19 +450,15 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         1,
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
-                        InternalServiceSettings.MODEL_ID,
-                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
+                        MULTILINGUAL_E5_SMALL_MODEL_ID,
                         ServiceFields.DIMENSIONS,
                         1
                     )
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
-                1,
-                4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
-            );
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(1, 4, MULTILINGUAL_E5_SMALL_MODEL_ID);
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parsePersistedConfig(
                 randomInferenceEntityId,
@@ -858,6 +885,31 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         );
         var model = listener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(model, is(expectedModel));
+    }
+
+    public void testModelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic() {
+        {
+            var architectures = Set.of("Aarch64");
+            assertFalse(
+                ElasticsearchInternalService.modelVariantValidForArchitecture(architectures, MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86)
+            );
+
+            assertTrue(ElasticsearchInternalService.modelVariantValidForArchitecture(architectures, MULTILINGUAL_E5_SMALL_MODEL_ID));
+        }
+        {
+            var architectures = Set.of("linux-x86_64");
+            assertTrue(
+                ElasticsearchInternalService.modelVariantValidForArchitecture(architectures, MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86)
+            );
+            assertTrue(ElasticsearchInternalService.modelVariantValidForArchitecture(architectures, MULTILINGUAL_E5_SMALL_MODEL_ID));
+        }
+        {
+            var architectures = Set.of("linux-x86_64", "Aarch64");
+            assertFalse(
+                ElasticsearchInternalService.modelVariantValidForArchitecture(architectures, MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86)
+            );
+            assertTrue(ElasticsearchInternalService.modelVariantValidForArchitecture(architectures, MULTILINGUAL_E5_SMALL_MODEL_ID));
+        }
     }
 
     private ElasticsearchInternalService createService(Client client) {

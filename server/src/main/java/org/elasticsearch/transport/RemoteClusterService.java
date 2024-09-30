@@ -277,7 +277,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    RemoteClusterConnection getRemoteClusterConnection(String cluster) {
+    public RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         if (enabled == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"

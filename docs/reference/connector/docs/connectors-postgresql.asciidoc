@@ -1,5 +1,5 @@
 [#es-connectors-postgresql]
-==== Elastic PostgreSQL connector reference
+=== Elastic PostgreSQL connector reference
 ++++
 <titleabbrev>PostgreSQL</titleabbrev>
 ++++

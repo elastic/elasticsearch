@@ -1,5 +1,5 @@
 [#es-connectors-redis]
-==== Redis connector reference
+=== Redis connector reference
 ++++
 <titleabbrev>Redis</titleabbrev>
 ++++

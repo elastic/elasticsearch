@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-class DataGenerationHelper {
+public class DataGenerationHelper {
     private final ObjectMapper.Subobjects subobjects;
     private final boolean keepArraySource;
 

@@ -62,7 +62,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
     }
 
     @Override
-    public SourceValueFetcherSortedBinaryLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public SourceValueFetcherSortedBinaryLeafFieldData loadDirect(LeafReaderContext context) {
         return new SourceValueFetcherSortedBinaryLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
@@ -127,7 +127,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         }
 
         @Override
-        public BytesRef nextValue() throws IOException {
+        public BytesRef nextValue() {
             assert iterator.hasNext();
             return iterator.next();
         }

@@ -168,7 +168,8 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
             vmParameters = [
               '-ea',
               '-Djava.security.manager=allow',
-              '-Djava.locale.providers=SPI,CLDR',
+              '-Djava.locale.providers=CLDR',
+              '-Dtests.testfeatures.enabled=true',
               '-Des.nativelibs.path="' + testLibraryPath + '"',
               // TODO: only open these for mockito when it is modularized
               '--add-opens=java.base/java.security.cert=ALL-UNNAMED',

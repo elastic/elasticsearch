@@ -92,7 +92,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             long docCount = 0L;
-            final AggregatorsReducer subAggregatorReducer = new AggregatorsReducer(reduceContext, size);
+            final AggregatorsReducer subAggregatorReducer = new AggregatorsReducer(getAggregations(), reduceContext, size);
 
             @Override
             public void accept(InternalAggregation aggregation) {

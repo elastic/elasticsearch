@@ -21,6 +21,9 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -29,6 +32,8 @@ import java.util.Random;
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 
 public class AVLTreeDigest extends AbstractTDigest {
+    private final TDigestArrays arrays;
+
     final Random gen = new Random();
     private final double compression;
     private AVLGroupTree summary;
@@ -46,9 +51,10 @@ public class AVLTreeDigest extends AbstractTDigest {
      *                    quantiles.  Conversely, you should expect to track about 5 N centroids for this
      *                    accuracy.
      */
-    public AVLTreeDigest(double compression) {
+    AVLTreeDigest(TDigestArrays arrays, double compression) {
+        this.arrays = arrays;
         this.compression = compression;
-        summary = new AVLGroupTree();
+        summary = new AVLGroupTree(arrays);
     }
 
     /**
@@ -148,26 +154,27 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
         needsCompression = false;
 
-        AVLGroupTree centroids = summary;
-        this.summary = new AVLGroupTree();
+        try (AVLGroupTree centroids = summary) {
+            this.summary = new AVLGroupTree(arrays);
 
-        final int[] nodes = new int[centroids.size()];
-        nodes[0] = centroids.first();
-        for (int i = 1; i < nodes.length; ++i) {
-            nodes[i] = centroids.next(nodes[i - 1]);
-            assert nodes[i] != IntAVLTree.NIL;
-        }
-        assert centroids.next(nodes[nodes.length - 1]) == IntAVLTree.NIL;
+            final int[] nodes = new int[centroids.size()];
+            nodes[0] = centroids.first();
+            for (int i = 1; i < nodes.length; ++i) {
+                nodes[i] = centroids.next(nodes[i - 1]);
+                assert nodes[i] != IntAVLTree.NIL;
+            }
+            assert centroids.next(nodes[nodes.length - 1]) == IntAVLTree.NIL;
 
-        for (int i = centroids.size() - 1; i > 0; --i) {
-            final int other = gen.nextInt(i + 1);
-            final int tmp = nodes[other];
-            nodes[other] = nodes[i];
-            nodes[i] = tmp;
-        }
+            for (int i = centroids.size() - 1; i > 0; --i) {
+                final int other = gen.nextInt(i + 1);
+                final int tmp = nodes[other];
+                nodes[other] = nodes[i];
+                nodes[i] = tmp;
+            }
 
-        for (int node : nodes) {
-            add(centroids.mean(node), centroids.count(node));
+            for (int node : nodes) {
+                add(centroids.mean(node), centroids.count(node));
+            }
         }
     }
 
@@ -350,5 +357,10 @@ public class AVLTreeDigest extends AbstractTDigest {
     public int byteSize() {
         compress();
         return 64 + summary.size() * 13;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(summary);
     }
 }

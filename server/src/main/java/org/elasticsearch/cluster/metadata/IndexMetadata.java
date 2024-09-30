@@ -430,10 +430,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_HISTORY_UUID = "index.history.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
-    public static final Setting<String> INDEX_DATA_PATH_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_DATA_PATH_SETTING = Setting.simpleString(
         SETTING_DATA_PATH,
-        "",
-        Function.identity(),
         Property.IndexScope,
         Property.DeprecatedWarning
     );
@@ -1334,7 +1332,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final Setting<String> INDEX_DOWNSAMPLE_INTERVAL = Setting.simpleString(
         INDEX_DOWNSAMPLE_INTERVAL_KEY,
-        "",
         Property.IndexScope,
         Property.InternalIndex
     );

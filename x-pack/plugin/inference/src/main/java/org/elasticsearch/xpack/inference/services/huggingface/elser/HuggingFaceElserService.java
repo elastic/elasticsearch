@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbedd
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -68,8 +69,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        @Nullable String query,
-        List<String> input,
+        DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
@@ -77,21 +77,21 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
-            (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
+            (delegate, response) -> delegate.onResponse(translateToChunkedResults(inputs, response))
         );
 
         // TODO chunking sparse embeddings not implemented
-        doInfer(model, input, taskSettings, inputType, timeout, inferListener);
+        doInfer(model, inputs, taskSettings, inputType, timeout, inferListener);
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
-        List<String> inputs,
+        DocumentsOnlyInput inputs,
         InferenceServiceResults inferenceResults
     ) {
         if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
-            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs, textEmbeddingResults);
+            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs.getInputs(), textEmbeddingResults);
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            return InferenceChunkedSparseEmbeddingResults.listOf(inputs, sparseEmbeddingResults);
+            return InferenceChunkedSparseEmbeddingResults.listOf(inputs.getInputs(), sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ErrorChunkedInferenceResults(error.getException()));
         } else {

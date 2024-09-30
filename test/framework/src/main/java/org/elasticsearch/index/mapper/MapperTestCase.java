@@ -56,6 +56,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 
@@ -1069,6 +1070,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             inputValue.accept(b);
         }
 
+        private void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
+            b.startArray("field");
+            for (int i = 0; i < elementCount; i++) {
+                inputValue.accept(b);
+            }
+            b.endArray();
+        }
+
         private String expected() throws IOException {
             XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
             expectedForSyntheticSource.accept(b);
@@ -1518,6 +1527,60 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.buildInput(b);
             b.endObject();
         }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+    }
+
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+        return syntheticSourceSupport(ignoreMalformed);
+    }
+
+    public void testSyntheticSourceKeepNone() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "none");
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
+    }
+
+    public void testSyntheticSourceKeepAll() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        example.buildInput(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        assertThat(syntheticSource(mapperAll, example::buildInput), equalTo(expected));
+    }
+
+    public void testSyntheticSourceKeepArrays() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("arrays", "all"));  // Both options keep array source.
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+
+        int elementCount = randomIntBetween(1, 5);
+        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
+            example.buildInputArray(builder, elementCount);
+        };
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        buildInput.accept(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
     }
 
     @Override

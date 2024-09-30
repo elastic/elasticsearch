@@ -913,8 +913,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     );
 
     public static NestedObjectMapper nestedObject(String path) {
-        return new NestedObjectMapper.Builder(path, IndexVersion.current(), query -> { throw new UnsupportedOperationException(); }).build(
-            MapperBuilderContext.root(false, false)
-        );
+        return new NestedObjectMapper.Builder(path, IndexVersion.current(), query -> { throw new UnsupportedOperationException(); }, null)
+            .build(MapperBuilderContext.root(false, false));
     }
 }

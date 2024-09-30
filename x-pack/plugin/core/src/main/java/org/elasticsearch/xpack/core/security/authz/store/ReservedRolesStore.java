@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -112,10 +111,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     private static final Map<String, RoleDescriptor> ALL_RESERVED_ROLES = initializeReservedRoles();
 
-    public static final Setting<List<String>> INCLUDED_RESERVED_ROLES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INCLUDED_RESERVED_ROLES_SETTING = Setting.stringListSetting(
         SecurityField.setting("reserved_roles.include"),
         List.copyOf(ALL_RESERVED_ROLES.keySet()),
-        Function.identity(),
         value -> {
             final Set<String> valueSet = Set.copyOf(value);
             if (false == valueSet.contains("superuser")) {

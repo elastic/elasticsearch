@@ -60,7 +60,7 @@ public class InvalidMappedField extends EsField {
     }
 
     @Override
-    protected void writeContent(StreamOutput out) throws IOException {
+    public void writeContent(StreamOutput out) throws IOException {
         out.writeString(getName());
         out.writeString(errorMessage);
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));

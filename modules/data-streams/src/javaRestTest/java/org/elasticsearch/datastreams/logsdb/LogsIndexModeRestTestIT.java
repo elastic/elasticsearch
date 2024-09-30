@@ -33,10 +33,16 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         });
     }
 
-    protected static Response putComponentTemplate(final RestClient client, final String templateName, final String mappings)
+    protected static Response putComponentTemplate(final RestClient client, final String componentTemplate, final String contends)
         throws IOException {
-        final Request request = new Request("PUT", "/_component_template/" + templateName);
-        request.setJsonEntity(mappings);
+        final Request request = new Request("PUT", "/_component_template/" + componentTemplate);
+        request.setJsonEntity(contends);
+        return client.performRequest(request);
+    }
+
+    protected static Response putTemplate(final RestClient client, final String template, final String contents) throws IOException {
+        final Request request = new Request("PUT", "/_index_template/" + template);
+        request.setJsonEntity(contents);
         return client.performRequest(request);
     }
 
@@ -70,10 +76,14 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected static Object getSetting(final RestClient client, final String indexName, final String setting) throws IOException {
         final Request request = new Request("GET", "/" + indexName + "/_settings?flat_settings=true&include_defaults=true");
-        final Map<String, Object> settings = ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName))
-            .get("settings");
-
-        return settings.get(setting);
+        Map<String, Object> response = entityAsMap(client.performRequest(request));
+        final Map<String, Object> settings = ((Map<String, Map<String, Object>>) response.get(indexName)).get("settings");
+        final Map<String, Object> defaults = ((Map<String, Map<String, Object>>) response.get(indexName)).get("defaults");
+        Object val = settings.get(setting);
+        if (val == null) {
+            val = defaults.get(setting);
+        }
+        return val;
     }
 
     protected static Response bulkIndex(final RestClient client, final String dataStreamName, final Supplier<String> bulkSupplier)
@@ -82,5 +92,12 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         bulkRequest.setJsonEntity(bulkSupplier.get());
         bulkRequest.addParameter("refresh", "true");
         return client.performRequest(bulkRequest);
+    }
+
+    protected static Response putClusterSetting(final RestClient client, final String settingName, final Object settingValue)
+        throws IOException {
+        final Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{ \"transient\": { \"" + settingName + "\": " + settingValue + " } }");
+        return client.performRequest(request);
     }
 }

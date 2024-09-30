@@ -377,6 +377,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (task.isAsync()) {
                         tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
                     }
+                    if (original.pointInTimeBuilder() != null) {
+                        tl.setFeature(CCSUsageTelemetry.PIT_FEATURE);
+                    }
                     String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
                     if (client != null) {
                         tl.setClient(client);

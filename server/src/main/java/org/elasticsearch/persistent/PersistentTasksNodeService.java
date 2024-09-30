@@ -75,31 +75,35 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         PersistentTasksCustomMetadata tasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
-        // Cluster State Local State Local Action
-        // STARTED NULL Create as STARTED, Start
-        // STARTED STARTED Noop - running
-        // STARTED COMPLETED Noop - waiting for notification ack
-        // STARTED LOCAL_ABORTED Noop - waiting for notification ack
-
-        // NULL NULL Noop - nothing to do
-        // NULL STARTED Remove locally, Mark as PENDING_CANCEL, Cancel
-        // NULL COMPLETED Remove locally
-        // NULL LOCAL_ABORTED Remove locally
-
-        // Master states:
-        // NULL - doesn't exist in the cluster state
-        // STARTED - exist in the cluster state
-
-        // Local state:
-        // NULL - we don't have task registered locally in runningTasks
-        // STARTED - registered in TaskManager, requires master notification when finishes
-        // PENDING_CANCEL - registered in TaskManager, doesn't require master notification when finishes
-        // COMPLETED - not registered in TaskManager, notified, waiting for master to remove it from CS so we can remove locally
-        // LOCAL_ABORTED - not registered in TaskManager, notified, waiting for master to adjust it in CS so we can remove locally
-
-        // When task finishes if it is marked as STARTED or PENDING_CANCEL it is marked as COMPLETED and unregistered,
-        // If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
-        // triggered by PersistentTaskListener
+        /*
+         * Master states:
+         * NULL    - doesn't exist in the cluster state
+         * STARTED - exist in the cluster state
+         *
+         * Local states (see org.elasticsearch.persistent.AllocatedPersistentTask.State)
+         * NULL           - we don't have task registered locally in runningTasks
+         * STARTED        - registered in TaskManager, requires master notification when finishes
+         * PENDING_CANCEL - registered in TaskManager, doesn't require master notification when finishes
+         * COMPLETED      - not registered in TaskManager, notified, waiting for master to remove it from CS so we can remove locally
+         * LOCAL_ABORTED  - not registered in TaskManager, notified, waiting for master to adjust it in CS so we can remove locally
+         *
+         *  Master state  | Local state    | Local action
+         * ---------------+----------------+-----------------------------------------------
+         *  STARTED       | NULL           | Create as STARTED, Start
+         *  STARTED       | STARTED        | Noop - running
+         *  STARTED       | PENDING_CANCEL | Impossible
+         *  STARTED       | COMPLETED      | Noop - waiting for notification ack
+         *  STARTED       | LOCAL_ABORTED  | Noop - waiting for notification ack
+         *  NULL          | NULL           | Noop - nothing to do
+         *  NULL          | STARTED        | Remove locally, Mark as PENDING_CANCEL, Cancel
+         *  NULL          | PENDING_CANCEL | Noop - will remove locally when complete
+         *  NULL          | COMPLETED      | Remove locally
+         *  NULL          | LOCAL_ABORTED  | Remove locally
+         *
+         * When task finishes if it is marked as STARTED or PENDING_CANCEL it is marked as COMPLETED and unregistered,
+         * If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
+         * triggered by PersistentTaskListener
+         */
 
         if (Objects.equals(tasks, previousTasks) == false || event.nodesChanged()) {
             // We have some changes let's check if they are related to our node

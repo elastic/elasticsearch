@@ -12,7 +12,7 @@ The Redis connector is built with the Elastic connectors Python framework and is
 View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
 [discrete#es-connectors-redis-connector-availability-and-prerequisites]
-===== Availability and prerequisites
+==== Availability and prerequisites
 
 This connector was introduced in Elastic *8.13.0*, available as a *self-managed* self-managed connector.
 
@@ -29,19 +29,19 @@ This connector is in *technical preview* and is subject to change. The design an
 ====
 
 [discrete#es-connectors-redis-connector-usage]
-===== Usage
+==== Usage
 
 To set up this connector in the UI, select the *Redis* tile when creating a new connector under *Search -> Connectors*.
 
 For additional operations, see <<es-connectors-usage>>.
 
 [discrete#es-connectors-redis-connector-docker]
-===== Deploy with Docker
+==== Deploy with Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#es-connectors-redis-connector-configuration]
-===== Configuration
+==== Configuration
 
 `host` (required)::
 The IP of your Redis server/cloud. Example:
@@ -89,7 +89,7 @@ Specifies the client private key. The value of the key is used to validate the c
 Depends on `mutual_tls_enabled`.
 
 [discrete#es-connectors-redis-connector-documents-and-syncs]
-===== Documents and syncs
+==== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -102,12 +102,12 @@ The connector syncs the following objects and entities:
 ====
 
 [discrete#es-connectors-redis-connector-sync-rules]
-===== Sync rules
+==== Sync rules
 <<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules]
-===== Advanced Sync Rules
+==== Advanced Sync Rules
 
 <<es-sync-rules-advanced,Advanced sync rules>> are defined through a source-specific DSL JSON snippet.
 
@@ -134,10 +134,10 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 ====
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-examples]
-====== Advanced sync rules examples
+===== Advanced sync rules examples
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-1]
-======= Example 1
+====== Example 1
 
 *Fetch database records where keys start with `alpha`*:
 
@@ -153,7 +153,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 // NOTCONSOLE
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-2]
-======= Example 2
+====== Example 2
 
 *Fetch database records with exact match by specifying the full key name:*
 
@@ -169,7 +169,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 // NOTCONSOLE
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-3]
-======= Example 3
+====== Example 3
 
 *Fetch database records where keys start with `test1`, `test2` or `test3`:*
 
@@ -180,13 +180,12 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "database": 0,
     "key_pattern": "test[123]"
   }
-]
 
 ----
 // NOTCONSOLE
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-4]
-======= Example 4
+====== Example 4
 
 *Exclude database records where keys start with `test1`, `test2` or `test3`:*
 
@@ -202,7 +201,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 // NOTCONSOLE
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-5]
-======= Example 5
+====== Example 5
 
 *Fetch all database records:*
 
@@ -218,7 +217,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 // NOTCONSOLE
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-6]
-======= Example 6
+====== Example 6
 
 *Fetch all database records where type is `SET`:*
 
@@ -235,7 +234,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 // NOTCONSOLE
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-7]
-======= Example 7
+====== Example 7
 
 *Fetch database records where type is `SET`*:
 
@@ -251,10 +250,10 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 // NOTCONSOLE
 
 [discrete#es-connectors-redis-connector-connector-client-operations]
-===== Connector Client operations
+==== Connector Client operations
 
 [discrete#es-connectors-redis-connector-end-to-end-testing]
-====== End-to-end Testing
+===== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source, using Docker Compose.
 You don't need a running Elasticsearch instance or Redis source to run this test.
@@ -276,7 +275,7 @@ make ftest NAME=redis DATA_SIZE=small
 By default, `DATA_SIZE=MEDIUM`.
 
 [discrete#es-connectors-redis-connector-known-issues]
-===== Known issues
+==== Known issues
 
 * The last modified time is unavailable when retrieving keys/values from the Redis database.
 As a result, *all objects* are indexed each time an advanced sync rule query is executed.
@@ -284,11 +283,11 @@ As a result, *all objects* are indexed each time an advanced sync rule query is 
 Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#es-connectors-redis-connector-troubleshooting]
-===== Troubleshooting
+==== Troubleshooting
 
 See <<es-connectors-troubleshooting>>.
 
 [discrete#es-connectors-redis-connector-security]
-===== Security
+==== Security
 
 See <<es-connectors-security>>.

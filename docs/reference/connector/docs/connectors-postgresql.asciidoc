@@ -14,7 +14,7 @@ This connector uses the https://github.com/elastic/connectors/blob/{branch}/conn
 View the specific {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
 [discrete#es-connectors-postgresql-connector-client-reference]
-==== *Self-managed connector*
+=== *Self-managed connector*
 
 .View *self-managed connector* reference
 
@@ -22,17 +22,17 @@ View the specific {connectors-python}/connectors/sources/{service-name-stub}.py[
 ===============
 
 [discrete#es-connectors-postgresql-client-availability-prerequisites]
-===== Availability and prerequisites
+==== Availability and prerequisites
 
 This connector is available as a self-managed *self-managed connector*.
 To use this connector, satisfy all //build-connector,self-managed connector requirements.
 
 [discrete#es-connectors-postgresql-create-connector-client]
-===== Create a {service-name} connector
+==== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#es-connectors-postgresql-client-usage]
-===== Usage
+==== Usage
 
 To use this connector as a *self-managed connector*, see //build-connector
 [TIP]
@@ -49,12 +49,12 @@ For an end-to-end example of the self-managed connector workflow, see //postgres
 ====
 
 [discrete#es-connectors-postgresql-client-compatibility]
-===== Compatibility
+==== Compatibility
 
 PostgreSQL versions 11 to 15 are compatible with Elastic connector frameworks.
 
 [discrete#es-connectors-postgresql-client-configuration]
-===== Configuration
+==== Configuration
 
 [TIP]
 ====
@@ -150,12 +150,12 @@ xw23l/k8RoD1wRWaDVbgpjwSzt+kl+vJE/ip2w3h69eEZ9wbo6scRO5lCO2JM4Pr
 ====
 
 [discrete#es-connectors-postgresql-client-docker]
-===== Deployment using Docker
+==== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#es-connectors-postgresql-client-documents-syncs]
-===== Documents and syncs
+==== Documents and syncs
 
 * Tables must be owned by a PostgreSQL user.
 * Tables with no primary key defined are skipped.
@@ -170,12 +170,12 @@ Otherwise, all data will be indexed in every sync.
 ====
 
 [discrete#es-connectors-postgresql-client-sync-rules]
-===== Sync rules
+==== Sync rules
 
 //sync-rules-basic,Basic sync rules are identical for all connectors and are available by default.
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced]
-====== Advanced sync rules
+===== Advanced sync rules
 
 [NOTE]
 ====
@@ -185,12 +185,12 @@ A //connectors-sync-types-full, full sync is required for advanced sync rules to
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-example-data]
-======= Example data
+====== Example data
 
 Here is some example data that will be used in the following examples.
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-example-data-1]
-======== `employee` table
+======= `employee` table
 
 [cols="3*", options="header"]
 |===
@@ -201,7 +201,7 @@ Here is some example data that will be used in the following examples.
 |===
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-example-2]
-======== `customer` table
+======= `customer` table
 
 [cols="3*", options="header"]
 |===
@@ -212,7 +212,7 @@ Here is some example data that will be used in the following examples.
 |===
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples]
-======= Advanced sync rules examples
+====== Advanced sync rules examples
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-1]
 ======== Multiple table queries
@@ -301,7 +301,7 @@ This can also happen if the configuration specifies `*` to fetch all tables whil
 ====
 
 [discrete#es-connectors-postgresql-client-client-operations-testing]
-===== End-to-end testing
+==== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to //build-connector-testing for more details.
@@ -321,18 +321,18 @@ make ftest NAME=postgresql DATA_SIZE=small
 ----
 
 [discrete#es-connectors-postgresql-client-known-issues]
-===== Known issues
+==== Known issues
 
 There are no known issues for this connector.
 Refer to //connectors-known-issues for a list of known issues for all connectors.
 
 [discrete#es-connectors-postgresql-client-troubleshooting]
-===== Troubleshooting
+==== Troubleshooting
 
 See //connectors-troubleshooting.
 
 [discrete#es-connectors-postgresql-client-security]
-===== Security
+==== Security
 
 See //connectors-security.
 

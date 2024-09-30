@@ -60,7 +60,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IndexingPressure.SPLIT_BULK_THRESHOLD.getKey(), "512B")
+            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "512B")
             .build();
     }
 

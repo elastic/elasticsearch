@@ -2105,7 +2105,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 randomFrom(1, 2, SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE)
             );
         if (randomBoolean()) {
-            builder.put(IndexingPressure.SPLIT_BULK_THRESHOLD.getKey(), randomFrom("256B", "1KB", "64KB"));
+            builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), randomFrom("256B", "1KB", "64KB"));
         }
         return builder.build();
     }

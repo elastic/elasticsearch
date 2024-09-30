@@ -30,9 +30,15 @@ public class IndexingPressure {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> SPLIT_BULK_THRESHOLD = Setting.memorySizeSetting(
-        "indexing_pressure.memory.split_bulk_threshold",
+    public static final Setting<ByteSizeValue> SPLIT_BULK_HIGH_WATERMARK = Setting.memorySizeSetting(
+        "indexing_pressure.memory.split_bulk.watermark.high",
         "8.5%",
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SPLIT_BULK_LOW_WATERMARK = Setting.memorySizeSetting(
+        "indexing_pressure.memory.split_bulk.watermark.low",
+        "5.0%",
         Setting.Property.NodeScope
     );
 
@@ -63,12 +69,14 @@ public class IndexingPressure {
     private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
     private final long primaryAndCoordinatingLimits;
-    private final long splitBulkThreshold;
+    private final long highWatermark;
+    private final long lowWatermark;
     private final long replicaLimits;
 
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
-        this.splitBulkThreshold = SPLIT_BULK_THRESHOLD.get(settings).getBytes();
+        this.highWatermark = SPLIT_BULK_HIGH_WATERMARK.get(settings).getBytes();
+        this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
@@ -212,8 +220,12 @@ public class IndexingPressure {
         });
     }
 
-    public boolean shouldSplitBulks() {
-        return currentCombinedCoordinatingAndPrimaryBytes.get() >= splitBulkThreshold;
+    public boolean highWatermarkCrossed() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get() >= highWatermark;
+    }
+
+    public boolean lowWatermarkCrossed() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get() >= lowWatermark;
     }
 
     public IndexingPressureStats stats() {

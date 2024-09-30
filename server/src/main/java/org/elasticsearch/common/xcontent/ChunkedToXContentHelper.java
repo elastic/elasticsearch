@@ -63,6 +63,16 @@ public enum ChunkedToXContentHelper {
         );
     }
 
+    /**
+     * Like xContentFragmentValuesMap, but allows the underlying XContent object to define its own "name" with startObject(string)
+     * and endObject, rather than assuming that the key in the map should be the name in the XContent output.
+     * @param name name to use in the XContent for the outer object wrapping the map being rendered to XContent
+     * @param map map being rendered to XContent
+     */
+    public static Iterator<ToXContent> xContentFragmentValuesMapCreateOwnName(String name, Map<String, ? extends ToXContent> map) {
+        return map(name, map, entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder, params));
+    }
+
     public static Iterator<ToXContent> field(String name, boolean value) {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
     }

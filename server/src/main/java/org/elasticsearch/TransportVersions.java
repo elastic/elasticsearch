@@ -231,7 +231,6 @@ public class TransportVersions {
     public static final TransportVersion CCS_REMOTE_TELEMETRY_STATS = def(8_755_00_0);
     public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_756_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

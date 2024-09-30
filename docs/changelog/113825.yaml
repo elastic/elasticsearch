@@ -1,0 +1,5 @@
+pr: 113825
+summary: Remove `ccs_telemetry` feature flag
+area: Search
+type: feature
+issues: []

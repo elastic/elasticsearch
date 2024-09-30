@@ -88,7 +88,7 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
         if (accessesRoleName.get()) {
             searchSourceBuilder.runtimeMappings(ROLE_NAME_RUNTIME_MAPPING);
         }
-        nativeRolesStore.ensureBuiltinRolesAreQueriable(ActionListener.wrap(onResponse -> {
+        nativeRolesStore.ensureBuiltinRolesAreQueryable(ActionListener.wrap(onResponse -> {
             nativeRolesStore.queryRoleDescriptors(
                 searchSourceBuilder,
                 ActionListener.wrap(

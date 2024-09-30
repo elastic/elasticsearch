@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -351,6 +352,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         WriteRequest.RefreshPolicy refreshPolicy,
         final ActionListener<BulkRolesResponse> listener
     ) {
+        deleteRoles(null, roleNames, refreshPolicy, true, listener);
+    }
+
+    private void deleteRoles(
+        SecurityIndexManager securityIndexManager,
+        final Collection<String> roleNames,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        boolean validateRoles,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
         if (enabled == false) {
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
@@ -360,7 +371,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         Map<String, Exception> validationErrorByRoleName = new HashMap<>();
 
         for (String roleName : roleNames) {
-            if (reservedRoleNameChecker.isReserved(roleName)) {
+            if (validateRoles && reservedRoleNameChecker.isReserved(roleName)) {
                 validationErrorByRoleName.put(
                     roleName,
                     new IllegalArgumentException("role [" + roleName + "] is reserved and cannot be deleted")
@@ -375,7 +386,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager != null
+            ? securityIndexManager
+            : securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(new BulkRolesResponse(List.of()));
@@ -407,7 +420,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void bulkResponseAndRefreshRolesCache(
-        List<String> roleNames,
+        Collection<String> roleNames,
         BulkResponse bulkResponse,
         Map<String, Exception> validationErrorByRoleName,
         ActionListener<BulkRolesResponse> listener
@@ -435,7 +448,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void bulkResponseWithOnlyValidationErrors(
-        List<String> roleNames,
+        Collection<String> roleNames,
         Map<String, Exception> validationErrorByRoleName,
         ActionListener<BulkRolesResponse> listener
     ) {
@@ -536,7 +549,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
     }
 
-    public void ensureBuiltinRolesAreQueriable(ActionListener<Void> listener) {
+    public void ensureBuiltinRolesAreQueryable(ActionListener<Void> listener) {
         if (enabled == false) {
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
@@ -551,10 +564,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             logger.debug("security index already contains the latest reserved roles indexed");
             listener.onResponse(null);
         } else {
-            indexReservedRoles(
-                frozenSecurityIndex,
-                ActionListener.wrap(onResponse -> frozenSecurityIndex.markReservedRolesAsIndexed(listener), listener::onFailure)
-            );
+            // we will first create new or update the existing roles in .security index
+            // then potentially delete the roles from .security index that have been removed from the builtin roles
+            indexReservedRoles(frozenSecurityIndex, ActionListener.wrap(onResponse -> {
+                deleteRoles(
+                    frozenSecurityIndex,
+                    Sets.difference(frozenSecurityIndex.getReservedRolesVersionMap().keySet(), ReservedRolesStore.names()),
+                    WriteRequest.RefreshPolicy.IMMEDIATE,
+                    false,
+                    ActionListener.wrap(deleteResponse -> {
+                        if (deleteResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
+                            listener.onFailure(
+                                new ElasticsearchStatusException(
+                                    "Automatic deletion of builtin reserved roles failed",
+                                    RestStatus.INTERNAL_SERVER_ERROR
+                                )
+                            );
+                        } else {
+                            frozenSecurityIndex.markReservedRolesAsIndexed(listener);
+                        }
+                    }, listener::onFailure)
+                );
+            }, listener::onFailure));
         }
     }
 

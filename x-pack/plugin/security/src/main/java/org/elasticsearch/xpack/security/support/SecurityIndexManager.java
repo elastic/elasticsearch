@@ -495,6 +495,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         return areReservedRolesIndexed(state.indexedReservedRolesVersionMap);
     }
 
+    public Map<String, String> getReservedRolesVersionMap() {
+        return state.indexedReservedRolesVersionMap;
+    }
+
     private static boolean areReservedRolesIndexed(Map<String, String> reservedRolesVersionMap) {
         if (reservedRolesVersionMap == null) {
             return false;

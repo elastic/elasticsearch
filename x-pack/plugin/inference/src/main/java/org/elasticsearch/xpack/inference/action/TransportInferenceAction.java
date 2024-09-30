@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceService;
@@ -42,6 +43,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
     private final StreamingTaskManager streamingTaskManager;
+    private final Client client;
 
     @Inject
     public TransportInferenceAction(
@@ -50,13 +52,15 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
-        StreamingTaskManager streamingTaskManager
+        StreamingTaskManager streamingTaskManager,
+        Client client
     ) {
         super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.inferenceStats = inferenceStats;
         this.streamingTaskManager = streamingTaskManager;
+        this.client = client;
     }
 
     @Override
@@ -65,27 +69,13 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         ActionListener<ModelRegistry.UnparsedModel> getModelListener = listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Unknown service [{}] for model [{}]. ",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        unparsedModel.service(),
-                        unparsedModel.inferenceEntityId()
-                    )
-                );
+                listener.onFailure(unknownServiceException(unparsedModel.service(), request.getInferenceEntityId()));
                 return;
             }
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // not the wildcard task type and not the model task type
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
-                        RestStatus.BAD_REQUEST,
-                        request.getTaskType(),
-                        unparsedModel.taskType()
-                    )
-                );
+                listener.onFailure(incompatibleTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
 
@@ -96,7 +86,6 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     unparsedModel.settings(),
                     unparsedModel.secrets()
                 );
-            inferenceStats.incrementRequestCount(model);
             inferOnService(model, request, service.get(), delegate);
         });
 
@@ -110,6 +99,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         ActionListener<InferenceAction.Response> listener
     ) {
         if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
+            inferenceStats.incrementRequestCount(model);
             service.infer(
                 model,
                 request.getQuery(),
@@ -158,5 +148,24 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             });
         }
         return listener.delegateFailureAndWrap((l, inferenceResults) -> l.onResponse(new InferenceAction.Response(inferenceResults)));
-    };
+    }
+
+    private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
+        return new ElasticsearchStatusException(
+            "Unknown service [{}] for model [{}]. ",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            service,
+            inferenceId
+        );
+    }
+
+    private static ElasticsearchStatusException incompatibleTaskTypeException(TaskType requested, TaskType expected) {
+        return new ElasticsearchStatusException(
+            "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
+            RestStatus.BAD_REQUEST,
+            requested,
+            expected
+        );
+    }
+
 }

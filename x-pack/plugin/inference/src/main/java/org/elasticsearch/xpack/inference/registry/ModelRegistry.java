@@ -44,10 +44,15 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
+import org.elasticsearch.xpack.inference.services.elser.ElserModels;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -57,6 +62,39 @@ import static org.elasticsearch.core.Strings.format;
 
 public class ModelRegistry {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
+
+    private static final Map<String, Object> DEFAULT_ELSER_SETTINGS = Map.of(
+        ModelConfigurations.SERVICE_SETTINGS,
+        Map.of(
+            ElasticsearchInternalServiceSettings.MODEL_ID,
+            ElserModels.ELSER_V2_MODEL,  // TODO pick model depending on platform
+            ElasticsearchInternalServiceSettings.NUM_THREADS,
+            1,
+            ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS,
+            Map.of(
+                "enabled",
+                Boolean.TRUE,
+                "min_number_of_allocations",
+                0,
+                "max_number_of_allocations",
+                8   // no max?
+            )
+        )
+    );
+
+    private static Map<String, UnparsedModel> DEFAULT_CONFIGS;
+    static {
+        DEFAULT_CONFIGS = Map.of(
+            ElserInternalService.DEFAULT_ELSER_ID,
+            new UnparsedModel(
+                ElserInternalService.DEFAULT_ELSER_ID,
+                TaskType.SPARSE_EMBEDDING,
+                ElserInternalService.NAME,  // TODO elasticsearch service ??
+                DEFAULT_ELSER_SETTINGS,
+                Map.of() // no secrets
+            )
+        );
+    }
 
     /**
      * Semi parsed model where inference entity id, task type and service
@@ -69,7 +107,6 @@ public class ModelRegistry {
         Map<String, Object> settings,
         Map<String, Object> secrets
     ) {
-
         public static UnparsedModel unparsedModelFromMap(ModelConfigMap modelConfigMap) {
             if (modelConfigMap.config() == null) {
                 throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
@@ -102,6 +139,11 @@ public class ModelRegistry {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        if (DEFAULT_CONFIGS.containsKey(inferenceEntityId)) {
+            listener.onResponse(DEFAULT_CONFIGS.get(inferenceEntityId));
+            return;
+        }
+
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
@@ -128,6 +170,11 @@ public class ModelRegistry {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        if (DEFAULT_CONFIGS.containsKey(inferenceEntityId)) {
+            listener.onResponse(deepCopyDefaultConfig(DEFAULT_CONFIGS.get(inferenceEntityId)));
+            return;
+        }
+
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
@@ -169,6 +216,15 @@ public class ModelRegistry {
             }
 
             var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var defaultConfigs = DEFAULT_CONFIGS.values()
+                .stream()
+                .filter(m -> m.taskType() == taskType)
+                .map(this::deepCopyDefaultConfig)
+                .toList();
+            if (defaultConfigs.isEmpty() == false) {
+                modelConfigs.addAll(defaultConfigs);
+                modelConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
+            }
             delegate.onResponse(modelConfigs);
         });
 
@@ -198,6 +254,8 @@ public class ModelRegistry {
             }
 
             var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            modelConfigs.addAll(DEFAULT_CONFIGS.values().stream().map(this::deepCopyDefaultConfig).toList());
+            modelConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
             delegate.onResponse(modelConfigs);
         });
 
@@ -216,7 +274,7 @@ public class ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    private List<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
+    private ArrayList<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
         var modelConfigs = new ArrayList<ModelConfigMap>();
         for (var hit : hits) {
             modelConfigs.add(new ModelConfigMap(hit.getSourceAsMap(), Map.of()));
@@ -392,5 +450,36 @@ public class ModelRegistry {
 
     private QueryBuilder documentIdQuery(String inferenceEntityId) {
         return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(inferenceEntityId)));
+    }
+
+    private UnparsedModel deepCopyDefaultConfig(UnparsedModel other) {
+        // Because the default config uses immutable maps
+        return new UnparsedModel(
+            other.inferenceEntityId(),
+            other.taskType,
+            other.service,
+            copySettingsMap(other.settings),
+            copySecretsMap(other.secrets())
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> copySettingsMap(Map<String, Object> other) {
+        var serviceSettings = (Map<String, Object>) other.get(ModelConfigurations.SERVICE_SETTINGS);
+        var adaptiveAllocations = (Map<String, Object>) serviceSettings.get(ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS);
+
+        var copiedServiceSettings = new HashMap<>(serviceSettings);
+        var copiedAdaptiveAllocations = new HashMap<>(adaptiveAllocations);
+        copiedServiceSettings.put(ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS, copiedAdaptiveAllocations);
+
+        var result = new HashMap<String, Object>();
+        result.put(ModelConfigurations.SERVICE_SETTINGS, copiedServiceSettings);
+        return result;
+    }
+
+    private Map<String, Object> copySecretsMap(Map<String, Object> other) {
+        // Default configs have no secrets
+        assert other.isEmpty();
+        return other;
     }
 }

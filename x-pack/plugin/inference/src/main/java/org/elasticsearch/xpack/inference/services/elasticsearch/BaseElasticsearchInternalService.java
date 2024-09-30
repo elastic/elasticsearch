@@ -150,7 +150,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         }
     }
 
-    private void putBuiltInModel(String modelId, ActionListener<Boolean> listener) {
+    protected void putBuiltInModel(String modelId, ActionListener<Boolean> listener) {
         var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
         var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
         PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);

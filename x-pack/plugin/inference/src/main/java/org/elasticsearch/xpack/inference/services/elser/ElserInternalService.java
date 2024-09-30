@@ -10,6 +10,8 @@
 package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -49,6 +52,8 @@ import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER
 import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
 public class ElserInternalService extends BaseElasticsearchInternalService {
+
+    public static final String DEFAULT_ELSER_ID = ".elser-default";
 
     public static final String NAME = "elser";
 
@@ -78,6 +83,17 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         Map<String, Object> config,
         ActionListener<Model> parsedModelListener
     ) {
+        if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
+            parsedModelListener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference Id. Cannot create a new inference endpoint with a reserved Id",
+                    RestStatus.BAD_REQUEST,
+                    inferenceEntityId
+                )
+            );
+            return;
+        }
+
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             var serviceSettingsBuilder = ElserInternalServiceSettings.fromRequestMap(serviceSettingsMap);
@@ -176,7 +192,6 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         ActionListener<InferenceServiceResults> listener
     ) {
         // No task settings to override with requestTaskSettings
-
         try {
             checkCompatibleTaskType(model.getConfigurations().getTaskType());
         } catch (Exception e) {
@@ -184,22 +199,26 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
             return;
         }
 
-        var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            inputs,
-            inputType,
-            timeout,
-            false // chunk
-        );
+        if (model instanceof ElasticsearchInternalModel esModel) {
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
-            )
-        );
+            var request = buildInferenceRequest(
+                model.getInferenceEntityId(),
+                TextExpansionConfigUpdate.EMPTY_UPDATE,
+                inputs,
+                inputType,
+                timeout,
+                false // chunk
+            );
+
+            var resultListener = ActionListener.<InferModelAction.Response>wrap(
+                inferenceResult -> listener.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults())),
+                exception -> maybeStartDeployment(esModel, exception, request, listener)
+            );
+
+            client.execute(InferModelAction.INSTANCE, request, resultListener);
+        } else {
+            listener.onFailure(notElasticsearchModelException(model));
+        }
     }
 
     public void chunkedInfer(
@@ -252,6 +271,31 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
                 (l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getInferenceResults()))
             )
         );
+    }
+
+    private void maybeStartDeployment(
+        ElasticsearchInternalModel model,
+        Exception e,
+        InferModelAction.Request request,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (isDefaultId(model.getInferenceEntityId()) && ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+            this.start(model, listener.delegateFailureAndWrap((l, started) -> {
+                client.execute(
+                    InferModelAction.INSTANCE,
+                    request,
+                    l.delegateFailureAndWrap(
+                        (l2, inferenceResult) -> listener.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
+                    )
+                );
+            }));
+        } else {
+            listener.onFailure(e);
+        }
+    }
+
+    private static boolean isDefaultId(String inferenceId) {
+        return DEFAULT_ELSER_ID.equals(inferenceId);
     }
 
     private void checkCompatibleTaskType(TaskType taskType) {

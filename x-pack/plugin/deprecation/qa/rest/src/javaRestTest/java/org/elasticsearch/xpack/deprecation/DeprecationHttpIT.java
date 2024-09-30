@@ -477,17 +477,23 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     }
 
-    //TODO: check headers too!
     public void testDeprecateAndKeep() throws Exception {
         final Request request = new Request("GET", "/_test_cluster/deprecated_but_dont_remove");
         request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_NOT_DEPRECATED_SETTING), "settings"));
-        performScopedRequest(request);
+        Response response = performScopedRequest(request);
+
+        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
+        assertThat(
+            extractWarningValuesFromWarningHeaders(deprecatedWarnings),
+            containsInAnyOrder("[/_test_cluster/deprecated_but_dont_remove] is deprecated, but no plans to remove quite yet")
+        );
+
         assertBusy(() -> {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
 
             logger.warn(documents);
 
-            //only assert the relevant fields: level, message, and category
+            // only assert the relevant fields: level, message, and category
             assertThat(
                 documents,
                 containsInAnyOrder(
@@ -504,7 +510,13 @@ public class DeprecationHttpIT extends ESRestTestCase {
     public void testReplacesInCurrentVersion() throws Exception {
         final Request request = new Request("GET", "/_test_cluster/old_name1"); // deprecated in current version
         request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_NOT_DEPRECATED_SETTING), "settings"));
-        performScopedRequest(request);
+        Response response = performScopedRequest(request);
+
+        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
+        assertThat(
+            extractWarningValuesFromWarningHeaders(deprecatedWarnings),
+            containsInAnyOrder("[GET /_test_cluster/old_name1] is deprecated! Use [GET /_test_cluster/new_name1] instead.")
+        );
 
         assertBusy(() -> {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
@@ -526,7 +538,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     }
 
     public void testReplacesInCompatibleVersion() throws Exception {
-        final Request request = new Request("GET", "/_test_cluster/old_name2"); //deprecated in minimum supported version
+        final Request request = new Request("GET", "/_test_cluster/old_name2"); // deprecated in minimum supported version
         request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_DEPRECATED_SETTING_TRUE1), "deprecated_settings"));
         final RequestOptions compatibleOptions = request.getOptions()
             .toBuilder()
@@ -534,16 +546,22 @@ public class DeprecationHttpIT extends ESRestTestCase {
             .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + RestApiVersion.minimumSupported().major)
             .build();
         request.setOptions(compatibleOptions);
-        performScopedRequest(request);
+        Response response = performScopedRequest(request);
 
-        //check for 2 headers
-
+        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
+        assertThat(
+            extractWarningValuesFromWarningHeaders(deprecatedWarnings),
+            containsInAnyOrder(
+                "[GET /_test_cluster/old_name2] is deprecated! Use [GET /_test_cluster/new_name2] instead.",
+                "You are using a compatible API for this request"
+            )
+        );
         assertBusy(() -> {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
 
             logger.warn(documents);
 
-            //only assert the relevant fields: level, message, and category
+            // only assert the relevant fields: level, message, and category
             assertThat(
                 documents,
                 containsInAnyOrder(

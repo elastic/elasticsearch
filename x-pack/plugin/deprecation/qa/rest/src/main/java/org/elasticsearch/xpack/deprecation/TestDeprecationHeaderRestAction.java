@@ -100,17 +100,19 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             Route.builder(GET, "/_test_cluster/deprecated_settings")
                 .deprecatedForRemoval(DEPRECATED_ENDPOINT, RestApiVersion.current())
                 .build(),
-            //TODO: s/deprecated/deprecatedForRemoval when removing `deprecated` method
+            // TODO: s/deprecated/deprecatedForRemoval when removing `deprecated` method
             Route.builder(POST, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build(),
             Route.builder(GET, "/_test_cluster/compat_only")
-                .deprecatedForRemoval(DEPRECATED_ENDPOINT, RestApiVersion.minimumSupported()).build(),
+                .deprecatedForRemoval(DEPRECATED_ENDPOINT, RestApiVersion.minimumSupported())
+                .build(),
             Route.builder(GET, "/_test_cluster/only_deprecated_setting").build(),
             Route.builder(GET, "/_test_cluster/deprecated_but_dont_remove")
-                .deprecateAndKeep("[/_test_cluster/deprecated_but_dont_remove] is deprecated, but no plans to remove quite yet").build(),
-            Route.builder(GET, "/_test_cluster/new_name1")
-                .replaces(GET, "/_test_cluster/old_name1", RestApiVersion.current()).build(),
+                .deprecateAndKeep("[/_test_cluster/deprecated_but_dont_remove] is deprecated, but no plans to remove quite yet")
+                .build(),
+            Route.builder(GET, "/_test_cluster/new_name1").replaces(GET, "/_test_cluster/old_name1", RestApiVersion.current()).build(),
             Route.builder(GET, "/_test_cluster/new_name2")
-                .replaces(GET, "/_test_cluster/old_name2", RestApiVersion.minimumSupported()).build()
+                .replaces(GET, "/_test_cluster/old_name2", RestApiVersion.minimumSupported())
+                .build()
 
         );
     }

@@ -1176,14 +1176,13 @@ avg_lang:double | max_lang:integer
 docsStatsGroupByMultipleValues
 // tag::statsGroupByMultipleValues[]
 FROM employees
-| EVAL hired = DATE_FORMAT("YYYY", hire_date)
+| EVAL hired = DATE_FORMAT("yyyy", hire_date)
 | STATS avg_salary = AVG(salary) BY hired, languages.long
 | EVAL avg_salary = ROUND(avg_salary)
 | SORT hired, languages.long
 // end::statsGroupByMultipleValues[]
 | LIMIT 4
 ;
-warningRegex:Date format \[YYYY\] contains week-date field specifiers that are changing in JDK 23
 
 hired:keyword |languages.long:long | avg_salary:double
 1985           |1              |54668.0        

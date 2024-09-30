@@ -149,25 +149,13 @@ final class FaceIJK {
     /**
      *  Information to transform into an adjacent face IJK system
      */
-    private static class FaceOrientIJK {
-        // face number
-        final int face;
-        // res 0 translation relative to primary face
-        final int translateI;
-        final int translateJ;
-        final int translateK;
-        // number of 60 degree ccw rotations relative to primary
-        final int ccwRot60;
-
-        // face
-        FaceOrientIJK(int face, int translateI, int translateJ, int translateK, int ccwRot60) {
-            this.face = face;
-            this.translateI = translateI;
-            this.translateJ = translateJ;
-            this.translateK = translateK;
-            this.ccwRot60 = ccwRot60;
-        }
-    }
+    private record FaceOrientIJK(
+        int face, // face number
+        int translateI, // res 0 translation relative to primary face
+        int translateJ,
+        int translateK,
+        int ccwRot60// number of 60 degree ccw rotations relative to primary
+    ) {}
 
     /**
      *  Definition of which faces neighbor each other.
@@ -486,11 +474,7 @@ final class FaceIJK {
                 }
 
                 final int unitScale = unitScaleByCIIres[adjRes] * 3;
-                lastCoord.ijkAdd(
-                    Math.multiplyExact(fijkOrient.translateI, unitScale),
-                    Math.multiplyExact(fijkOrient.translateJ, unitScale),
-                    Math.multiplyExact(fijkOrient.translateK, unitScale)
-                );
+                lastCoord.ijkAdd(fijkOrient.translateI * unitScale, fijkOrient.translateJ * unitScale, fijkOrient.translateK * unitScale);
                 lastCoord.ijkNormalize();
 
                 final Vec2d orig2d1 = lastCoord.ijkToHex2d();
@@ -596,18 +580,10 @@ final class FaceIJK {
                 // to each vertex to translate the vertices to that cell.
                 final int[] vertexLast = verts[lastV];
                 final int[] vertexV = verts[v];
-                scratch2.reset(
-                    Math.addExact(vertexLast[0], this.coord.i),
-                    Math.addExact(vertexLast[1], this.coord.j),
-                    Math.addExact(vertexLast[2], this.coord.k)
-                );
+                scratch2.reset(vertexLast[0] + this.coord.i, vertexLast[1] + this.coord.j, vertexLast[2] + this.coord.k);
                 scratch2.ijkNormalize();
                 final Vec2d orig2d0 = scratch2.ijkToHex2d();
-                scratch2.reset(
-                    Math.addExact(vertexV[0], this.coord.i),
-                    Math.addExact(vertexV[1], this.coord.j),
-                    Math.addExact(vertexV[2], this.coord.k)
-                );
+                scratch2.reset(vertexV[0] + this.coord.i, vertexV[1] + this.coord.j, vertexV[2] + this.coord.k);
                 scratch2.ijkNormalize();
                 final Vec2d orig2d1 = scratch2.ijkToHex2d();
 
@@ -704,7 +680,7 @@ final class FaceIJK {
                 scratch.reset(coord.i, coord.j, coord.k);
                 scratch.downAp7r();
             }
-            scratch.reset(Math.subtractExact(lastI, scratch.i), Math.subtractExact(lastJ, scratch.j), Math.subtractExact(lastK, scratch.k));
+            scratch.reset(lastI - scratch.i, lastJ - scratch.j, lastK - scratch.k);
             scratch.ijkNormalize();
             h = H3Index.H3_set_index_digit(h, r, scratch.unitIjkToDigit());
         }

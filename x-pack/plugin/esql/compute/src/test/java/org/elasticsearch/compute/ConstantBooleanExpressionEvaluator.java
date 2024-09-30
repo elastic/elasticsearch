@@ -12,6 +12,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 
+/**
+ * An {@link EvalOperator.ExpressionEvaluator} that evaluates to a constant boolean value.
+ */
 public record ConstantBooleanExpressionEvaluator(BlockFactory factory, boolean value) implements EvalOperator.ExpressionEvaluator {
     public static EvalOperator.ExpressionEvaluator.Factory factory(boolean value) {
         return ctx -> new ConstantBooleanExpressionEvaluator(ctx.blockFactory(), value);

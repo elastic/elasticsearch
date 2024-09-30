@@ -21,7 +21,6 @@ import java.util.Set;
 import static org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter.UNIFIED_HIGHLIGHTER_MATCHED_FIELDS;
 
 public class RestFeatures implements FeatureSpecification {
-
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(

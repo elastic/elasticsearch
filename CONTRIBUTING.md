@@ -664,7 +664,7 @@ Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
 
 There are various concepts used to identify running node versions,
 and the capabilities and compatibility of those nodes. For more information,
-see `VERSIONING.md`
+see `docs/internal/Versioning.md`
 
 ### Creating a distribution
 

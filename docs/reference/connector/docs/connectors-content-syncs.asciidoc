@@ -1,0 +1,64 @@
+[#es-connectors-sync-types]
+== Content syncs
+
+Elastic connectors have two types of content syncs:
+
+* <<es-connectors-sync-types-full>>
+* <<es-connectors-sync-types-incremental>>
+
+[discrete#es-connectors-sync-types-full]
+=== Full syncs
+
+[NOTE]
+====
+We recommend running a full sync whenever <<es-sync-rules, Sync rules>> are modified
+====
+
+A full sync syncs all documents in the third-party data source into {es}.
+
+It also deletes any documents in {es}, which no longer exist in the third-party data source.
+
+A full sync, by definition, takes longer than an incremental sync but it ensures full data consistency.
+
+A full sync is available for all connectors.
+
+You can <<es-connectors-usage-syncs-recurring, schedule>> or <<es-connectors-usage-syncs-manual, manually trigger>> a full sync job.
+
+[discrete#es-connectors-sync-types-incremental]
+=== Incremental syncs
+
+An incremental sync only syncs data changes since the last full or incremental sync.
+
+Incremental syncs are only available after an initial full sync has successfully completed.
+Otherwise the incremental sync will fail.
+
+You can <<es-connectors-usage-syncs-recurring, schedule>> or <<es-connectors-usage-syncs-manual, manually trigger>> an incremental sync job.
+
+[discrete#es-connectors-sync-types-incremental-performance]
+==== Incremental sync performance
+
+During an incremental sync your connector will still _fetch_ all data from the third-party data source.
+If data contains timestamps, the connector framework compares document ids and timestamps.
+If a document already exists in {es} with the same timestamp, then this document does not need updating and will not be sent to {es}.
+
+The determining factor in incremental sync performance is the raw volume of data ingested.
+For small volumes of data, the performance improvement using incremental syncs will be negligible.
+For large volumes of data, the performance impact can be huge.
+Additionally, an incremental sync is less likely to be throttled by {es}, making it more performant than a full sync when {es} is under heavy load.
+
+A third-party data source that has throttling and low throughput, but stores very little data in Elasticsearch, such as GitHub, Jira, or Confluence, won't see a significant performance improvement from incremental syncs.
+
+However, a fast, accessible third-party data source that stores huge amounts of data in {es}, such as Azure Blob Storage, Google Drive, or S3, can lead to a significant performance improvement from incremental syncs.
+
+[NOTE]
+====
+Incremental syncs for the SharePoint Online connector use specific logic.
+All other connectors use the same shared connector framework logic for incremental syncs.
+====
+
+[discrete#es-connectors-sync-types-incremental-supported]
+==== Incremental sync availability
+
+Incremental syncs are available for the following connectors:
+
+include::_connectors-list-incremental.asciidoc[]

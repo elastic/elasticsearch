@@ -259,7 +259,7 @@ Which returns:
       },
       "cluster_two": {
         "status": "successful",
-        "indices": "cluster_two:my-index-000001", <7>
+        "indices": "cluster_two:my-index*",
         "took": 41,
         "_shards": {
           "total": 18,
@@ -286,19 +286,16 @@ it is identified as "(local)".
 <5> How long (in milliseconds) the search took on each cluster. This can be useful to determine
 which clusters have slower response times than others.
 <6> The shard details for the search on that cluster, including a count of shards that were
-skipped due to the can-match phase indicating it had no matching data so it did not need
-to be included in the full ES|QL query.
-<7> The index expression supplied by the user. If you provide a wildcard such as `my-index*`,
-this section will show the resolved index name(s) here, unless no matching indices could
-be found on that cluster, in which case the wildcard expression will be retained here.
+skipped due to the can-match phase. Shards are skipped when they cannot have any matching data
+and therefore are not included in the full ES|QL query.
 
 
 The cross-cluster metadata can be used to determine whether any data came back from a cluster.
-For instance in the query below, you see that wildcard expression for `cluster-two` did not
-resolve to a concrete index (or indices) and that the total number of shards searched is
-zero. This indicates that no matching index was found on that cluster. But since the other
-cluster did have a matching index, the search did not return an error, but instead
-returned all the matching data it could find.
+For instance, in the query below, the wildcard expression for `cluster-two` did not resolve
+to a concrete index (or indices). The cluster is, therefore, marked as 'skipped' and the total
+number of shards searched is set to zero.
+Since the other cluster did have a matching index, the search did not return an error, but
+instead returned all the matching data it could find.
 
 
 [source,console]
@@ -338,7 +335,7 @@ Which returns:
     "details": {
       "cluster_one": {
         "status": "successful",
-        "indices": "cluster_one:my-index-000001",
+        "indices": "cluster_one:my-index*",
         "took": 38,
         "_shards": {
           "total": 4,
@@ -348,11 +345,11 @@ Which returns:
         }
       },
       "cluster_two": {
-        "status": "successful", <1>
-        "indices": "cluster_two:logs*", <2>
+        "status": "skipped", <1>
+        "indices": "cluster_two:logs*",
         "took": 0,
         "_shards": {
-          "total": 0, <3>
+          "total": 0, <2>
           "successful": 0,
           "skipped": 0,
           "failed": 0
@@ -364,10 +361,8 @@ Which returns:
 ----
 // TEST[skip: cross-cluster testing env not set up]
 
-<1> This search is still marked as successful, even though no data was searched.
-<2> Since there were no matching indices for the wildcard pattern provided, the original
-index expression provided by the user is retained here.
-<3> Indicates that no shards were searched (due to not having any matching indices).
+<1> This cluster is marked as 'skipped', since there were no matching indices on that cluster.
+<2> Indicates that no shards were searched (due to not having any matching indices).
 
 
 

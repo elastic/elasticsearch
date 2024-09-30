@@ -288,12 +288,12 @@ public class EsqlSession {
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
          * specified with an index or indices that do not exist, so the search on that cluster is done.
-         * Mark it as complete with 0 shards searched and 0 took time.
+         * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
             executionInfo.swapCluster(
                 c,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
                     .setTook(new TimeValue(0))
                     .setTotalShards(0)
                     .setSuccessfulShards(0)

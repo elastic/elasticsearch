@@ -155,7 +155,7 @@ public class EsqlSessionTests extends ESTestCase {
             assertClusterStatusAndHasNullCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
 
-        // remote1 is missing from EsIndex info, so it should updated and marked as SUCCESSFUL with 0 total shards, 0 took time, etc.
+        // remote1 is missing from EsIndex info, so it should be updated and marked as SKIPPED with 0 total shards, 0 took time, etc.
         {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
@@ -189,7 +189,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remote1Cluster.getTook().millis(), equalTo(0L));
             assertThat(remote1Cluster.getTotalShards(), equalTo(0));
             assertThat(remote1Cluster.getSuccessfulShards(), equalTo(0));
@@ -201,7 +201,7 @@ public class EsqlSessionTests extends ESTestCase {
             assertClusterStatusAndHasNullCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
 
-        // all remotes are missing from EsIndex info, so they should updated and marked as SUCCESSFUL with 0 total shards, 0 took time, etc.
+        // all remotes are missing from EsIndex info, so they should be updated and marked as SKIPPED with 0 total shards, 0 took time, etc.
         {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
@@ -226,7 +226,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remote1Cluster.getTook().millis(), equalTo(0L));
             assertThat(remote1Cluster.getTotalShards(), equalTo(0));
             assertThat(remote1Cluster.getSuccessfulShards(), equalTo(0));
@@ -235,7 +235,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
-            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remote2Cluster.getTook().millis(), equalTo(0L));
             assertThat(remote2Cluster.getTotalShards(), equalTo(0));
             assertThat(remote2Cluster.getSuccessfulShards(), equalTo(0));

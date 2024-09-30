@@ -24,7 +24,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.test.ESTestCase.TestAnalysis;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;

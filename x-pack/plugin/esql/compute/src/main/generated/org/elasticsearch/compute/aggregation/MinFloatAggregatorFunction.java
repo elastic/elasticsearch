@@ -89,11 +89,11 @@ public final class MinFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector vector, BooleanVector mask) {
-    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
+      state.seen(true);
       state.floatValue(MinFloatAggregator.combine(state.floatValue(), vector.getFloat(i)));
     }
   }

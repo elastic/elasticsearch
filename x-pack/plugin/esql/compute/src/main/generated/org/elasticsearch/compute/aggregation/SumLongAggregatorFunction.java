@@ -89,11 +89,11 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector vector, BooleanVector mask) {
-    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
+      state.seen(true);
       state.longValue(SumLongAggregator.combine(state.longValue(), vector.getLong(i)));
     }
   }

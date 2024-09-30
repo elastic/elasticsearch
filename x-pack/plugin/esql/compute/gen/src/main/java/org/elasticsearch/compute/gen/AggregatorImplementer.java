@@ -390,7 +390,7 @@ public class AggregatorImplementer {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
 
-        if (stateTypeHasSeen) {
+        if (stateTypeHasSeen && masked == false) {
             builder.addStatement("state.seen(true)");
         }
         if (valuesIsBytesRef) {
@@ -402,6 +402,9 @@ public class AggregatorImplementer {
         {
             if (masked) {
                 builder.beginControlFlow("if (mask.getBoolean(i) == false)").addStatement("continue").endControlFlow();
+            }
+            if (stateTypeHasSeen && masked) {
+                builder.addStatement("state.seen(true)");
             }
             combineRawInput(builder, "vector");
         }

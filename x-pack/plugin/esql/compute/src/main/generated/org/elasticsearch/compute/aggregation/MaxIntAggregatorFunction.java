@@ -89,11 +89,11 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector vector, BooleanVector mask) {
-    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
+      state.seen(true);
       state.intValue(MaxIntAggregator.combine(state.intValue(), vector.getInt(i)));
     }
   }

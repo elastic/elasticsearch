@@ -91,11 +91,11 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector vector, BooleanVector mask) {
-    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
+      state.seen(true);
       state.longValue(SumIntAggregator.combine(state.longValue(), vector.getInt(i)));
     }
   }

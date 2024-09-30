@@ -9,8 +9,11 @@ package org.elasticsearch.compute;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 /**
  * An {@link EvalOperator.ExpressionEvaluator} that evaluates to a constant boolean value.
@@ -22,7 +25,15 @@ public record ConstantBooleanExpressionEvaluator(BlockFactory factory, boolean v
 
     @Override
     public Block eval(Page page) {
-        return factory.newConstantBooleanVector(value, page.getPositionCount()).asBlock();
+        if (randomBoolean()) {
+            return factory.newConstantBooleanVector(value, page.getPositionCount()).asBlock();
+        }
+        try (BooleanVector.Builder builder = factory.newBooleanVectorFixedBuilder(page.getPositionCount())) {
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                builder.appendBoolean(value);
+            }
+            return builder.build().asBlock();
+        }
     }
 
     @Override

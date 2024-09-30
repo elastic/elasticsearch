@@ -92,11 +92,11 @@ public final class SumFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector vector, BooleanVector mask) {
-    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
+      state.seen(true);
       SumFloatAggregator.combine(state, vector.getFloat(i));
     }
   }

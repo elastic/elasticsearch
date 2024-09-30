@@ -87,11 +87,11 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(BooleanVector vector, BooleanVector mask) {
-    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
+      state.seen(true);
       state.booleanValue(MinBooleanAggregator.combine(state.booleanValue(), vector.getBoolean(i)));
     }
   }

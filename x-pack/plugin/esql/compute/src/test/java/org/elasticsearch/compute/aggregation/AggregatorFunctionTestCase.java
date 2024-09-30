@@ -190,7 +190,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertOutputFromEmpty(results.get(0).getBlock(0));
     }
 
-    public final void testNoneFiltered() {
+    public void testNoneFiltered() {
         Operator.OperatorFactory factory = simpleWithMode(
             AggregatorMode.SINGLE,
             agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(true))

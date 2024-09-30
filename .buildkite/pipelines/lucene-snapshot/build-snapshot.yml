@@ -4,7 +4,7 @@ steps:
     key: lucene-build
     if: (build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == "")
     build:
-      branch: main
+      branch: branch_10_0
   - wait
   - label: Upload and update lucene snapshot
     command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh

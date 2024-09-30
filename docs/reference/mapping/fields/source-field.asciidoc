@@ -138,7 +138,7 @@ The default behavior varies by field typse:
 
 The `include_vectors` parameter can be used as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my-index-000001/_search
 {
@@ -150,6 +150,7 @@ GET my-index-000001/_search
   }
 }
 --------------------------------------------------
+// TEST[skip: TBD]
 
 When the parameter is `true`, the results will show the vector fields in the results:
 

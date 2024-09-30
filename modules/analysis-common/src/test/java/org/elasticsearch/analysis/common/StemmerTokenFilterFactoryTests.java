@@ -32,7 +32,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_C
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
-
     private static final CommonAnalysisPlugin PLUGIN = new CommonAnalysisPlugin();
 
     public void testEnglishFilterFactory() throws IOException {
@@ -102,5 +101,31 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN)
         );
         assertEquals("Invalid stemmer class specified: [english, light_english]", e.getMessage());
+    }
+
+    public void testKpDeprecation() throws IOException {
+        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.my_kp.type", "stemmer")
+            .put("index.analysis.filter.my_kp.language", "kp")
+            .put(SETTING_VERSION_CREATED, v)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+        assertCriticalWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
+    }
+
+    public void testLovinsDeprecation() throws IOException {
+        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.my_lovins.type", "stemmer")
+            .put("index.analysis.filter.my_lovins.language", "lovins")
+            .put(SETTING_VERSION_CREATED, v)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+        assertCriticalWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
     }
 }

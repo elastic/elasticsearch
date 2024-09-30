@@ -119,7 +119,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         );
     }
 
-    public Analyzer createGermanStemmer(String variant, IndexVersion v) throws IOException {
+    private static Analyzer createGermanStemmer(String variant, IndexVersion v) throws IOException {
 
         Settings settings = Settings.builder()
             .put("index.analysis.filter.my_german.type", "stemmer")

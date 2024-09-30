@@ -54,7 +54,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.tartarus.snowball.ext.ArmenianStemmer;
 import org.tartarus.snowball.ext.BasqueStemmer;
@@ -87,13 +86,11 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
 
     private final String language;
-    private final IndexVersion version;
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(StemmerTokenFilterFactory.class);
 
     StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         super(name, settings);
-        this.version = indexSettings.getIndexVersionCreated();
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
         // check that we have a valid language by trying to create a TokenStream
         create(EMPTY_TOKEN_STREAM).close();

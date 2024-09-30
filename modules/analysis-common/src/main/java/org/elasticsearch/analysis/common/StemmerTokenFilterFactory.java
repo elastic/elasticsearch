@@ -48,6 +48,8 @@ import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -80,6 +82,8 @@ import java.util.Collections;
 
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(StemmerTokenFilterFactory.class);
+
     private static final TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
 
     private String language;
@@ -89,6 +93,20 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
         // check that we have a valid language by trying to create a TokenStream
         create(EMPTY_TOKEN_STREAM).close();
+        if ("lovins".equalsIgnoreCase(language)) {
+            deprecationLogger.critical(
+                DeprecationCategory.ANALYSIS,
+                "lovins_deprecation",
+                "The [lovins] stemmer is deprecated and will be removed in a future version."
+            );
+        }
+        if ("dutch_kp".equalsIgnoreCase(language) || "dutchKp".equalsIgnoreCase(language) || "kp".equalsIgnoreCase(language)) {
+            deprecationLogger.critical(
+                DeprecationCategory.ANALYSIS,
+                "dutch_kp_deprecation",
+                "The [dutch_kp] stemmer is deprecated and will be removed in a future version."
+            );
+        }
     }
 
     @Override

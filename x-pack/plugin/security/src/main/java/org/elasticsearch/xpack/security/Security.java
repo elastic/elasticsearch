@@ -860,6 +860,7 @@ public class Security extends Plugin
             scriptService,
             new ReservedRoleMappings(clusterStateRoleMapper)
         );
+        final UserRoleMapper userRoleMapper = getUserRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
 
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
@@ -869,7 +870,7 @@ public class Security extends Plugin
             client,
             clusterService,
             resourceWatcherService,
-            nativeRoleMappingStore
+            userRoleMapper
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
@@ -878,7 +879,7 @@ public class Security extends Plugin
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
-                nativeRoleMappingStore,
+                userRoleMapper,
                 systemIndices.getMainIndexManager()
             )
         );
@@ -900,7 +901,6 @@ public class Security extends Plugin
         );
         components.add(nativeUsersStore);
         components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
-        final UserRoleMapper userRoleMapper = getUserRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
         components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
         components.add(reservedRealm);
         components.add(realms);

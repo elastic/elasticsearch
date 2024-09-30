@@ -71,3 +71,179 @@
   - match: { items.0.update.get._source.foo: garply }
   - is_false: items.0.update.get._source.bar
 
+---
+"Source filtering includes embeddings by default":
+  - requires:
+      cluster_features: "search.hide_vectors_in_source"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: vector-test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              sparse:
+                type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
+
+  - do:
+      index:
+        index: vector-test
+        id: 1
+        body:
+          text: running is good for you
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 0.1
+            for: 1.1908325
+            runner: 1.1803857
+            exercise: 0.1
+            you: 0.9654308
+            training: 0.94999343
+            sports: 0.93650943
+            fitness: 0.83129317
+            best: 0.820365
+            bad: 0.1
+            health: 0.1
+            marathon: 0.61555296
+            gym: 0.5652374
+          dense: [ 1.0, 2.0, 3.0 ]
+        refresh: true
+
+  - do:
+      bulk:
+        index: vector-test
+        _source: true
+        body:
+          - '{"update": {"_id": "1"}}'
+          - '{"doc":{"text": "running is fun!"}}'
+
+  - length: { items: 1 }
+  - match: { items.0.update.get._source.text: "running is fun!" }
+  - exists: items.0.update.get._source.sparse
+  - exists: items.0.update.get._source.dense
+
+---
+"Source filtering includes embeddings":
+  - requires:
+      cluster_features: "search.hide_vectors_in_source"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: vector-test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              sparse:
+                type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
+
+  - do:
+      index:
+        index: vector-test
+        id: 1
+        body:
+          text: running is good for you
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 0.1
+            for: 1.1908325
+            runner: 1.1803857
+            exercise: 0.1
+            you: 0.9654308
+            training: 0.94999343
+            sports: 0.93650943
+            fitness: 0.83129317
+            best: 0.820365
+            bad: 0.1
+            health: 0.1
+            marathon: 0.61555296
+            gym: 0.5652374
+          dense: [ 1.0, 2.0, 3.0 ]
+        refresh: true
+
+  - do:
+      bulk:
+        index: vector-test
+        _source_include_vectors: true
+        body:
+          - '{"update": {"_id": "1"}}'
+          - '{"doc":{"text": "running is fun!"}}'
+
+  - length: { items: 1 }
+  - match: { items.0.update.get._source.text: "running is fun!" }
+  - exists: items.0.update.get._source.sparse
+  - exists: items.0.update.get._source.dense
+
+---
+"Source filtering excludes embeddings":
+  - requires:
+      cluster_features: "search.hide_vectors_in_source"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: vector-test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              sparse:
+                type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
+
+  - do:
+      index:
+        index: vector-test
+        id: 1
+        body:
+          text: running is good for you
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 0.1
+            for: 1.1908325
+            runner: 1.1803857
+            exercise: 0.1
+            you: 0.9654308
+            training: 0.94999343
+            sports: 0.93650943
+            fitness: 0.83129317
+            best: 0.820365
+            bad: 0.1
+            health: 0.1
+            marathon: 0.61555296
+            gym: 0.5652374
+          dense: [ 1.0, 2.0, 3.0 ]
+        refresh: true
+
+  - do:
+      bulk:
+        index: vector-test
+        _source_include_vectors: false
+        body:
+          - '{"update": {"_id": "1"}}'
+          - '{"doc":{"text": "running is fun!"}}'
+
+  - length: { items: 1 }
+  - match: { items.0.update.get._source.text: "running is fun!" }
+  - not_exists: items.0.update.get._source.sparse
+  - not_exists: items.0.update.get._source.dense

@@ -2391,6 +2391,7 @@ public class DateFormatters {
         boolean isLocalTimeSet = localTime != null;
 
         // the first two cases are the most common, so this allows us to exit early when parsing dates
+        WeekFields localeWeekFields;
         if (isLocalDateSet && isLocalTimeSet) {
             return of(localDate, localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(NANO_OF_SECOND)) {
@@ -2409,8 +2410,10 @@ public class DateFormatters {
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
             return getLocalDate(accessor, locale).atStartOfDay(zoneId);
-        } else if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {
-            return localDateFromWeekBasedDate(accessor, locale).atStartOfDay(zoneId);
+        } else if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor, locale, WeekFields.ISO).atStartOfDay(zoneId);
+        } else if (accessor.isSupported((localeWeekFields = WeekFields.of(locale)).weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor, locale, localeWeekFields).atStartOfDay(zoneId);
         }
 
         // we should not reach this piece of code, everything being parsed we should be able to
@@ -2418,8 +2421,7 @@ public class DateFormatters {
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
     }
 
-    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor, Locale locale) {
-        WeekFields weekFields = WeekFields.of(locale);
+    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor, Locale locale, WeekFields weekFields) {
         if (accessor.isSupported(weekFields.weekOfWeekBasedYear())) {
             return LocalDate.ofEpochDay(0)
                 .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
@@ -2461,8 +2463,11 @@ public class DateFormatters {
     };
 
     private static LocalDate getLocalDate(TemporalAccessor accessor, Locale locale) {
-        if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {
-            return localDateFromWeekBasedDate(accessor, locale);
+        WeekFields localeWeekFields;
+        if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor, locale, WeekFields.ISO);
+        } else if (accessor.isSupported((localeWeekFields = WeekFields.of(locale)).weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor, locale, localeWeekFields);
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             int year = getYear(accessor);
             if (accessor.isSupported(DAY_OF_MONTH)) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -100,7 +101,8 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                     var startRequest = esModel.getStartTrainedModelDeploymentActionRequest();
                     var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, finalListener);
                     client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
-                });
+                })
+                .addListener(finalListener);
 
         } else {
             finalListener.onFailure(notElasticsearchModelException(model));
@@ -169,11 +171,17 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     protected void isBuiltinModelPut(Model model, ActionListener<Boolean> listener) {
-        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
+        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = ActionListener.wrap(response -> {
             if (response.getResources().count() < 1) {
-                delegate.onResponse(Boolean.FALSE);
+                listener.onResponse(Boolean.FALSE);
             } else {
-                delegate.onResponse(Boolean.TRUE);
+                listener.onResponse(Boolean.TRUE);
+            }
+        }, exception -> {
+            if (exception instanceof ResourceNotFoundException) {
+                listener.onResponse(Boolean.FALSE);
+            } else {
+                listener.onFailure(exception);
             }
         });
 

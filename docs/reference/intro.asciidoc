@@ -396,6 +396,9 @@ geographic location of your users and your resources.
 [discrete]
 [[use-multiple-nodes-shards]]
 ==== Use multiple nodes and shards for better performance and resilience
+++++
+<titleabbrev>Use multiple nodes and shards</titleabbrev>
+++++
 
 [NOTE]
 ====

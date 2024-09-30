@@ -304,19 +304,19 @@ The following tables lists all the defaults ISO formats supported:
 `weekyear` or `strict_weekyear`::
 
     A formatter for a four digit weekyear: `YYYY`.
-    This uses the ISO week-date definition.
+    This uses the locale week-date definition.
 
 `weekyear_week` or `strict_weekyear_week`::
 
     A formatter for a four digit weekyear and two digit week of weekyear:
     `YYYY-'W'ww`.
-    This uses the ISO week-date definition.
+    This uses the locale week-date definition.
 
 `weekyear_week_day` or `strict_weekyear_week_day`::
 
     A formatter for a four digit weekyear, two digit week of weekyear, and one
     digit day of week: `YYYY-'W'ww-e`.
-    This uses the ISO week-date definition.
+    This uses the locale week-date definition.
 
 `year` or `strict_year`::
 

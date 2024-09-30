@@ -14,13 +14,14 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.script.field.vectors.ESVectorUtil;
 
 import java.io.IOException;
@@ -61,14 +62,14 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
             VectorSimilarityFunction vectorSimilarityFunction,
-            RandomAccessVectorValues randomAccessVectorValues
+            KnnVectorValues vectorValues
         ) throws IOException {
-            assert randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes;
+            assert vectorValues instanceof ByteVectorValues;
             assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-            if (randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes randomAccessVectorValuesBytes) {
-                assert randomAccessVectorValues instanceof RandomAccessQuantizedByteVectorValues == false;
+            if (vectorValues instanceof ByteVectorValues byteVectorValues) {
+                assert byteVectorValues instanceof QuantizedByteVectorValues == false;
                 return switch (vectorSimilarityFunction) {
-                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingScorerSupplier(randomAccessVectorValuesBytes);
+                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingScorerSupplier(byteVectorValues);
                 };
             }
             throw new IllegalArgumentException("Unsupported vector type or similarity function");
@@ -77,18 +78,15 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(
             VectorSimilarityFunction vectorSimilarityFunction,
-            RandomAccessVectorValues randomAccessVectorValues,
-            byte[] bytes
-        ) {
-            assert randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes;
+            KnnVectorValues vectorValues,
+            byte[] target
+        ) throws IOException {
+            assert vectorValues instanceof ByteVectorValues;
             assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-            if (randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes randomAccessVectorValuesBytes) {
-                checkDimensions(bytes.length, randomAccessVectorValuesBytes.dimension());
+            if (vectorValues instanceof ByteVectorValues byteVectorValues) {
+                checkDimensions(target.length, byteVectorValues.dimension());
                 return switch (vectorSimilarityFunction) {
-                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingVectorScorer(
-                        randomAccessVectorValuesBytes,
-                        bytes
-                    );
+                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingVectorScorer(byteVectorValues, target);
                 };
             }
             throw new IllegalArgumentException("Unsupported vector type or similarity function");
@@ -96,10 +94,10 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public RandomVectorScorer getRandomVectorScorer(
-            VectorSimilarityFunction vectorSimilarityFunction,
-            RandomAccessVectorValues randomAccessVectorValues,
-            float[] floats
-        ) {
+            VectorSimilarityFunction similarityFunction,
+            KnnVectorValues vectorValues,
+            float[] target
+        ) throws IOException {
             throw new IllegalArgumentException("Unsupported vector type");
         }
     }
@@ -110,9 +108,9 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
         private final byte[] query;
-        private final RandomAccessVectorValues.Bytes byteValues;
+        private final ByteVectorValues byteValues;
 
-        HammingVectorScorer(RandomAccessVectorValues.Bytes byteValues, byte[] query) {
+        HammingVectorScorer(ByteVectorValues byteValues, byte[] query) {
             super(byteValues);
             this.query = query;
             this.byteValues = byteValues;
@@ -125,9 +123,9 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
     }
 
     static class HammingScorerSupplier implements RandomVectorScorerSupplier {
-        private final RandomAccessVectorValues.Bytes byteValues, byteValues1, byteValues2;
+        private final ByteVectorValues byteValues, byteValues1, byteValues2;
 
-        HammingScorerSupplier(RandomAccessVectorValues.Bytes byteValues) throws IOException {
+        HammingScorerSupplier(ByteVectorValues byteValues) throws IOException {
             this.byteValues = byteValues;
             this.byteValues1 = byteValues.copy();
             this.byteValues2 = byteValues.copy();

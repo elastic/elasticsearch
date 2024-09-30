@@ -16,6 +16,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.QueryTimeout;
@@ -459,7 +460,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     }
 
     private static class ExitableByteVectorValues extends ByteVectorValues {
-        private int calls;
         private final QueryCancellation queryCancellation;
         private final ByteVectorValues in;
 
@@ -479,8 +479,13 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public byte[] vectorValue() throws IOException {
-            return in.vectorValue();
+        public byte[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
+        }
+
+        @Override
+        public int ordToDoc(int ord) {
+            return in.ordToDoc(ord);
         }
 
         @Override
@@ -505,33 +510,17 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public int docID() {
-            return in.docID();
+        public DocIndexIterator iterator() {
+            return createExitableIterator(in.iterator(), queryCancellation);
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            final int nextDoc = in.nextDoc();
-            checkAndThrowWithSampling();
-            return nextDoc;
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            final int advance = in.advance(target);
-            checkAndThrowWithSampling();
-            return advance;
-        }
-
-        private void checkAndThrowWithSampling() {
-            if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
-                this.queryCancellation.checkCancelled();
-            }
+        public ByteVectorValues copy() throws IOException {
+            return in.copy();
         }
     }
 
     private static class ExitableFloatVectorValues extends FilterFloatVectorValues {
-        private int calls;
         private final QueryCancellation queryCancellation;
 
         ExitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
@@ -541,17 +530,13 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public int advance(int target) throws IOException {
-            final int advance = super.advance(target);
-            checkAndThrowWithSampling();
-            return advance;
+        public float[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            final int nextDoc = super.nextDoc();
-            checkAndThrowWithSampling();
-            return nextDoc;
+        public int ordToDoc(int ord) {
+            return in.ordToDoc(ord);
         }
 
         @Override
@@ -575,11 +560,59 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             };
         }
 
-        private void checkAndThrowWithSampling() {
-            if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
-                this.queryCancellation.checkCancelled();
-            }
+        @Override
+        public DocIndexIterator iterator() {
+            return createExitableIterator(in.iterator(), queryCancellation);
         }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            return in.copy();
+        }
+    }
+
+    private static KnnVectorValues.DocIndexIterator createExitableIterator(
+        KnnVectorValues.DocIndexIterator delegate,
+        QueryCancellation queryCancellation
+    ) {
+        return new KnnVectorValues.DocIndexIterator() {
+            private int calls;
+
+            @Override
+            public int index() {
+                return delegate.index();
+            }
+
+            @Override
+            public int docID() {
+                return delegate.docID();
+            }
+
+            @Override
+            public long cost() {
+                return delegate.cost();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                int nextDoc = delegate.nextDoc();
+                checkAndThrowWithSampling();
+                return nextDoc;
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                final int advance = delegate.advance(target);
+                checkAndThrowWithSampling();
+                return advance;
+            }
+
+            private void checkAndThrowWithSampling() {
+                if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                    queryCancellation.checkCancelled();
+                }
+            }
+        };
     }
 
     private static class ExitableDocSetIterator extends DocIdSetIterator {
@@ -636,18 +669,18 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public int docID() {
-            return in.docID();
+        public DocIndexIterator iterator() {
+            return in.iterator();
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            return in.nextDoc();
+        public float[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
         }
 
         @Override
-        public int advance(int target) throws IOException {
-            return in.advance(target);
+        public FloatVectorValues copy() throws IOException {
+            return in.copy();
         }
 
         @Override
@@ -660,9 +693,5 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             return in.size();
         }
 
-        @Override
-        public float[] vectorValue() throws IOException {
-            return in.vectorValue();
-        }
     }
 }

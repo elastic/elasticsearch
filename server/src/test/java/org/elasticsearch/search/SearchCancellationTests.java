@@ -15,6 +15,7 @@ import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
@@ -205,15 +206,17 @@ public class SearchCancellationTests extends ESTestCase {
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
         FloatVectorValues vectorValues = searcher.getIndexReader().leaves().get(0).reader().getFloatVectorValues(KNN_FIELD_NAME);
         cancelled.set(true);
+        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
         // On the first doc when already canceled, it throws
-        expectThrows(TaskCancelledException.class, vectorValues::nextDoc);
+        expectThrows(TaskCancelledException.class, iterator::nextDoc);
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
         FloatVectorValues uncancelledVectorValues = searcher.getIndexReader().leaves().get(0).reader().getFloatVectorValues(KNN_FIELD_NAME);
+        uncancelledVectorValues.iterator();
         cancelled.set(true);
         searcher.removeQueryCancellation(cancellation);
         // On the first doc when already canceled, it throws, but with the cancellation removed, it should not
-        uncancelledVectorValues.nextDoc();
+        iterator.nextDoc();
     }
 
     private static class PointValuesIntersectVisitor implements PointValues.IntersectVisitor {

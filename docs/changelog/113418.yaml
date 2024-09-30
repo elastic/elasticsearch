@@ -1,0 +1,5 @@
+pr: 113418
+summary: Hide Semantic Text Inference Results In Source By Default
+area: "Vector Search, Relevance"
+type: enhancement
+issues: []

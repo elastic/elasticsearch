@@ -554,7 +554,7 @@ emp_no:integer | year:long    | month:long    | day:long
 dateFormatLocale
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
 | eval birth_month = date_format("MMMM", birth_date) | keep emp_no, birth_date, birth_month;
-warningRegex:Date format \[MMMM\] contains textual field specifiers that could change in JDK 23
+warningRegex:Date format \[MMMM\] contains textual field specifiers that could change in JDK 23.*
 ignoreOrder:true
 
 emp_no:integer  |  birth_date:datetime       | birth_month:keyword

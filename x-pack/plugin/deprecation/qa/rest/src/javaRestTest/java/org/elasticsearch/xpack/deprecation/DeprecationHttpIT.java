@@ -477,6 +477,29 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     }
 
+    public void testDeprecateAndKeep() throws Exception {
+        final Request request = new Request("GET", "/_test_cluster/deprecated_but_dont_remove");
+        request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_NOT_DEPRECATED_SETTING), "settings"));
+        performScopedRequest(request);
+        assertBusy(() -> {
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
+
+            logger.warn(documents);
+
+            //only assert the important fields: warn level, message, and category
+            assertThat(
+                documents,
+                containsInAnyOrder(
+                    allOf(
+                        hasEntry("elasticsearch.event.category", "api"),
+                        hasEntry("log.level", "WARN"),
+                        hasEntry("message", "[/_test_cluster/deprecated_but_dont_remove] is deprecated, but no plans to remove quite yet")
+                    )
+                )
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
     /**
      * Check that log messages about REST API compatibility are recorded to an index
      */

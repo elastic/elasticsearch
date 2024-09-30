@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.junit.Before;
 
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -283,6 +284,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         String indexName = aliasName + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
+
         String templateBodyTemplate = """
             {
               "index_patterns": ["%s-*"],
@@ -294,7 +296,9 @@ public class ExplainLifecycleIT extends ESRestTestCase {
               }
             }
             """;
-        templateRequest.setJsonEntity(templateBodyTemplate.formatted(aliasName, policyName, aliasName));
+        Formatter formatter = new Formatter(Locale.ROOT);
+        templateRequest.setJsonEntity(formatter.format(templateBodyTemplate, aliasName, policyName, aliasName).toString());
+
         assertOK(client().performRequest(templateRequest));
 
         Request indexRequest = new Request("POST", "/" + indexName + "/_doc/1");

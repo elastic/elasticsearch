@@ -23,6 +23,8 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+
 /**
  * Tests Persian Analyzer factory and behavioural changes with Lucene 10
  */

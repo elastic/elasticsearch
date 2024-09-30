@@ -180,10 +180,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
                     return new SnowballFilter(tokenStream, new LegacyGermanStemmer());
                 }
             } else if ("german2".equalsIgnoreCase(language)) {
-                DEPRECATION_LOGGER.warn(
+                DEPRECATION_LOGGER.critical(
                     DeprecationCategory.ANALYSIS,
                     "german2_stemmer_deprecation",
-                    "The 'german2' stemmer has been deprecated and folged into the 'german' Stemmer. "
+                    "The 'german2' stemmer has been deprecated and folded into the 'german' Stemmer. "
                         + "Replace all usages of 'german2' with 'german'."
                 );
                 return new SnowballFilter(tokenStream, new GermanStemmer());

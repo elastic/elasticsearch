@@ -88,19 +88,6 @@ card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
 ;
 
-qstrWithFunctionNotPushedToLucene
-required_capability: qstr_function
-
-from books 
-| where qstr("title: rings") and length(description) > 600 
-| keep book_no, title;
-ignoreOrder:true
-
-book_no:keyword | title:text
-2675            | The Lord of the Rings - Boxed Set                               
-2714            | Return of the King Being the Third Part of The Lord of the Rings     
-;
-
 qstrWithMultipleWhereClauses
 required_capability: qstr_function
 

@@ -1148,6 +1148,26 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMatchFunctionNotAllowedWithNonPushableExpressions() {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:19: Invalid condition [match(first_name, \"Anna\") or length(first_name) > 5]. "
+                + "Use a separate WHERE clause for the MATCH function instead",
+            error("from test | where match(first_name, \"Anna\") or length(first_name) > 5")
+        );
+    }
+
+    public void testQueryStringFunctionNotAllowedWithNonPushableExpressions() {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:19: Invalid condition [qstr(\"first_name:Anna\") or length(first_name) > 5]. "
+                + "Use a separate WHERE clause for the QSTR function instead",
+            error("from test | where qstr(\"first_name:Anna\") or length(first_name) > 5")
+        );
+    }
+
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 

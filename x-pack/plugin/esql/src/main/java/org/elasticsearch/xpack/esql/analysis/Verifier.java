@@ -645,10 +645,13 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            if (condition instanceof FullTextFunction ftf) {
+            // Need to check the condition - in case it has a FullTextFunction, all conditions present on it need to be pushed down to
+            // source
+            Holder<Boolean> hasFullTextFunction = new Holder<>(false);
+            condition.forEachDown(FullTextFunction.class, ftf -> {
                 // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
-                // we can't check if it can be pushed down as we don't have yet information about the fields present in the
-                // StringQueryPredicate
+                // we can't check if it can be pushed down if we don't have information about the fields present in the query.
+                hasFullTextFunction.set(true);
                 plan.forEachDown(LogicalPlan.class, lp -> {
                     if ((lp instanceof Filter
                         || lp instanceof OrderBy
@@ -664,7 +667,21 @@ public class Verifier {
                         );
                     }
                 });
-            }
+
+                if ((canPushToSource(condition, x -> false) == false) && hasFullTextFunction.get()) {
+                    // We couldn't push everything to Lucene, and there is a FullTextFunction in the condition.
+                    // Fail this early as we can't push down the FullTextFunction query in this case
+                    failures.add(
+                        fail(
+                            condition,
+                            "Invalid condition [{}]. Use a separate WHERE clause for the {} function instead",
+                            condition.sourceText(),
+                            ftf.functionName(),
+                            ftf.functionName()
+                        )
+                    );
+                }
+            });
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));

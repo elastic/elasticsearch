@@ -352,18 +352,22 @@ public class RestControllerTests extends ESTestCase {
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
-        RestApiVersion deprecatedInVersion = RestApiVersion.current();
 
-        Route route = Route.builder(method, path).deprecatedForRemoval(deprecationMessage, deprecatedInVersion).build();
+        List<RestApiVersion> replacedInVersions = List.of(RestApiVersion.current(), RestApiVersion.minimumSupported());
+        for (RestApiVersion replacedInVersion : replacedInVersions) {
+            Level level = replacedInVersion == RestApiVersion.current() ? Level.WARN : DeprecationLogger.CRITICAL;
+            clearInvocations(controller);
+            Route route = Route.builder(method, path).deprecatedForRemoval(deprecationMessage, replacedInVersion).build();
 
-        // don't want to test everything -- just that it actually wraps the handler
-        doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller)
-            .registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage, DeprecationLogger.CRITICAL);
+            // don't want to test everything -- just that it actually wraps the handler
+            doCallRealMethod().when(controller).registerHandler(route, handler);
+            doCallRealMethod().when(controller)
+                .registerAsDeprecatedHandler(method, path, replacedInVersion, handler, deprecationMessage, level);
 
-        controller.registerHandler(route, handler);
+            controller.registerHandler(route, handler);
 
-        verify(controller).registerHandler(eq(method), eq(path), eq(deprecatedInVersion), any(DeprecationRestHandler.class));
+            verify(controller).registerHandler(eq(method), eq(path), eq(replacedInVersion), any(DeprecationRestHandler.class));
+        }
     }
 
     public void testRegisterAsReplacedHandler() {

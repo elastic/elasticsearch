@@ -38,7 +38,8 @@ public class FetchSourceContextTests extends AbstractBWCSerializationTestCase<Fe
         return FetchSourceContext.of(
             true,
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5)),
-            randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5))
+            randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5)),
+            randomOptionalBoolean()
         );
     }
 

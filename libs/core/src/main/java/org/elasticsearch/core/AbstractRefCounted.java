@@ -48,7 +48,7 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     @Override
     public final void mustIncRef() {
-        // making this implementation `final` (to be consistent with every other method implementation)
+        // making this implementation `final` (to be consistent with every other `RefCounted` method implementation)
         RefCounted.super.mustIncRef();
     }
 

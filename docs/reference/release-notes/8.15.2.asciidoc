@@ -15,6 +15,8 @@ ES|QL::
 * ES|QL: Fix `ResolvedEnrichPolicy` serialization (bwc) in v 8.15 {es-pull}112985[#112985] (issue: {es-issue}112968[#112968])
 * Fix union-types where one index is missing the field {es-pull}111932[#111932] (issue: {es-issue}111912[#111912])
 * Support widening of numeric types in union-types {es-pull}112610[#112610] (issue: {es-issue}111277[#111277])
+* Shorten error messages for UnsupportedAttributes {es-pull}112819[#112819]
+* Reduce memory footprint of serialized query execution plans {es-pull}112865[#112865]
 
 Infra/Core::
 * JSON parse failures should be 4xx codes {es-pull}112703[#112703]

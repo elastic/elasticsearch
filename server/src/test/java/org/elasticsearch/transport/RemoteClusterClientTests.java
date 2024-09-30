@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -127,14 +126,10 @@ public class RemoteClusterClientTests extends ESTestCase {
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
                 // also test a failure, there is no handler for scroll registered
-                ActionNotFoundTransportException ex = asInstanceOf(
+                ActionNotFoundTransportException ex = safeAwaitAndUnwrapFailure(
                     ActionNotFoundTransportException.class,
-                    ExceptionsHelper.unwrapCause(
-                        safeAwaitFailure(
-                            SearchResponse.class,
-                            listener -> client.execute(TransportSearchScrollAction.REMOTE_TYPE, new SearchScrollRequest(""), listener)
-                        )
-                    )
+                    SearchResponse.class,
+                    listener -> client.execute(TransportSearchScrollAction.REMOTE_TYPE, new SearchScrollRequest(""), listener)
                 );
                 assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
             }

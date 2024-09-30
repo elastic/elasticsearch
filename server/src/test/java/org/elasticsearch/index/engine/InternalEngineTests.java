@@ -3206,9 +3206,10 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.syncTranslog(); // to advance persisted local checkpoint
                     assertEquals(engine.getProcessedLocalCheckpoint(), engine.getPersistedLocalCheckpoint());
                     globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
-                    asInstanceOf(
+                    safeAwaitFailure(
                         IllegalStateException.class,
-                        safeAwaitFailure(Void.class, listener -> engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE, listener))
+                        Void.class,
+                        listener -> engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE, listener)
                     );
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                     assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));

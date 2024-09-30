@@ -65,7 +65,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         false,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
-        DEFAULT_INCLUDE_VECTORS // TODO: Need to set this to false?
+        DEFAULT_INCLUDE_VECTORS
     );
 
     private final boolean fetchSource;

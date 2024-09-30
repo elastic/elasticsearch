@@ -433,7 +433,7 @@ Shard copies in your cluster are automatically balanced across nodes to provide 
 aware of all the other nodes in the cluster and can forward client requests to the appropriate node. This allows {es}
 to distribute indexing and query load across the cluster.
 
-If you’re exploring {es} for the first time, then you can use a cluster with a single node and create indices
+If you’re exploring {es} for the first time or working in a development environment, then you can use a cluster with a single node and create indices
 with only one shard. However, in a production environment, you should build a cluster with multiple nodes and indices
 with multiple shards to increase performance and resilience.
 

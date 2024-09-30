@@ -94,13 +94,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var allowsCustomRouting = instance.isAllowCustomRouting();
         var indexMode = instance.getIndexMode();
         var lifecycle = instance.getLifecycle();
-        var failureStore = instance.isFailureStoreEnabled();
+        var dataStreamOptions = instance.getDataStreamOptions();
         var failureIndices = instance.getFailureIndices().getIndices();
         var rolloverOnWrite = instance.rolloverOnWrite();
         var autoShardingEvent = instance.getAutoShardingEvent();
         var failureRolloverOnWrite = instance.getFailureIndices().isRolloverOnWrite();
         var failureAutoShardingEvent = instance.getBackingIndices().getAutoShardingEvent();
-        switch (between(0, 14)) {
+        switch (between(0, 15)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomNonEmptyIndexInstances();
             case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
@@ -134,23 +134,23 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
                 : DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
-            case 10 -> {
-                failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
-                failureStore = failureIndices.isEmpty() == false;
-            }
-            case 11 -> {
+            case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
+            case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
+                : randomBoolean() ? (randomBoolean() ? null : DataStreamOptions.EMPTY)
+                : new DataStreamOptions(new DataStreamFailureStore(dataStreamOptions.failureStore().enabled() == false));
+            case 12 -> {
                 rolloverOnWrite = rolloverOnWrite == false;
                 isReplicated = rolloverOnWrite == false && isReplicated;
             }
-            case 12 -> {
+            case 13 -> {
                 if (randomBoolean() || autoShardingEvent == null) {
                     // If we're mutating the auto sharding event of the failure store, we need to ensure there's at least one failure index.
                     if (failureIndices.isEmpty()) {
                         failureIndices = DataStreamTestHelper.randomNonEmptyIndexInstances();
-                        failureStore = true;
+                        dataStreamOptions = DataStreamOptions.FAILURE_STORE_ENABLED;
                     }
                     autoShardingEvent = new DataStreamAutoShardingEvent(
-                        failureIndices.get(failureIndices.size() - 1).getName(),
+                        failureIndices.getLast().getName(),
                         randomIntBetween(1, 10),
                         randomMillisUpToYear9999()
                     );
@@ -158,19 +158,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     autoShardingEvent = null;
                 }
             }
-            case 13 -> {
+            case 14 -> {
                 failureRolloverOnWrite = failureRolloverOnWrite == false;
                 isReplicated = failureRolloverOnWrite == false && isReplicated;
             }
-            case 14 -> {
-                failureAutoShardingEvent = randomBoolean() && failureAutoShardingEvent != null
-                    ? null
-                    : new DataStreamAutoShardingEvent(
-                        indices.get(indices.size() - 1).getName(),
-                        randomIntBetween(1, 10),
-                        randomMillisUpToYear9999()
-                    );
-            }
+            case 15 -> failureAutoShardingEvent = randomBoolean() && failureAutoShardingEvent != null
+                ? null
+                : new DataStreamAutoShardingEvent(indices.getLast().getName(), randomIntBetween(1, 10), randomMillisUpToYear9999());
         }
 
         return new DataStream(
@@ -184,7 +178,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             allowsCustomRouting,
             indexMode,
             lifecycle,
-            failureStore,
+            dataStreamOptions,
             new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, indices, rolloverOnWrite, autoShardingEvent),
             new DataStream.DataStreamIndices(
                 DataStream.BACKING_INDEX_PREFIX,
@@ -1914,7 +1908,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             lifecycle,
-            failureStore,
+            new DataStreamOptions(new DataStreamFailureStore(failureStore)),
             failureIndices,
             false,
             null
@@ -2102,7 +2096,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
-            false,
+            DataStreamOptions.FAILURE_STORE_DISABLED,
             List.of(),
             replicated == false && randomBoolean(),
             null
@@ -2120,7 +2114,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
-            true,
+            DataStreamOptions.FAILURE_STORE_ENABLED,
             List.of(),
             replicated == false && randomBoolean(),
             null
@@ -2145,7 +2139,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
-            true,
+            DataStreamOptions.FAILURE_STORE_ENABLED,
             failureIndices,
             replicated == false && randomBoolean(),
             null
@@ -2169,7 +2163,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
-            false,
+            DataStreamOptions.FAILURE_STORE_DISABLED,
             List.of(),
             replicated == false && randomBoolean(),
             null
@@ -2191,7 +2185,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
-            true,
+            DataStreamOptions.FAILURE_STORE_ENABLED,
             List.of(),
             replicated == false && randomBoolean(),
             null
@@ -2222,7 +2216,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
-            true,
+            DataStreamOptions.FAILURE_STORE_ENABLED,
             failureIndices,
             replicated == false && randomBoolean(),
             null

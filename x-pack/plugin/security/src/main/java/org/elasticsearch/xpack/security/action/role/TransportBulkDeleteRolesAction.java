@@ -30,6 +30,6 @@ public class TransportBulkDeleteRolesAction extends TransportAction<BulkDeleteRo
 
     @Override
     protected void doExecute(Task task, BulkDeleteRolesRequest request, ActionListener<BulkRolesResponse> listener) {
-        rolesStore.deleteRoles(request.getRoleNames(), request.getRefreshPolicy(),  listener);
+        rolesStore.deleteRoles(request.getRoleNames(), request.getRefreshPolicy(), listener);
     }
 }

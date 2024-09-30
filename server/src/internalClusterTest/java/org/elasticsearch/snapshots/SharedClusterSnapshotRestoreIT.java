@@ -1465,7 +1465,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             } else {
                 logger.info("--> failing index [{}] to trigger recovery", indexName);
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, blockingNode)) {
-                    if (indexService.index().getName().equals(indexName) != false) {
+                    if (indexService.index().getName().equals(indexName)) {
                         final var indexShard = indexService.getShard(0);
                         final var primaryTerm = indexShard.getOperationPrimaryTerm();
                         indexShard.failShard("simulated", new ElasticsearchException("simulated"));

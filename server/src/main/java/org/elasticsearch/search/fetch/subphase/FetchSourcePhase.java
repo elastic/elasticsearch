@@ -54,10 +54,10 @@ public final class FetchSourcePhase implements FetchSubPhase {
                     }
                     return;
                 }
-                hitExecute(fetchSourceContext, hitContext);
+                hitExecute(hitContext);
             }
 
-            private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
+            private void hitExecute(HitContext hitContext) {
                 final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
                 Source source = hitContext.source();
 
@@ -73,7 +73,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                     source = Source.empty(source.sourceContentType());
                 } else {
                     // Otherwise, filter the source and add it to the hit.
-                    source = source.filter(sourceFilter);
+                    source = sourceFilter != null ? source.filter(sourceFilter) : source;
                 }
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());

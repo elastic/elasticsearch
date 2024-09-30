@@ -361,7 +361,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         {
             assertOK(createDataStream(client, "logs-test-1"));
             String logsIndex1 = getDataStreamBackingIndex(client, "logs-test-1", 0);
-            assertThat(getSetting(client, logsIndex1, "index.mapping.ignore_above"), equalTo("1024"));
+            assertThat(getSetting(client, logsIndex1, "index.mapping.ignore_above"), equalTo("8191"));
             for (String newValue : List.of("512", "2048")) {
                 closeIndex(logsIndex1);
                 updateIndexSettings(logsIndex1, Settings.builder().put("index.mapping.ignore_above", newValue));

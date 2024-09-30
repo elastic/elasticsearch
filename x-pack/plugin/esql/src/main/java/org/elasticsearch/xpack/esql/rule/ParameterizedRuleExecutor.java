@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.rule;
+package org.elasticsearch.xpack.esql.rule;
 
 import org.elasticsearch.xpack.esql.core.tree.Node;
 

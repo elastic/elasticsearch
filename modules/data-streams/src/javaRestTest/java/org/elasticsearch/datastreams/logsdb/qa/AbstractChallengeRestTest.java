@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb.qa;
@@ -43,7 +44,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     private XContentBuilder contenderMappings;
     private Settings.Builder baselineSettings;
     private Settings.Builder contenderSettings;
-    private RestClient client;
+    protected RestClient client;
 
     @ClassRule()
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -233,9 +234,11 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier
     ) throws IOException {
         final StringBuilder sb = new StringBuilder();
+        int id = 0;
         for (var document : documentsSupplier.get()) {
-            sb.append("{ \"create\": {} }").append("\n");
+            sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }", id)).append("\n");
             sb.append(Strings.toString(document)).append("\n");
+            id++;
         }
         var request = new Request("POST", "/" + dataStreamName + "/_bulk");
         request.setJsonEntity(sb.toString());

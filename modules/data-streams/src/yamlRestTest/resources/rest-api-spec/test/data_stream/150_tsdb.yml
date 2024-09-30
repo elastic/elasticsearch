@@ -232,13 +232,13 @@ dynamic templates:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": "10", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": "10", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10.5", "attributes.another.dim3": true }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z", "data": "20", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z", "data": "20", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10.5", "attributes.another.dim3": true }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z", "data": "30", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z", "data": "30", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20.5", "attributes.another.dim3": false }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z", "data": "40", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z", "data": "40", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20.5", "attributes.another.dim3": false }'
 
   - do:
       search:
@@ -264,7 +264,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiKqVppKhfZ18WLDvTuNPo7EnyZdkhvafL006Xf2Q" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -283,7 +283,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiKqVppKhfZ18WLDvTuNPo7EnyZdkhvafL006Xf2Q" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -302,7 +302,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiKqVppKhfZ18WLDvTuNPo7EnyZdkhvafL006Xf2Q" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -321,7 +321,25 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiKqVppKhfZ18WLDvTuNPo7EnyZdkhvafL006Xf2Q" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim3: true
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -554,13 +572,13 @@ dynamic templates with nesting:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10.5",  "attributes.a.much.deeper.nested.dim": "AC" }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10.5", "attributes.another.dim3": true, "attributes.a.much.deeper.nested.dim": "AC" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10.5",  "attributes.a.much.deeper.nested.dim": "AC" }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10.5", "attributes.another.dim3": true, "attributes.a.much.deeper.nested.dim": "AC" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20.5",  "attributes.a.much.deeper.nested.dim": "BD" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20.5", "attributes.another.dim3": false, "attributes.a.much.deeper.nested.dim": "BD" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20.5",  "attributes.a.much.deeper.nested.dim": "BD" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20.5", "attributes.another.dim3": false, "attributes.a.much.deeper.nested.dim": "BD" }'
 
   - do:
       search:
@@ -586,7 +604,7 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NNnsRFDTqKogyRBhOBQclM4BkssYqVppKiBimIqLDvTuF9nXxZWMD04YHQKL09tJYL5G4yo" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -605,7 +623,7 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NNnsRFDTqKogyRBhOBQclM4BkssYqVppKiBimIqLDvTuF9nXxZWMD04YHQKL09tJYL5G4yo" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -624,7 +642,7 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NNnsRFDTqKogyRBhOBQclM4BkssYqVppKiBimIqLDvTuF9nXxZWMD04YHQKL09tJYL5G4yo" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -643,7 +661,26 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NNnsRFDTqKogyRBhOBQclM4BkssYqVppKiBimIqLDvTuF9nXxZWMD04YHQKL09tJYL5G4yo" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim3: true
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -662,7 +699,7 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NNnsRFDTqKogyRBhOBQclM4BkssYqVppKiBimIqLDvTuF9nXxZWMD04YHQKL09tJYL5G4yo" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -763,6 +800,19 @@ dynamic templates with incremental indexing:
           - '{ "@timestamp": "2023-09-01T13:06:10.138Z","data": "330",  "attributes.a.much.deeper.nested.dim": "BD" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
           - '{ "@timestamp": "2023-09-01T13:06:10.238Z","data": "340",  "attributes.a.much.deeper.nested.dim": "BD" }'
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:08.138Z","data": "210", "resource.attributes.another.deeper.dim3": true }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:09.138Z","data": "220", "resource.attributes.another.deeper.dim3": true }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:10.138Z","data": "230", "resource.attributes.another.deeper.dim3": false }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:10.238Z","data": "240", "resource.attributes.another.deeper.dim3": false }'
 
   - do:
       search:
@@ -770,7 +820,7 @@ dynamic templates with incremental indexing:
         body:
           size: 0
 
-  - match: { hits.total.value: 16 }
+  - match: { hits.total.value: 20 }
 
   - do:
       search:
@@ -854,6 +904,24 @@ dynamic templates with incremental indexing:
               filter:
                 term:
                   a.much.deeper.nested.dim: AC
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.deeper.dim3: true
               aggs:
                 tsids:
                   terms:
@@ -1056,7 +1124,7 @@ dimensions with ignore_malformed and ignore_above:
 ---
 non string dimension fields:
   - requires:
-      cluster_features: ["mapper.pass_through_priority", "routing.boolean_routing_path"]
+      cluster_features: ["mapper.pass_through_priority", "routing.boolean_routing_path", "mapper.boolean_dimension"]
       reason: support for priority in passthrough objects
   - do:
       allowed_warnings:
@@ -1096,13 +1164,6 @@ non string dimension fields:
                       type: ip
                 - strings_as_keywords:
                     match_mapping_type: string
-                    mapping:
-                      type: keyword
-                # ES doesn't support boolean fields as dimensions, yet
-                # however, support has been added to have boolean fields in the routing path
-                # as long as these boolean fields are converted to a field type that supports dimensions
-                - booleans_as_keywords:
-                    match_mapping_type: boolean
                     mapping:
                       type: keyword
                 - double_as_double:
@@ -1145,7 +1206,7 @@ non string dimension fields:
           fields: [ "*" ]
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields.attributes\.string: [ "foo" ] }
-  - match: { hits.hits.0.fields.attributes\.boolean: [ "true" ] }
+  - match: { hits.hits.0.fields.attributes\.boolean: [ true ] }
   - match: { hits.hits.0.fields.attributes\.integer: [ 1 ] }
   - match: { hits.hits.0.fields.attributes\.double: [ 1.1 ] }
   - match: { hits.hits.0.fields.attributes\.host\.ip: [ "127.0.0.1" ] }
@@ -1160,7 +1221,92 @@ non string dimension fields:
         index: $idx0name
         expand_wildcards: hidden
   - match: { .$idx0name.mappings.properties.attributes.properties.string.type: 'keyword' }
-  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.type: 'keyword' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.string.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.type: 'boolean' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.attributes.properties.integer.type: 'long' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.integer.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.attributes.properties.double.type: 'double' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.double.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.time_series_dimension: true }
+
+---
+multi value dimensions:
+  - requires:
+      cluster_features: ["routing.multi_value_routing_path"]
+      reason: support for multi-value dimensions
+
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 1
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "attributes": { "dim1": ["a" , "b"], "dim2": [1, 2] } }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "20", "attributes": { "dim1": ["b" , "a"], "dim2": [1, 2] } }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "20", "attributes": { "dim1": ["c" , "b"], "dim2": [1, 2] } }'
+  - is_false: errors
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+
+  - length: { aggregations.tsids.buckets: 3 } # only the order of the dim1 attribute is different, yet we expect to have two distinct time series
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            dims:
+              terms:
+                field: dim1
+                order:
+                  _key: asc
+
+  - length: { aggregations.dims.buckets: 3 }
+  - match: { aggregations.dims.buckets.0.key: a }
+  - match: { aggregations.dims.buckets.0.doc_count: 2 }
+  - match: { aggregations.dims.buckets.1.key: b }
+  - match: { aggregations.dims.buckets.1.doc_count: 3 }
+  - match: { aggregations.dims.buckets.2.key: c }
+  - match: { aggregations.dims.buckets.2.doc_count: 1 }

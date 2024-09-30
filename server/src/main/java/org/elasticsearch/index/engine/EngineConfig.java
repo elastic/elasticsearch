@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
@@ -22,8 +23,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecProvider;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
@@ -95,11 +98,16 @@ public final class EngineConfig {
      * This setting is also settable on the node and the index level, it's commonly used in hot/cold node archs where index is likely
      * allocated on both `kind` of nodes.
      */
-    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", settings -> {
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return indexMode.getDefaultCodec();
+    }, s -> {
         switch (s) {
-            case "default":
-            case "best_compression":
-            case "lucene_default":
+            case CodecService.DEFAULT_CODEC:
+            case CodecService.LEGACY_DEFAULT_CODEC:
+            case CodecService.BEST_COMPRESSION_CODEC:
+            case CodecService.LEGACY_BEST_COMPRESSION_CODEC:
+            case CodecService.LUCENE_DEFAULT_CODEC:
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
@@ -178,7 +186,7 @@ public final class EngineConfig {
         this.similarity = similarity;
         this.codecProvider = codecProvider;
         this.eventListener = eventListener;
-        codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
         this.mapperService = mapperService;
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the

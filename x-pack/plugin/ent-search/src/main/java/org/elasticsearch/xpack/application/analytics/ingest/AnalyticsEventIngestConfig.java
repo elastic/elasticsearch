@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.application.analytics.ingest;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 
 /**
  *  Bulk processor configuration.

@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +38,16 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_MEDIAN_ABSOLUTE_DEVIATION} function.
+         */
+        FN_MV_MEDIAN_ABSOLUTE_DEVIATION,
+
+        /**
+         * Support for {@code MV_PERCENTILE} function.
+         */
+        FN_MV_PERCENTILE,
+
+        /**
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,
@@ -47,7 +60,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(true),
+        INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
+         * Support for the expressions in grouping in {@code INLINESTATS} syntax.
+         */
+        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -65,6 +83,11 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_IP_SUPPORT,
 
         /**
+         * Support for strings in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_STRING_SUPPORT,
+
+        /**
          * Support for booleans in {@code TOP} aggregation.
          */
         AGG_TOP_BOOLEAN_SUPPORT,
@@ -73,6 +96,16 @@ public class EsqlCapabilities {
          * Support for ips in {@code TOP} aggregation.
          */
         AGG_TOP_IP_SUPPORT,
+
+        /**
+         * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
+         */
+        AGG_TOP_STRING_SUPPORT,
+
+        /**
+         * {@code CASE} properly handling multivalue conditions.
+         */
+        CASE_MV,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -118,6 +151,16 @@ public class EsqlCapabilities {
         ST_DISTANCE,
 
         /**
+         * Fix determination of CRS types in spatial functions when folding.
+         */
+        SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
+
+        /**
+         * Enable spatial predicate functions to support multi-values. Done in #112063.
+         */
+        SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -153,6 +196,22 @@ public class EsqlCapabilities {
          * Fix for union-types when sorting a type-casted field. We changed how we remove synthetic union-types fields.
          */
         UNION_TYPES_REMOVE_FIELDS,
+
+        /**
+         * Fix for union-types when renaming unrelated columns.
+         * https://github.com/elastic/elasticsearch/issues/111452
+         */
+        UNION_TYPES_FIX_RENAME_RESOLUTION,
+
+        /**
+         * Fix for union-types when some indexes are missing the required field. Done in #111932.
+         */
+        UNION_TYPES_MISSING_FIELD,
+
+        /**
+         * Fix for widening of short numeric types in union-types. Done in #112610
+         */
+        UNION_TYPES_NUMERIC_WIDENING,
 
         /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
@@ -198,26 +257,118 @@ public class EsqlCapabilities {
         MATCH_OPERATOR(true),
 
         /**
+         * Support for the {@code META} keyword. Tests with this tag are
+         * intentionally excluded from mixed version clusters because we
+         * continually add functions, so they constantly fail if we don't.
+         */
+        META,
+
+        /**
          * Add CombineBinaryComparisons rule.
          */
-        COMBINE_BINARY_COMPARISONS;
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
+         * Support for nanosecond dates as a data type
+         */
+        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support for to_date_nanos function
+         */
+        TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support CIDRMatch in CombineDisjunctions rule.
+         */
+        COMBINE_DISJUNCTIVE_CIDRMATCHES,
+
+        /**
+         * Support sending HTTP headers about the status of an async query.
+         */
+        ASYNC_QUERY_STATUS_HEADERS,
+
+        /**
+         * Consider the upper bound when computing the interval in BUCKET auto mode.
+         */
+        BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
+         * Changed error messages for fields with conflicting types in different indices.
+         */
+        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
+
+        /**
+         * Support for the whole number spans in BUCKET function.
+         */
+        BUCKET_WHOLE_NUMBER_AS_SPAN,
+
+        /**
+         * Allow mixed numeric types in coalesce
+         */
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Support for requesting the "SPACE" function.
+         */
+        SPACE,
+
+        /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * Supported the text categorization function "CATEGORIZE".
+         */
+        CATEGORIZE(true),
+
+        /**
+         * QSTR function
+         */
+        QSTR_FUNCTION(true),
+
+        /**
+         * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
+         * https://github.com/elastic/elasticsearch/issues/112704
+         */
+        FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE,
+
+        /**
+         * Compute year differences in full calendar years.
+         */
+        DATE_DIFF_YEAR_CALENDARIAL;
 
         private final boolean snapshotOnly;
+        private final FeatureFlag featureFlag;
 
         Cap() {
-            snapshotOnly = false;
+            this(false, null);
         };
 
         Cap(boolean snapshotOnly) {
-            this.snapshotOnly = snapshotOnly;
+            this(snapshotOnly, null);
         };
+
+        Cap(FeatureFlag featureFlag) {
+            this(false, featureFlag);
+        }
+
+        Cap(boolean snapshotOnly, FeatureFlag featureFlag) {
+            assert featureFlag == null || snapshotOnly == false;
+            this.snapshotOnly = snapshotOnly;
+            this.featureFlag = featureFlag;
+        }
+
+        public boolean isEnabled() {
+            if (featureFlag == null) {
+                return Build.current().isSnapshot() || this.snapshotOnly == false;
+            }
+            return featureFlag.isEnabled();
+        }
 
         public String capabilityName() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        public boolean snapshotOnly() {
-            return snapshotOnly;
         }
     }
 
@@ -226,7 +377,7 @@ public class EsqlCapabilities {
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
         for (Cap cap : Cap.values()) {
-            if (Build.current().isSnapshot() || cap.snapshotOnly == false) {
+            if (cap.isEnabled()) {
                 caps.add(cap.capabilityName());
             }
         }

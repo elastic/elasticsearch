@@ -1,7 +1,7 @@
 # "version" holds the version of the templates and ingest pipelines installed
 # by xpack-plugin apm-data. This must be increased whenever an existing template or
 # pipeline is changed, in order for it to be updated on Elasticsearch upgrade.
-version: 6
+version: 10
 
 component-templates:
   # Data lifecycle.
@@ -23,9 +23,28 @@ component-templates:
   - metrics-apm.service_summary@mappings
   - metrics-apm.service_transaction@mappings
   - metrics-apm.transaction@mappings
-  - traces@mappings
   - traces-apm@mappings
   - traces-apm.rum@mappings
+  # The below files allow to fallback to ILM if DSL configurations are not present
+  - logs-apm.app-fallback@ilm
+  - logs-apm.error-fallback@ilm
+  - metrics-apm.app-fallback@ilm
+  - metrics-apm.internal-fallback@ilm
+  - metrics-apm.service_destination.10m-fallback@ilm
+  - metrics-apm.service_destination.1m-fallback@ilm
+  - metrics-apm.service_destination.60m-fallback@ilm
+  - metrics-apm.service_summary.10m-fallback@ilm
+  - metrics-apm.service_summary.1m-fallback@ilm
+  - metrics-apm.service_summary.60m-fallback@ilm
+  - metrics-apm.service_transaction.10m-fallback@ilm
+  - metrics-apm.service_transaction.1m-fallback@ilm
+  - metrics-apm.service_transaction.60m-fallback@ilm
+  - metrics-apm.transaction.10m-fallback@ilm
+  - metrics-apm.transaction.1m-fallback@ilm
+  - metrics-apm.transaction.60m-fallback@ilm
+  - traces-apm-fallback@ilm
+  - traces-apm.rum-fallback@ilm
+  - traces-apm.sampled-fallback@ilm
 
 index-templates:
   - logs-apm.app@template

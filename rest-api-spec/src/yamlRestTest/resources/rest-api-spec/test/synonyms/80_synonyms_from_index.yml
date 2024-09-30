@@ -187,3 +187,44 @@ setup:
                 search_analyzer: my_analyzer
   - match: { acknowledged: true }
   - match: { shards_acknowledged: false }
+
+---
+"Load empty synonyms set from index for an analyzer":
+  - do:
+      synonyms.put_synonym:
+        id: empty_set
+        body:
+          synonyms_set: []
+
+  - do:
+      indices.create:
+        index: empty_set_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym
+                  synonyms_set: empty_set
+                  updateable : true
+              analyzer:
+                my_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+
+  - do:
+      indices.stats: { index: empty_set_index }
+
+  - match: { indices.empty_set_index.health: "green" }

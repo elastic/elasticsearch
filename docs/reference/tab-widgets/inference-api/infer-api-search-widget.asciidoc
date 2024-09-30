@@ -37,6 +37,12 @@
             id="infer-api-search-azure-ai-studio">
       Azure AI Studio
     </button>
+     <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-google-vertex-ai-tab"
+            id="infer-api-search-google-vertex-ai">
+      Google Vertex AI
+    </button>
     <button role="tab"
             aria-selected="false"
             aria-controls="infer-api-search-mistral-tab"
@@ -48,6 +54,12 @@
             aria-controls="infer-api-search-amazon-bedrock-tab"
             id="infer-api-search-amazon-bedrock">
       Amazon Bedrock
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-alibabacloud-ai-search-tab"
+            id="infer-api-search-alibabacloud-ai-search">
+      AlibabaCloud AI Search
     </button>
   </div>
   <div tabindex="0"
@@ -117,6 +129,17 @@ include::infer-api-search.asciidoc[tag=azure-ai-studio]
   </div>
   <div tabindex="0"
        role="tabpanel"
+       id="infer-api-search-google-vertex-ai-tab"
+       aria-labelledby="infer-api-search-google-vertex-ai"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=google-vertex-ai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
        id="infer-api-search-mistral-tab"
        aria-labelledby="infer-api-search-mistral"
        hidden="">
@@ -134,6 +157,17 @@ include::infer-api-search.asciidoc[tag=mistral]
 ++++
 
 include::infer-api-search.asciidoc[tag=amazon-bedrock]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-alibabacloud-ai-search-tab"
+       aria-labelledby="infer-api-search-alibabacloud-ai-search"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=alibabacloud-ai-search]
 
 ++++
   </div>

@@ -149,7 +149,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
             new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
-            // security : conditional privileges
+            // security : configurable cluster privileges
             new NamedWriteableRegistry.Entry(
                 ConfigurableClusterPrivilege.class,
                 ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
@@ -159,6 +159,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 ConfigurableClusterPrivilege.class,
                 ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
                 ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
+            ),
+            new NamedWriteableRegistry.Entry(
+                ConfigurableClusterPrivilege.class,
+                ConfigurableClusterPrivileges.ManageRolesPrivilege.WRITEABLE_NAME,
+                ConfigurableClusterPrivileges.ManageRolesPrivilege::createFrom
             ),
             // security : role-mappings
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),

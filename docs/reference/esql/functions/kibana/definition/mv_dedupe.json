@@ -45,13 +45,13 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -164,5 +164,6 @@
   ],
   "examples" : [
     "ROW a=[\"foo\", \"foo\", \"bar\", \"foo\"]\n| EVAL dedupe_a = MV_DEDUPE(a)"
-  ]
+  ],
+  "preview" : false
 }

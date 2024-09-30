@@ -62,7 +62,7 @@ use a value of `*`.
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
-[[delete-pipeline-api-api-example]]
+[[delete-pipeline-api-example]]
 ==== {api-examples-title}
 
 

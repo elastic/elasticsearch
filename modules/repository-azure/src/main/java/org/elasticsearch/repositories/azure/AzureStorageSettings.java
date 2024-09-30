@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 final class AzureStorageSettings {
 
@@ -130,6 +132,7 @@ final class AzureStorageSettings {
     private final int maxRetries;
     private final Proxy proxy;
     private final boolean hasCredentials;
+    private final Set<String> credentialsUsageFeatures;
 
     private AzureStorageSettings(
         String account,
@@ -150,6 +153,12 @@ final class AzureStorageSettings {
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
+        this.credentialsUsageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
+            : Strings.hasText(sasToken) ? Set.of("uses_sas_token")
+            : SocketAccess.doPrivilegedException(() -> System.getenv("AZURE_FEDERATED_TOKEN_FILE")) == null
+                ? Set.of("uses_default_credentials", "uses_managed_identity")
+            : Set.of("uses_default_credentials", "uses_workload_identity");
+
         // Register the proxy if we have any
         // Validate proxy settings
         if (proxyType.equals(Proxy.Type.DIRECT) && ((proxyPort != 0) || Strings.hasText(proxyHost))) {
@@ -307,7 +316,7 @@ final class AzureStorageSettings {
 
     private static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
         final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
-        final String fullKey = k.toConcreteKey(groupName).toString();
+        final String fullKey = k.toConcreteKey(groupName);
         return setting.getConcreteSetting(fullKey).get(settings);
     }
 
@@ -365,5 +374,9 @@ final class AzureStorageSettings {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    public Set<String> credentialsUsageFeatures() {
+        return credentialsUsageFeatures;
     }
 }

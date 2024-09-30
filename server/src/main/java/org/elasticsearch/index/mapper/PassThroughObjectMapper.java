@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -18,6 +19,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
@@ -52,7 +54,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         public Builder(String name) {
             // Subobjects are not currently supported.
-            super(name, Explicit.IMPLICIT_FALSE);
+            super(name, Optional.of(Subobjects.DISABLED));
         }
 
         @Override
@@ -103,7 +105,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         int priority
     ) {
         // Subobjects are not currently supported.
-        super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, Explicit.IMPLICIT_FALSE, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.of(Subobjects.DISABLED), Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.priority = priority;
         if (priority < 0) {

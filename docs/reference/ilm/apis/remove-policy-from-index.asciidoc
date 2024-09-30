@@ -5,7 +5,7 @@
 <titleabbrev>Remove policy</titleabbrev>
 ++++
 
-Removes assigned lifecycle policies from an index or a data stream's backing
+Removes assigned <<index-lifecycle-management,lifecycle>> policies from an index or a data stream's backing
 indices.
 
 [[ilm-remove-policy-request]]

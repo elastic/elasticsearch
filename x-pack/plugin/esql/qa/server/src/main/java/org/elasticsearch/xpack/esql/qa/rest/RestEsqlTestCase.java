@@ -11,6 +11,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -20,16 +21,19 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
@@ -52,11 +56,14 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -120,6 +127,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean keepOnCompletion = null;
 
         private Boolean profile = null;
+
+        private CheckedConsumer<XContentBuilder, IOException> filter;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -187,6 +196,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder filter(CheckedConsumer<XContentBuilder, IOException> filter) {
+            this.filter = filter;
+            return this;
+        }
+
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
                 if (tables != null) {
@@ -204,6 +218,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
                 if (profile != null) {
                     builder.field("profile", profile);
+                }
+                if (filter != null) {
+                    builder.startObject("filter");
+                    filter.accept(builder);
+                    builder.endObject();
                 }
                 builder.endObject();
                 isBuilt = true;
@@ -271,7 +290,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql(builder);
         assertMap(
             result,
-            matchesMap().entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
+            matchesMap().entry("values", List.of(List.of(1)))
+                .entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         builder = requestObjectBuilder().query(fromIndex() + " | stats min(value) by group | sort group, `min(value)`");
@@ -280,6 +301,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             result,
             matchesMap().entry("values", List.of(List.of(2, 0), List.of(1, 1)))
                 .entry("columns", List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")))
+                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -422,6 +444,65 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    // Test the Range created in PushFiltersToSource for qualified pushable filters on the same field
+    public void testInternalRange() throws IOException {
+        final int NUM_SINGLE_VALUE_ROWS = 100;
+        bulkLoadTestData(NUM_SINGLE_VALUE_ROWS);
+        bulkLoadTestData(10, NUM_SINGLE_VALUE_ROWS, false, RestEsqlTestCase::createDocumentWithMVs);
+        bulkLoadTestData(5, NUM_SINGLE_VALUE_ROWS + 10, false, RestEsqlTestCase::createDocumentWithNulls);
+
+        String upperBound = randomFrom(" < ", " <= ");
+        String lowerBound = randomFrom(" > ", " >= ");
+
+        String predicate = "{}" + upperBound + "{} and {}" + lowerBound + "{} and {} != {}";
+        int half = NUM_SINGLE_VALUE_ROWS / 2;
+        int halfPlusThree = half + 3;
+        List<String> predicates = List.of(
+            format(null, predicate, "integer", half, "integer", -1, "integer", half),
+            format(null, predicate, "short", half, "short", -1, "short", half),
+            format(null, predicate, "byte", half, "byte", -1, "byte", half),
+            format(null, predicate, "long", half, "long", -1, "long", half),
+            format(null, predicate, "double", half, "double", -1.0, "double", half),
+            format(null, predicate, "float", half, "float", -1.0, "float", half),
+            format(null, predicate, "half_float", half, "half_float", -1.0, "half_float", half),
+            format(null, predicate, "scaled_float", half, "scaled_float", -1.0, "scaled_float", half),
+            format(
+                null,
+                predicate,
+                "date",
+                "\"" + dateTimeToString(half) + "\"",
+                "date",
+                "\"1001-01-01\"",
+                "date",
+                "\"" + dateTimeToString(half) + "\""
+            ),
+            // keyword6-9 is greater than keyword53, [54,99] + [6, 9], 50 items in total
+            format(
+                null,
+                predicate,
+                "keyword",
+                "\"keyword999\"",
+                "keyword",
+                "\"keyword" + halfPlusThree + "\"",
+                "keyword",
+                "\"keyword" + halfPlusThree + "\""
+            ),
+            format(null, predicate, "ip", "\"127.0.0." + half + "\"", "ip", "\"126.0.0.0\"", "ip", "\"127.0.0." + half + "\""),
+            format(null, predicate, "version", "\"1.2." + half + "\"", "version", "\"1.2\"", "version", "\"1.2." + half + "\"")
+        );
+
+        for (String p : predicates) {
+            var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), p));
+            var result = runEsql(query, List.of(), NO_WARNINGS_REGEX, mode);
+            var values = as(result.get("values"), ArrayList.class);
+            assertThat(
+                format(null, "Comparison [{}] should return all rows with single values.", p),
+                values.size(),
+                is(NUM_SINGLE_VALUE_ROWS / 2)
+            );
+        }
+    }
+
     public void testWarningHeadersOnFailedConversions() throws IOException {
         int count = randomFrom(10, 40, 60);
         bulkLoadTestData(count);
@@ -478,7 +559,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
 
         assertThat(deleteIndex(testIndexName() + "-1").isAcknowledged(), is(true)); // clean up
         assertThat(deleteIndex(testIndexName() + "-2").isAcknowledged(), is(true)); // clean up
@@ -498,16 +579,18 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsqlSync(
                 requestObjectBuilder().query("row a = 1 | eval x = ?, y = ?")
                     .params(
-                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"_a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
-                            + "{\"type\": \"byte\", \"value\": 5}]"
+                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"-a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
+                            + "{\"type\": \"byte\", \"value\": 5}, {\"_1\": \"v1\"}, {\"_a\": \"v1\"}]"
                     )
             )
         );
         String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
         assertThat(error, containsString("[1] is not a valid parameter name"));
         assertThat(error, containsString("[1-] is not a valid parameter name"));
-        assertThat(error, containsString("[_a] is not a valid parameter name"));
+        assertThat(error, containsString("[-a] is not a valid parameter name"));
         assertThat(error, containsString("[@-#] is not a valid parameter name"));
+        assertThat(error, not(containsString("[_a] is not a valid parameter name")));
+        assertThat(error, not(containsString("[_1] is not a valid parameter name")));
         assertThat(error, containsString("Params cannot contain both named and unnamed parameters"));
         assertThat(error, containsString("Cannot parse more than one key:value pair as parameter"));
         re = expectThrows(
@@ -522,12 +605,46 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             EntityUtils.toString(re.getResponse().getEntity()),
             containsString("No parameter is defined for position 2, did you mean position 1")
         );
-
         re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(requestObjectBuilder().query("row a = ?n0").params("[{\"n1\": \"v1\"}]"))
         );
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Unknown query parameter [n0], did you mean [n1]"));
+    }
+
+    public void testErrorMessageForInvalidIntervalParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x + ?n2::time_duration")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 days\"}]")
+            )
+        );
+
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
+            )
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x - ?n2::date_period")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 hours\"}]")
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::date_period], expected integer followed by one of "
+                    + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 hours]"
+            )
+        );
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
@@ -592,6 +709,122 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         e = expectThrows(ResponseException.class, () -> runEsql(requestObjectBuilder().query(q2)));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("The field names are too complex to process"));
+    }
+
+    /**
+     * INLINESTATS <strong>can</strong> group on {@code NOW()}. It's a little silly, but
+     * doing something like {@code DATE_TRUNC(1 YEAR, NOW() - 1970-01-01T00:00:00Z)} is
+     * much more sensible. But just grouping on {@code NOW()} is enough to test this.
+     * <p>
+     *     This works because {@code NOW()} locks it's value at the start of the entire
+     *     query. It's part of the "configuration" of the query.
+     * </p>
+     */
+    public void testInlineStatsNow() throws IOException {
+        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(
+            fromIndex() + " | EVAL now=NOW() | INLINESTATS AVG(value) BY now | SORT value ASC"
+        );
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher values = matchesList();
+        for (int i = 0; i < 1000; i++) {
+            values = values.item(
+                matchesList().item("2020-12-12T00:00:00.000Z")
+                    .item("value" + i)
+                    .item("value" + i)
+                    .item(i)
+                    .item(any(String.class))
+                    .item(499.5)
+            );
+        }
+        assertMap(
+            result,
+            matchesMap().entry(
+                "columns",
+                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                    .item(matchesMap().entry("name", "test").entry("type", "text"))
+                    .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
+                    .item(matchesMap().entry("name", "value").entry("type", "long"))
+                    .item(matchesMap().entry("name", "now").entry("type", "date"))
+                    .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
+            ).entry("values", values).entry("took", greaterThanOrEqualTo(0))
+        );
+    }
+
+    public void testTopLevelFilter() throws IOException {
+        indexTimestampData(3); // Multiple shards has caused a bug in the past with the merging case below
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("@timestamp").field("gte", "2020-12-12").endObject();
+            }
+            b.endObject();
+        }).query(fromIndex() + " | STATS SUM(value)");
+
+        Map<String, Object> result = runEsql(builder);
+        assertMap(
+            result,
+            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                .entry("values", List.of(List.of(499500)))
+                .entry("took", greaterThanOrEqualTo(0))
+        );
+    }
+
+    public void testTopLevelFilterMerged() throws IOException {
+        indexTimestampData(3); // Multiple shards has caused a bug in the past with the merging case below
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("@timestamp").field("gte", "2020-12-12").endObject();
+            }
+            b.endObject();
+        }).query(fromIndex() + " | WHERE value == 12 | STATS SUM(value)");
+        Map<String, Object> result = runEsql(builder);
+        assertMap(
+            result,
+            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                .entry("values", List.of(List.of(12)))
+                .entry("took", greaterThanOrEqualTo(0))
+        );
+    }
+
+    public void testTopLevelFilterBoolMerged() throws IOException {
+        indexTimestampData(3); // Multiple shards has caused a bug in the past
+
+        for (int i = 0; i < 100; i++) {
+            // Run the query many times so we're more likely to bump into any sort of modification problems
+            RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+                b.startObject("bool");
+                {
+                    b.startArray("filter");
+                    {
+                        b.startObject().startObject("range");
+                        {
+                            b.startObject("@timestamp").field("gte", "2020-12-12").endObject();
+                        }
+                        b.endObject().endObject();
+                        b.startObject().startObject("match");
+                        {
+                            b.field("test", "value12");
+                        }
+                        b.endObject().endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+            }).query(fromIndex() + " | WHERE @timestamp > \"2010-01-01\" | STATS SUM(value)");
+            Map<String, Object> result = runEsql(builder);
+            assertMap(
+                result,
+                matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                    .entry("values", List.of(List.of(12)))
+                    .entry("took", greaterThanOrEqualTo(0))
+            );
+        }
     }
 
     private static String queryWithComplexFieldNames(int field) {
@@ -716,17 +949,24 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         checkKeepOnCompletion(requestObject, json);
         String id = (String) json.get("id");
 
+        var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
+
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
             assertThat(requestObject.keepOnCompletion(), either(nullValue()).or(is(false)));
             assertThat((boolean) json.get("is_running"), is(false));
+            if (supportsAsyncHeaders) {
+                assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
+                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
+            }
             assertWarnings(response, expectedWarnings, expectedWarningsRegex);
             json.remove("is_running"); // remove this to not mess up later map assertions
             return Collections.unmodifiableMap(json);
         } else {
             // async may not return results immediately, so may need an async get
             assertThat(id, is(not(emptyOrNullString())));
-            if ((boolean) json.get("is_running") == false) {
+            boolean isRunning = (boolean) json.get("is_running");
+            if (isRunning == false) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(requestObject.keepOnCompletion(), is(true));
                 assertWarnings(response, expectedWarnings, expectedWarningsRegex);
@@ -738,6 +978,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertThat(json.get("columns"), is(equalTo(List.<Map<String, String>>of()))); // no partial results
                 assertThat(json.get("pages"), nullValue());
             }
+
+            if (supportsAsyncHeaders) {
+                assertThat(response.getHeader("X-Elasticsearch-Async-Id"), is(id));
+                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is(isRunning ? "?1" : "?0"));
+            }
+
             // issue a second request to "async get" the results
             Request getRequest = prepareAsyncGetRequest(id);
             getRequest.setOptions(options);
@@ -1008,5 +1254,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     @After
     public void assertRequestBreakerEmpty() throws Exception {
         EsqlSpecTestCase.assertRequestBreakerEmpty();
+    }
+
+    protected void indexTimestampData(int shards) throws IOException {
+        Request createIndex = new Request("PUT", testIndexName());
+        createIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "number_of_shards": %shards%
+                }
+              }
+            }""".replace("%shards%", Integer.toString(shards)));
+        Response response = client().performRequest(createIndex);
+        assertThat(
+            entityToMap(response.getEntity(), XContentType.JSON),
+            matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
+        );
+
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            b.append(String.format(Locale.ROOT, """
+                {"create":{"_index":"%s"}}
+                {"@timestamp":"2020-12-12","test":"value%s","value":%d}
+                """, testIndexName(), i, i));
+        }
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.addParameter("filter_path", "errors");
+        bulk.setJsonEntity(b.toString());
+        response = client().performRequest(bulk);
+        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
     }
 }

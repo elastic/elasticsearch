@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.index;
@@ -38,7 +39,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -147,6 +148,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private Object rawTimestamp;
     private long normalisedBytesParsed = -1;
     private boolean originatesFromUpdateByScript;
+    private boolean originatesFromUpdateByDoc;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -203,6 +205,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             originatesFromUpdateByScript = in.readBoolean();
         } else {
             originatesFromUpdateByScript = false;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
+            originatesFromUpdateByDoc = in.readBoolean();
+        } else {
+            originatesFromUpdateByDoc = false;
         }
     }
 
@@ -407,8 +415,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
-    public Map<String, Object> sourceAsMap(DocumentSizeObserver documentSizeObserver) {
-        return XContentHelper.convertToMap(source, false, contentType, documentSizeObserver).v2();
+    public Map<String, Object> sourceAsMap(XContentParserDecorator parserDecorator) {
+        return XContentHelper.convertToMap(source, false, contentType, parserDecorator).v2();
     }
 
     /**
@@ -768,6 +776,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
             out.writeBoolean(originatesFromUpdateByScript);
         }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
+            out.writeBoolean(originatesFromUpdateByDoc);
+        }
     }
 
     @Override
@@ -869,6 +881,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     */
     public boolean isWriteToFailureStore() {
         return writeToFailureStore;
     }
@@ -932,15 +947,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * when observing document size while parsing, this method indicates that this request should not be recorded.
-     * @return an index request
-     */
-    public IndexRequest noParsedBytesToReport() {
-        this.normalisedBytesParsed = 0;
-        return this;
-    }
-
-    /**
      * Adds the pipeline to the list of executed pipelines, if listExecutedPipelines is true
      *
      * @param pipeline
@@ -977,6 +983,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public boolean originatesFromUpdateByScript() {
-        return this.originatesFromUpdateByScript;
+        return originatesFromUpdateByScript;
+    }
+
+    public boolean originatesFromUpdateByDoc() {
+        return originatesFromUpdateByDoc;
+    }
+
+    public IndexRequest setOriginatesFromUpdateByDoc(boolean originatesFromUpdateByDoc) {
+        this.originatesFromUpdateByDoc = originatesFromUpdateByDoc;
+        return this;
     }
 }

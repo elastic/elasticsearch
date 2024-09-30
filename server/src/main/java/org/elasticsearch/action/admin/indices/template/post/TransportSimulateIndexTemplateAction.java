@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -15,9 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -28,7 +29,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -74,7 +75,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ClusterSettings clusterSettings;
     private final boolean isDslOnlyMode;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -87,8 +87,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -108,7 +107,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.clusterSettings = clusterService.getClusterSettings();
         this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
-        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     @Override
@@ -118,7 +116,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
-        final DataStreamGlobalRetention globalRetention = globalRetentionResolver.resolve(state);
         final ClusterState stateWithTemplate;
         if (request.getIndexTemplateRequest() != null) {
             // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
@@ -144,7 +141,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
         String matchingTemplate = findV2Template(stateWithTemplate.metadata(), request.getIndexName(), false);
         if (matchingTemplate == null) {
-            listener.onResponse(new SimulateIndexTemplateResponse(null, null, null));
+            listener.onResponse(new SimulateIndexTemplateResponse(null, null));
             return;
         }
 
@@ -160,7 +157,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             xContentRegistry,
             indicesService,
             systemIndices,
-            indexSettingProviders
+            indexSettingProviders,
+            Map.of()
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -172,12 +170,11 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 new SimulateIndexTemplateResponse(
                     template,
                     overlapping,
-                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-                    globalRetention
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                 )
             );
         } else {
-            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping, globalRetention));
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
         }
     }
 
@@ -238,7 +235,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
         final SystemIndices systemIndices,
-        Set<IndexSettingProvider> indexSettingProviders
+        Set<IndexSettingProvider> indexSettingProviders,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions
     ) throws Exception {
         var metadata = simulatedState.getMetadata();
         Settings templateSettings = resolveSettings(simulatedState.metadata(), matchingTemplate);
@@ -256,13 +254,21 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        // empty request mapping as the user can't specify any explicit mappings via the simulate api
+        /*
+         * If the index name doesn't look like a data stream backing index, then MetadataCreateIndexService.collectV2Mappings() won't
+         * include data stream specific mappings in its response.
+         */
+        String simulatedIndexName = template.getDataStreamTemplate() != null
+            && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) == false
+                ? DataStream.getDefaultBackingIndexName(indexName, 1)
+                : indexName;
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
-            null,
+            null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             simulatedState,
             matchingTemplate,
+            componentTemplateSubstitutions,
             xContentRegistry,
-            indexName
+            simulatedIndexName
         );
 
         // First apply settings sourced from index settings providers
@@ -310,7 +316,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             )
         );
 
-        Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
+        Map<String, AliasMetadata> aliasesByName = aliases == null
+            ? Map.of()
+            : aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 
         CompressedXContent mergedMapping = indicesService.<CompressedXContent, Exception>withTempIndexService(
             indexMetadata,

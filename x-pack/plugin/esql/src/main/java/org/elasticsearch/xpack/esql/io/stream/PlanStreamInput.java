@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -21,14 +24,13 @@ import org.elasticsearch.compute.data.BooleanBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -60,61 +62,22 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
 
-    private final PlanNameRegistry registry;
+    private Attribute[] attributesCache = new Attribute[64];
+
+    private EsField[] esFieldsCache = new EsField[64];
 
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
 
-    public PlanStreamInput(
-        StreamInput streamInput,
-        PlanNameRegistry registry,
-        NamedWriteableRegistry namedWriteableRegistry,
-        EsqlConfiguration configuration
-    ) {
+    public PlanStreamInput(StreamInput streamInput, NamedWriteableRegistry namedWriteableRegistry, Configuration configuration) {
         super(streamInput, namedWriteableRegistry);
-        this.registry = registry;
         this.configuration = configuration;
         this.nameIdFunction = new NameIdMapper();
     }
 
-    public LogicalPlan readLogicalPlanNode() throws IOException {
-        return readNamed(LogicalPlan.class);
-    }
-
-    public PhysicalPlan readPhysicalPlanNode() throws IOException {
-        return readNamed(PhysicalPlan.class);
-    }
-
-    public PhysicalPlan readOptionalPhysicalPlanNode() throws IOException {
-        return readOptionalNamed(PhysicalPlan.class);
-    }
-
-    public <T> T readNamed(Class<T> type) throws IOException {
-        String name = readString();
-        @SuppressWarnings("unchecked")
-        PlanReader<T> reader = (PlanReader<T>) registry.getReader(type, name);
-        if (reader instanceof PlanNamedReader<T> namedReader) {
-            return namedReader.read(this, name);
-        } else {
-            return reader.read(this);
-        }
-    }
-
-    public <T> T readOptionalNamed(Class<T> type) throws IOException {
-        if (readBoolean()) {
-            T t = readNamed(type);
-            if (t == null) {
-                throwOnNullOptionalRead(type);
-            }
-            return t;
-        } else {
-            return null;
-        }
-    }
-
-    public EsqlConfiguration configuration() throws IOException {
+    public Configuration configuration() throws IOException {
         return configuration;
     }
 
@@ -123,7 +86,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
@@ -168,7 +131,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
@@ -206,4 +169,92 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     public NameId mapNameId(long l) {
         return nameIdFunction.apply(l);
     }
+
+    /**
+     * @param constructor the constructor needed to build the actual attribute when read from the wire
+     * @throws IOException
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
+            int cacheId = Math.toIntExact(readZLong());
+            if (cacheId < 0) {
+                cacheId = -1 - cacheId;
+                Attribute result = constructor.apply(this);
+                cacheAttribute(cacheId, result);
+                return (A) result;
+            } else {
+                return (A) attributeFromCache(cacheId);
+            }
+        } else {
+            return constructor.apply(this);
+        }
+    }
+
+    private Attribute attributeFromCache(int id) throws IOException {
+        if (attributesCache[id] == null) {
+            throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
+        }
+        return attributesCache[id];
+    }
+
+    /**
+     * Add an attribute to the cache, based on the serialization ID generated by {@link PlanStreamOutput}
+     * @param id The ID that will reference the attribute. Generated  at serialization time
+     * @param attr The attribute to cache
+     */
+    private void cacheAttribute(int id, Attribute attr) {
+        assert id >= 0;
+        if (id >= attributesCache.length) {
+            attributesCache = ArrayUtil.grow(attributesCache);
+        }
+        attributesCache[id] = attr;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <A extends EsField> A readEsFieldWithCache() throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
+            int cacheId = Math.toIntExact(readZLong());
+            if (cacheId < 0) {
+                String className = readString();
+                Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
+                cacheId = -1 - cacheId;
+                EsField result = reader.read(this);
+                cacheEsField(cacheId, result);
+                return (A) result;
+            } else {
+                return (A) esFieldFromCache(cacheId);
+            }
+        } else {
+            String className = readString();
+            Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
+            return (A) reader.read(this);
+        }
+    }
+
+    private EsField esFieldFromCache(int id) throws IOException {
+        if (esFieldsCache[id] == null) {
+            throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
+        }
+        return esFieldsCache[id];
+    }
+
+    /**
+     * Add an EsField to the cache, based on the serialization ID generated by {@link PlanStreamOutput}
+     * @param id The ID that will reference the field. Generated  at serialization time
+     * @param field The EsField to cache
+     */
+    private void cacheEsField(int id, EsField field) {
+        assert id >= 0;
+        if (id >= esFieldsCache.length) {
+            esFieldsCache = ArrayUtil.grow(esFieldsCache);
+        }
+        esFieldsCache[id] = field;
+    }
+
 }

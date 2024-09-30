@@ -56,7 +56,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
@@ -139,5 +139,6 @@
   ],
   "examples" : [
     "ROW str1 = \"5.20128E11\", str2 = \"foo\"\n| EVAL dbl = TO_DOUBLE(\"520128000000\"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)"
-  ]
+  ],
+  "preview" : false
 }

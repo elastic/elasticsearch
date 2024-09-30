@@ -6,11 +6,12 @@
   "signatures" : [
     {
       "params" : [ ],
-      "returnType" : "datetime"
+      "returnType" : "date"
     }
   ],
   "examples" : [
     "ROW current_date = NOW()",
     "FROM sample_data\n| WHERE @timestamp > NOW() - 1 hour"
-  ]
+  ],
+  "preview" : false
 }

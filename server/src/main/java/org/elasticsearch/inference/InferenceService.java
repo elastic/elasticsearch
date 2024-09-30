@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.inference;
@@ -84,6 +85,7 @@ public interface InferenceService extends Closeable {
      * @param model        The model
      * @param query        Inference query, mainly for re-ranking
      * @param input        Inference input
+     * @param stream       Stream inference results
      * @param taskSettings Settings in the request to override the model's defaults
      * @param inputType    For search, ingest etc
      * @param timeout      The timeout for the request
@@ -93,6 +95,7 @@ public interface InferenceService extends Closeable {
         Model model,
         @Nullable String query,
         List<String> input,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -175,6 +178,17 @@ public interface InferenceService extends Closeable {
     };
 
     /**
+     * Update a text embedding model's dimensions based on a provided embedding
+     * size and set the default similarity if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @param embeddingSize The embedding size to update the model with
+     * @return The model with updated embedding details
+     */
+    default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        return model;
+    }
+
+    /**
      * Return true if this model is hosted in the local Elasticsearch cluster
      * @return True if in cluster
      */
@@ -187,4 +201,21 @@ public interface InferenceService extends Closeable {
      * @return {@link TransportVersion} specifying the version
      */
     TransportVersion getMinimalSupportedVersion();
+
+    /**
+     * The set of tasks where this service provider supports using the streaming API.
+     * @return set of supported task types. Defaults to empty.
+     */
+    default Set<TaskType> supportedStreamingTasks() {
+        return Set.of();
+    }
+
+    /**
+     * Checks the task type against the set of supported streaming tasks returned by {@link #supportedStreamingTasks()}.
+     * @param taskType the task that supports streaming
+     * @return true if the taskType is supported
+     */
+    default boolean canStream(TaskType taskType) {
+        return supportedStreamingTasks().contains(taskType);
+    }
 }

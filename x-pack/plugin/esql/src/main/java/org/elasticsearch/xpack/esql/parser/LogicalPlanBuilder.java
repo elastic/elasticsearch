@@ -25,17 +25,16 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
-import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -57,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,10 +70,10 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
@@ -153,7 +153,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> {
             Source source = source(ctx);
             String pattern = visitString(ctx.string()).fold().toString();
-            Grok.Parser grokParser = Grok.pattern(source, pattern);
+            Grok.Parser grokParser;
+            try {
+                grokParser = Grok.pattern(source, pattern);
+            } catch (SyntaxException e) {
+                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", pattern, e.getMessage());
+            }
             validateGrokPattern(source, grokParser, pattern);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
@@ -282,7 +287,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             List.of(metadataMap.values().toArray(Attribute[]::new)),
             IndexMode.STANDARD,
-            null
+            null,
+            "FROM"
         );
     }
 
@@ -474,7 +480,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
-            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null);
+            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
         var relation = new UnresolvedRelation(
@@ -483,7 +489,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
             IndexMode.TIME_SERIES,
-            null
+            null,
+            "FROM TS"
         );
         return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }

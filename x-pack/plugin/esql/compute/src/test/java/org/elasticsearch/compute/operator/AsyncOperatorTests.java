@@ -159,49 +159,56 @@ public class AsyncOperatorTests extends ESTestCase {
         Releasables.close(localBreaker);
     }
 
+    class TestOp extends AsyncOperator {
+        Map<Page, ActionListener<Page>> handlers = new HashMap<>();
+
+        TestOp(DriverContext driverContext, int maxOutstandingRequests) {
+            super(driverContext, maxOutstandingRequests);
+        }
+
+        @Override
+        protected void performAsync(Page inputPage, ActionListener<Page> listener) {
+            handlers.put(inputPage, listener);
+        }
+
+        @Override
+        protected void doClose() {
+
+        }
+    }
+
     public void testStatus() {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
-        Map<Page, ActionListener<Page>> handlers = new HashMap<>();
-        AsyncOperator operator = new AsyncOperator(driverContext, 2) {
-            @Override
-            protected void performAsync(Page inputPage, ActionListener<Page> listener) {
-                handlers.put(inputPage, listener);
-            }
-
-            @Override
-            protected void doClose() {
-
-            }
-        };
-        assertTrue(operator.isBlocked().isDone());
+        TestOp operator = new TestOp(driverContext, 2);
+        assertTrue(operator.isBlocked().listener().isDone());
         assertTrue(operator.needsInput());
 
         Page page1 = new Page(driverContext.blockFactory().newConstantNullBlock(1));
         operator.addInput(page1);
-        assertFalse(operator.isBlocked().isDone());
-        SubscribableListener<Void> blocked1 = operator.isBlocked();
+        assertFalse(operator.isBlocked().listener().isDone());
+        SubscribableListener<Void> blocked1 = operator.isBlocked().listener();
         assertTrue(operator.needsInput());
 
         Page page2 = new Page(driverContext.blockFactory().newConstantNullBlock(2));
         operator.addInput(page2);
         assertFalse(operator.needsInput()); // reached the max outstanding requests
-        assertFalse(operator.isBlocked().isDone());
-        assertThat(operator.isBlocked(), equalTo(blocked1));
+        assertFalse(operator.isBlocked().listener().isDone());
+        assertThat(operator.isBlocked(), equalTo(new IsBlockedResult(blocked1, "TestOp")));
 
         Page page3 = new Page(driverContext.blockFactory().newConstantNullBlock(3));
-        handlers.remove(page1).onResponse(page3);
+        operator.handlers.remove(page1).onResponse(page3);
         page1.releaseBlocks();
         assertFalse(operator.needsInput()); // still have 2 outstanding requests
-        assertTrue(operator.isBlocked().isDone());
+        assertTrue(operator.isBlocked().listener().isDone());
         assertTrue(blocked1.isDone());
         assertThat(operator.getOutput(), equalTo(page3));
         page3.releaseBlocks();
 
         assertTrue(operator.needsInput());
-        assertFalse(operator.isBlocked().isDone());
+        assertFalse(operator.isBlocked().listener().isDone());
         Page page4 = new Page(driverContext.blockFactory().newConstantNullBlock(3));
-        handlers.remove(page2).onResponse(page4);
+        operator.handlers.remove(page2).onResponse(page4);
         page2.releaseBlocks();
         assertThat(operator.getOutput(), equalTo(page4));
         page4.releaseBlocks();

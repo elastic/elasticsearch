@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.test;
@@ -21,6 +22,9 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.systemProperty("tests.gradle", true);
             test.systemProperty("tests.task", test.getPath());
+
+            // Flag is required for later Java versions since our tests use a custom security manager
+            test.jvmArgs("-Djava.security.manager=allow");
 
             SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
             // don't track these as inputs since they contain absolute paths and break cache relocatability

@@ -1,7 +1,7 @@
 [[esql-apis]]
 == {esql} APIs
 
-The {es} Query Language ({esql}) provides a powerful way to filter, transform,
+The <<esql,{es} Query Language ({esql})>> provides a powerful way to filter, transform,
 and analyze data stored in {es}, and in the future in other runtimes. For an
 overview of {esql} and related tutorials, see <<esql>>.
 

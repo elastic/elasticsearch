@@ -61,4 +61,23 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         );
     }
 
+    public void testComputeScoresForEmpty() {
+        subject.computeScores(new RankFeatureDoc[0], new ActionListener<>() {
+            @Override
+            public void onResponse(float[] floats) {
+                assertArrayEquals(new float[0], floats, 0.0f);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail();
+            }
+        });
+        verify(mockClient).execute(
+            eq(GetInferenceModelAction.INSTANCE),
+            argThat(actionRequest -> ((GetInferenceModelAction.Request) actionRequest).getTaskType().equals(TaskType.RERANK)),
+            any()
+        );
+    }
+
 }

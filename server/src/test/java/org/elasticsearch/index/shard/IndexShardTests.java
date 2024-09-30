@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -1784,6 +1785,76 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testShardFieldStats() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build();
+        IndexShard shard = newShard(true, settings);
+        assertNull(shard.getShardFieldStats());
+        recoverShardFromStore(shard);
+        ShardFieldStats stats = shard.getShardFieldStats();
+        assertNotNull(stats);
+        assertThat(stats.numSegments(), equalTo(0));
+        assertThat(stats.totalFields(), equalTo(0));
+        assertThat(stats.fieldUsages(), equalTo(0L));
+        // index some documents
+        int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", "first_" + i, """
+                {
+                    "f1": "foo",
+                    "f2": "bar"
+                }
+                """);
+        }
+        assertThat(shard.getShardFieldStats(), sameInstance(stats));
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(1));
+        // _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword,
+        assertThat(stats.totalFields(), equalTo(9));
+        // _id(term), _source(0), _version(dv), _primary_term(dv), _seq_no(point,dv), f1(postings,norms),
+        // f1.keyword(term,dv), f2(postings,norms), f2.keyword(term,dv),
+        assertThat(stats.fieldUsages(), equalTo(13L));
+        // don't re-compute on refresh without change
+        if (randomBoolean()) {
+            shard.refresh("test");
+        } else {
+            // trigger internal refresh
+            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
+        }
+        assertThat(shard.getShardFieldStats(), sameInstance(stats));
+        // index more docs
+        numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", "first_" + i, """
+                {
+                    "f1": "foo",
+                    "f2": "bar",
+                    "f3": "foobar"
+                }
+                """);
+        }
+        if (randomBoolean()) {
+            shard.refresh("test");
+        } else {
+            // trigger internal refresh
+            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
+        }
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(2));
+        // 9 + _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword, f3, f3.keyword
+        assertThat(stats.totalFields(), equalTo(21));
+        // first segment: 13, second segment: 13 + f3(postings,norms) + f3.keyword(term,dv), and __soft_deletes to previous segment
+        assertThat(stats.fieldUsages(), equalTo(31L));
+        shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(1));
+        assertThat(stats.totalFields(), equalTo(12));
+        // _id(term), _source(0), _version(dv), _primary_term(dv), _seq_no(point,dv), f1(postings,norms),
+        // f1.keyword(term,dv), f2(postings,norms), f2.keyword(term,dv), f3(postings,norms), f3.keyword(term,dv), __soft_deletes
+        assertThat(stats.fieldUsages(), equalTo(18L));
+        closeShards(shard);
+    }
+
     public void testIndexingOperationsListeners() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
@@ -2098,16 +2169,14 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting relocationRouting = ShardRoutingHelper.relocate(originalRouting, "other_node");
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         IndexShardTestCase.updateRoutingEntry(shard, originalRouting);
-        asInstanceOf(
+        safeAwaitFailure(
             IllegalIndexShardStateException.class,
-            safeAwaitFailure(
-                Void.class,
-                listener -> shard.relocated(
-                    relocationRouting.relocatingNodeId(),
-                    relocationRouting.getTargetRelocatingShard().allocationId().getId(),
-                    (primaryContext, l) -> fail("should not be called"),
-                    listener
-                )
+            Void.class,
+            listener -> shard.relocated(
+                relocationRouting.relocatingNodeId(),
+                relocationRouting.getTargetRelocatingShard().allocationId().getId(),
+                (primaryContext, l) -> fail("should not be called"),
+                listener
             )
         );
         closeShards(shard);
@@ -2192,16 +2261,14 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final AtomicBoolean relocated = new AtomicBoolean();
 
-        final IllegalIndexShardStateException wrongNodeException = asInstanceOf(
+        final IllegalIndexShardStateException wrongNodeException = safeAwaitFailure(
             IllegalIndexShardStateException.class,
-            safeAwaitFailure(
-                Void.class,
-                listener -> shard.relocated(
-                    wrongTargetNodeShardRouting.relocatingNodeId(),
-                    wrongTargetNodeShardRouting.getTargetRelocatingShard().allocationId().getId(),
-                    (ctx, l) -> relocated.set(true),
-                    listener
-                )
+            Void.class,
+            listener -> shard.relocated(
+                wrongTargetNodeShardRouting.relocatingNodeId(),
+                wrongTargetNodeShardRouting.getTargetRelocatingShard().allocationId().getId(),
+                (ctx, l) -> relocated.set(true),
+                listener
             )
         );
         assertThat(
@@ -2210,16 +2277,14 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         assertFalse(relocated.get());
 
-        final IllegalStateException wrongTargetIdException = asInstanceOf(
+        final IllegalStateException wrongTargetIdException = safeAwaitFailure(
             IllegalStateException.class,
-            safeAwaitFailure(
-                Void.class,
-                listener -> shard.relocated(
-                    wrongTargetAllocationIdShardRouting.relocatingNodeId(),
-                    wrongTargetAllocationIdShardRouting.getTargetRelocatingShard().allocationId().getId(),
-                    (ctx, l) -> relocated.set(true),
-                    listener
-                )
+            Void.class,
+            listener -> shard.relocated(
+                wrongTargetAllocationIdShardRouting.relocatingNodeId(),
+                wrongTargetAllocationIdShardRouting.getTargetRelocatingShard().allocationId().getId(),
+                (ctx, l) -> relocated.set(true),
+                listener
             )
         );
         assertThat(
@@ -4120,7 +4185,7 @@ public class IndexShardTests extends IndexShardTestCase {
             );
             shard.flushOnIdle(0);
             assertFalse(shard.isActive());
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             // While the first flush is happening, index one more doc (to turn the shard's active flag to true),
             // and issue a second flushOnIdle request which should not wait for the ongoing flush
@@ -4135,7 +4200,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 )
             );
             shard.flushOnIdle(0);
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
             assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
@@ -4152,7 +4217,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     "released flush lock"
                 )
             );
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             // The second flushOnIdle (that did not happen) should have turned the active flag to true
             assertTrue(shard.isActive());

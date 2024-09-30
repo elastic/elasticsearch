@@ -582,7 +582,7 @@ For example, the offset of `+19d` will result in buckets with names like `2022-0
 
 Increasing the offset to `+20d`, each document will appear in a bucket for the previous month,
 with all bucket keys ending with the same day of the month, as normal.
-However, further increasing to `+28d`, 
+However, further increasing to `+28d`,
 what used to be a February bucket has now become `"2022-03-01"`.
 
 [source,console,id=datehistogram-aggregation-offset-example-28d]
@@ -819,7 +819,7 @@ POST /sales/_search?size=0
   "runtime_mappings": {
     "date.day_of_week": {
       "type": "keyword",
-      "script": "emit(doc['date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      "script": "emit(doc['date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
     }
   },
   "aggs": {

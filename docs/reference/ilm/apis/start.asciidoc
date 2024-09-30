@@ -7,7 +7,7 @@
 <titleabbrev>Start {ilm}</titleabbrev>
 ++++
 
-Start the {ilm} ({ilm-init}) plugin.
+Start the <<index-lifecycle-management,{ilm}>> ({ilm-init}) plugin.
 
 [[ilm-start-request]]
 ==== {api-request-title}

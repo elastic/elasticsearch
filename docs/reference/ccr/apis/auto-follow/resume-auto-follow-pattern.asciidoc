@@ -5,7 +5,7 @@
 <titleabbrev>Resume auto-follow pattern</titleabbrev>
 ++++
 
-Resumes an auto-follow pattern.
+Resumes a {ccr} <<ccr-auto-follow,auto-follow pattern>>.
 
 [[ccr-resume-auto-follow-pattern-request]]
 ==== {api-request-title}

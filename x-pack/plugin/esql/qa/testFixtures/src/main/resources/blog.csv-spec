@@ -5,7 +5,7 @@ required_capability: enrich_load
 
   FROM employees
 | WHERE still_hired == true
-| EVAL hired = DATE_FORMAT("YYYY", hire_date)
+| EVAL hired = DATE_FORMAT("yyyy", hire_date)
 | STATS avg_salary = AVG(salary) BY languages
 | EVAL avg_salary = ROUND(avg_salary)
 | EVAL lang_code = TO_STRING(languages)

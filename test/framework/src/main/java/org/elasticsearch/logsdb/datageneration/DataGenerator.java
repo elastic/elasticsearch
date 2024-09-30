@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration;
@@ -13,6 +14,7 @@ import org.elasticsearch.logsdb.datageneration.fields.TopLevelObjectFieldDataGen
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Entry point of data generation logic.
@@ -33,7 +35,7 @@ public class DataGenerator {
      */
     public void writeMapping(XContentBuilder mapping) throws IOException {
         mapping.startObject().field("_doc");
-        topLevelGenerator.mappingWriter(b -> {}).accept(mapping);
+        topLevelGenerator.mappingWriter(Map.of()).accept(mapping);
         mapping.endObject();
     }
 
@@ -44,8 +46,7 @@ public class DataGenerator {
      * @param customMappingParameters writer of custom mapping parameters of top level object mapping
      * @throws IOException
      */
-    public void writeMapping(XContentBuilder mapping, CheckedConsumer<XContentBuilder, IOException> customMappingParameters)
-        throws IOException {
+    public void writeMapping(XContentBuilder mapping, Map<String, Object> customMappingParameters) throws IOException {
         mapping.startObject().field("_doc");
         topLevelGenerator.mappingWriter(customMappingParameters).accept(mapping);
         mapping.endObject();

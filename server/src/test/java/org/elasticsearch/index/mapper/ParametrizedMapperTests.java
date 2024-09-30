@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -26,8 +28,6 @@ import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -176,7 +176,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         public FieldMapper build(MapperBuilderContext context) {
-            return new TestMapper(leafName(), context.buildFullName(leafName()), multiFieldsBuilder.build(this, context), copyTo, this);
+            return new TestMapper(leafName(), context.buildFullName(leafName()), builderParams(this, context), this);
         }
     }
 
@@ -205,14 +205,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         private final DummyEnumType enumField;
         private final DummyEnumType restrictedEnumField;
 
-        protected TestMapper(
-            String simpleName,
-            String fullName,
-            MultiFields multiFields,
-            CopyTo copyTo,
-            ParametrizedMapperTests.Builder builder
-        ) {
-            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), multiFields, copyTo);
+        protected TestMapper(String simpleName, String fullName, BuilderParams builderParams, ParametrizedMapperTests.Builder builder) {
+            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), builderParams);
             this.fixed = builder.fixed.getValue();
             this.fixed2 = builder.fixed2.getValue();
             this.variable = builder.variable.getValue();
@@ -433,6 +427,28 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"field":{"type":"test_mapper","variable":"updated","required":"value"}}""", Strings.toString(noCopyTo));
     }
 
+    public void testStoredSource() {
+        String mapping = """
+            {"type":"test_mapper","variable":"foo","required":"value","synthetic_source_keep":"none"}""";
+        TestMapper mapper = fromMapping(mapping);
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
+
+        mapping = """
+            {"type":"test_mapper","variable":"foo","required":"value","synthetic_source_keep":"arrays"}""";
+        mapper = fromMapping(mapping);
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
+
+        mapping = """
+            {"type":"test_mapper","variable":"foo","required":"value","synthetic_source_keep":"all"}""";
+        mapper = fromMapping(mapping);
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
+
+        String mappingThrows = """
+            {"type":"test_mapper","variable":"foo","required":"value","synthetic_source_keep":"no-such-value"}""";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromMapping(mappingThrows));
+        assertEquals("Unknown synthetic_source_keep value [no-such-value], accepted values are [none,arrays,all]", e.getMessage());
+    }
+
     public void testNullables() {
         String mapping = """
             {"type":"test_mapper","fixed":null,"required":"value"}""";
@@ -531,37 +547,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"field":{"type":"test_mapper","fixed2":true,"required":"value"}}""", Strings.toString(mapper));
     }
 
-    /**
-     * test parsing mapping from dynamic templates, should ignore unknown parameters for bwc and log warning before 8.0.0
-     */
-    public void testBWCunknownParametersfromDynamicTemplates() {
-        String mapping = """
-            {"type":"test_mapper","some_unknown_parameter":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(
-            mapping,
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
-            TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_7_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_0_0)
-            ),
-            true
-        );
-        assertNotNull(mapper);
-        assertWarnings(
-            "Parameter [some_unknown_parameter] is used in a dynamic template mapping and has no effect on type [test_mapper]. "
-                + "Usage will result in an error in future major versions and should be removed."
-        );
-        assertEquals("""
-            {"field":{"type":"test_mapper","required":"value"}}""", Strings.toString(mapper));
-
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
-            () -> fromMapping(mapping, IndexVersions.V_8_0_0, TransportVersions.V_8_0_0, true)
-        );
-        assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
-    }
-
     public void testAnalyzers() {
         String mapping = """
             {"type":"test_mapper","analyzer":"_standard","required":"value"}""";
@@ -593,6 +578,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         );
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
     public void testDeprecatedParameters() {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = """

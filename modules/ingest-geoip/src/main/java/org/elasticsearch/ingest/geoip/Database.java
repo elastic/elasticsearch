@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
@@ -149,6 +151,29 @@ enum Database {
     private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
     private static final String ISP_DB_SUFFIX = "-ISP";
 
+    @Nullable
+    private static Database getMaxmindDatabase(final String databaseType) {
+        if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
+            return Database.City;
+        } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
+            return Database.Country;
+        } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
+            return Database.Asn;
+        } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
+            return Database.AnonymousIp;
+        } else if (databaseType.endsWith(Database.CONNECTION_TYPE_DB_SUFFIX)) {
+            return Database.ConnectionType;
+        } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
+            return Database.Domain;
+        } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
+            return Database.Enterprise;
+        } else if (databaseType.endsWith(Database.ISP_DB_SUFFIX)) {
+            return Database.Isp;
+        } else {
+            return null; // no match was found
+        }
+    }
+
     /**
      * Parses the passed-in databaseType (presumably from the passed-in databaseFile) and return the Database instance that is
      * associated with that databaseType.
@@ -160,24 +185,9 @@ enum Database {
      */
     public static Database getDatabase(final String databaseType, final String databaseFile) {
         Database database = null;
-        if (databaseType != null) {
-            if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
-                database = Database.City;
-            } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
-                database = Database.Country;
-            } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
-                database = Database.Asn;
-            } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
-                database = Database.AnonymousIp;
-            } else if (databaseType.endsWith(Database.CONNECTION_TYPE_DB_SUFFIX)) {
-                database = Database.ConnectionType;
-            } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
-                database = Database.Domain;
-            } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
-                database = Database.Enterprise;
-            } else if (databaseType.endsWith(Database.ISP_DB_SUFFIX)) {
-                database = Database.Isp;
-            }
+
+        if (Strings.hasText(databaseType)) {
+            database = getMaxmindDatabase(databaseType);
         }
 
         if (database == null) {

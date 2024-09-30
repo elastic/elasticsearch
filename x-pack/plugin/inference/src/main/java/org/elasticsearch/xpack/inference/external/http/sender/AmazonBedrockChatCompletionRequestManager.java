@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -52,7 +51,7 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 
         try {
-            requestSender.send(logger, request, HttpClientContext.create(), hasRequestCompletedFunction, responseHandler, listener);
+            requestSender.send(logger, request, hasRequestCompletedFunction, responseHandler, listener);
         } catch (Exception e) {
             var errorMessage = Strings.format(
                 "Failed to send [completion] request from inference entity id [%s]",

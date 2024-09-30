@@ -171,7 +171,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             ElserInternalService.NAME,
-            new ElserInternalServiceSettings(1, 4, ElserInternalService.ELSER_V2_MODEL, null),
+            new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null),
             ElserMlNodeTaskSettings.DEFAULT
         );
 

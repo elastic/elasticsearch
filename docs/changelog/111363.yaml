@@ -1,6 +1,0 @@
-pr: 111363
-summary: Ensure vector similarity correctly limits `inner_hits` returned for nested
-  kNN
-area: Vector Search
-type: bug
-issues: [111093]

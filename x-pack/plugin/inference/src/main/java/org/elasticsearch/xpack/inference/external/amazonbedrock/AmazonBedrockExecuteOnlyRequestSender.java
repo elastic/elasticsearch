@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -45,7 +44,6 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
     public void send(
         Logger logger,
         Request request,
-        HttpClientContext context,
         Supplier<Boolean> hasRequestTimedOutFunction,
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener

@@ -5,7 +5,7 @@
 <titleabbrev>Get follower info</titleabbrev>
 ++++
 
-Retrieves information about all follower indices.
+Retrieves information about all <<xpack-ccr,{ccr}>> follower indices.
 
 [[ccr-get-follow-info-request]]
 ==== {api-request-title}

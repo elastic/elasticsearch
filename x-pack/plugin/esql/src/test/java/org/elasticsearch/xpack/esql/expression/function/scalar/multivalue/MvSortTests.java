@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,7 +24,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MvSortTests extends AbstractScalarFunctionTestCase {
     public MvSortTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -40,6 +41,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
+        nulls(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -57,12 +59,11 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.BOOLEAN, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.BOOLEAN + "[field=Attribute[channel=0], order=true]",
+                "MvSortBoolean[field=Attribute[channel=0], order=true]",
                 DataType.BOOLEAN,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
         }));
-
     }
 
     private static void ints(List<TestCaseSupplier> suppliers) {
@@ -74,7 +75,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.INTEGER, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.INT + "[field=Attribute[channel=0], order=false]",
+                "MvSortInt[field=Attribute[channel=0], order=false]",
                 DataType.INTEGER,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
             );
@@ -90,7 +91,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.LONG, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.LONG + "[field=Attribute[channel=0], order=true]",
+                "MvSortLong[field=Attribute[channel=0], order=true]",
                 DataType.LONG,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
@@ -104,7 +105,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.DATETIME, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.LONG + "[field=Attribute[channel=0], order=false]",
+                "MvSortLong[field=Attribute[channel=0], order=false]",
                 DataType.DATETIME,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
             );
@@ -120,7 +121,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.DOUBLE + "[field=Attribute[channel=0], order=true]",
+                "MvSortDouble[field=Attribute[channel=0], order=true]",
                 DataType.DOUBLE,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
@@ -136,7 +137,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.KEYWORD, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.BYTES_REF + "[field=Attribute[channel=0], order=false]",
+                "MvSortBytesRef[field=Attribute[channel=0], order=false]",
                 DataType.KEYWORD,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
             );
@@ -150,7 +151,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.TEXT, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.BYTES_REF + "[field=Attribute[channel=0], order=true]",
+                "MvSortBytesRef[field=Attribute[channel=0], order=true]",
                 DataType.TEXT,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
@@ -164,7 +165,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.IP, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.BYTES_REF + "[field=Attribute[channel=0], order=false]",
+                "MvSortBytesRef[field=Attribute[channel=0], order=false]",
                 DataType.IP,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
             );
@@ -178,14 +179,43 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.VERSION, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
-                "MvSort" + ElementType.BYTES_REF + "[field=Attribute[channel=0], order=true]",
+                "MvSortBytesRef[field=Attribute[channel=0], order=true]",
                 DataType.VERSION,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
         }));
     }
 
+    private static void nulls(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> extra = new ArrayList<>();
+        for (TestCaseSupplier s : suppliers) {
+            extra.add(new TestCaseSupplier("null <" + s.types().get(0) + ">, <keyword>", s.types(), () -> {
+                TestCaseSupplier.TestCase delegate = s.get();
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(null, s.types().get(0), "field"), delegate.getData().get(1)),
+                    delegate.evaluatorToString(),
+                    delegate.expectedType(),
+                    nullValue()
+                );
+            }));
+        }
+        suppliers.addAll(extra);
+        suppliers.add(new TestCaseSupplier("<null>, <keyword>", List.of(DataType.NULL, DataType.KEYWORD), () -> {
+            BytesRef order = new BytesRef("ASC");
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(null, DataType.NULL, "field"),
+                    new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
+                ),
+                equalTo("LiteralsEvaluator[lit=null]"),
+                DataType.NULL,
+                nullValue()
+            );
+        }));
+    }
+
     public void testInvalidOrder() {
+        // TODO move to parameters
         String invalidOrder = randomAlphaOfLength(10);
         DriverContext driverContext = driverContext();
         IllegalArgumentException e = expectThrows(
@@ -199,10 +229,5 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
             ).get(driverContext)
         );
         assertThat(e.getMessage(), equalTo("Invalid order value in [], expected one of [ASC, DESC] but got [" + invalidOrder + "]"));
-    }
-
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("test case is invalid", false);
     }
 }

@@ -21,11 +21,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -119,8 +119,8 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
     private Optional<UpdateSettingsClusterStateUpdateRequest> createUpdateSettingsRequest(
         String indexName,
         Settings settingsToUpdate,
-        TimeValue timeout,
-        TimeValue masterTimeout,
+        TimeValue ackTimeout,
+        TimeValue masterNodeTimeout,
         ClusterState state
     ) {
         if (settingsToUpdate.isEmpty()) {
@@ -136,10 +136,14 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         }
 
         return Optional.of(
-            new UpdateSettingsClusterStateUpdateRequest().indices(new Index[] { writeIndex })
-                .settings(settingsToUpdate)
-                .ackTimeout(timeout)
-                .masterNodeTimeout(masterTimeout)
+            new UpdateSettingsClusterStateUpdateRequest(
+                masterNodeTimeout,
+                ackTimeout,
+                settingsToUpdate,
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                writeIndex
+            )
         );
     }
 

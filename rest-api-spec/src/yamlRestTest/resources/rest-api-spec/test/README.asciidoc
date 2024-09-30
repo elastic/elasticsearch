@@ -107,6 +107,10 @@ A `skip` section, on the other hand, defines certain conditions that, if met, wi
 - `features`: Only kept for a transition period, please use <<requires_test_runner_features, `test_runner_features`>>
   in the `requires` section instead.
 
+Note that `skip` with `capabilities` or `cluster_features` will skip the test if *any* node in the cluster
+has the feature or capability. `requires` will only run the test if *all* of the nodes in the cluster
+have the feature or capability.
+
 `requires` and `skip` sections must specify at least one of the options mentioned above.
 Unless only `test_runner_features` or legacy test runner `features` are specified, a `reason` must be given.
 
@@ -134,20 +138,13 @@ other test runners to skip tests if they do not support the capabilities API yet
               path: /_api
               parameters: [param1, param2]
               capabilities: [cap1, cap2]
-          test_runner_feature: [capabilities]
+          test_runner_features: [capabilities]
           reason: Capability required to run test
      - do:
        ... test definitions ...
 ....
 
 The `capabilities` field is an array containing one or several capabilities checks.
-
-*NOTE: If planning to `skip` on capabilities, keep in mind this might lead to unexpected results in _mixed cluster_
-tests!* A test is only skipped if *all* nodes support the requested capabilities, in _mixed clusters_ this might not be
-the case: such a cluster can consist of a mix of nodes where some support respective capabilities and others don't,
-additionally there might even be nodes that do not support the capabilities API at all.
-In such cases the capabilities check will *not* succeed, hence the test is *not* skipped and might randomly hit one
-of the nodes that actually support what you intended to skip on. This might then break your assumptions and fail the test.
 
 Capabilities are declared as part of an implementation of `RestHandler`.
 Override the `supportedQueryParameters` and/or the `supportedCapabilities` methods:

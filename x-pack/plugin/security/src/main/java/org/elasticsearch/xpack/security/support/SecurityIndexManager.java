@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyAction;
 import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyRequest;
@@ -55,6 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -353,16 +356,100 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     public void onStateRecovered(Consumer<State> recoveredStateConsumer) {
-        BiConsumer<State, State> stateChangeListener = (previousState, nextState) -> {
-            boolean stateJustRecovered = previousState == UNRECOVERED_STATE && nextState != UNRECOVERED_STATE;
-            boolean stateAlreadyRecovered = previousState != UNRECOVERED_STATE;
-            if (stateJustRecovered) {
-                recoveredStateConsumer.accept(nextState);
-            } else if (stateAlreadyRecovered) {
-                stateChangeListeners.remove(this);
+        BiConsumer<State, State> stateChangeListener = new BiConsumer<>() {
+            @Override
+            public void accept(State previousState, State nextState) {
+                boolean stateJustRecovered = previousState == UNRECOVERED_STATE && nextState != UNRECOVERED_STATE;
+                boolean stateAlreadyRecovered = previousState != UNRECOVERED_STATE;
+                if (stateJustRecovered) {
+                    recoveredStateConsumer.accept(nextState);
+                } else if (stateAlreadyRecovered) {
+                    stateChangeListeners.remove(this);
+                }
             }
         };
         stateChangeListeners.add(stateChangeListener);
+    }
+
+    /**
+     * Waits up to {@code timeout} for the security index to become available for search, based on cluster state updates.
+     * Notifies {@code listener} once the security index is available, or calls {@code onFailure} on {@code timeout}.
+     */
+    public void onIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
+        logger.info("Will wait for security index [{}] for [{}] to become available for search", getConcreteIndexName(), timeout);
+
+        if (state.indexAvailableForSearch) {
+            logger.debug("Security index [{}] is already available", getConcreteIndexName());
+            listener.onResponse(null);
+            return;
+        }
+
+        final AtomicBoolean isDone = new AtomicBoolean(false);
+        final var indexAvailableForSearchListener = new StateConsumerWithCancellable() {
+            @Override
+            public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
+                if (nextState.indexAvailableForSearch) {
+                    if (isDone.compareAndSet(false, true)) {
+                        cancel();
+                        removeStateListener(this);
+                        listener.onResponse(null);
+                    }
+                }
+            }
+        };
+        // add listener _before_ registering timeout -- this way we are guaranteed it gets removed (either by timeout below, or successful
+        // completion above)
+        addStateListener(indexAvailableForSearchListener);
+
+        // schedule failure handling on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
+        indexAvailableForSearchListener.setCancellable(client.threadPool().schedule(() -> {
+            if (isDone.compareAndSet(false, true)) {
+                removeStateListener(indexAvailableForSearchListener);
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "timed out waiting for security index [" + getConcreteIndexName() + "] to become available for search"
+                    )
+                );
+            }
+        }, timeout, client.threadPool().generic()));
+    }
+
+    // pkg-private for testing
+    List<BiConsumer<State, State>> getStateChangeListeners() {
+        return stateChangeListeners;
+    }
+
+    /**
+     * This class ensures that if cancel() is called _before_ setCancellable(), the passed-in cancellable is still correctly cancelled on
+     * a subsequent setCancellable() call.
+     */
+    // pkg-private for testing
+    abstract static class StateConsumerWithCancellable
+        implements
+            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State>,
+            Scheduler.Cancellable {
+        private volatile Scheduler.ScheduledCancellable cancellable;
+        private volatile boolean cancelled = false;
+
+        void setCancellable(Scheduler.ScheduledCancellable cancellable) {
+            this.cancellable = cancellable;
+            if (cancelled) {
+                cancel();
+            }
+        }
+
+        public boolean cancel() {
+            cancelled = true;
+            if (cancellable != null) {
+                // cancellable is idempotent, so it's fine to potentially call it multiple times
+                return cancellable.cancel();
+            }
+            return isCancelled();
+        }
+
+        public boolean isCancelled() {
+            return cancelled;
+        }
     }
 
     private Tuple<Boolean, Boolean> checkIndexAvailable(ClusterState state) {
@@ -781,6 +868,42 @@ public class SecurityIndexManager implements ClusterStateListener {
                 securityFeatures,
                 indexedReservedRolesVersionMap
             );
+        }
+
+        @Override
+        public String toString() {
+            return "State{"
+                + "creationTime="
+                + creationTime
+                + ", isIndexUpToDate="
+                + isIndexUpToDate
+                + ", indexAvailableForSearch="
+                + indexAvailableForSearch
+                + ", indexAvailableForWrite="
+                + indexAvailableForWrite
+                + ", mappingUpToDate="
+                + mappingUpToDate
+                + ", createdOnLatestVersion="
+                + createdOnLatestVersion
+                + ", migrationsVersion="
+                + migrationsVersion
+                + ", minClusterMappingVersion="
+                + minClusterMappingVersion
+                + ", indexMappingVersion="
+                + indexMappingVersion
+                + ", concreteIndexName='"
+                + concreteIndexName
+                + '\''
+                + ", indexHealth="
+                + indexHealth
+                + ", indexState="
+                + indexState
+                + ", indexUUID='"
+                + indexUUID
+                + '\''
+                + ", securityFeatures="
+                + securityFeatures
+                + '}';
         }
     }
 }

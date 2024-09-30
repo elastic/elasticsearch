@@ -1,6 +1,0 @@
-pr: 107862
-summary: Fix serialization of put-shutdown request
-area: Infra/Node Lifecycle
-type: bug
-issues:
- - 107857

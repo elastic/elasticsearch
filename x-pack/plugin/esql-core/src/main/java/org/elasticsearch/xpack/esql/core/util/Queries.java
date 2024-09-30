@@ -50,7 +50,7 @@ public class Queries {
             if (firstQuery == null) {
                 firstQuery = query;
                 if (firstQuery instanceof BoolQueryBuilder bqb) {
-                    bool = bqb;
+                    bool = bqb.shallowCopy();
                 }
             }
             // at least two entries, start copying

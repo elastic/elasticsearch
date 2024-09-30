@@ -44,6 +44,18 @@ teardown:
                     '_id': 'id3'
                   - '_index': 'test-index2'
                     '_id': 'id4'
+            - rule_id: query-rule-id3
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ logstash ]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'id4'
+                  - '_index': 'test-index2'
+                    '_id': 'id5'
 
   - match: { result: 'created' }
 
@@ -75,6 +87,18 @@ teardown:
                 '_id': 'id3'
               - '_index': 'test-index2'
                 '_id': 'id4'
+        - rule_id: query-rule-id3
+          type: exclude
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ logstash ]
+          actions:
+            docs:
+              - '_index': 'test-index1'
+                '_id': 'id4'
+              - '_index': 'test-index2'
+                '_id': 'id5'
 
 ---
 'Create Query Ruleset - Resource already exists':

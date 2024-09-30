@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -11,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -18,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -30,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -61,7 +65,8 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -87,6 +92,7 @@ import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -116,6 +122,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
+    private final FailureStoreMetrics failureStoreMetrics;
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
 
@@ -189,7 +196,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        DocumentParsingProvider documentParsingProvider
+        DocumentParsingProvider documentParsingProvider,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -211,6 +219,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
+        this.failureStoreMetrics = failureStoreMetrics;
     }
 
     /**
@@ -227,6 +236,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.taskQueue = ingestService.taskQueue;
         this.pipelines = ingestService.pipelines;
         this.state = ingestService.state;
+        this.failureStoreMetrics = ingestService.failureStoreMetrics;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -261,26 +271,55 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IndexRequest indexRequest,
         final Metadata metadata
     ) {
-        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, Map.of());
+    }
+
+    public static void resolvePipelinesAndUpdateIndexRequest(
+        final DocWriteRequest<?> originalRequest,
+        final IndexRequest indexRequest,
+        final Metadata metadata,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions
+    ) {
+        resolvePipelinesAndUpdateIndexRequest(
+            originalRequest,
+            indexRequest,
+            metadata,
+            System.currentTimeMillis(),
+            componentTemplateSubstitutions
+        );
     }
 
     static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,
-        final long epochMillis
+        final long epochMillis,
+        final Map<String, ComponentTemplate> componentTemplateSubstitutions
     ) {
         if (indexRequest.isPipelineResolved()) {
             return;
         }
 
-        String requestPipeline = indexRequest.getPipeline();
-
-        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
-            .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata))
-            .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        /*
+         * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
+         * templates to find the pipelines. But if a user has passed in component template substitutions, they want the settings from those
+         * used in place of the settings used to create any previous indices. So in that case we use the templates to find the pipelines --
+         * we don't fall back to the existing index if we don't find any because it is possible the user has intentionally removed the
+         * pipeline.
+         */
+        final Pipelines pipelines;
+        if (componentTemplateSubstitutions.isEmpty()) {
+            pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
+                .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata, Map.of()))
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        } else {
+            pipelines = resolvePipelinesFromIndexTemplates(indexRequest, metadata, componentTemplateSubstitutions).orElse(
+                Pipelines.NO_PIPELINES_DEFINED
+            );
+        }
 
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
+        String requestPipeline = indexRequest.getPipeline();
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {
@@ -315,16 +354,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final DeletePipelineRequest request;
 
-        DeletePipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeletePipelineRequest request) {
+        public DeletePipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeletePipelineRequest request) {
             super(listener);
             this.request = request;
-        }
-
-        /**
-         * Used by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
-         */
-        public DeletePipelineClusterStateUpdateTask(String id) {
-            this(null, new DeletePipelineRequest(id));
         }
 
         @Override
@@ -690,7 +722,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param actionRequests The collection of requests to be processed.
      * @param onDropped A callback executed when a document is dropped by a pipeline.
      *                  Accepts the slot in the collection of requests that the document occupies.
-     * @param shouldStoreFailure A predicate executed on each ingest failure to determine if the
+     * @param resolveFailureStore A function executed on each ingest failure to determine if the
      *                           failure should be stored somewhere.
      * @param onStoreFailure A callback executed when a document fails ingest but the failure should
      *                       be persisted elsewhere. Accepts the slot in the collection of requests
@@ -708,7 +740,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final int numberOfActionRequests,
         final Iterable<DocWriteRequest<?>> actionRequests,
         final IntConsumer onDropped,
-        final Predicate<String> shouldStoreFailure,
+        final Function<String, Boolean> resolveFailureStore,
         final TriConsumer<Integer, String, Exception> onStoreFailure,
         final BiConsumer<Integer, Exception> onFailure,
         final BiConsumer<Thread, Exception> onCompletion,
@@ -750,8 +782,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(indexRequest);
-                        final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentSizeObserver);
+                        final XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(
+                            indexRequest
+                        );
+                        final IngestDocument ingestDocument = newIngestDocument(indexRequest, meteringParserDecorator);
                         final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
@@ -791,8 +825,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             }
                         );
 
-                        executePipelines(pipelines, indexRequest, ingestDocument, shouldStoreFailure, documentListener);
-                        indexRequest.setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
+                        executePipelines(pipelines, indexRequest, ingestDocument, resolveFailureStore, documentListener);
+                        indexRequest.setNormalisedBytesParsed(meteringParserDecorator.meteredDocumentSize().ingestedBytes());
                         assert actionRequest.index() != null;
 
                         i++;
@@ -882,7 +916,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
-        final Predicate<String> shouldStoreFailure,
+        final Function<String, Boolean> resolveFailureStore,
         final ActionListener<IngestPipelinesExecutionResult> listener
     ) {
         assert pipelines.hasNext();
@@ -895,9 +929,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ingestDocument.resetReroute();
         final String originalIndex = indexRequest.indices()[0];
         final Consumer<Exception> exceptionHandler = (Exception e) -> {
-            if (shouldStoreFailure.test(originalIndex)) {
+            String errorType = ElasticsearchException.getExceptionName(ExceptionsHelper.unwrapCause(e));
+            // If `failureStoreResolution` is true, we store the failure. If it's false, the target is a data stream,
+            // but it doesn't have the failure store enabled. If it's null, the target wasn't a data stream.
+            Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
+            if (failureStoreResolution != null && failureStoreResolution) {
+                failureStoreMetrics.incrementFailureStore(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE);
                 listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
             } else {
+                if (failureStoreResolution != null) {
+                    // If this document targeted a data stream that didn't have the failure store enabled, we increment
+                    // the rejected counter.
+                    // We also increment the total counter because this request will not reach the code that increments
+                    // the total counter for non-rejected documents.
+                    failureStoreMetrics.incrementTotal(originalIndex);
+                    failureStoreMetrics.incrementRejected(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE, false);
+                }
                 listener.onFailure(e);
             }
         };
@@ -925,6 +972,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (keep == false) {
+                    // We only increment the total counter for dropped docs here, because these docs don't reach the code
+                    // that ordinarily take care of that.
+                    // We reuse `resolveFailureStore` here to determine whether the index request targets a data stream,
+                    // because we only want to track these metrics for data streams.
+                    Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
+                    if (failureStoreResolution != null) {
+                        // Get index abstraction, resolving date math if it exists
+                        IndexAbstraction indexAbstraction = state.metadata()
+                            .getIndicesLookup()
+                            .get(IndexNameExpressionResolver.resolveDateMathExpression(originalIndex, threadPool.absoluteTimeInMillis()));
+                        DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, state.metadata());
+                        String dataStreamName = dataStream != null ? dataStream.getName() : originalIndex;
+                        failureStoreMetrics.incrementTotal(dataStreamName);
+                    }
                     listener.onResponse(IngestPipelinesExecutionResult.DISCARD_RESULT);
                     return; // document dropped!
                 }
@@ -941,14 +1002,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include more details
                     exceptionHandler.accept(
-                        new IllegalArgumentException(
-                            format(
-                                "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
-                                pipelineId,
-                                indexRequest.index(),
-                                indexRequest.id()
-                            ),
-                            ex
+                        new IngestPipelineException(
+                            pipelineId,
+                            new IllegalArgumentException(
+                                format(
+                                    "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
+                                    pipelineId,
+                                    indexRequest.index(),
+                                    indexRequest.id()
+                                ),
+                                ex
+                            )
                         )
                     );
                     return; // document failed!
@@ -960,14 +1024,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     // final pipelines cannot change the target index (either directly or by way of a reroute)
                     if (isFinalPipeline) {
+                        logger.info("Service stack: [{}]", ingestDocument.getPipelineStack());
                         exceptionHandler.accept(
-                            new IllegalStateException(
-                                format(
-                                    "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
-                                    pipelineId,
-                                    originalIndex,
-                                    newIndex,
-                                    indexRequest.id()
+                            new IngestPipelineException(
+                                pipelineId,
+                                new IllegalStateException(
+                                    format(
+                                        "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
+                                        pipelineId,
+                                        originalIndex,
+                                        newIndex,
+                                        indexRequest.id()
+                                    )
                                 )
                             )
                         );
@@ -980,12 +1048,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         List<String> indexCycle = new ArrayList<>(ingestDocument.getIndexHistory());
                         indexCycle.add(newIndex);
                         exceptionHandler.accept(
-                            new IllegalStateException(
-                                format(
-                                    "index cycle detected while processing pipeline [%s] for document [%s]: %s",
-                                    pipelineId,
-                                    indexRequest.id(),
-                                    indexCycle
+                            new IngestPipelineException(
+                                pipelineId,
+                                new IllegalStateException(
+                                    format(
+                                        "index cycle detected while processing pipeline [%s] for document [%s]: %s",
+                                        pipelineId,
+                                        indexRequest.id(),
+                                        indexCycle
+                                    )
                                 )
                             )
                         );
@@ -1006,7 +1077,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, shouldStoreFailure, listener);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);
@@ -1094,14 +1165,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentSizeObserver documentSizeObserver) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, XContentParserDecorator parserDecorator) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(documentSizeObserver)
+            request.sourceAsMap(parserDecorator)
         );
     }
 
@@ -1395,7 +1466,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
     }
 
-    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadata) {
+    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(
+        IndexRequest indexRequest,
+        Metadata metadata,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions
+    ) {
         if (indexRequest.index() == null) {
             return Optional.empty();
         }
@@ -1405,7 +1480,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // precedence), or if a V2 template does not match, any V1 templates
         String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
         if (v2Template != null) {
-            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template, componentTemplateSubstitutions);
             return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
         }
 

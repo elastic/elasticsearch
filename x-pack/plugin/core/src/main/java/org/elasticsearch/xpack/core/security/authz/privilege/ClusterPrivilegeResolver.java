@@ -399,11 +399,11 @@ public class ClusterPrivilegeResolver {
     );
     public static final NamedClusterPrivilege MONITOR_GLOBAL_RETENTION = new ActionClusterPrivilege(
         "monitor_data_stream_global_retention",
-        Set.of("cluster:monitor/data_stream/global_retention/*")
+        Set.of()
     );
     public static final NamedClusterPrivilege MANAGE_GLOBAL_RETENTION = new ActionClusterPrivilege(
         "manage_data_stream_global_retention",
-        Set.of("cluster:admin/data_stream/global_retention/*", "cluster:monitor/data_stream/global_retention/*")
+        Set.of()
     );
 
     /**

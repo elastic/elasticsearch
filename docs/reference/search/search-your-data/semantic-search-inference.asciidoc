@@ -9,14 +9,19 @@ The instructions in this tutorial shows you how to use the {infer} API workflow 
 
 IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
 
-The following examples use Cohere's `embed-english-v3.0` model, the `all-mpnet-base-v2` model from HuggingFace, and OpenAI's `text-embedding-ada-002` second generation embedding model.
+The following examples use the:
+
+* `embed-english-v3.0` model for https://docs.cohere.com/docs/cohere-embed[Cohere]
+* `all-mpnet-base-v2` model from https://huggingface.co/sentence-transformers/all-mpnet-base-v2[HuggingFace]
+* `text-embedding-ada-002` second generation embedding model for OpenAI
+* models available through https://ai.azure.com/explore/models?selectedTask=embeddings[Azure AI Studio] or https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models[Azure OpenAI]
+* `text-embedding-004` model for https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api[Google Vertex AI]
+* `mistral-embed` model for https://docs.mistral.ai/getting-started/models/[Mistral]
+* `amazon.titan-embed-text-v1` model for https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[Amazon Bedrock]
+* `ops-text-embedding-zh-001` model for https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[AlibabaCloud AI]
+
 You can use any Cohere and OpenAI models, they are all supported by the {infer} API.
 For a list of recommended models available on HuggingFace, refer to <<inference-example-hugging-face-supported-models, the supported model list>>.
-
-Azure based examples use models available through https://ai.azure.com/explore/models?selectedTask=embeddings[Azure AI Studio]
-or https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models[Azure OpenAI].
-Mistral examples use the `mistral-embed` model from https://docs.mistral.ai/getting-started/models/[the Mistral API].
-Amazon Bedrock examples use the `amazon.titan-embed-text-v1` model from https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[the Amazon Bedrock base models].
 
 Click the name of the service you want to use on any of the widgets below to review the corresponding instructions.
 
@@ -33,6 +38,7 @@ include::{es-ref-dir}/tab-widgets/inference-api/infer-api-requirements-widget.as
 Create an {infer} endpoint by using the <<put-inference-api>>:
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-task-widget.asciidoc[]
+
 
 [discrete]
 [[infer-service-mappings]]
@@ -62,19 +68,19 @@ It consists of 200 queries, each accompanied by a list of relevant text passages
 All unique passages, along with their IDs, have been extracted from that data set and compiled into a
 https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
 
-Download the file and upload it to your cluster using the
-{kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer]
-in the {ml-app} UI.
-Assign the name `id` to the first column and `content` to the second column.
-The index name is `test-data`.
-Once the upload is complete, you can see an index named `test-data` with 182469 documents.
+Download the file and upload it to your cluster using the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer] in the {ml-app} UI.
+After your data is analyzed, click **Override settings**.
+Under **Edit field names**, assign `id` to the first column and `content` to the second.
+Click **Apply**, then **Import**.
+Name the index `test-data`, and click **Import**.
+After the upload is complete, you will see an index named `test-data` with 182,469 documents.
 
 [discrete]
 [[reindexing-data-infer]]
 ==== Ingest the data through the {infer} ingest pipeline
 
-Create the embeddings from the text by reindexing the data through the {infer}
-pipeline that uses the chosen model as the inference model.
+Create embeddings from the text by reindexing the data through the {infer} pipeline that uses your chosen model.
+This step uses the {ref}/docs-reindex.html[reindex API] to simulate data ingestion through a pipeline.
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-reindex-widget.asciidoc[]
 
@@ -86,7 +92,10 @@ GET _tasks/<task_id>
 ----
 // TEST[skip:TBD]
 
-You can also cancel the reindexing process if you don't want to wait until the reindexing process is fully complete which might take hours for large data sets:
+Reindexing large datasets can take a long time.
+You can test this workflow using only a subset of the dataset.
+Do this by cancelling the reindexing process, and only generating embeddings for the subset that was reindexed.
+The following API request will cancel the reindexing task:
 
 [source,console]
 ----
@@ -113,5 +122,6 @@ include::{es-ref-dir}/tab-widgets/inference-api/infer-api-search-widget.asciidoc
 
 You can also find tutorials in an interactive Colab notebook format using the
 {es} Python client:
+
 * https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/integrations/cohere/inference-cohere.ipynb[Cohere {infer} tutorial notebook]
 * https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/search/07-inference.ipynb[OpenAI {infer} tutorial notebook]

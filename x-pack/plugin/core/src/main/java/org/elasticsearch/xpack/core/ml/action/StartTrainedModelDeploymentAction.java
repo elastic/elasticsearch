@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -120,14 +119,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 ObjectParser.ValueType.VALUE
             );
             PARSER.declareString(Request::setPriority, PRIORITY);
-            if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
-                PARSER.declareObjectOrNull(
-                    Request::setAdaptiveAllocationsSettings,
-                    (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
-                    null,
-                    ADAPTIVE_ALLOCATIONS
-                );
-            }
+            PARSER.declareObjectOrNull(
+                Request::setAdaptiveAllocationsSettings,
+                (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
+                null,
+                ADAPTIVE_ALLOCATIONS
+            );
         }
 
         public static Request parseRequest(String modelId, String deploymentId, XContentParser parser) {
@@ -357,7 +354,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 if (numberOfAllocations < 1) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
-                if (adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled()) {
+                if (adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
                     validationException.addValidationError(
                         "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
                     );

@@ -1,5 +1,0 @@
-pr: 109967
-summary: Default the HF service to cosine similarity
-area: Machine Learning
-type: enhancement
-issues: []

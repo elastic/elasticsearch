@@ -46,9 +46,8 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, true),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, true),
-            // Lower values for strings, as they take more space and may trigger the circuit breaker
-            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows

@@ -15,7 +15,7 @@ Updates certain properties of an {anomaly-job}.
 [[ml-update-job-prereqs]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 [[ml-update-job-path-parms]]
@@ -51,7 +51,7 @@ You can update the `analysis_limits` only while the job is closed.
 [%collapsible%open]
 ====
 `model_memory_limit`:::
-(long or string) 
+(long or string)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 +
 --
@@ -61,8 +61,8 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 determine the current usage, refer to the `model_bytes` value in
 the <<ml-get-job-stats,get job stats>> API.
 * If the `memory_status` property in the
-<<modelsizestats,`model_size_stats` object>> has a value of 
-`hard_limit`, this means that it was unable to process some data. You might want 
+<<modelsizestats,`model_size_stats` object>> has a value of
+`hard_limit`, this means that it was unable to process some data. You might want
 to re-run the job with an increased `model_memory_limit`.
 =======
 --
@@ -110,6 +110,21 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules]
 `actions`:::
 (array)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
+
+//Begin analysis_config.detectors.custom_rules.params
+`params`:::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-params]
++
+.Properties of `params`
+[%collapsible%open]
+=======
+[[force-time-shift-params]]
+`force_time_shift`::::
+(object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-params-force-time-shift]
+=======
+//End analysis_config.detectors.custom_rules.params
 
 // Begin detectors.custom_rules.conditions
 `conditions`:::

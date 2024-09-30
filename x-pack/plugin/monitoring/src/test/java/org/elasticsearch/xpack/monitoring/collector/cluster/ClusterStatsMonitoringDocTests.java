@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.RepositoryUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -77,6 +78,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -420,6 +422,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
         when(mockNodeResponse.searchUsageStats()).thenReturn(new SearchUsageStats());
+        when(mockNodeResponse.repositoryUsageStats()).thenReturn(RepositoryUsageStats.EMPTY);
 
         final Metadata metadata = testClusterState.metadata();
         final ClusterStatsResponse clusterStatsResponse = new ClusterStatsResponse(
@@ -431,7 +434,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             MappingStats.of(metadata, () -> {}),
             AnalysisStats.of(metadata, () -> {}),
             VersionStats.of(metadata, singletonList(mockNodeResponse)),
-            ClusterSnapshotStats.EMPTY
+            ClusterSnapshotStats.EMPTY,
+            null
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -461,7 +465,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current(),
             apmIndicesExist };
-        final String expectedJson = Strings.format("""
+        final String expectedJson = """
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-07T12:03:22.133Z",
@@ -533,7 +537,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   "fielddata": {
                     "memory_size_in_bytes": 1,
                     "evictions": 0,
-                    "global_ordinals":{"build_time_in_millis":1}
+                    "global_ordinals": {
+                      "build_time_in_millis": 1
+                    }
                   },
                   "query_cache": {
                     "memory_size_in_bytes": 0,
@@ -563,9 +569,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "file_sizes": {}
                   },
                   "mappings": {
-                    "total_field_count" : 0,
-                    "total_deduplicated_field_count" : 0,
-                    "total_deduplicated_mapping_size_in_bytes" : 0,
+                    "total_field_count": 0,
+                    "total_deduplicated_field_count": 0,
+                    "total_deduplicated_mapping_size_in_bytes": 0,
                     "field_types": [],
                     "runtime_field_types": []
                   },
@@ -581,11 +587,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "synonyms": {}
                   },
                   "versions": [],
-                  "search" : {
-                    "total" : 0,
-                    "queries" : {},
-                    "rescorers" : {},
-                    "sections" : {}
+                  "search": {
+                    "total": 0,
+                    "queries": {},
+                    "rescorers": {},
+                    "sections": {}
                   },
                   "dense_vector": {
                     "value_count": 0
@@ -749,7 +755,45 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "cleanups": 0
                   },
                   "repositories": {}
-                }
+                },
+                "repositories": {}""";
+
+        final String ccsOutput = """
+                ,
+                "ccs": {
+                    "_search": {
+                        "total": 0,
+                        "success": 0,
+                        "skipped": 0,
+                        "took": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "took_mrt_true": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "took_mrt_false": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "remotes_per_search_max": 0,
+                        "remotes_per_search_avg": 0.0,
+                        "failure_reasons": {
+                        },
+                        "features": {
+                        },
+                        "clients": {
+                        },
+                        "clusters": {}
+                    }
+                  }
+            """;
+
+        final String suffixJson = """
               },
               "cluster_state": {
                 "nodes_hash": 1314980060,
@@ -802,8 +846,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 }
               }
-            }""", args);
-        assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
+            }""";
+        assertEquals(
+            stripWhitespace(Strings.format(expectedJson + (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? ccsOutput : "") + suffixJson, args)),
+            xContent.utf8ToString()
+        );
     }
 
     private DiscoveryNode masterNode() {

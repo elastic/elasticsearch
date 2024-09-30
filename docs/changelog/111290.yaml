@@ -1,5 +1,0 @@
-pr: 111290
-summary: Fix enrich policy runner exception handling on empty segments response
-area: Ingest Node
-type: bug
-issues: []

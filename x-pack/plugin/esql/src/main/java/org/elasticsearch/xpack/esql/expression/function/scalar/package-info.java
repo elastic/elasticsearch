@@ -120,15 +120,17 @@
  *         Rerun the {@code CsvTests}. They should find your function and maybe even pass. Add a
  *         few more tests in the csv-spec tests. They run quickly so it isn't a big deal having
  *         half a dozen of them per function. In fact, it's useful to add more complex combinations
- *         of things here, just to catch any accidental strange interactions. For example, it is
- *         probably a good idea to have your function passes as a parameter to another function
+ *         of things here, just to catch any accidental strange interactions. For example, have
+ *         your function take its input from an index like {@code FROM employees | EVAL foo=MY_FUNCTION(emp_no)}.
+ *         It's probably a good idea to have your function passed as a parameter to another function
  *         like {@code EVAL foo=MOST(0, MY_FUNCTION(emp_no))}. And likely useful to try the reverse
  *         like {@code EVAL foo=MY_FUNCTION(MOST(languages + 10000, emp_no)}.
  *     </li>
  *     <li>
  *         Now it's time to make a unit test! The infrastructure for these is under some flux at
- *         the moment, but it's good to extend from {@code AbstractScalarFunctionTestCase}. All of
+ *         the moment, but it's good to extend {@code AbstractScalarFunctionTestCase}. All of
  *         these tests are parameterized and expect to spend some time finding good parameters.
+ *         Also add serialization tests that extend {@code AbstractExpressionSerializationTests<>}.
  *     </li>
  *     <li>
  *         Once you are happy with the tests run the auto formatter:

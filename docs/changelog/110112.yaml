@@ -1,5 +1,0 @@
-pr: 110112
-summary: Increase response size limit for batched requests
-area: Machine Learning
-type: bug
-issues: []

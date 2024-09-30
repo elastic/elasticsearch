@@ -1,6 +1,0 @@
-pr: 111366
-summary: "[Inference API] Replace `model_id` with `inference_id` in inference API\
-  \ except when stored"
-area: Machine Learning
-type: bug
-issues: []

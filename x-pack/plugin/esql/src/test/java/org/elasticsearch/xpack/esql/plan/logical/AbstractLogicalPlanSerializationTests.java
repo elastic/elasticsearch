@@ -11,11 +11,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerialiationTests;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerializationTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,22 +26,18 @@ public abstract class AbstractLogicalPlanSerializationTests<T extends LogicalPla
             // TODO more random options
             return LookupSerializationTests.randomLookup(depth + 1);
         }
-        // TODO more random options
-        return LocalRelationSerialiationTests.randomLocalRelation();
-    }
-
-    public static List<Attribute> randomFieldAttributes(int min, int max, boolean onlyRepresentable) {
-        return randomList(min, max, () -> FieldAttributeTests.createFieldAttribute(0, onlyRepresentable));
+        return randomBoolean() ? EsRelationSerializationTests.randomEsRelation() : LocalRelationSerializationTests.randomLocalRelation();
     }
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(LogicalPlan.getNamedWriteables());
+        entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(Expression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(EsField.getNamedWriteables());
         entries.addAll(Block.getNamedWriteables());
+        entries.addAll(NamedExpression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 

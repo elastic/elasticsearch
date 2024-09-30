@@ -41,6 +41,9 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
     FloatBlock filter(int... positions);
 
     @Override
+    FloatBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override

@@ -195,7 +195,13 @@ GET /_xpack/usage
         }
       }
     },
-    "node_count" : 1
+    "node_count" : 1,
+    "memory": {
+      anomaly_detectors_memory_bytes: 0,
+      data_frame_analytics_memory_bytes: 0,
+      pytorch_inference_memory_bytes: 0,
+      total_used_memory_bytes: 0
+    }
   },
   "inference": {
     "available" : true,
@@ -377,10 +383,19 @@ GET /_xpack/usage
     "enabled": true,
     "count": 0,
     "default_rollover_used": true,
-    "retention": {
-        "minimum_millis": 0,
-        "maximum_millis": 0,
-        "average_millis": 0.0
+    "data_retention": {
+      "configured_data_streams": 0
+    },
+    "effective_retention": {
+      "retained_data_streams": 0
+    },
+    "global_retention": {
+      "default": {
+        "defined": false
+      },
+      "max": {
+        "defined": false
+      }
     }
   },
   "data_tiers" : {

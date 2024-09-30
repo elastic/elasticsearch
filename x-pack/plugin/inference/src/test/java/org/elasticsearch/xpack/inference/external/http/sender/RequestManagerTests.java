@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -47,7 +46,6 @@ public class RequestManagerTests {
             requestSender.send(
                 mock(Logger.class),
                 RequestTests.mockRequest(inferenceEntityId),
-                HttpClientContext.create(),
                 () -> false,
                 mock(ResponseHandler.class),
                 listener

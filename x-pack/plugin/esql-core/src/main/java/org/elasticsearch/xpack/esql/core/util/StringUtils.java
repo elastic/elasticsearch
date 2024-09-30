@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,7 +28,6 @@ import java.util.Locale;
 import java.util.StringJoiner;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong;
 
@@ -378,10 +378,8 @@ public final class StringUtils {
     }
 
     public static Tuple<String, String> splitQualifiedIndex(String indexName) {
-        int separatorOffset = indexName.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
-        return separatorOffset > 0
-            ? Tuple.tuple(indexName.substring(0, separatorOffset), indexName.substring(separatorOffset + 1))
-            : Tuple.tuple(null, indexName);
+        String[] split = RemoteClusterAware.splitIndexName(indexName);
+        return Tuple.tuple(split[0], split[1]);
     }
 
     public static String qualifyAndJoinIndices(String cluster, String[] indices) {
@@ -393,25 +391,46 @@ public final class StringUtils {
     }
 
     public static boolean isQualified(String indexWildcard) {
-        return indexWildcard.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+        return RemoteClusterAware.isRemoteIndexName(indexWildcard);
     }
 
     public static boolean isInteger(String value) {
         for (char c : value.trim().toCharArray()) {
-            if (Character.isDigit(c) == false) {
+            if (isDigit(c) == false) {
                 return false;
             }
         }
         return true;
     }
 
+    private static boolean isLetter(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    }
+
+    private static boolean isDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
+    private static boolean isUnderscore(char c) {
+        return c == '_';
+    }
+
+    private static boolean isLetterOrDigitOrUnderscore(char c) {
+        return isLetter(c) || isDigit(c) || isUnderscore(c);
+    }
+
+    private static boolean isLetterOrUnderscore(char c) {
+        return isLetter(c) || isUnderscore(c);
+    }
+
     public static boolean isValidParamName(String value) {
-        // A valid name starts with a letter and contain only letter, digit or _
-        if (Character.isLetter(value.charAt(0)) == false) {
+        // A valid name starts with a letter or _
+        if (isLetterOrUnderscore(value.charAt(0)) == false) {
             return false;
         }
-        for (char c : value.trim().toCharArray()) {
-            if (Character.isLetterOrDigit(c) == false && c != '_') {
+        // contain only letter, digit or _
+        for (char c : value.toCharArray()) {
+            if (isLetterOrDigitOrUnderscore(c) == false) {
                 return false;
             }
         }

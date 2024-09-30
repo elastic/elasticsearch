@@ -19,10 +19,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +47,8 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest,
     TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse,
     TransportSearchableSnapshotsNodeCachesStatsAction.NodeRequest,
-    TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse> {
+    TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse,
+    Void> {
 
     public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/stats";
 

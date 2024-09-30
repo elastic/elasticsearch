@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
@@ -31,7 +33,6 @@ import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
 import org.gradle.internal.jvm.inspection.JvmMetadataDetector;
 import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
-import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
@@ -50,7 +51,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -97,9 +97,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
-        Optional<File> selectedRuntimeJavaHome = findRuntimeJavaHome();
-        File actualRuntimeJavaHome = selectedRuntimeJavaHome.orElse(Jvm.current().getJavaHome());
-        boolean isRuntimeJavaHomeSet = selectedRuntimeJavaHome.isPresent();
+        Provider<File> explicitRuntimeJavaHome = findRuntimeJavaHome();
+        boolean isExplicitRuntimeJavaHomeSet = explicitRuntimeJavaHome.isPresent();
+        Provider<File> actualRuntimeJavaHome = isExplicitRuntimeJavaHomeSet
+            ? explicitRuntimeJavaHome
+            : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
 
         GitInfo gitInfo = GitInfo.gitInfo(project.getRootDir());
 
@@ -107,16 +109,22 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.reset();
             params.setRuntimeJavaHome(actualRuntimeJavaHome);
             params.setJavaToolChainSpec(resolveToolchainSpecFromEnv());
+            Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
+                runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
+            );
             params.setRuntimeJavaVersion(
-                determineJavaVersion(
-                    "runtime java.home",
-                    actualRuntimeJavaHome,
-                    isRuntimeJavaHomeSet ? minimumRuntimeVersion : Jvm.current().getJavaVersion()
+                actualRuntimeJavaHome.map(
+                    javaHome -> determineJavaVersion(
+                        "runtime java.home",
+                        javaHome,
+                        isExplicitRuntimeJavaHomeSet
+                            ? minimumRuntimeVersion
+                            : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
+                    )
                 )
             );
-            params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeSet);
-            JvmInstallationMetadata runtimeJdkMetaData = metadataDetector.getMetadata(getJavaInstallation(actualRuntimeJavaHome));
-            params.setRuntimeJavaDetails(formatJavaVendorDetails(runtimeJdkMetaData));
+            params.setIsRuntimeJavaHomeSet(isExplicitRuntimeJavaHomeSet);
+            params.setRuntimeJavaDetails(runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)));
             params.setJavaVersions(getAvailableJavaVersions());
             params.setMinimumCompilerVersion(minimumCompilerVersion);
             params.setMinimumRuntimeVersion(minimumRuntimeVersion);
@@ -299,28 +307,30 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private Optional<File> findRuntimeJavaHome() {
+    private Provider<File> findRuntimeJavaHome() {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
-            return Optional.of(resolveJavaHomeFromToolChainService(runtimeJavaProperty));
+            return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
         }
-        String env = System.getenv("RUNTIME_JAVA_HOME");
-        if (env != null) {
-            return Optional.of(new File(env));
+        if (System.getenv("RUNTIME_JAVA_HOME") != null) {
+            return providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME")));
         }
         // fall back to tool chain if set.
-        env = System.getenv("JAVA_TOOLCHAIN_HOME");
-        return env == null ? Optional.empty() : Optional.of(new File(env));
+        String env = System.getenv("JAVA_TOOLCHAIN_HOME");
+        return providers.provider(() -> {
+            if (env == null) {
+                return null;
+            }
+            return new File(env);
+        });
     }
 
     @NotNull
-    private File resolveJavaHomeFromToolChainService(String version) {
+    private Provider<File> resolveJavaHomeFromToolChainService(String version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
-        Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(javaToolchainSpec -> {
-            javaToolchainSpec.getLanguageVersion().value(value);
-        });
-        return javaLauncherProvider.get().getMetadata().getInstallationPath().getAsFile();
+        return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
+            .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile());
     }
 
     public static String getResourceContents(String resourcePath) {

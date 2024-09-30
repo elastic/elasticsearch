@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -36,6 +37,7 @@ public class TestTrustStore extends ExternalResource {
     private Path trustStorePath;
 
     public Path getTrustStorePath() {
+        // TODO when https://github.com/elastic/elasticsearch/issues/111532 addressed we should be able to use this in FIPS mode too
         assertFalse("Tests in FIPS mode cannot supply a custom trust store", ESTestCase.inFipsJvm());
         return Objects.requireNonNullElseGet(trustStorePath, () -> ESTestCase.fail(null, "trust store not created"));
     }
@@ -50,8 +52,8 @@ public class TestTrustStore extends ExternalResource {
                 .stream()
                 .map(i -> (Certificate) i)
                 .toList();
-            final var trustStore = KeyStoreUtil.buildTrustStore(certificates);
-            trustStore.store(jksStream, null);
+            final var trustStore = KeyStoreUtil.buildTrustStore(certificates, "jks");
+            trustStore.store(jksStream, new char[0]);
             trustStorePath = tmpTrustStorePath;
         } catch (Exception e) {
             throw new AssertionError("unexpected", e);

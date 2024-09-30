@@ -14,7 +14,7 @@
         },
         {
           "name" : "date",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Date expression. If `null`, the function returns `null`."
         }
@@ -32,7 +32,7 @@
         },
         {
           "name" : "date",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Date expression. If `null`, the function returns `null`."
         }
@@ -42,6 +42,7 @@
     }
   ],
   "examples" : [
-    "FROM employees\n| KEEP first_name, last_name, hire_date\n| EVAL hired = DATE_FORMAT(\"YYYY-MM-dd\", hire_date)"
-  ]
+    "FROM employees\n| KEEP first_name, last_name, hire_date\n| EVAL hired = DATE_FORMAT(\"yyyy-MM-dd\", hire_date)"
+  ],
+  "preview" : false
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -14,6 +15,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.bulk.TransportBulkActionTookTests.Resolver;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -38,6 +41,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -71,6 +75,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -88,7 +93,9 @@ public class TransportBulkActionTests extends ESTestCase {
 
     class TestTransportBulkAction extends TransportBulkAction {
 
-        volatile boolean failIndexCreation = false;
+        volatile Exception failIndexCreationException;
+        volatile Exception failDataStreamRolloverException;
+        volatile Exception failFailureStoreRolloverException;
         boolean indexCreated = false; // set when the "real" index is created
         Runnable beforeIndexCreation = null;
 
@@ -103,7 +110,8 @@ public class TransportBulkActionTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                FailureStoreMetrics.NOOP
             );
         }
 
@@ -113,10 +121,23 @@ public class TransportBulkActionTests extends ESTestCase {
             if (beforeIndexCreation != null) {
                 beforeIndexCreation.run();
             }
-            if (failIndexCreation) {
-                listener.onFailure(new ResourceAlreadyExistsException("index already exists"));
+            if (failIndexCreationException != null) {
+                listener.onFailure(failIndexCreationException);
             } else {
                 listener.onResponse(null);
+            }
+        }
+
+        @Override
+        void rollOver(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener) {
+            if (failDataStreamRolloverException != null && rolloverRequest.targetsFailureStore() == false) {
+                listener.onFailure(failDataStreamRolloverException);
+            } else if (failFailureStoreRolloverException != null && rolloverRequest.targetsFailureStore()) {
+                listener.onFailure(failFailureStoreRolloverException);
+            } else {
+                listener.onResponse(
+                    new RolloverResponse(null, null, Map.of(), rolloverRequest.isDryRun(), true, true, true, rolloverRequest.isLazy())
+                );
             }
         }
     }
@@ -354,7 +375,7 @@ public class TransportBulkActionTests extends ESTestCase {
     public void testRejectionAfterCreateIndexIsPropagated() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
-        bulkAction.failIndexCreation = randomBoolean();
+        bulkAction.failIndexCreationException = randomBoolean() ? new ResourceAlreadyExistsException("index already exists") : null;
         final var blockingLatch = new CountDownLatch(1);
         try {
             bulkAction.beforeIndexCreation = () -> blockWriteThreadPool(blockingLatch);
@@ -417,13 +438,16 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(dataStreamWithFailureStore, metadata, testTime), is(true));
+        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithFailureStore, metadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(dataStreamWithoutFailureStore, metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithoutFailureStore, metadata, testTime), is(false));
         // An index should not be considered for failure storage
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(nullValue()));
         // even if that index is itself a failure store
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(false));
+        assertThat(
+            TransportBulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime),
+            is(nullValue())
+        );
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
@@ -454,11 +478,81 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
+        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
         // An index template should not be considered for failure storage
-        assertThat(TransportBulkAction.shouldStoreFailureInternal(indexTemplate + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(indexTemplate + "-1", metadata, testTime), is(nullValue()));
+    }
+
+    /**
+     * This test asserts that any failing prerequisite action that fails (i.e. index creation or data stream/failure store rollover)
+     * results in a failed response.
+     */
+    public void testFailuresDuringPrerequisiteActions() throws InterruptedException {
+        // One request for testing a failure during index creation.
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").source(Map.of()))
+            // One request for testing a failure during data stream rollover.
+            .add(new IndexRequest("data-stream").source(Map.of()))
+            // One request for testing a failure during failure store rollover.
+            .add(new IndexRequest("failure-store").source(Map.of()).setWriteToFailureStore(true));
+
+        // Construct a cluster state that contains the required data streams.
+        var state = clusterService.state()
+            .copyAndUpdateMetadata(
+                builder -> builder.put(indexMetadata(".ds-data-stream-01"))
+                    .put(indexMetadata(".ds-failure-store-01"))
+                    .put(indexMetadata(".fs-failure-store-01"))
+                    .put(
+                        DataStream.builder(
+                            "data-stream",
+                            DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(".ds-data-stream-01", randomUUID())))
+                                .setRolloverOnWrite(true)
+                                .build()
+                        ).build()
+                    )
+                    .put(
+                        DataStream.builder("failure-store", List.of(new Index(".ds-failure-store-01", randomUUID())))
+                            .setFailureIndices(
+                                DataStream.DataStreamIndices.failureIndicesBuilder(List.of(new Index(".fs-failure-store-01", randomUUID())))
+                                    .setRolloverOnWrite(true)
+                                    .build()
+                            )
+                            .build()
+                    )
+            );
+
+        // Apply the cluster state.
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterService.getClusterApplierService().onNewClusterState("set-state", () -> state, ActionListener.running(latch::countDown));
+        // And wait for it to be applied.
+        latch.await(10L, TimeUnit.SECONDS);
+
+        // Set the exceptions that the transport action should encounter.
+        bulkAction.failIndexCreationException = new IndexNotFoundException("index");
+        bulkAction.failDataStreamRolloverException = new RuntimeException("data-stream-rollover-exception");
+        bulkAction.failFailureStoreRolloverException = new RuntimeException("failure-store-rollover-exception");
+
+        // Execute the action and get the response.
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+        BulkResponse response = future.actionGet();
+        assertEquals(3, response.getItems().length);
+
+        var indexFailure = response.getItems()[0];
+        assertTrue(indexFailure.isFailed());
+        assertTrue(indexFailure.getFailure().getCause() instanceof IndexNotFoundException);
+        assertNull(bulkRequest.requests.get(0));
+
+        var dataStreamFailure = response.getItems()[1];
+        assertTrue(dataStreamFailure.isFailed());
+        assertEquals("data-stream-rollover-exception", dataStreamFailure.getFailure().getCause().getMessage());
+        assertNull(bulkRequest.requests.get(1));
+
+        var failureStoreFailure = response.getItems()[2];
+        assertTrue(failureStoreFailure.isFailed());
+        assertEquals("failure-store-rollover-exception", failureStoreFailure.getFailure().getCause().getMessage());
+        assertNull(bulkRequest.requests.get(2));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {
@@ -481,5 +575,9 @@ public class TransportBulkActionTests extends ESTestCase {
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         return (new BulkRequest(streamInput));
+    }
+
+    private static IndexMetadata.Builder indexMetadata(String index) {
+        return IndexMetadata.builder(index).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1);
     }
 }

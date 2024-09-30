@@ -314,6 +314,21 @@ FROM sample_data
 3              |2025-10-01T00:00:00.000Z
 ;
 
+bucketByYearLowBucketCount#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-02-18T00:00:00.000Z" AND hire_date <= "1988-10-18T00:00:00.000Z"
+| STATS c = COUNT(*) BY b = BUCKET(hire_date, 3, "1985-02-18T00:00:00.000Z", "1988-10-18T00:00:00.000Z")
+| SORT b
+;
+
+// Note: we don't bucket to anything longer than 1 year (like 2 years), so even if requesting 3 buckets, we still get 4
+       c:long  |           b:date
+11             |1985-01-01T00:00:00.000Z
+11             |1986-01-01T00:00:00.000Z
+15             |1987-01-01T00:00:00.000Z
+9              |1988-01-01T00:00:00.000Z
+;
+
 //
 // Numeric bucketing
 //
@@ -387,6 +402,17 @@ FROM employees
 bucketNumericMixedTypes#[skip:-8.13.99, reason:BUCKET extended in 8.14]
 ROW long = TO_LONG(100), double = 99., int = 100
 | STATS BY b1 = BUCKET(long, 99.), b2 = BUCKET(double, 100.), b3 = BUCKET(int, 49.5)
+;
+
+      b1:double|      b2:double|      b3:double
+99.0           |0.0            |99.0
+;
+
+// identical results as above
+bucketNumericMixedTypesIntegerSpans
+required_capability: bucket_whole_number_as_span
+ROW long = TO_LONG(100), double = 99., int = 100
+| STATS BY b1 = BUCKET(long, double::int), b2 = BUCKET(double, long), b3 = BUCKET(int, 49.5)
 ;
 
       b1:double|      b2:double|      b3:double

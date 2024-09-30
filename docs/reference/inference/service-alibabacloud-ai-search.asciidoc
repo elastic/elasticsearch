@@ -1,0 +1,184 @@
+[[infer-service-alibabacloud-ai-search]]
+=== AlibabaCloud AI Search {infer} service
+
+Creates an {infer} endpoint to perform an {infer} task with the `alibabacloud-ai-search` service.
+
+[discrete]
+[[infer-service-alibabacloud-ai-search-api-request]]
+==== {api-request-title}
+
+`PUT /_inference/<task_type>/<inference_id>`
+
+[discrete]
+[[infer-service-alibabacloud-ai-search-api-path-params]]
+==== {api-path-parms-title}
+
+`<inference_id>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=inference-id]
+
+`<task_type>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=task-type]
++
+--
+Available task types:
+
+* `text_embedding`,
+* `sparse_embedding`,
+* `rerank`.
+--
+
+[discrete]
+[[infer-service-alibabacloud-ai-search-api-request-body]]
+==== {api-request-body-title}
+
+`service`::
+(Required, string) The type of service supported for the specified task type.
+In this case,
+`alibabacloud-ai-search`.
+
+`service_settings`::
+(Required, object)
+include::inference-shared.asciidoc[tag=service-settings]
++
+--
+These settings are specific to the `alibabacloud-ai-search` service.
+--
+
+`api_key`:::
+(Required, string)
+A valid API key for the AlibabaCloud AI Search API.
+
+`service_id`:::
+(Required, string)
+The name of the model service to use for the {infer} task.
++
+--
+Available service_ids for the `text_embedding` task:
+
+* `ops-text-embedding-001`
+* `ops-text-embedding-zh-001`
+* `ops-text-embedding-en-001`
+* `ops-text-embedding-002`
+
+For the supported `text_embedding` service_ids, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[documentation].
+
+Available service_id for the `sparse_embedding` task:
+
+* `ops-text-sparse-embedding-001`
+
+For the supported `sparse_embedding` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-sparse-embedding-api-details[documentation].
+
+Available service_id for the `rerank` task is:
+
+* `ops-bge-reranker-larger`
+
+For the supported `rerank` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/ranker-api-details[documentation].
+--
+
+`host`:::
+(Required, string)
+The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.
+
+`workspace`:::
+(Required, string)
+The name of the workspace used for the {infer} task.
+
+`rate_limit`:::
+(Optional, object)
+By default, the `alibabacloud-ai-search` service sets the number of requests allowed per minute to `1000`.
+This helps to minimize the number of rate limit errors returned from AlibabaCloud AI Search.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+include::inference-shared.asciidoc[tag=request-per-minute-example]
+--
+
+
+`task_settings`::
+(Optional, object)
+include::inference-shared.asciidoc[tag=task-settings]
++
+.`task_settings` for the `text_embedding` task type
+[%collapsible%closed]
+=====
+`input_type`:::
+(Optional, string)
+Specifies the type of input passed to the model.
+Valid values are:
+* `ingest`: for storing document embeddings in a vector database.
+* `search`: for storing embeddings of search queries run against a vector database to find relevant documents.
+=====
++
+.`task_settings` for the `sparse_embedding` task type
+[%collapsible%closed]
+=====
+`input_type`:::
+(Optional, string)
+Specifies the type of input passed to the model.
+Valid values are:
+* `ingest`: for storing document embeddings in a vector database.
+* `search`: for storing embeddings of search queries run against a vector database to find relevant documents.
+
+`return_token`:::
+(Optional, boolean)
+If `true`, the token name will be returned in the response. Defaults to `false` which means only the token ID will be returned in the response.
+=====
+
+[discrete]
+[[inference-example-alibabacloud-ai-search]]
+==== AlibabaCloud AI Search service examples
+
+The following example shows how to create an {infer} endpoint called `alibabacloud_ai_search_embeddings` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/alibabacloud_ai_search_embeddings
+{
+    "service": "alibabacloud-ai-search",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "service_id": "ops-text-embedding-001",
+        "host": "default-j01.platform-cn-shanghai.opensearch.aliyuncs.com",
+        "workspace": "default"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The following example shows how to create an {infer} endpoint called
+`alibabacloud_ai_search_sparse` to perform a `sparse_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/alibabacloud_ai_search_sparse
+{
+    "service": "alibabacloud-ai-search",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "service_id": "ops-text-sparse-embedding-001",
+        "host": "default-j01.platform-cn-shanghai.opensearch.aliyuncs.com",
+        "workspace": "default"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The next example shows how to create an {infer} endpoint called
+`alibabacloud_ai_search_rerank` to perform a `rerank` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/rerank/alibabacloud_ai_search_rerank
+{
+    "service": "alibabacloud-ai-search",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "service_id": "ops-bge-reranker-larger",
+        "host": "default-j01.platform-cn-shanghai.opensearch.aliyuncs.com",
+        "workspace": "default"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

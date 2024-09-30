@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractChunkedBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.TransportVersions.ML_RERANK_DOC_OPTIONAL;
 
-public class RankedDocsResultsTests extends AbstractBWCSerializationTestCase<RankedDocsResults> {
+public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestCase<RankedDocsResults> {
 
     @Override
     protected Writeable.Reader<RankedDocsResults> instanceReader() {

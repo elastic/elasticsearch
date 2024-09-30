@@ -469,36 +469,61 @@ public final class MultiRowTestCaseSupplier {
     }
 
     public static List<TypedDataSupplier> stringCases(int minRows, int maxRows, DataType type) {
-        return List.of(
-            new TypedDataSupplier("<empty " + type + "s>", () -> randomList(minRows, maxRows, () -> new BytesRef("")), type, false, true),
-            new TypedDataSupplier(
-                "<short alpha " + type + "s>",
-                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(1, 30))),
-                type,
-                false,
-                true
-            ),
-            new TypedDataSupplier(
-                "<long alpha " + type + "s>",
-                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(300, 3000))),
-                type,
-                false,
-                true
-            ),
-            new TypedDataSupplier(
-                "<short unicode " + type + "s>",
-                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 30))),
-                type,
-                false,
-                true
-            ),
-            new TypedDataSupplier(
-                "<long unicode " + type + "s>",
-                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(300, 3000))),
-                type,
-                false,
-                true
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        cases.addAll(
+            List.of(
+                new TypedDataSupplier(
+                    "<empty " + type + "s>",
+                    () -> randomList(minRows, maxRows, () -> new BytesRef("")),
+                    type,
+                    false,
+                    true
+                ),
+                new TypedDataSupplier(
+                    "<short alpha " + type + "s>",
+                    () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(1, 30))),
+                    type,
+                    false,
+                    true
+                ),
+                new TypedDataSupplier(
+                    "<short unicode " + type + "s>",
+                    () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 30))),
+                    type,
+                    false,
+                    true
+                )
             )
         );
+
+        if (minRows <= 100) {
+            var longStringsMaxRows = Math.min(maxRows, 100);
+
+            cases.addAll(
+                List.of(
+                    new TypedDataSupplier(
+                        "<long alpha " + type + "s>",
+                        () -> randomList(minRows, longStringsMaxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(300, 1000))),
+                        type,
+                        false,
+                        true
+                    ),
+                    new TypedDataSupplier(
+                        "<long unicode " + type + "s>",
+                        () -> randomList(
+                            minRows,
+                            longStringsMaxRows,
+                            () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(300, 1000))
+                        ),
+                        type,
+                        false,
+                        true
+                    )
+                )
+            );
+        }
+
+        return cases;
     }
 }

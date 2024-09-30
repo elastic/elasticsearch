@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -14,7 +15,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -24,7 +24,6 @@ import java.util.List;
  * The result of parsing a document.
  */
 public class ParsedDocument {
-
     private final Field version;
 
     private final String id;
@@ -34,7 +33,7 @@ public class ParsedDocument {
 
     private final List<LuceneDocument> documents;
 
-    private final DocumentSizeObserver documentSizeObserver;
+    private final DocumentSize normalizedSize;
 
     private BytesReference source;
     private XContentType xContentType;
@@ -62,7 +61,7 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSize.UNKNOWN
         );
     }
 
@@ -87,7 +86,7 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSize.UNKNOWN
         );
     }
 
@@ -100,7 +99,7 @@ public class ParsedDocument {
         BytesReference source,
         XContentType xContentType,
         Mapping dynamicMappingsUpdate,
-        DocumentSizeObserver documentSizeObserver
+        DocumentSize normalizedSize
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -110,7 +109,7 @@ public class ParsedDocument {
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.xContentType = xContentType;
-        this.documentSizeObserver = documentSizeObserver;
+        this.normalizedSize = normalizedSize;
     }
 
     public String id() {
@@ -179,8 +178,16 @@ public class ParsedDocument {
         return "id";
     }
 
-    public DocumentSizeObserver getDocumentSizeObserver() {
-        return documentSizeObserver;
+    public DocumentSize getNormalizedSize() {
+        return normalizedSize;
     }
 
+    /**
+     * Normalized ingested and stored size of a document.
+     * @param ingestedBytes ingest size of the document
+     * @param storedBytes stored retained size of the document
+     */
+    public record DocumentSize(long ingestedBytes, long storedBytes) {
+        public static final DocumentSize UNKNOWN = new DocumentSize(-1, -1);
+    }
 }

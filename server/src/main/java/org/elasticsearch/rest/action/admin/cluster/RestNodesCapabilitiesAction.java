@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -30,6 +31,7 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     public static final NodeFeature CAPABILITIES_ACTION = new NodeFeature("rest.capabilities_action");
+    public static final NodeFeature LOCAL_ONLY_CAPABILITIES = new NodeFeature("rest.local_only_capabilities");
 
     @Override
     public List<Route> routes() {
@@ -38,7 +40,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of("timeout", "method", "path", "parameters", "capabilities");
+        return Set.of("timeout", "method", "path", "parameters", "capabilities", "local_only");
     }
 
     @Override
@@ -48,9 +50,16 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        NodesCapabilitiesRequest r = new NodesCapabilitiesRequest().timeout(getTimeout(request))
+        NodesCapabilitiesRequest requestNodes = request.paramAsBoolean("local_only", false)
+            ? new NodesCapabilitiesRequest(client.getLocalNodeId())
+            : new NodesCapabilitiesRequest();
+
+        // Handle the 'path' parameter, use "/" as default if not provided
+        String path = URLDecoder.decode(request.param("path", "/"), StandardCharsets.UTF_8);
+
+        NodesCapabilitiesRequest r = requestNodes.timeout(getTimeout(request))
             .method(RestRequest.Method.valueOf(request.param("method", "GET")))
-            .path(URLDecoder.decode(request.param("path"), StandardCharsets.UTF_8))
+            .path(path)
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))
             .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY))
             .restApiVersion(request.getRestApiVersion());

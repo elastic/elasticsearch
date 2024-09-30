@@ -55,9 +55,8 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
-            // Lower values for strings, as they take more space and may trigger the circuit breaker
-            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).forEach(fieldCaseSupplier -> {
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {

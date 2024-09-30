@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle;
@@ -37,10 +38,11 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -118,6 +120,7 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -138,7 +141,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver = new DataStreamGlobalRetentionResolver(
+    private final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+        ClusterSettings.createBuiltInClusterSettings(),
         DataStreamFactoryRetention.emptyFactoryRetention()
     );
 
@@ -187,7 +191,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
             ),
-            globalRetentionResolver
+            globalRetentionSettings
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -324,7 +328,55 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         TransportRequest deleteIndexRequest = clientSeenRequests.get(1);
         assertThat(deleteIndexRequest, instanceOf(DeleteIndexRequest.class));
         // only the first generation index should be eligible for retention
-        assertThat(((DeleteIndexRequest) deleteIndexRequest).indices(), is(new String[] { dataStream.getIndices().get(0).getName() }));
+        assertThat(((DeleteIndexRequest) deleteIndexRequest).indices(), arrayContaining(dataStream.getIndices().getFirst().getName()));
+    }
+
+    public void testMergePolicyNotExecutedForTSIndicesWithinTimeBounds() {
+        Instant currentTime = Instant.ofEpochMilli(now).truncatedTo(ChronoUnit.MILLIS);
+        // These ranges are on the edge of each other temporal boundaries.
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+        Instant start3 = currentTime.plus(2, ChronoUnit.HOURS);
+        Instant end3 = currentTime.plus(4, ChronoUnit.HOURS);
+
+        String dataStreamName = "logs_my-app_prod";
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
+        );
+        Metadata.Builder builder = Metadata.builder(clusterState.metadata());
+        DataStream dataStream = builder.dataStream(dataStreamName);
+        // Overwrite the data stream in the cluster state to set the lifecycle policy, with no retention policy (i.e. infinite retention).
+        builder.put(
+            dataStream.copy()
+                .setName(dataStreamName)
+                .setGeneration(dataStream.getGeneration() + 1)
+                .setLifecycle(DataStreamLifecycle.newBuilder().build())
+                .build()
+        );
+        clusterState = ClusterState.builder(clusterState).metadata(builder).build();
+
+        dataStreamLifecycleService.run(clusterState);
+        // There should be two client requests: one rollover, and one to update the merge policy settings. N.B. The merge policy settings
+        // will always be updated before the force merge is done, see testMergePolicySettingsAreConfiguredBeforeForcemerge.
+        assertThat(clientSeenRequests.size(), is(2));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        TransportRequest updateSettingsRequest = clientSeenRequests.get(1);
+        assertThat(updateSettingsRequest, instanceOf(UpdateSettingsRequest.class));
+        // Only the first generation index should be eligible for merging. The other have end dates in the future.
+        assertThat(
+            ((UpdateSettingsRequest) updateSettingsRequest).indices(),
+            arrayContaining(dataStream.getIndices().getFirst().getName())
+        );
+        assertThat(
+            ((UpdateSettingsRequest) updateSettingsRequest).settings().keySet(),
+            containsInAnyOrder(
+                MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(),
+                MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()
+            )
+        );
     }
 
     public void testRetentionSkippedWhilstDownsamplingInProgress() {
@@ -1392,13 +1444,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         {
             // non time_series indices are not within time bounds (they don't have any)
             IndexMetadata indexMeta = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-                        .build()
-                )
+                .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current()))
                 .build();
 
             Metadata newMetadata = Metadata.builder(clusterState.metadata()).put(indexMeta, true).build();
@@ -1432,7 +1478,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
             ),
-            globalRetentionResolver
+            globalRetentionSettings
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));
@@ -1450,6 +1496,13 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         int numFailureIndices = 2;
+        int mutationBranch = randomIntBetween(0, 2);
+        DataStreamOptions dataStreamOptions = switch (mutationBranch) {
+            case 0 -> DataStreamOptions.EMPTY;
+            case 1 -> DataStreamOptions.FAILURE_STORE_ENABLED;
+            case 2 -> DataStreamOptions.FAILURE_STORE_DISABLED;
+            default -> throw new IllegalStateException("Unexpected value: " + mutationBranch);
+        };
         Metadata.Builder builder = Metadata.builder();
         DataStream dataStream = createDataStream(
             builder,
@@ -1459,7 +1512,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             settings(IndexVersion.current()),
             new DataStreamLifecycle(),
             now
-        ).copy().setFailureStoreEnabled(randomBoolean()).build(); // failure store is managed even when disabled
+        ).copy().setDataStreamOptions(dataStreamOptions).build(); // failure store is managed even when disabled
         builder.put(dataStream);
         Metadata metadata = builder.build();
         Set<Index> indicesToExclude = Set.of(dataStream.getIndices().get(0), dataStream.getFailureIndices().getIndices().get(0));
@@ -1491,7 +1544,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(0).build(),
             now
-        ).copy().setFailureStoreEnabled(false).build(); // failure store is managed even when it is disabled
+        ).copy().setDataStreamOptions(DataStreamOptions.FAILURE_STORE_DISABLED).build(); // failure store is managed even when disabled
         builder.put(dataStream);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
@@ -1596,12 +1649,14 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         Map<String, IndexMetadata> indices = new HashMap<>();
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 10))
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-            .build();
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).version(randomLong()).settings(indexSettings);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .version(randomLong())
+            .settings(
+                indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 3)).put(
+                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                    IndexVersion.current()
+                )
+            );
         if (customDataStreamLifecycleMetadata != null) {
             indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customDataStreamLifecycleMetadata);
         }

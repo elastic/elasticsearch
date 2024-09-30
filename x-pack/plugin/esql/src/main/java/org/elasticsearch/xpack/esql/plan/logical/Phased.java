@@ -91,8 +91,8 @@ public interface Phased {
      * Or {@code null} if there aren't any {@linkplain Phased} operations.
      */
     static LogicalPlan extractFirstPhase(LogicalPlan plan) {
-        if (false == plan.analyzed()) {
-            throw new IllegalArgumentException("plan must be analyzed");
+        if (false == plan.optimized()) {
+            throw new IllegalArgumentException("plan must be optimized");
         }
         var firstPhase = new Holder<LogicalPlan>();
         plan.forEachUp(t -> {

@@ -21,9 +21,11 @@
 
 package org.elasticsearch.benchmark.tdigest;
 
-import org.elasticsearch.tdigest.AVLTreeDigest;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.MergingDigest;
 import org.elasticsearch.tdigest.TDigest;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -56,18 +58,25 @@ import java.util.function.Supplier;
 @Threads(1)
 @State(Scope.Thread)
 public class TDigestBench {
+    private static final TDigestArrays arrays = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
 
     public enum TDigestFactory {
         MERGE {
             @Override
             TDigest create(double compression) {
-                return new MergingDigest(compression, (int) (10 * compression));
+                return new MergingDigest(arrays, compression, (int) (10 * compression));
             }
         },
         AVL_TREE {
             @Override
             TDigest create(double compression) {
-                return new AVLTreeDigest(compression);
+                return TDigest.createAvlTreeDigest(arrays, compression);
+            }
+        },
+        HYBRID {
+            @Override
+            TDigest create(double compression) {
+                return TDigest.createHybridDigest(arrays, compression);
             }
         };
 
@@ -77,7 +86,7 @@ public class TDigestBench {
     @Param({ "100", "300" })
     double compression;
 
-    @Param({ "MERGE", "AVL_TREE" })
+    @Param({ "MERGE", "AVL_TREE", "HYBRID" })
     TDigestFactory tdigestFactory;
 
     @Param({ "NORMAL", "GAUSSIAN" })

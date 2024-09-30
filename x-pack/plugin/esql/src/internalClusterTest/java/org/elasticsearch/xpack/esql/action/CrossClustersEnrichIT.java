@@ -12,10 +12,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -51,11 +51,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
 
@@ -232,6 +234,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                         )
                     )
                 );
+                assertFalse(resp.getExecutionInfo().isCrossClusterSearch());
             }
         }
         for (var mode : Enrich.Mode.values()) {
@@ -251,6 +254,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                         )
                     )
                 );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
             }
         }
 
@@ -271,6 +277,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                         )
                     )
                 );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
             }
         }
     }
@@ -299,6 +308,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                         )
                     )
                 );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
             }
         }
     }
@@ -326,6 +338,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                         )
                     )
                 );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
             }
         }
     }
@@ -352,6 +367,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                     )
                 )
             );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+            assertCCSExecutionInfoDetails(executionInfo);
         }
     }
 
@@ -378,6 +396,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                         )
                     )
                 );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
             }
         }
 
@@ -408,6 +429,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                         )
                     )
                 );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
             }
         }
     }
@@ -471,6 +495,25 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             request.profile(true);
         }
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+    }
+
+    private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {
+        assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
+        assertTrue(executionInfo.isCrossClusterSearch());
+        List<EsqlExecutionInfo.Cluster> clusters = executionInfo.clusterAliases()
+            .stream()
+            .map(alias -> executionInfo.getCluster(alias))
+            .collect(Collectors.toList());
+
+        for (EsqlExecutionInfo.Cluster cluster : clusters) {
+            assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(cluster.getIndexExpression(), equalTo("events"));
+            assertThat(cluster.getTotalShards(), equalTo(1));
+            assertThat(cluster.getSuccessfulShards(), equalTo(1));
+            assertThat(cluster.getSkippedShards(), equalTo(0));
+            assertThat(cluster.getFailedShards(), equalTo(0));
+        }
     }
 
     public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {

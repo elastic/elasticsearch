@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -17,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -29,6 +32,7 @@ import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -44,10 +48,20 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("xpack.watcher.max.history.record.size", "100kb") // used for testThatHistoryIsTruncated()
+            .build();
+    }
 
     // issue: https://github.com/elastic/x-plugins/issues/2338
     public void testThatHistoryIsWrittenWithChainedInput() throws Exception {
@@ -225,6 +239,69 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         });
     }
 
+    public void testThatHistoryIsTruncated() throws Exception {
+        {
+            /*
+             * The input for this watch is 20 KB, smaller than the configured 100 KB of HistoryStore's MAX_HISTORY_SIZE_SETTING. So we do
+             * not expect its history record to be truncated.
+             */
+            new PutWatchRequestBuilder(client()).setId("test_watch_small")
+                .setSource(
+                    watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
+                        .input(simpleInput("foo", randomAlphaOfLength((int) ByteSizeValue.ofKb(20).getBytes())))
+                        .addAction("_logger", loggingAction("#### randomLogging"))
+                )
+                .get();
+            new ExecuteWatchRequestBuilder(client()).setId("test_watch_small").setRecordExecution(true).get();
+            assertBusy(() -> {
+                assertResponse(getWatchHistory(), searchResponse -> {
+                    assertHitCount(searchResponse, 1);
+                    SearchHit hit = searchResponse.getHits().getAt(0);
+                    XContentSource source = new XContentSource(hit.getSourceRef(), XContentType.JSON);
+                    Map<String, Object> input = source.getValue("input");
+                    assertThat(input.containsKey(WatchRecord.TRUNCATED_RECORD_KEY), equalTo(false));
+                    assertThat(input.containsKey("simple"), equalTo(true));
+                    Map<String, Object> result = source.getValue("result");
+                    assertThat(result.containsKey(WatchRecord.TRUNCATED_RECORD_KEY), equalTo(false));
+                    assertThat(result.containsKey("input"), equalTo(true));
+                    assertThat(result.containsKey("actions"), equalTo(true));
+                    assertThat(result.containsKey("condition"), equalTo(true));
+                });
+            });
+        }
+        {
+            /*
+             * The input for this watch is 500 KB, much bigger than the configured 100 KB of HistoryStore's MAX_HISTORY_SIZE_SETTING. So we
+             * expect to see its history record truncated before being stored.
+             */
+            new PutWatchRequestBuilder(client()).setId("test_watch_large")
+                .setSource(
+                    watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
+                        .input(simpleInput("foo", randomAlphaOfLength((int) ByteSizeValue.ofKb(500).getBytes())))
+                        .addAction("_logger", loggingAction("#### randomLogging"))
+                )
+                .get();
+            new ExecuteWatchRequestBuilder(client()).setId("test_watch_large").setRecordExecution(true).get();
+            assertBusy(() -> {
+                assertResponse(getWatchHistory(), searchResponse -> {
+                    assertHitCount(searchResponse, 2);
+                    SearchHit hit = searchResponse.getHits().getAt(1);
+                    XContentSource source = new XContentSource(hit.getSourceRef(), XContentType.JSON);
+                    Map<String, Object> input = source.getValue("input");
+                    assertThat(input.containsKey(WatchRecord.TRUNCATED_RECORD_KEY), equalTo(true));
+                    assertThat(input.get(WatchRecord.TRUNCATED_RECORD_KEY), equalTo(WatchRecord.TRUNCATED_RECORD_VALUE));
+                    assertThat(input.containsKey("simple"), equalTo(false));
+                    Map<String, Object> result = source.getValue("result");
+                    assertThat(result.containsKey(WatchRecord.TRUNCATED_RECORD_KEY), equalTo(true));
+                    assertThat(result.get(WatchRecord.TRUNCATED_RECORD_KEY), equalTo(WatchRecord.TRUNCATED_RECORD_VALUE));
+                    assertThat(result.containsKey("input"), equalTo(false));
+                    assertThat(result.containsKey("actions"), equalTo(false));
+                    assertThat(result.containsKey("condition"), equalTo(false));
+                });
+            });
+        }
+    }
+
     /*
      * Returns a SearchRequestBuilder containing up to the default number of watch history records (10) if the .watcher-history* is ready.
      * Otherwise it throws an AssertionError.
@@ -232,7 +309,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
     private SearchRequestBuilder getWatchHistory() {
         ensureGreen(HistoryStoreField.DATA_STREAM);
         flushAndRefresh(".watcher-history-*");
-        return prepareSearch(".watcher-history-*");
+        return prepareSearch(".watcher-history-*").addSort("@timestamp", SortOrder.ASC);
     }
 
 }

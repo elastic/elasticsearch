@@ -1,24 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 public class DataGeneratorSnapshotTests extends ESTestCase {
     public void testSnapshot() throws Exception {
         var dataGenerator = new DataGenerator(
             DataGeneratorSpecification.builder()
-                .withArbitrary(new TestArbitrary())
+                .withDataSourceHandlers(List.of(new DataSourceOverrides()))
                 .withMaxFieldCountPerLevel(5)
                 .withMaxObjectDepth(2)
                 .build()
@@ -33,26 +40,34 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         var expectedMapping = """
             {
               "_doc" : {
+                "dynamic" : "false",
                 "properties" : {
                   "f1" : {
+                    "dynamic" : "false",
                     "properties" : {
                       "f2" : {
+                        "dynamic" : "false",
                         "properties" : {
                           "f3" : {
-                            "type" : "keyword"
+                            "type" : "keyword",
+                            "store" : "true"
                           },
                           "f4" : {
-                            "type" : "long"
+                            "type" : "long",
+                            "index" : "false"
                           }
                         }
                       },
                       "f5" : {
+                        "dynamic" : "false",
                         "properties" : {
                           "f6" : {
-                            "type" : "keyword"
+                            "type" : "keyword",
+                            "store" : "true"
                           },
                           "f7" : {
-                            "type" : "long"
+                            "type" : "long",
+                            "index" : "false"
                           }
                         }
                       }
@@ -60,20 +75,25 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
                   },
                   "f8" : {
                     "type" : "nested",
+                    "dynamic" : "false",
                     "properties" : {
                       "f9" : {
                         "type" : "nested",
+                        "dynamic" : "false",
                         "properties" : {
                           "f10" : {
-                            "type" : "keyword"
+                            "type" : "keyword",
+                            "store" : "true"
                           },
                           "f11" : {
-                            "type" : "long"
+                            "type" : "long",
+                            "index" : "false"
                           }
                         }
                       },
                       "f12" : {
-                        "type" : "keyword"
+                        "type" : "keyword",
+                        "store" : "true"
                       }
                     }
                   }
@@ -127,85 +147,118 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         assertEquals(expectedDocument, Strings.toString(document));
     }
 
-    private class TestArbitrary implements Arbitrary {
-        private int generatedFields = 0;
-        private FieldType fieldType = FieldType.KEYWORD;
+    private static class DataSourceOverrides implements DataSourceHandler {
         private long longValue = 0;
-        private long generatedStringValues = 0;
+        private long generatedStrings = 0;
         private int generateNullChecks = 0;
         private int generateArrayChecks = 0;
         private boolean producedObjectArray = false;
+        private FieldType fieldType = FieldType.KEYWORD;
+        private final StaticChildFieldGenerator childFieldGenerator = new StaticChildFieldGenerator();
 
         @Override
-        public boolean generateSubObject() {
-            return generatedFields < 6;
+        public DataSourceResponse.LongGenerator handle(DataSourceRequest.LongGenerator request) {
+            return new DataSourceResponse.LongGenerator(() -> longValue++);
         }
 
         @Override
-        public boolean generateNestedObject() {
-            return generatedFields > 6 && generatedFields < 12;
+        public DataSourceResponse.StringGenerator handle(DataSourceRequest.StringGenerator request) {
+            return new DataSourceResponse.StringGenerator(() -> "string" + (generatedStrings++ + 1));
         }
 
         @Override
-        public int childFieldCount(int lowerBound, int upperBound) {
-            assert lowerBound < 2 && upperBound > 2;
+        public DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
+            return new DataSourceResponse.NullWrapper((values) -> () -> generateNullChecks++ % 4 == 0 ? null : values.get());
+        }
+
+        @Override
+        public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper request) {
+
+            return new DataSourceResponse.ArrayWrapper((values) -> () -> {
+                if (generateArrayChecks++ % 4 == 0) {
+                    // we have nulls so can't use List.of
+                    return new Object[] { values.get(), values.get() };
+                }
+
+                return values.get();
+            });
+        }
+
+        @Override
+        public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
+            return childFieldGenerator;
+        }
+
+        @Override
+        public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+            return new DataSourceResponse.ObjectArrayGenerator(() -> {
+                if (producedObjectArray == false) {
+                    producedObjectArray = true;
+                    return Optional.of(2);
+                }
+
+                return Optional.empty();
+            });
+        }
+
+        @Override
+        public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+            return new DataSourceResponse.FieldTypeGenerator(() -> {
+                if (fieldType == FieldType.KEYWORD) {
+                    fieldType = FieldType.LONG;
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD, false);
+                }
+
+                fieldType = FieldType.KEYWORD;
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false);
+            });
+        }
+
+        @Override
+        public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+            if (request.fieldType() == FieldType.KEYWORD) {
+                return new DataSourceResponse.LeafMappingParametersGenerator(() -> Map.of("store", "true"));
+            }
+
+            if (request.fieldType() == FieldType.LONG) {
+                return new DataSourceResponse.LeafMappingParametersGenerator(() -> Map.of("index", "false"));
+            }
+
+            return null;
+        }
+
+        @Override
+        public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
+            return new DataSourceResponse.ObjectMappingParametersGenerator(() -> Map.of("dynamic", "false"));
+        }
+    }
+
+    private static class StaticChildFieldGenerator implements DataSourceResponse.ChildFieldGenerator {
+        private int generatedFields = 0;
+
+        @Override
+        public int generateChildFieldCount() {
             return 2;
         }
 
         @Override
-        public String fieldName(int lengthLowerBound, int lengthUpperBound) {
-            return "f" + (generatedFields++ + 1);
-        }
-
-        @Override
-        public FieldType fieldType() {
-            if (fieldType == FieldType.KEYWORD) {
-                fieldType = FieldType.LONG;
-                return FieldType.KEYWORD;
-            }
-
-            fieldType = FieldType.KEYWORD;
-            return FieldType.LONG;
-        }
-
-        @Override
-        public long longValue() {
-            return longValue++;
-        }
-
-        @Override
-        public String stringValue(int lengthLowerBound, int lengthUpperBound) {
-            return "string" + (generatedStringValues++ + 1);
-        }
-
-        @Override
-        public boolean generateNullValue() {
-            return generateNullChecks++ % 4 == 0;
-        }
-
-        @Override
-        public boolean generateArrayOfValues() {
-            return generateArrayChecks++ % 4 == 0;
-        }
-
-        @Override
-        public int valueArraySize() {
-            return 2;
-        }
-
-        @Override
-        public boolean generateArrayOfObjects() {
-            if (producedObjectArray == false) {
-                producedObjectArray = true;
-                return true;
-            }
-
+        public boolean generateDynamicSubObject() {
             return false;
         }
 
         @Override
-        public int objectArraySize() {
-            return 2;
+        public boolean generateNestedSubObject() {
+            return generatedFields > 6 && generatedFields < 12;
+        }
+
+        @Override
+        public boolean generateRegularSubObject() {
+            return generatedFields < 6;
+        }
+
+        @Override
+        public String generateFieldName() {
+            return "f" + (generatedFields++ + 1);
         }
     }
 }

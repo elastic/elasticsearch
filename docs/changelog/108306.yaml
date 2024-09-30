@@ -1,5 +1,0 @@
-pr: 108306
-summary: Enable inter-segment concurrency for low cardinality numeric terms aggs
-area: Aggregations
-type: enhancement
-issues: []

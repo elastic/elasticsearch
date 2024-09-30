@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package fixture.azure;
 
@@ -11,8 +12,10 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.rules.ExternalResource;
 
@@ -39,10 +42,16 @@ public class AzureHttpFixture extends ExternalResource {
     private final Protocol protocol;
     private final String account;
     private final String container;
+    private final String clientId;
+    private final String tenantId;
     private final Predicate<String> authHeaderPredicate;
 
     private HttpServer server;
     private HttpServer metadataServer;
+    private HttpServer oauthTokenServiceServer;
+
+    // JWT-looking value for workload identity authentication -- the exact value has no inherent meaning
+    private final String federatedToken = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9";
 
     public enum Protocol {
         NONE,
@@ -77,6 +86,12 @@ public class AzureHttpFixture extends ExternalResource {
     public static final Predicate<String> MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE = s -> fail(null, "should not be called");
 
     /**
+     * A sentinel value for {@code #authHeaderPredicate} which indicates that requests should be authorized by a bearer token provided
+     * by the workload identity service.
+     */
+    public static final Predicate<String> WORK_IDENTITY_BEARER_TOKEN_PREDICATE = s -> fail(null, "should not be called");
+
+    /**
      * @param bearerToken The bearer token to accept
      * @return a predicate that matches the {@code Authorization} HTTP header that the Azure SDK sends when using bearer token auth (i.e.
      *         using Managed Identity)
@@ -95,10 +110,30 @@ public class AzureHttpFixture extends ExternalResource {
         };
     }
 
-    public AzureHttpFixture(Protocol protocol, String account, String container, Predicate<String> authHeaderPredicate) {
+    public AzureHttpFixture(
+        Protocol protocol,
+        String account,
+        String container,
+        @Nullable String rawTenantId,
+        @Nullable String rawClientId,
+        Predicate<String> authHeaderPredicate
+    ) {
+        final var tenantId = Strings.hasText(rawTenantId) ? rawTenantId : null;
+        final var clientId = Strings.hasText(rawClientId) ? rawClientId : null;
+
+        if ((clientId == null) != (tenantId == null)) {
+            fail(null, "either both [tenantId] and [clientId] must be set or neither must be set");
+        }
+        if (tenantId != null) {
+            if (protocol != Protocol.HTTPS) {
+                fail(null, "when [tenantId] is set, protocol must be HTTPS");
+            }
+        }
         this.protocol = protocol;
         this.account = account;
         this.container = container;
+        this.tenantId = tenantId;
+        this.clientId = clientId;
         this.authHeaderPredicate = authHeaderPredicate;
     }
 
@@ -114,24 +149,44 @@ public class AzureHttpFixture extends ExternalResource {
         return scheme() + "://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
     }
 
+    public String getOAuthTokenServiceAddress() {
+        return scheme()
+            + "://"
+            + oauthTokenServiceServer.getAddress().getHostString()
+            + ":"
+            + oauthTokenServiceServer.getAddress().getPort()
+            + "/";
+    }
+
     public String getMetadataAddress() {
         return "http://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
+    }
+
+    public String getFederatedToken() {
+        return federatedToken;
     }
 
     @Override
     protected void before() {
         try {
-            final var bearerToken = ESTestCase.randomIdentifier();
+            // Set different bearer tokens for managed and workload identity to ensure that we are using the expected one for access
+            final var managedIdentityBearerToken = ESTestCase.randomIdentifier();
+            final var workloadIdentityBearerToken = ESTestCase.randomIdentifier();
+
+            final Predicate<String> actualAuthHeaderPredicate;
+            if (authHeaderPredicate == MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE) {
+                actualAuthHeaderPredicate = bearerTokenPredicate(managedIdentityBearerToken);
+            } else if (authHeaderPredicate == WORK_IDENTITY_BEARER_TOKEN_PREDICATE) {
+                actualAuthHeaderPredicate = bearerTokenPredicate(workloadIdentityBearerToken);
+            } else {
+                actualAuthHeaderPredicate = authHeaderPredicate;
+            }
 
             if (protocol != Protocol.NONE) {
                 this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(bearerToken));
+                metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(managedIdentityBearerToken));
                 metadataServer.start();
             }
-
-            final var actualAuthHeaderPredicate = authHeaderPredicate == MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
-                ? bearerTokenPredicate(bearerToken)
-                : authHeaderPredicate;
 
             switch (protocol) {
                 case NONE -> {
@@ -140,10 +195,15 @@ public class AzureHttpFixture extends ExternalResource {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                     server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
                     server.start();
+
+                    oauthTokenServiceServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                    oauthTokenServiceServer.createContext(
+                        "/",
+                        new AzureOAuthTokenServiceHttpHandler(workloadIdentityBearerToken, federatedToken, tenantId, clientId)
+                    );
+                    oauthTokenServiceServer.start();
                 }
                 case HTTPS -> {
-                    final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                    this.server = httpsServer;
                     final var tmpdir = ESTestCase.createTempDir();
                     final var certificates = PemUtils.readCertificates(List.of(copyResource(tmpdir, "azure-http-fixture.pem")));
                     assertThat(certificates, hasSize(1));
@@ -158,9 +218,23 @@ public class AzureHttpFixture extends ExternalResource {
                         null,
                         new SecureRandom()
                     );
-                    httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                    httpsServer.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
-                    httpsServer.start();
+                    {
+                        final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                        this.server = httpsServer;
+                        httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
+                        httpsServer.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
+                        httpsServer.start();
+                    }
+                    {
+                        final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                        this.oauthTokenServiceServer = httpsServer;
+                        httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
+                        httpsServer.createContext(
+                            "/",
+                            new AzureOAuthTokenServiceHttpHandler(workloadIdentityBearerToken, federatedToken, tenantId, clientId)
+                        );
+                        httpsServer.start();
+                    }
                 }
             }
         } catch (Exception e) {
@@ -186,6 +260,7 @@ public class AzureHttpFixture extends ExternalResource {
         if (protocol != Protocol.NONE) {
             server.stop(0);
             metadataServer.stop(0);
+            oauthTokenServiceServer.stop(0);
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -1248,9 +1250,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             );
 
             totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
-            clusterState = ClusterState.builder(clusterState)
-                .routingTable(RoutingTable.of(allocation.routingTable().version(), allocation.routingNodes()))
-                .build();
+            clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(allocation.routingNodes())).build();
         }
     }
 
@@ -1258,8 +1258,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         final int shardCount = 5;
 
-        final var dataNode1Assignments = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
-        final var dataNode2Assignments = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
+        final var allShardsDesiredOnDataNode1 = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
+        final var allShardsDesiredOnDataNode2 = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
 
         final var metadataBuilder = Metadata.builder();
         final var routingTableBuilder = RoutingTable.builder();
@@ -1270,10 +1270,23 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             metadataBuilder.put(indexMetadata, false);
             routingTableBuilder.add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "data-node-1", true, STARTED)));
 
-            dataNode1Assignments.put(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0));
-            dataNode2Assignments.put(shardId, new ShardAssignment(Set.of("data-node-2"), 1, 0, 0));
+            allShardsDesiredOnDataNode1.put(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0));
+            allShardsDesiredOnDataNode2.put(shardId, new ShardAssignment(Set.of("data-node-2"), 1, 0, 0));
         }
 
+        final var node1ShuttingDown = randomBoolean();
+        if (node1ShuttingDown) {
+            var type = randomFrom(SingleNodeShutdownMetadata.Type.SIGTERM, SingleNodeShutdownMetadata.Type.REMOVE);
+            var builder = SingleNodeShutdownMetadata.builder()
+                .setType(type)
+                .setNodeId("data-node-1")
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setReason("test");
+            if (type.equals(SingleNodeShutdownMetadata.Type.SIGTERM)) {
+                builder.setGracePeriod(randomPositiveTimeValue());
+            }
+            metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of("data-node-1", builder.build())));
+        }
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("data-node-1")).add(newNode("data-node-2")))
             .metadata(metadataBuilder)
@@ -1281,17 +1294,21 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
 
         var threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
+        final var timeInMillisSupplier = new AtomicLong();
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(timeInMillisSupplier::incrementAndGet);
 
         var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class));
+        final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
+        timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
         var expectedWarningMessage = "[100%] of assigned shards ("
             + shardCount
             + "/"
             + shardCount
             + ") are not on their desired nodes, which exceeds the warn threshold of [10%]";
+        // Desired assignment matches current routing table
         assertThatLogger(
-            () -> reconciler.reconcile(new DesiredBalance(1, dataNode1Assignments), createRoutingAllocationFrom(clusterState)),
+            () -> reconciler.reconcile(new DesiredBalance(1, allShardsDesiredOnDataNode1), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
             new MockLog.UnseenEventExpectation(
                 "Should not log if all shards on desired location",
@@ -1301,17 +1318,24 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             )
         );
         assertThatLogger(
-            () -> reconciler.reconcile(new DesiredBalance(1, dataNode2Assignments), createRoutingAllocationFrom(clusterState)),
+            () -> reconciler.reconcile(new DesiredBalance(1, allShardsDesiredOnDataNode2), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
-            new MockLog.SeenEventExpectation(
-                "Should log first too many shards on undesired locations",
-                DesiredBalanceReconciler.class.getCanonicalName(),
-                Level.WARN,
-                expectedWarningMessage
-            )
+            node1ShuttingDown
+                ? new MockLog.UnseenEventExpectation(
+                    "Should not log first too many shards on undesired locations",
+                    DesiredBalanceReconciler.class.getCanonicalName(),
+                    Level.WARN,
+                    expectedWarningMessage
+                )
+                : new MockLog.SeenEventExpectation(
+                    "Should log first too many shards on undesired locations",
+                    DesiredBalanceReconciler.class.getCanonicalName(),
+                    Level.WARN,
+                    expectedWarningMessage
+                )
         );
         assertThatLogger(
-            () -> reconciler.reconcile(new DesiredBalance(1, dataNode2Assignments), createRoutingAllocationFrom(clusterState)),
+            () -> reconciler.reconcile(new DesiredBalance(1, allShardsDesiredOnDataNode2), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
             new MockLog.UnseenEventExpectation(
                 "Should not log immediate second too many shards on undesired locations",
@@ -1323,7 +1347,9 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), mock(ThreadPool.class), mock(MeterRegistry.class)).reconcile(
+        final var threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class)).reconcile(
             desiredBalance,
             routingAllocation
         );

@@ -37,9 +37,10 @@ When defining a rule, consider the following:
 ===== Rule type
 
 The type of rule we want to apply.
-For the moment there is a single rule type:
+We support the following rule types:
 
 * `pinned` will re-write the query into a <<query-dsl-pinned-query, pinned query>>, pinning specified results matching the query rule at the top of the returned result set.
+* `exclude` will exclude specified results from the returned result set.
 
 [discrete]
 [[query-rule-criteria]]
@@ -91,12 +92,11 @@ Allowed criteria types are:
 
 The actions to take when the rule matches a query:
 
-* `ids` will pin the specified <<mapping-id-field,`_id`>>s.
-* `docs` will pin the specified documents in the specified indices.
+* `ids` will select the specified <<mapping-id-field,`_id`>>s.
+* `docs` will select the specified documents in the specified indices.
 
 Use `ids` when searching over a single index, and `docs` when searching over multiple indices.
 `ids` and `docs` cannot be combined in the same query.
-See <<query-dsl-pinned-query,pinned query>> for details.
 
 [discrete]
 [[add-query-rules]]
@@ -105,10 +105,10 @@ See <<query-dsl-pinned-query,pinned query>> for details.
 You can add query rules using the <<put-query-ruleset>> call.
 This adds a ruleset containing one or more query rules that will be applied to queries that match their specified criteria.
 
-The following command will create a query ruleset called `my-ruleset` with two pinned document rules:
+The following command will create a query ruleset called `my-ruleset` with two query rules:
 
 * The first rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field,`_id`>>s `id1` and `id2` when the `query_string` metadata value is a fuzzy match to either `puggles` or `pugs` _and_ the user's location is in the US.
-* The second rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field, `_id`>> of `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `query_string` metadata value contains `beagles`.
+* The second rule will generate a query that excludes the <<mapping-id-field, `_id`>> `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `query_string` metadata value contains `beagles`.
 
 ////
 [source,console]
@@ -147,7 +147,7 @@ PUT /_query_rules/my-ruleset
     },
     {
       "rule_id": "rule2",
-      "type": "pinned",
+      "type": "exclude",
       "criteria": [
         {
           "type": "contains",
@@ -222,7 +222,8 @@ This rule query will match against `rule1` in the defined query ruleset, and wil
 Any other matches from the organic query will be returned below the pinned results.
 
 It's possible to have multiple rules in a ruleset match a single <<query-dsl-rule-query, rule query>>.
-In this case, the pinned documents are returned in the following order:
+In this case, the rules are applied in the following order:
 
 - Where the matching rule appears in the ruleset
 - If multiple documents are specified in a single rule, in the order they are specified
+- If a document is matched by both a `pinned` rule and an `exclude` rule, the `exclude` rule will take precedence

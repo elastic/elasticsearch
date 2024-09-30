@@ -27,12 +27,14 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -51,6 +53,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -58,7 +61,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
@@ -108,16 +111,23 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // we're only interested in the children
+                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
+                    if (p instanceof Project) {
+                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
+                            failures.add(fail(ae, ua.unresolvedMessage()));
+                        }
+                        if (ae instanceof UnsupportedAttribute) {
+                            return;
+                        }
+                    }
+
+                    // Do not fail multiple times in case the children are already unresolved.
                     if (ae.childrenResolved() == false) {
                         return;
                     }
 
                     if (ae instanceof Unresolvable u) {
-                        // special handling for Project and unsupported types
-                        if (p instanceof Project == false || u instanceof UnsupportedAttribute == false) {
-                            failures.add(fail(ae, u.unresolvedMessage()));
-                        }
+                        failures.add(fail(ae, u.unresolvedMessage()));
                     }
                     if (ae.typeResolved().unresolved()) {
                         failures.add(fail(ae, ae.typeResolved().message()));
@@ -176,6 +186,7 @@ public class Verifier {
             checkForSortOnSpatialTypes(p, failures);
 
             checkFilterMatchConditions(p, failures);
+            checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -383,7 +394,12 @@ public class Verifier {
                 DataType dataType = field.dataType();
                 if (DataType.isRepresentable(dataType) == false) {
                     failures.add(
-                        fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
+                        fail(
+                            field,
+                            "EVAL does not support type [{}] as the return data type of expression [{}]",
+                            dataType.typeName(),
+                            field.child().sourceText()
+                        )
                     );
                 }
                 // check no aggregate functions are used
@@ -623,6 +639,33 @@ public class Verifier {
             if (hasMatch.get()) {
                 failures.add(fail(condition, "Invalid condition using MATCH"));
             }
+        }
+    }
+
+    private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Filter f) {
+            Expression condition = f.condition();
+            if (condition instanceof FullTextFunction ftf) {
+                // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
+                // we can't check if it can be pushed down as we don't have yet information about the fields present in the
+                // StringQueryPredicate
+                plan.forEachDown(LogicalPlan.class, lp -> {
+                    if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
+                        failures.add(
+                            fail(
+                                plan,
+                                "[{}] function cannot be used after {}",
+                                ftf.functionName(),
+                                lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                            )
+                        );
+                    }
+                });
+            }
+        } else {
+            plan.forEachExpression(FullTextFunction.class, ftf -> {
+                failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
+            });
         }
     }
 }

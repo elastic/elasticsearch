@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -61,7 +62,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
         if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
-            File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
+            File targetFile = calculateTargetFile(target, buildNumber);
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
             DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);
@@ -86,9 +87,19 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         }
     }
 
+    private File calculateTargetFile(Project target, String buildNumber) {
+        File uploadFile = target.file("build/" + buildNumber + ".tar.bz2");
+        int artifactIndex = 1;
+        while (uploadFile.exists()) {
+            uploadFile = target.file("build/" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
+        }
+        return uploadFile;
+    }
+
     private List<File> resolveProjectLogs(File projectDir) {
         var projectDirFiles = getFileOperations().fileTree(projectDir);
         projectDirFiles.include("**/*.hprof");
+        projectDirFiles.include("**/build/reports/configuration-cache/**");
         projectDirFiles.include("**/build/test-results/**/*.xml");
         projectDirFiles.include("**/build/testclusters/**");
         projectDirFiles.include("**/build/testrun/*/temp/**");

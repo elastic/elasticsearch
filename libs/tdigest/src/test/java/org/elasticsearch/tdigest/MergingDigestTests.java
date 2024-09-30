@@ -33,18 +33,19 @@ import java.util.Random;
 public class MergingDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
-        return () -> new MergingDigest(compression);
+
+        return () -> new MergingDigest(arrays(), compression);
     }
 
     public void testNanDueToBadInitialization() {
         int compression = 100;
         int factor = 5;
-        MergingDigest md = new MergingDigest(compression, (factor + 1) * compression, compression);
+        MergingDigest md = new MergingDigest(arrays(), compression, (factor + 1) * compression, compression);
 
         final int M = 10;
         List<MergingDigest> mds = new ArrayList<>();
         for (int i = 0; i < M; ++i) {
-            mds.add(new MergingDigest(compression, (factor + 1) * compression, compression));
+            mds.add(new MergingDigest(arrays(), compression, (factor + 1) * compression, compression));
         }
 
         // Fill all digests with values (0,10,20,...,80).
@@ -107,7 +108,7 @@ public class MergingDigestTests extends TDigestTests {
      * Make sure that the first and last centroids have unit weight
      */
     public void testSingletonsAtEnds() {
-        TDigest d = new MergingDigest(50);
+        TDigest d = new MergingDigest(arrays(), 50);
         Random gen = random();
         double[] data = new double[100];
         for (int i = 0; i < data.length; i++) {
@@ -132,7 +133,7 @@ public class MergingDigestTests extends TDigestTests {
      * Verify centroid sizes.
      */
     public void testFill() {
-        MergingDigest x = new MergingDigest(300);
+        MergingDigest x = new MergingDigest(arrays(), 300);
         Random gen = random();
         ScaleFunction scale = x.getScaleFunction();
         double compression = x.compression();
@@ -150,5 +151,15 @@ public class MergingDigestTests extends TDigestTests {
             q0 = q1;
             i++;
         }
+    }
+
+    public void testLargeInputSmallCompression() {
+        MergingDigest td = new MergingDigest(arrays(), 10);
+        for (int i = 0; i < 10_000_000; i++) {
+            td.add(between(0, 3_600_000));
+        }
+        assertTrue(td.centroidCount() < 100);
+        assertTrue(td.quantile(0.00001) < 100_000);
+        assertTrue(td.quantile(0.99999) > 3_000_000);
     }
 }

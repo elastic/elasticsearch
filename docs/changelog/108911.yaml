@@ -1,5 +1,0 @@
-pr: 108911
-summary: Store source for fields in objects with `dynamic` override
-area: Mapping
-type: enhancement
-issues: []

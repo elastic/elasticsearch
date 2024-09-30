@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -42,6 +43,7 @@ public class ToLong extends AbstractConvertFunction {
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(LONG, (fieldEval, source) -> fieldEval),
         Map.entry(DATETIME, (fieldEval, source) -> fieldEval),
+        Map.entry(DATE_NANOS, (fieldEval, source) -> fieldEval),
         Map.entry(BOOLEAN, ToLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToLongFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToLongFromStringEvaluator.Factory::new),
@@ -76,6 +78,7 @@ public class ToLong extends AbstractConvertFunction {
             type = {
                 "boolean",
                 "date",
+                "date_nanos",
                 "keyword",
                 "text",
                 "double",

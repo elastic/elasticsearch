@@ -102,9 +102,7 @@ deprecated[7.5] Use `manage_transform` instead.
 This privilege is not available in {serverless-full}.
 
 `manage_data_stream_global_retention`::
-All operations related to managing the data stream global retention settings.
-+
-This privilege is not available in {serverless-full}.
+This privilege has no effect.deprecated[8.16]
 
 `manage_enrich`::
 All operations related to managing and executing enrich policies.
@@ -229,9 +227,7 @@ All cluster read-only operations, like cluster health and state, hot threads,
 node info, node and cluster stats, and pending cluster tasks.
 
 `monitor_data_stream_global_retention`::
-Allows the retrieval of the data stream global retention settings.
-+
-This privilege is not available in {serverless-full}.
+This privilege has no effect.deprecated[8.16]
 
 `monitor_enrich`::
 All read-only operations related to managing and executing enrich policies.

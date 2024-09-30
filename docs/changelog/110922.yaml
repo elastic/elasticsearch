@@ -1,5 +1,0 @@
-pr: 110922
-summary: Speed up collecting zero document string terms
-area: Aggregations
-type: enhancement
-issues: []

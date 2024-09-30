@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration;
@@ -11,13 +12,21 @@ package org.elasticsearch.logsdb.datageneration;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
-import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 public class DataGeneratorTests extends ESTestCase {
     public void testDataGeneratorSanity() throws IOException {
@@ -34,15 +43,22 @@ public class DataGeneratorTests extends ESTestCase {
 
     public void testDataGeneratorProducesValidMappingAndDocument() throws IOException {
         // Make sure objects, nested objects and all field types are covered.
-        var testArbitrary = new RandomBasedArbitrary() {
+        var testChildFieldGenerator = new DataSourceResponse.ChildFieldGenerator() {
+            private boolean dynamicSubObjectCovered = false;
             private boolean subObjectCovered = false;
             private boolean nestedCovered = false;
             private int generatedFields = 0;
 
             @Override
-            public boolean generateSubObject() {
-                if (subObjectCovered == false) {
-                    subObjectCovered = true;
+            public int generateChildFieldCount() {
+                // Make sure to generate enough fields to go through all field types.
+                return 20;
+            }
+
+            @Override
+            public boolean generateDynamicSubObject() {
+                if (dynamicSubObjectCovered == false) {
+                    dynamicSubObjectCovered = true;
                     return true;
                 }
 
@@ -50,7 +66,7 @@ public class DataGeneratorTests extends ESTestCase {
             }
 
             @Override
-            public boolean generateNestedObject() {
+            public boolean generateNestedSubObject() {
                 if (nestedCovered == false) {
                     nestedCovered = true;
                     return true;
@@ -60,28 +76,64 @@ public class DataGeneratorTests extends ESTestCase {
             }
 
             @Override
-            public int childFieldCount(int lowerBound, int upperBound) {
-                // Make sure to generate enough fields to go through all field types.
-                return 20;
+            public boolean generateRegularSubObject() {
+                if (subObjectCovered == false) {
+                    subObjectCovered = true;
+                    return true;
+                }
+
+                return false;
             }
 
             @Override
-            public String fieldName(int lengthLowerBound, int lengthUpperBound) {
+            public String generateFieldName() {
                 return "f" + generatedFields++;
-            }
-
-            @Override
-            public FieldType fieldType() {
-                return FieldType.values()[generatedFields % FieldType.values().length];
             }
         };
 
-        var dataGenerator = new DataGenerator(DataGeneratorSpecification.builder().withArbitrary(testArbitrary).build());
+        var dataSourceOverride = new DataSourceHandler() {
+            private int generatedFields = 0;
+
+            @Override
+            public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
+                return testChildFieldGenerator;
+            }
+
+            @Override
+            public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+                if (request.dynamicMapping() == DynamicMapping.FORBIDDEN || request.dynamicMapping() == DynamicMapping.SUPPORTED) {
+                    return new DataSourceResponse.FieldTypeGenerator(
+                        () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
+                            FieldType.values()[generatedFields++ % FieldType.values().length],
+                            false
+                        )
+                    );
+                }
+
+                return new DataSourceResponse.FieldTypeGenerator(() -> {
+                    var fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
+                    // Does not really work with dynamic mapping.
+                    if (fieldType == FieldType.UNSIGNED_LONG) {
+                        fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
+                    }
+
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, true);
+                });
+            }
+        };
+
+        var dataGenerator = new DataGenerator(
+            DataGeneratorSpecification.builder().withDataSourceHandlers(List.of(dataSourceOverride)).build()
+        );
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);
 
         var mappingService = new MapperServiceTestCase() {
+            @Override
+            protected Collection<? extends Plugin> getPlugins() {
+                return List.of(new UnsignedLongMapperPlugin(), new MapperExtrasPlugin());
+            }
         }.createMapperService(mapping);
 
         var document = XContentBuilder.builder(XContentType.JSON.xContent());
@@ -91,72 +143,57 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorStressTest() throws IOException {
-        // Let's generate 1000000 fields to test an extreme case (2 levels of objects + 1 leaf level with 100 fields per object).
-        var arbitrary = new Arbitrary() {
+        // Let's generate 125000 fields to test an extreme case (2 levels of objects + 1 leaf level with 50 fields per object).
+        var testChildFieldGenerator = new DataSourceResponse.ChildFieldGenerator() {
             private int generatedFields = 0;
 
             @Override
-            public boolean generateSubObject() {
+            public int generateChildFieldCount() {
+                return 50;
+            }
+
+            @Override
+            public boolean generateDynamicSubObject() {
+                return false;
+            }
+
+            @Override
+            public boolean generateNestedSubObject() {
+                return false;
+            }
+
+            @Override
+            public boolean generateRegularSubObject() {
                 return true;
             }
 
             @Override
-            public boolean generateNestedObject() {
-                return false;
-            }
-
-            @Override
-            public int childFieldCount(int lowerBound, int upperBound) {
-                return upperBound;
-            }
-
-            @Override
-            public String fieldName(int lengthLowerBound, int lengthUpperBound) {
+            public String generateFieldName() {
                 return "f" + generatedFields++;
             }
+        };
 
+        var dataSourceOverride = new DataSourceHandler() {
             @Override
-            public FieldType fieldType() {
-                return FieldType.LONG;
+            public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
+                return testChildFieldGenerator;
             }
 
             @Override
-            public long longValue() {
-                return 0;
+            public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+                return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
             }
 
             @Override
-            public String stringValue(int lengthLowerBound, int lengthUpperBound) {
-                return "";
-            }
-
-            @Override
-            public boolean generateNullValue() {
-                return false;
-            }
-
-            @Override
-            public boolean generateArrayOfValues() {
-                return false;
-            }
-
-            @Override
-            public int valueArraySize() {
-                return 3;
-            }
-
-            @Override
-            public boolean generateArrayOfObjects() {
-                return false;
-            }
-
-            @Override
-            public int objectArraySize() {
-                return 3;
+            public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+                return new DataSourceResponse.FieldTypeGenerator(
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false)
+                );
             }
         };
+
         var dataGenerator = new DataGenerator(
-            DataGeneratorSpecification.builder().withArbitrary(arbitrary).withMaxFieldCountPerLevel(100).withMaxObjectDepth(2).build()
+            DataGeneratorSpecification.builder().withDataSourceHandlers(List.of(dataSourceOverride)).withMaxObjectDepth(2).build()
         );
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());

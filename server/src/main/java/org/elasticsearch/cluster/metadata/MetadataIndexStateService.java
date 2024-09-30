@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -50,7 +51,6 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -67,6 +67,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -469,7 +470,7 @@ public class MetadataIndexStateService {
         }
 
         addBlocksQueue.submitTask(
-            "add-index-block-[" + request.getBlock().name + "]-" + Arrays.toString(concreteIndices),
+            "add-index-block-[" + request.block().name + "]-" + Arrays.toString(concreteIndices),
             new AddBlocksTask(request, listener),
             request.masterNodeTimeout()
         );
@@ -479,7 +480,7 @@ public class MetadataIndexStateService {
 
         @Override
         public Tuple<ClusterState, Map<Index, ClusterBlock>> executeTask(AddBlocksTask task, ClusterState clusterState) {
-            return addIndexBlock(task.request.indices(), clusterState, task.request.getBlock());
+            return addIndexBlock(task.request.indices(), clusterState, task.request.block());
         }
 
         @Override
@@ -496,7 +497,7 @@ public class MetadataIndexStateService {
                                 .delegateFailure(
                                     (delegate2, verifyResults) -> finalizeBlocksQueue.submitTask(
                                         "finalize-index-block-["
-                                            + task.request.getBlock().name
+                                            + task.request.block().name
                                             + "]-["
                                             + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
                                             + "]",
@@ -528,7 +529,7 @@ public class MetadataIndexStateService {
                 clusterState,
                 task.blockedIndices,
                 task.verifyResults,
-                task.request.getBlock()
+                task.request.block()
             );
             assert finalizeResult.v2().size() == task.verifyResults.size();
             return finalizeResult;
@@ -796,9 +797,7 @@ public class MetadataIndexStateService {
                 block,
                 parentTaskId
             );
-            if (request.ackTimeout() != null) {
-                shardRequest.timeout(request.ackTimeout());
-            }
+            shardRequest.timeout(request.ackTimeout());
             client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, shardRequest, listener);
         }
     }
@@ -1100,7 +1099,7 @@ public class MetadataIndexStateService {
                 }
             }
 
-            shardLimitValidator.validateShardLimit(currentState, indices);
+            shardLimitValidator.validateShardLimit(currentState.nodes(), currentState.metadata(), indices);
             if (indicesToOpen.isEmpty()) {
                 return currentState;
             }

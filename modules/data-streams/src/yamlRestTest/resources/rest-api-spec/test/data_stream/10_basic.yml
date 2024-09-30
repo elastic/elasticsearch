@@ -115,8 +115,10 @@ setup:
 "Create hidden data stream":
   - requires:
       cluster_features: ["gte_v7.11.0"]
+      test_runner_features: ["warnings", "headers"]
       reason: "hidden data streams only available in 7.11"
   - do:
+      headers: { X-elastic-product-origin: elastic }
       allowed_warnings:
         - "index template [my-template3] has index patterns [.hidden-data-stream, hidden-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template3] will take precedence during new index creation"
       indices.put_index_template:
@@ -1158,6 +1160,7 @@ setup:
 
   - do:
       allowed_warnings:
+        - "index template [match-all-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,global,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],global => [*],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-template] will take precedence during new index creation"
         - "index template [match-all-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-template] will take precedence during new index creation"
       indices.put_index_template:
         name: match-all-template
@@ -1203,6 +1206,7 @@ setup:
       reason: "data streams supoprt for match all templates only supported in 8.16"
   - do:
       allowed_warnings:
+        - "index template [match-all-hidden-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,global,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],global => [*],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-hidden-template] will take precedence during new index creation"
         - "index template [match-all-hidden-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-hidden-template] will take precedence during new index creation"
       indices.put_index_template:
         name: match-all-hidden-template
@@ -1241,3 +1245,65 @@ setup:
   - do:
       indices.delete_index_template:
         name: match-all-hidden-template
+
+---
+"Get maximum_timestamp for the data stream":
+  - requires:
+       capabilities:
+         - method: GET
+           path: /_data_stream
+           parameters: [verbose]
+       test_runner_features: [allowed_warnings, capabilities]
+       reason: Verbose flag required for the test
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream1
+        verbose: false
+
+  - match: { data_streams.0.name: data-stream1 }
+  - is_false: data_streams.0.maximum_timestamp
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream1
+        verbose: true
+
+  - match: { data_streams.0.name: data-stream1 }
+  # 0 because no documents have been indexed yet
+  - match: { data_streams.0.maximum_timestamp: 0 }
+
+  - do:
+      index:
+        index: data-stream1
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream1
+        verbose: true
+
+  - match: { data_streams.0.name: data-stream1 }
+  - match: { data_streams.0.maximum_timestamp: 1607731200000 }
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream1
+  - is_true: acknowledged

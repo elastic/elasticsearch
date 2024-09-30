@@ -24,6 +24,9 @@ stats API>>.
 If your cluster can't connect to the Elastic GeoIP endpoint or you want to
 manage your own updates, see <<manage-geoip-database-updates>>.
 
+If you would like to have {es} download database files directly from Maxmind using your own provided
+license key, see <<put-geoip-database-api>>.
+
 If {es} can't connect to the endpoint for 30 days all updated databases will become
 invalid. {es} will stop enriching documents with geoip data and will add `tags: ["_geoip_expired_database"]`
 field instead.
@@ -36,9 +39,9 @@ field instead.
 [options="header"]
 |======
 | Name                                     | Required  | Default                                                                            | Description
-| `field`                                  | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
+| `field`                                  | yes       | -                                                                                  | The field to get the IP address from for the geographical lookup.
 | `target_field`                           | no        | geoip                                                                              | The field that will hold the geographical information looked up from the MaxMind database.
-| `database_file`                          | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to one of the automatically downloaded GeoLite2 databases (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb) or the name of a supported database file in the `ingest-geoip` config directory.
+| `database_file`                          | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to one of the automatically downloaded GeoLite2 databases (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb), or the name of a supported database file in the `ingest-geoip` config directory, or the name of a <<get-geoip-database-api, configured database>> (with the `.mmdb` suffix appended).
 | `properties`                             | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 | `ignore_missing`                         | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 | `first_only`                             | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array

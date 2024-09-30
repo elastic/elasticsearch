@@ -76,6 +76,166 @@ fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec
 fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe81::cae2:65ff:fece:feb9 | gamma
 ;
 
+maxOfVersion
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats max(version), a = max(version), b = max(x), c = max(case(name == "iiiii", "100.0.0"::version, version));
+
+max(version):version | a:version | b:version | c:version
+bad                  | bad       | bad       | 100.0.0
+;
+
+maxOfVersionGrouping
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats max(version), a = max(version), b = max(x), c = max(case(name == "ccccc", "100.0.0"::version, version)) by name
+| sort name asc
+| limit 3;
+
+max(version):version | a:version | b:version | c:version | name:keyword
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.2.3.4   | aaaaa
+2.3.4                | 2.3.4     | 2.3.4     | 100.0.0   | ccccc
+2.12.0               | 2.12.0    | 2.12.0    | 2.12.0    | ddddd
+;
+
+maxOfKeyword
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats max(abbrev), a = max(abbrev), b = max(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev));
+
+max(abbrev):keyword | a:keyword | b:keyword | c:keyword
+ZAH                 | ZAH       | ZAH       | ___
+;
+
+maxOfKeywordGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats max(abbrev), a = max(abbrev), b = max(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev)) by type
+| sort type asc
+| limit 4;
+
+max(abbrev):keyword | a:keyword | b:keyword | c:keyword | type:keyword
+IXC                 | IXC       | IXC       | IXC       | major
+ZAH                 | ZAH       | ZAH       | ZAH       | mid
+VIBY                | VIBY      | VIBY      | VIBY      | military
+OPQS                | OPQS      | OPQS      | ___       | small
+;
+
+maxOfText
+required_capability: agg_max_min_string_support
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats max(name), a = max(name), b = max(x);
+
+max(name):text   | a:text           | b:text
+Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l
+;
+
+maxOfTextGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats max(name), a = max(name), b = max(x) by type
+| sort type asc
+| limit 4;
+
+max(name):text   | a:text           | b:text           | type:keyword
+Cheongju Int'l   | Cheongju Int'l   | Cheongju Int'l   | major
+Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l | mid
+Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l | military
+Sahnewal         | Sahnewal         | Sahnewal         | small
+;
+
+minOfVersion
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats min(version), a = min(version), b = min(x), c = min(case(name == "iiiii", "1.0"::version, version));
+
+min(version):version | a:version | b:version | c:version
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.0
+;
+
+minOfVersionGrouping
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats min(version), a = min(version), b = min(x), c = min(case(name == "ccccc", "100.0.0"::version, version)) by name
+| sort name asc
+| limit 3;
+
+min(version):version | a:version | b:version | c:version | name:keyword
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.2.3.4   | aaaaa
+2.3.4                | 2.3.4     | 2.3.4     | 100.0.0   | ccccc
+2.12.0               | 2.12.0    | 2.12.0    | 2.12.0    | ddddd
+;
+
+minOfKeyword
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats min(abbrev), a = min(abbrev), b = min(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev));
+
+min(abbrev):keyword | a:keyword | b:keyword | c:keyword
+AWZ                 | AWZ       | AWZ       | ___
+;
+
+minOfKeywordGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats min(abbrev), a = min(abbrev), b = min(x), c = min(case(mv_first(type) == "small", "___"::keyword, abbrev)) by type
+| sort type asc
+| limit 4;
+
+min(abbrev):keyword | a:keyword | b:keyword | c:keyword | type:keyword
+CJJ                 | CJJ       | CJJ       | CJJ       | major
+AWZ                 | AWZ       | AWZ       | AWZ       | mid
+GWL                 | GWL       | GWL       | GWL       | military
+LUH                 | LUH       | LUH       | ___       | small
+;
+
+minOfText
+required_capability: agg_max_min_string_support
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats min(name), a = min(name), b = min(x);
+
+min(name):text      | a:text              | b:text
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh
+;
+
+minOfTextGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats min(name), a = min(name), b = min(x) by type
+| sort type asc
+| limit 4;
+
+min(name):text      | a:text              | b:text              | type:keyword
+Chandigarh Int'l    | Chandigarh Int'l    | Chandigarh Int'l    | major
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh | mid
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh | military
+Dhamial             | Dhamial             | Dhamial             | small
+;
+
 minOfBooleanExpression
 required_capability: agg_max_min_boolean_support
 from employees
@@ -1016,7 +1176,7 @@ avg_lang:double | max_lang:integer
 docsStatsGroupByMultipleValues
 // tag::statsGroupByMultipleValues[]
 FROM employees
-| EVAL hired = DATE_FORMAT("YYYY", hire_date)
+| EVAL hired = DATE_FORMAT("yyyy", hire_date)
 | STATS avg_salary = AVG(salary) BY hired, languages.long
 | EVAL avg_salary = ROUND(avg_salary)
 | SORT hired, languages.long
@@ -1154,7 +1314,7 @@ COUNT(c):long | a:integer
             0 | 1
 ;
 
-countDistinctNull#[skip:-8.99.99,reason:not yet fixed]
+countDistinctNull#[skip:-9.99.99,reason:not yet fixed]
 ROW a = 1, c = null
 | STATS COUNT_DISTINCT(c) BY a;
 
@@ -1456,6 +1616,37 @@ m:i | o:i   | l:i | s:i
 1   | 34342 | 1   | 34342
 1   | 39111 | 1   | 39111
 1   | 39729 | 1   | 39729
+;
+
+byTwoCalculatedSecondSameNameAsFirst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS m = MAX(salary) by l = salary + 1, l = languages + 1
+| SORT m
+| LIMIT 5
+;
+
+ m:i  | l:i
+66817 | 6
+73578 | 3
+73717 | 2
+74572 | 5
+74970 | 4
+;
+
+byTwoCalculatedSecondShadowingAndReferencingFirst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| EVAL l = languages
+| STATS m = MAX(salary) by l = l + 1, l = l + 1
+| SORT m
+| LIMIT 5
+;
+
+ m:i  | l:i
+66817 | 6
+73578 | 3
+73717 | 2
+74572 | 5
+74970 | 4
 ;
 
 nestedAggsOverGroupingWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
@@ -2017,6 +2208,19 @@ F
 M
 null
 ;
+
+shadowingInternalWithGroup2#[skip:-8.14.1,reason:implemented in 8.14]
+FROM employees
+| STATS x = MAX(emp_no), y = count(x) BY x = emp_no, x = gender
+| SORT x ASC
+;
+
+y:long | x:keyword
+    33 | F
+    57 | M
+     0 | null
+;
+
 
 shadowingTheGroup
 FROM employees

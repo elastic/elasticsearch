@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -15,19 +19,28 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "EsQueryExec",
+        EsQueryExec::new
+    );
+
     public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
 
     private final EsIndex index;
@@ -43,13 +56,28 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
-    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) {
+    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Writeable {
         public FieldSortBuilder fieldSortBuilder() {
             FieldSortBuilder builder = new FieldSortBuilder(field.name());
             builder.order(Direction.from(direction).asOrder());
             builder.missing(Missing.from(nulls).searchOrder());
             builder.unmappedType(field.dataType().esType());
             return builder;
+        }
+
+        private static FieldSort readFrom(StreamInput in) throws IOException {
+            return new EsQueryExec.FieldSort(
+                FieldAttribute.readFrom(in),
+                in.readEnum(Order.OrderDirection.class),
+                in.readEnum(Order.NullsPosition.class)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            field().writeTo(out);
+            out.writeEnum(direction());
+            out.writeEnum(nulls());
         }
     }
 
@@ -75,6 +103,36 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.limit = limit;
         this.sorts = sorts;
         this.estimatedRowSize = estimatedRowSize;
+    }
+
+    private EsQueryExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            new EsIndex(in),
+            EsRelation.readIndexMode(in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readOptionalNamedWriteable(QueryBuilder.class),
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalCollectionAsList(FieldSort::readFrom),
+            in.readOptionalVInt()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        index().writeTo(out);
+        EsRelation.writeIndexMode(out, indexMode());
+        out.writeNamedWriteableCollection(output());
+        out.writeOptionalNamedWriteable(query());
+        out.writeOptionalNamedWriteable(limit());
+        out.writeOptionalCollection(sorts());
+        out.writeOptionalVInt(estimatedRowSize());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public static boolean isSourceAttribute(Attribute attr) {

@@ -1,6 +1,0 @@
-pr: 110061
-summary: Avoiding running watch jobs in TickerScheduleTriggerEngine if it is paused
-area: Watcher
-type: bug
-issues:
- - 105933

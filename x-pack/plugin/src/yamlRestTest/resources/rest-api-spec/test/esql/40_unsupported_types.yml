@@ -113,6 +113,15 @@ unsupported:
       cluster_features: ["gte_v8.13.0"]
       reason: "Latest types supported in ESQL as of 8.13.0"
 
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ date_nanos_type ]
+      reason: "support for date nanos type"
+
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
@@ -128,7 +137,7 @@ unsupported:
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
   - match: { columns.3.name: date_nanos }
-  - match: { columns.3.type: unsupported }
+  - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
@@ -184,7 +193,7 @@ unsupported:
   - match: { values.0.0: null }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
-  - match: { values.0.3: null }
+  - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
   - match: { values.0.4: null }
   - match: { values.0.5: null }
   - match: { values.0.6: null }
@@ -224,7 +233,7 @@ unsupported:
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
   - match: { columns.3.name: date_nanos }
-  - match: { columns.3.type: unsupported }
+  - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
@@ -293,6 +302,15 @@ unsupported with sort:
       cluster_features: ["gte_v8.13.0"]
       reason: "Latest types supported in ESQL as of 8.13.0"
 
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ date_nanos_type ]
+      reason: "support for date nanos type"
+
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
@@ -308,7 +326,7 @@ unsupported with sort:
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
   - match: { columns.3.name: date_nanos }
-  - match: { columns.3.type: unsupported }
+  - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
@@ -364,7 +382,7 @@ unsupported with sort:
   - match: { values.0.0: null }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
-  - match: { values.0.3: null }
+  - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
   - match: { values.0.4: null }
   - match: { values.0.5: null }
   - match: { values.0.6: null }
@@ -390,3 +408,99 @@ unsupported with sort:
   - match: { values.0.26: xy }
   - match: { values.0.27: "foo bar" }
   - match: { values.0.28: 3 }
+
+---
+nested declared inline:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+            "find_me": 1,
+            "nested": {
+              "foo": 1,
+              "bar": "bar",
+              "baz": 1.9
+            }
+          }
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE find_me == 1 | KEEP n*'
+
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns: [{name: name, type: keyword}] }
+  - match: { values: [[null]] }
+
+---
+nested declared in mapping:
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  foo:
+                    type: keyword
+                  bar:
+                    type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_nested'
+
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns: [{name: name, type: keyword}] }
+
+---
+double nested declared in mapping:
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  bort:
+                    type: keyword
+                  nested:
+                    type: nested
+                    properties:
+                      foo:
+                        type: keyword
+                      bar:
+                        type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_nested'
+
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns: [{name: name, type: keyword}] }

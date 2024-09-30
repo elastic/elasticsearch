@@ -20,9 +20,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
@@ -164,7 +165,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 MlTasks.snapshotUpgradeTaskId(params.getJobId(), params.getSnapshotId()),
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
                 params,
-                null,
+                request.masterNodeTimeout(),
                 waitForJobToStart
             );
         }, listener::onFailure);
@@ -293,7 +294,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
-            null,
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(t -> listener.onFailure(exception), e -> {
                 logger.error(
                     () -> format(

@@ -22,8 +22,7 @@ dependencies {
 
 // let the yamlRestTests see the classpath of test
 GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
-int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
-GradleUtils.extendSourceSet(project, "test", "yamlRestTestV${compatVersion}Compat")
+GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
 
 restResources {
   restApi {
@@ -59,120 +58,6 @@ tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    'unsigned_long/50_script_values/Scripted sort values',
-    'unsigned_long/50_script_values/script_score query',
-    'unsigned_long/50_script_values/Script query',
-    'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with time series mappings',
-    'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
-    'analytics/histogram/histogram with wrong time series mappings',
-    'analytics/histogram/histogram with time series mappings',
-    'analytics/boxplot/Basic Search',
-    'analytics/boxplot/Search With Runtime Field',
-    'analytics/boxplot/Search With Missing',
-    'analytics/moving_percentile/Basic Search TDigest',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc given actual_field is int',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
-    'ml/evaluate_data_frame/Test classification auc_roc',
-    'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
-  ].join(',')
-}
-
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.skipTest(
-    "vectors/10_dense_vector_basic/Deprecated function signature",
-    "to support it, it would require to almost revert back the #48725 and complicate the code"
-  )
-  task.skipTest(
-    "vectors/20_dense_vector_special_cases/Indexing of Dense vectors should error when dims don't match defined in the mapping",
-    "Error message has changed"
-  )
-  task.skipTest("vectors/30_sparse_vector_basic/Cosine Similarity", "not supported for compatibility")
-  task.skipTest("vectors/30_sparse_vector_basic/Deprecated function signature", "not supported for compatibility")
-  task.skipTest("vectors/30_sparse_vector_basic/Dot Product", "not supported for compatibility")
-  task.skipTest("vectors/35_sparse_vector_l1l2/L1 norm", "not supported for compatibility")
-  task.skipTest("vectors/35_sparse_vector_l1l2/L2 norm", "not supported for compatibility")
-  task.skipTest("vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently", "not supported for compatibility")
-  task.skipTest("vectors/40_sparse_vector_special_cases/Documents missing a vector field", "not supported for compatibility")
-  task.skipTest(
-    "vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents' vectors",
-    "not supported for compatibility"
-  )
-  task.skipTest("vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions", "not supported for compatibility")
-  task.skipTest("vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types", "not supported for compatibility")
-  task.skipTest("vectors/50_vector_stats/Usage stats on vector fields", "not supported for compatibility")
-  task.skipTest(
-    "roles/30_prohibited_role_query/Test use prohibited query inside role query",
-    "put role request with a term lookup (deprecated) and type. Requires validation in REST layer"
-  )
-  task.skipTest("ml/jobs_crud/Test update job", "Behaviour change #89824 - added limit filter to categorization analyzer")
-  task.skipTest("ml/jobs_crud/Test create job with delimited format", "removing undocumented functionality")
-  task.skipTest("ml/jobs_crud/Test cannot create job with model snapshot id set", "Exception type has changed.")
-  task.skipTest("ml/validate/Test job config is invalid because model snapshot id set", "Exception type has changed.")
-  task.skipTest("ml/datafeeds_crud/Test update datafeed to point to missing job", "behaviour change #44752 - not allowing to update datafeed job_id")
-  task.skipTest(
-    "ml/datafeeds_crud/Test update datafeed to point to different job",
-    "behaviour change #44752 - not allowing to update datafeed job_id"
-  )
-  task.skipTest(
-    "ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed",
-    "behaviour change #44752 - not allowing to update datafeed job_id"
-  )
-  task.skipTest(
-    "ml/trained_model_cat_apis/Test cat trained models",
-    "A type field was added to cat.ml_trained_models #73660, this is a backwards compatible change. Still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)"
-  )
-  task.skipTest(
-    "ml/categorization_agg/Test categorization agg simple",
-    "categorize_text was changed in 8.3, but experimental prior to the change"
-  )
-  task.skipTest(
-    "ml/categorization_agg/Test categorization aggregation against unsupported field",
-    "categorize_text was changed in 8.3, but experimental prior to the change"
-  )
-  task.skipTest(
-    "ml/categorization_agg/Test categorization aggregation with poor settings",
-    "categorize_text was changed in 8.3, but experimental prior to the change"
-  )
-  task.skipTest("indices.freeze/30_usage/Usage stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("indices.freeze/20_stats/Translog stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("sql/sql/Paging through results", "scrolling through search hit queries no longer produces empty last page in 8.2")
-  task.skipTest("sql/translate/Translate SQL", "query folding changed in v 8.5, added track_total_hits: -1")
-  task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
-  task.skipTest("spatial/70_script_doc_values/diagonal length", "precision changed in 8.4.0")
-  task.skipTest("spatial/70_script_doc_values/geoshape value", "error message changed in 8.9.0")
-  task.skipTest("security/authz/14_cat_indices/Test empty request while single authorized index", "not supported for compatibility")
-  task.skipTestsByFilePattern("**/rollup/**", "The rollup yaml tests in the 7.x branch don't know how to fake a cluster with rollup usage")
-
-  task.replaceValueInMatch("_type", "_doc")
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
-  task.addAllowedWarningRegex("bucket_span .* is not an integral .* of the number of seconds in 1d.* This is now deprecated.*")
-
-  task.replaceValueTextByKeyValue(
-    "catch",
-    'bad_request',
-    '/It is no longer possible to freeze indices, but existing frozen indices can still be unfrozen/',
-    "Cannot freeze write index for data stream"
-  )
-
-  task.replaceValueInMatch(
-    "error.reason",
-    "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with effective roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]",
-    "Test invalidate api key by realm name"
-  )
-
-  task.replaceValueInMatch(
-    "error.reason",
-    "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with effective roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]",
-    "Test invalidate api key by username"
-  )
-}
-
 tasks.register('enforceApiSpecsConvention').configure {
   def mainApiSpecs = fileTree('src/test/resources/rest-api-spec/api')
   doLast {
@@ -194,4 +79,9 @@ tasks.register('enforceYamlTestConvention').configure {
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("security/10_forbidden/Test bulk response with invalid credentials", "warning does not exist for compatibility")
+  task.skipTest("wildcard/30_ignore_above_synthetic_source/wildcard field type ignore_above", "Temporary until backported")
+})
 

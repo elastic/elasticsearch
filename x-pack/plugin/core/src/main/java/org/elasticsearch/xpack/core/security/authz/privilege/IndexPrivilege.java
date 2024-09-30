@@ -86,7 +86,6 @@ public final class IndexPrivilege extends Privilege {
         TransportClusterSearchShardsAction.TYPE.name(),
         TransportSearchShardsAction.TYPE.name(),
         TransportResolveClusterAction.NAME,
-        "indices:data/read/esql/resolve_fields",
         "indices:data/read/esql",
         "indices:data/read/esql/compute"
     );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpRequest;
@@ -598,7 +600,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -637,7 +639,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -662,7 +664,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -688,7 +690,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -713,7 +715,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -830,11 +832,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public BytesReference content() {
+            public HttpBody body() {
                 if (hasContent) {
-                    return new BytesArray("test");
+                    return HttpBody.fromBytesReference(new BytesArray("test"));
                 }
-                return BytesArray.EMPTY;
+                return HttpBody.empty();
             }
 
             @Override

@@ -23,7 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,14 +31,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.DOCS_FIELD;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.IDS_FIELD;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item.INDEX_FIELD;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
 
 /**
  * A query rule consists of:
@@ -51,6 +48,11 @@ import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX
  */
 public class QueryRule implements Writeable, ToXContentObject {
 
+    public static final int MAX_NUM_DOCS_IN_RULE = 100;
+    public static final ParseField IDS_FIELD = new ParseField("ids");
+    public static final ParseField DOCS_FIELD = new ParseField("docs");
+    public static final ParseField INDEX_FIELD = new ParseField("_index");
+
     private final String id;
     private final QueryRuleType type;
     private final List<QueryRuleCriteria> criteria;
@@ -61,6 +63,7 @@ public class QueryRule implements Writeable, ToXContentObject {
     public static final int MAX_PRIORITY = 1000000;
 
     public enum QueryRuleType {
+        EXCLUDE,
         PINNED;
 
         public static QueryRuleType queryRuleType(String type) {
@@ -137,32 +140,31 @@ public class QueryRule implements Writeable, ToXContentObject {
     }
 
     private void validate() {
-        if (type == QueryRuleType.PINNED) {
-            boolean ruleContainsPinnedIds = actions.containsKey(IDS_FIELD.getPreferredName());
-            boolean ruleContainsPinnedDocs = actions.containsKey(DOCS_FIELD.getPreferredName());
-            if (ruleContainsPinnedIds ^ ruleContainsPinnedDocs) {
-                validatePinnedAction(actions.get(IDS_FIELD.getPreferredName()));
-                validatePinnedAction(actions.get(DOCS_FIELD.getPreferredName()));
-            } else {
-                throw new ElasticsearchParseException("pinned query rule actions must contain only one of either ids or docs");
-            }
-        } else {
-            throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
-        }
 
         if (priority != null && (priority < MIN_PRIORITY || priority > MAX_PRIORITY)) {
             throw new IllegalArgumentException("Priority was " + priority + ", must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
         }
+
+        if (Set.of(QueryRuleType.PINNED, QueryRuleType.EXCLUDE).contains(type)) {
+            boolean ruleContainsIds = actions.containsKey(IDS_FIELD.getPreferredName());
+            boolean ruleContainsDocs = actions.containsKey(DOCS_FIELD.getPreferredName());
+            if (ruleContainsIds ^ ruleContainsDocs) {
+                validateIdOrDocAction(actions.get(IDS_FIELD.getPreferredName()));
+                validateIdOrDocAction(actions.get(DOCS_FIELD.getPreferredName()));
+            } else {
+                throw new ElasticsearchParseException(type.toString() + " query rule actions must contain only one of either ids or docs");
+            }
+        }
     }
 
-    private void validatePinnedAction(Object action) {
+    private void validateIdOrDocAction(Object action) {
         if (action != null) {
             if (action instanceof List == false) {
-                throw new ElasticsearchParseException("pinned query rule actions must be a list");
+                throw new ElasticsearchParseException(type + " query rule actions must be a list");
             } else if (((List<?>) action).isEmpty()) {
-                throw new ElasticsearchParseException("pinned query rule actions cannot be empty");
-            } else if (((List<?>) action).size() > MAX_NUM_PINNED_HITS) {
-                throw new ElasticsearchParseException("pinned hits cannot exceed " + MAX_NUM_PINNED_HITS);
+                throw new ElasticsearchParseException(type + " query rule actions cannot be empty");
+            } else if (((List<?>) action).size() > MAX_NUM_DOCS_IN_RULE) {
+                throw new ElasticsearchParseException(type + " documents cannot exceed " + MAX_NUM_DOCS_IN_RULE);
             }
         }
     }
@@ -316,14 +318,22 @@ public class QueryRule implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    @SuppressWarnings("unchecked")
     public AppliedQueryRules applyRule(AppliedQueryRules appliedRules, Map<String, Object> matchCriteria) {
-        if (type != QueryRule.QueryRuleType.PINNED) {
-            throw new UnsupportedOperationException("Only pinned query rules are supported");
-        }
+        List<SpecifiedDocument> pinnedDocs = appliedRules.pinnedDocs();
+        List<SpecifiedDocument> excludedDocs = appliedRules.excludedDocs();
+        List<SpecifiedDocument> matchingDocs = identifyMatchingDocs(matchCriteria);
 
-        List<String> matchingPinnedIds = new ArrayList<>();
-        List<PinnedQueryBuilder.Item> matchingPinnedDocs = new ArrayList<>();
+        switch (type) {
+            case PINNED -> pinnedDocs.addAll(matchingDocs);
+            case EXCLUDE -> excludedDocs.addAll(matchingDocs);
+            default -> throw new IllegalStateException("Unsupported query rule type: " + type);
+        }
+        return new AppliedQueryRules(pinnedDocs, excludedDocs);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<SpecifiedDocument> identifyMatchingDocs(Map<String, Object> matchCriteria) {
+        List<SpecifiedDocument> matchingDocs = new ArrayList<>();
         Boolean isRuleMatch = null;
 
         // All specified criteria in a rule must match for the rule to be applied
@@ -342,25 +352,23 @@ public class QueryRule implements Writeable, ToXContentObject {
 
         if (isRuleMatch != null && isRuleMatch) {
             if (actions.containsKey(IDS_FIELD.getPreferredName())) {
-                matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
+                matchingDocs.addAll(
+                    ((List<String>) actions.get(IDS_FIELD.getPreferredName())).stream().map(id -> new SpecifiedDocument(null, id)).toList()
+                );
             } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
                 List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
-                List<PinnedQueryBuilder.Item> items = docsToPin.stream()
+                List<SpecifiedDocument> specifiedDocuments = docsToPin.stream()
                     .map(
-                        map -> new PinnedQueryBuilder.Item(
+                        map -> new SpecifiedDocument(
                             map.get(INDEX_FIELD.getPreferredName()),
-                            map.get(PinnedQueryBuilder.Item.ID_FIELD.getPreferredName())
+                            map.get(SpecifiedDocument.ID_FIELD.getPreferredName())
                         )
                     )
                     .toList();
-                matchingPinnedDocs.addAll(items);
+                matchingDocs.addAll(specifiedDocuments);
             }
         }
-
-        List<String> pinnedIds = appliedRules.pinnedIds();
-        List<PinnedQueryBuilder.Item> pinnedDocs = appliedRules.pinnedDocs();
-        pinnedIds.addAll(matchingPinnedIds);
-        pinnedDocs.addAll(matchingPinnedDocs);
-        return new AppliedQueryRules(pinnedIds, pinnedDocs);
+        return matchingDocs;
     }
+
 }

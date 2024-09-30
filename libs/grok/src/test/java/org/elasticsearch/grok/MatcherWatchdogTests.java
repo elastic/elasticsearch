@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.grok;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.joni.Matcher;
 import org.mockito.Mockito;
 
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -77,16 +78,17 @@ public class MatcherWatchdogTests extends ESTestCase {
         );
         // Periodic action is not scheduled because no thread is registered
         verifyNoMoreInteractions(threadPool);
-        CompletableFuture<Runnable> commandFuture = new CompletableFuture<>();
+
+        PlainActionFuture<Runnable> commandFuture = new PlainActionFuture<>();
         // Periodic action is scheduled because a thread is registered
         doAnswer(invocationOnMock -> {
-            commandFuture.complete((Runnable) invocationOnMock.getArguments()[0]);
+            commandFuture.onResponse(invocationOnMock.getArgument(0));
             return null;
         }).when(threadPool).schedule(any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS));
         Matcher matcher = mock(Matcher.class);
         watchdog.register(matcher);
         // Registering the first thread should have caused the command to get scheduled again
-        Runnable command = commandFuture.get(1L, TimeUnit.MILLISECONDS);
+        Runnable command = safeGet(commandFuture);
         Mockito.reset(threadPool);
         watchdog.unregister(matcher);
         command.run();

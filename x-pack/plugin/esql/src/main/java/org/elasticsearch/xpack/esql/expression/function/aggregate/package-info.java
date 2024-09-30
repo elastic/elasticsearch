@@ -68,18 +68,18 @@
  *                 {@code dataType}: This will return the datatype of your function.
  *                 May be based on its current parameters.
  *             </li>
+ *             <li>
+ *                 Implement {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}, and its required
+ *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression#surrogate()} method.
+ *                 <p>
+ *                     It's used to be able to fold the aggregation when it receives only literals,
+ *                     or when the aggregation can be simplified.
+ *                 </p>
+ *             </li>
  *         </ul>
  *
- *         Finally, you may want to implement some interfaces.
- *         Check their JavaDocs to see if they are suitable for your function:
- *         <ul>
- *             <li>
- *                 {@link org.elasticsearch.xpack.esql.planner.ToAggregator}: (More information about aggregators below)
- *             </li>
- *             <li>
- *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}
- *             </li>
- *         </ul>
+ *         Finally, implement {@link org.elasticsearch.xpack.esql.planner.ToAggregator} (More information about aggregators below).
+ *         The only case when this interface is not required is when it always returns another function in its surrogate.
  *     </li>
  *     <li>
  *         To introduce your aggregation to the engine:
@@ -89,13 +89,12 @@
  *                 Check all usages of other aggregations there, and replicate the logic.
  *             </li>
  *             <li>
- *                 Add it to {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}.
- *                 Consider adding a {@code writeTo} method and a constructor/{@code readFrom} method inside your function,
- *                 to keep all the logic in one place.
- *                 <p>
- *                     You can find examples of other aggregations using this method,
- *                     like {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Top#writeTo(PlanStreamOutput)}
- *                 </p>
+ *                 Implement serialization for your aggregation by implementing
+ *                 {@link org.elasticsearch.common.io.stream.NamedWriteable#getWriteableName},
+ *                 {@link org.elasticsearch.common.io.stream.NamedWriteable#writeTo},
+ *                 and a deserializing constructor. Then add an {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry}
+ *                 constant and add that constant to the list in
+ *                 {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction#getNamedWriteables}.
  *             </li>
  *             <li>
  *                 Do the same with {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
@@ -199,5 +198,3 @@
  * </ol>
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
-
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;

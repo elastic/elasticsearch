@@ -1,5 +1,0 @@
-pr: 109123
-summary: "[Inference API] Check for related pipelines on delete inference endpoint"
-area: Machine Learning
-type: enhancement
-issues: []

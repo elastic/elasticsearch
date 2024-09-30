@@ -1,0 +1,6 @@
+pr: 112489
+summary: "ES|QL: better validation for RLIKE patterns"
+area: ES|QL
+type: bug
+issues:
+ - 112485

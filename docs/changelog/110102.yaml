@@ -1,6 +1,0 @@
-pr: 110102
-summary: Optimize ST_DISTANCE filtering with Lucene circle intersection query
-area: ES|QL
-type: enhancement
-issues:
- - 109972

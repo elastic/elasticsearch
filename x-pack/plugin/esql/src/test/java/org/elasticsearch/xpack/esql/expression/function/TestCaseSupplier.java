@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
@@ -30,6 +31,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -53,15 +55,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Supplier<TestCaseSupplier.TestCase> {
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
-    /**
-     * Build a test case without types.
-     *
-     * @deprecated Supply types
-     */
-    @Deprecated
-    public TestCaseSupplier(String name, Supplier<TestCase> supplier) {
-        this(name, null, supplier);
-    }
 
     /**
      * Build a test case named after the types it takes.
@@ -72,6 +65,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static String nameFromTypes(List<DataType> types) {
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Build a name for the test case based on objects likely to describe it.
+     */
+    public static String nameFrom(List<Object> paramDescriptors) {
+        return paramDescriptors.stream().map(p -> {
+            if (p == null) {
+                return "null";
+            }
+            if (p instanceof DataType t) {
+                return "<" + t.typeName() + ">";
+            }
+            return p.toString();
+        }).collect(Collectors.joining(", "));
     }
 
     public static List<TestCaseSupplier> stringCases(
@@ -615,6 +623,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Generate positive test cases for a unary function operating on an {@link DataType#DATETIME}.
+     * This variant defaults to maximum range of possible values
      */
     public static void forUnaryDatetime(
         List<TestCaseSupplier> suppliers,
@@ -629,6 +638,49 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             dateCases(),
             expectedType,
             n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#DATETIME}.
+     * This variant accepts a range of values
+     */
+    public static void forUnaryDatetime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        long min,
+        long max,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateCases(min, max),
+            expectedType,
+            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#DATE_NANOS}.
+     */
+    public static void forUnaryDateNanos(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateNanosCases(),
+            expectedType,
+            n -> expectedValue.apply(DateUtils.toInstant((long) n)),
             warnings
         );
     }
@@ -1016,24 +1068,64 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * </p>
      */
     public static List<TypedDataSupplier> dateCases() {
+        return dateCases(Long.MIN_VALUE, Long.MAX_VALUE);
+    }
+
+    /**
+     * Generate cases for {@link DataType#DATETIME}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
+     * </p>
+     */
+    public static List<TypedDataSupplier> dateCases(long min, long max) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (min <= 0 && max >= 0) {
+            cases.add(new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME));
+        }
+
+        // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
+        long lower1 = Math.max(min, 0);
+        long upper1 = Math.min(max, 10 * (long) 10e11);
+        if (lower1 < upper1) {
+            cases.add(new TypedDataSupplier("<date>", () -> ESTestCase.randomLongBetween(lower1, upper1), DataType.DATETIME));
+        }
+
+        // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
+        long lower2 = Math.max(min, 10 * (long) 10e11);
+        long upper2 = Math.min(max, Long.MAX_VALUE);
+        if (lower2 < upper2) {
+            cases.add(new TypedDataSupplier("<far future date>", () -> ESTestCase.randomLongBetween(lower2, upper2), DataType.DATETIME));
+        }
+
+        // very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
+        long lower3 = Math.max(min, Long.MAX_VALUE / 100 * 99);
+        long upper3 = Math.min(max, Long.MAX_VALUE);
+        if (lower3 < upper3) {
+            cases.add(
+                new TypedDataSupplier("<near the end of time>", () -> ESTestCase.randomLongBetween(lower3, upper3), DataType.DATETIME)
+            );
+        }
+
+        return cases;
+    }
+
+    /**
+     * Generate cases for {@link DataType#DATE_NANOS}.
+     *
+     */
+    public static List<TypedDataSupplier> dateNanosCases() {
         return List.of(
-            new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME),
+            new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> 0L, DataType.DATE_NANOS),
+            new TypedDataSupplier("<date nanos>", () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11), DataType.DATE_NANOS),
             new TypedDataSupplier(
-                "<date>",
-                () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11), // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
-                DataType.DATETIME
-            ),
-            new TypedDataSupplier(
-                "<far future date>",
-                // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
+                "<far future date nanos>",
                 () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
-                DataType.DATETIME
+                DataType.DATE_NANOS
             ),
             new TypedDataSupplier(
-                "<near the end of time>",
-                // very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
+                "<nanos near the end of time>",
                 () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE),
-                DataType.DATETIME
+                DataType.DATE_NANOS
             )
         );
     }
@@ -1255,7 +1347,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new UnsupportedOperationException();
     }
 
-    private static String castToDoubleEvaluator(String original, DataType current) {
+    public static String castToDoubleEvaluator(String original, DataType current) {
         if (current == DataType.DOUBLE) {
             return original;
         }
@@ -1271,7 +1363,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new UnsupportedOperationException();
     }
 
-    public static class TestCase {
+    public static final class TestCase {
         /**
          * The {@link Source} this test case should be run with
          */
@@ -1299,22 +1391,34 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final String[] expectedWarnings;
 
+        /**
+         * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
+         * or {@link Expression#fold()} on the expression built by this.
+         */
+        private final String[] expectedBuildEvaluatorWarnings;
+
         private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
         private final Class<? extends Throwable> foldingExceptionClass;
         private final String foldingExceptionMessage;
 
+        /**
+         * Extra data embedded in the test case. Test subclasses can cast
+         * as needed and extra <strong>whatever</strong> helps them.
+         */
+        private final Object extra;
+
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, equalTo(evaluatorToString), expectedType, matcher);
         }
 
         public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<?> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null, null, null);
+            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
         }
 
         public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, expectedTypeError, null, null);
+            return new TestCase(data, null, null, null, null, null, expectedTypeError, null, null, null);
         }
 
         TestCase(
@@ -1323,9 +1427,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             DataType expectedType,
             Matcher<?> matcher,
             String[] expectedWarnings,
+            String[] expectedBuildEvaluatorWarnings,
             String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
-            String foldingExceptionMessage
+            String foldingExceptionMessage,
+            Object extra
         ) {
             this.source = Source.EMPTY;
             this.data = data;
@@ -1335,10 +1441,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<Object> downcast = (Matcher<Object>) matcher;
             this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
+            this.expectedBuildEvaluatorWarnings = expectedBuildEvaluatorWarnings;
             this.expectedTypeError = expectedTypeError;
             this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type));
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
+            this.extra = extra;
         }
 
         public Source getSource() {
@@ -1385,6 +1493,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return expectedWarnings;
         }
 
+        /**
+         * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
+         * or {@link Expression#fold()} on the expression built by this.
+         */
+        public String[] getExpectedBuildEvaluatorWarnings() {
+            return expectedBuildEvaluatorWarnings;
+        }
+
         public Class<? extends Throwable> foldingExceptionClass() {
             return foldingExceptionClass;
         }
@@ -1397,28 +1513,88 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return expectedTypeError;
         }
 
-        public TestCase withWarning(String warning) {
-            String[] newWarnings;
-            if (expectedWarnings != null) {
-                newWarnings = Arrays.copyOf(expectedWarnings, expectedWarnings.length + 1);
-                newWarnings[expectedWarnings.length] = warning;
-            } else {
-                newWarnings = new String[] { warning };
-            }
+        /**
+         * Extra data embedded in the test case. Test subclasses can cast
+         * as needed and extra <strong>whatever</strong> helps them.
+         */
+        public Object extra() {
+            return extra;
+        }
+
+        /**
+         * Build a new {@link TestCase} with new {@link #extra()}.
+         */
+        public TestCase withExtra(Object extra) {
             return new TestCase(
                 data,
                 evaluatorToString,
                 expectedType,
                 matcher,
-                newWarnings,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
                 expectedTypeError,
                 foldingExceptionClass,
-                foldingExceptionMessage
+                foldingExceptionMessage,
+                extra
             );
         }
 
+        public TestCase withWarning(String warning) {
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                addWarning(expectedWarnings, warning),
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra
+            );
+        }
+
+        /**
+         * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
+         * or {@link Expression#fold()} on the expression built by this.
+         */
+        public TestCase withBuildEvaluatorWarning(String warning) {
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                addWarning(expectedBuildEvaluatorWarnings, warning),
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra
+            );
+        }
+
+        private String[] addWarning(String[] warnings, String warning) {
+            if (warnings == null) {
+                return new String[] { warning };
+            }
+            String[] newWarnings = Arrays.copyOf(warnings, warnings.length + 1);
+            newWarnings[warnings.length] = warning;
+            return newWarnings;
+        }
+
         public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
-            return new TestCase(data, evaluatorToString, expectedType, matcher, expectedWarnings, expectedTypeError, clazz, message);
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                clazz,
+                message,
+                extra
+            );
         }
 
         public DataType expectedType() {
@@ -1455,6 +1631,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      */
     public static class TypedData {
         public static final TypedData NULL = new TypedData(null, DataType.NULL, "<null>");
+        public static final TypedData MULTI_ROW_NULL = TypedData.multiRow(Collections.singletonList(null), DataType.NULL, "<null>");
 
         private final Object data;
         private final DataType type;
@@ -1583,7 +1760,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     throw new IllegalStateException("Multirow values require exactly 1 element to be a literal, got " + values.size());
                 }
 
-                return new Literal(Source.synthetic(name), values, type);
+                return new Literal(Source.synthetic(name), values.get(0), type);
             }
             return new Literal(Source.synthetic(name), data, type);
         }

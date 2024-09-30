@@ -20,13 +20,13 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -128,5 +128,6 @@
   "examples" : [
     "ROW a=[2, 1]\n| EVAL min_a = MV_MIN(a)",
     "ROW a=[\"foo\", \"bar\"]\n| EVAL min_a = MV_MIN(a)"
-  ]
+  ],
+  "preview" : false
 }

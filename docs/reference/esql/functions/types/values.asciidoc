@@ -6,7 +6,7 @@
 |===
 field | result
 boolean | boolean
-datetime | datetime
+date | date
 double | double
 integer | integer
 ip | ip

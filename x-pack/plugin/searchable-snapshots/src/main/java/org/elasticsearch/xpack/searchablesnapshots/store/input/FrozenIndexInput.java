@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -146,32 +147,38 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                 final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
                 stats.addCachedBytesRead(read);
                 return read;
-            }, (channel, channelPos, streamFactory, relativePos, len, progressUpdater) -> {
-                assert streamFactory == null : streamFactory;
-                final long startTimeNanos = stats.currentTimeNanos();
-                try (InputStream input = openInputStreamFromBlobStore(rangeToWrite.start() + relativePos, len)) {
-                    assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-                    logger.trace(
-                        "{}: writing channel {} pos {} length {} (details: {})",
-                        fileInfo.physicalName(),
-                        channelPos,
-                        relativePos,
-                        len,
-                        cacheFile
-                    );
-                    SharedBytes.copyToCacheFileAligned(
-                        channel,
-                        input,
-                        channelPos,
-                        relativePos,
-                        len,
-                        progressUpdater,
-                        writeBuffer.get().clear()
-                    );
-                    final long endTimeNanos = stats.currentTimeNanos();
-                    stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
-                }
-            });
+            },
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener.completeWith(
+                    completionListener,
+                    () -> {
+                        assert streamFactory == null : streamFactory;
+                        final long startTimeNanos = stats.currentTimeNanos();
+                        try (InputStream input = openInputStreamFromBlobStore(rangeToWrite.start() + relativePos, len)) {
+                            assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+                            logger.trace(
+                                "{}: writing channel {} pos {} length {} (details: {})",
+                                fileInfo.physicalName(),
+                                channelPos,
+                                relativePos,
+                                len,
+                                cacheFile
+                            );
+                            SharedBytes.copyToCacheFileAligned(
+                                channel,
+                                input,
+                                channelPos,
+                                relativePos,
+                                len,
+                                progressUpdater,
+                                writeBuffer.get().clear()
+                            );
+                            final long endTimeNanos = stats.currentTimeNanos();
+                            stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
+                            return null;
+                        }
+                    }
+                )
+            );
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);
         } finally {

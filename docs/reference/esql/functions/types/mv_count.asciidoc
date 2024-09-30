@@ -8,7 +8,7 @@ field | result
 boolean | integer
 cartesian_point | integer
 cartesian_shape | integer
-datetime | integer
+date | integer
 double | integer
 geo_point | integer
 geo_shape | integer

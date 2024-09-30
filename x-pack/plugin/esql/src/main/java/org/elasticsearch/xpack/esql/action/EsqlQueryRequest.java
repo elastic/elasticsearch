@@ -50,6 +50,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean acceptedPragmaRisks = false;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -78,8 +79,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
+
         if (onSnapshotBuild == false) {
-            if (pragmas.isEmpty() == false) {
+            if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
                     validationException
@@ -229,5 +231,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     // Setter for tests
     void onSnapshotBuild(boolean onSnapshotBuild) {
         this.onSnapshotBuild = onSnapshotBuild;
+    }
+
+    void acceptedPragmaRisks(boolean accepted) {
+        this.acceptedPragmaRisks = accepted;
     }
 }

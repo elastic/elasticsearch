@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -20,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
@@ -99,10 +102,61 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
         this.minScore = minScore;
     }
 
+    public TextSimilarityRankRetrieverBuilder(
+        RetrieverBuilder retrieverBuilder,
+        String inferenceId,
+        String inferenceText,
+        String field,
+        int rankWindowSize,
+        Float minScore,
+        String retrieverName,
+        List<QueryBuilder> preFilterQueryBuilders
+    ) {
+        this.retrieverBuilder = retrieverBuilder;
+        this.inferenceId = inferenceId;
+        this.inferenceText = inferenceText;
+        this.field = field;
+        this.rankWindowSize = rankWindowSize;
+        this.minScore = minScore;
+        this.retrieverName = retrieverName;
+        this.preFilterQueryBuilders = preFilterQueryBuilders;
+    }
+
+    @Override
+    public QueryBuilder topDocsQuery() {
+        // the original matching set of the TextSimilarityRank retriever is specified by its nested retriever
+        return retrieverBuilder.topDocsQuery();
+    }
+
+    @Override
+    public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        // rewrite prefilters
+        boolean hasChanged = false;
+        var newPreFilters = rewritePreFilters(ctx);
+        hasChanged |= newPreFilters != preFilterQueryBuilders;
+
+        // rewrite nested retriever
+        RetrieverBuilder newRetriever = retrieverBuilder.rewrite(ctx);
+        hasChanged |= newRetriever != retrieverBuilder;
+        if (hasChanged) {
+            return new TextSimilarityRankRetrieverBuilder(
+                newRetriever,
+                field,
+                inferenceText,
+                inferenceId,
+                rankWindowSize,
+                minScore,
+                this.retrieverName,
+                newPreFilters
+            );
+        }
+        return this;
+    }
+
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+        retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
         retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder, compoundUsed);
-
         // Combining with other rank builder (such as RRF) is not supported yet
         if (searchSourceBuilder.rankBuilder() != null) {
             throw new IllegalArgumentException("text similarity rank builder cannot be combined with other rank builders");
@@ -111,6 +165,13 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
         searchSourceBuilder.rankBuilder(
             new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
         );
+    }
+
+    /**
+     * Determines if this retriever contains sub-retrievers that need to be executed prior to search.
+     */
+    public boolean isCompound() {
+        return retrieverBuilder.isCompound();
     }
 
     @Override

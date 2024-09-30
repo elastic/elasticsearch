@@ -5,7 +5,7 @@
 <titleabbrev>Resume follower</titleabbrev>
 ++++
 
-Resumes a follower index.
+Resumes a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-post-resume-follow-request]]
 ==== {api-request-title}

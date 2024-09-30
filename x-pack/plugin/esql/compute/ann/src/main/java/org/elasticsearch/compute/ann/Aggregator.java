@@ -57,4 +57,10 @@ public @interface Aggregator {
 
     IntermediateState[] value() default {};
 
+    /**
+     * Exceptions thrown by the `combine*(...)` methods to catch and convert
+     * into a warning and turn into a null value.
+     */
+    Class<? extends Exception>[] warnExceptions() default {};
+
 }

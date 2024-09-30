@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal;
@@ -94,33 +95,11 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
-import org.elasticsearch.action.ingest.GetPipelineAction;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
@@ -170,8 +149,8 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(TransportClusterHealthAction.TYPE, request, listener);
     }
 
-    public ClusterHealthRequestBuilder prepareHealth(String... indices) {
-        return new ClusterHealthRequestBuilder(this).setIndices(indices);
+    public ClusterHealthRequestBuilder prepareHealth(TimeValue masterNodeTimeout, String... indices) {
+        return new ClusterHealthRequestBuilder(this, masterNodeTimeout).setIndices(indices);
     }
 
     public ActionFuture<ClusterStateResponse> state(final ClusterStateRequest request) {
@@ -182,8 +161,8 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(ClusterStateAction.INSTANCE, request, listener);
     }
 
-    public ClusterStateRequestBuilder prepareState() {
-        return new ClusterStateRequestBuilder(this);
+    public ClusterStateRequestBuilder prepareState(TimeValue masterNodeTimeout) {
+        return new ClusterStateRequestBuilder(this, masterNodeTimeout);
     }
 
     public ActionFuture<ClusterUpdateSettingsResponse> updateSettings(final ClusterUpdateSettingsRequest request) {
@@ -194,8 +173,8 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(ClusterUpdateSettingsAction.INSTANCE, request, listener);
     }
 
-    public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
-        return new ClusterUpdateSettingsRequestBuilder(this);
+    public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        return new ClusterUpdateSettingsRequestBuilder(this, masterNodeTimeout, ackTimeout);
     }
 
     public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {
@@ -382,38 +361,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new SnapshotsStatusRequestBuilder(this, masterNodeTimeout);
     }
 
-    public void putPipeline(PutPipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        execute(PutPipelineTransportAction.TYPE, request, listener);
-    }
-
-    public ActionFuture<AcknowledgedResponse> putPipeline(PutPipelineRequest request) {
-        return execute(PutPipelineTransportAction.TYPE, request);
-    }
-
-    public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType) {
-        return new PutPipelineRequestBuilder(this, id, source, xContentType);
-    }
-
-    public void deletePipeline(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        execute(DeletePipelineTransportAction.TYPE, request, listener);
-    }
-
-    public ActionFuture<AcknowledgedResponse> deletePipeline(DeletePipelineRequest request) {
-        return execute(DeletePipelineTransportAction.TYPE, request);
-    }
-
-    public DeletePipelineRequestBuilder prepareDeletePipeline(String id) {
-        return new DeletePipelineRequestBuilder(this, id);
-    }
-
-    public void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
-        execute(GetPipelineAction.INSTANCE, request, listener);
-    }
-
-    public GetPipelineRequestBuilder prepareGetPipeline(String... ids) {
-        return new GetPipelineRequestBuilder(this, ids);
-    }
-
     public void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
         execute(SimulatePipelineAction.INSTANCE, request, listener);
     }
@@ -424,43 +371,5 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType) {
         return new SimulatePipelineRequestBuilder(this, source, xContentType);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public PutStoredScriptRequestBuilder preparePutStoredScript() {
-        return new PutStoredScriptRequestBuilder(
-            this,
-            MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
-            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
-        );
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
-        execute(TransportDeleteStoredScriptAction.TYPE, request, listener);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
-        return new DeleteStoredScriptRequestBuilder(
-            client,
-            MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
-            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
-        ).setId(id);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public void putStoredScript(final PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
-        execute(TransportPutStoredScriptAction.TYPE, request, listener);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public GetStoredScriptRequestBuilder prepareGetStoredScript(String id) {
-        return new GetStoredScriptRequestBuilder(this, MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT).setId(id);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public void getStoredScript(final GetStoredScriptRequest request, final ActionListener<GetStoredScriptResponse> listener) {
-        execute(GetStoredScriptAction.INSTANCE, request, listener);
     }
 }

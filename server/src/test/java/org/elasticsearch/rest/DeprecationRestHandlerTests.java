@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest;
 
@@ -155,17 +156,17 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(blank));
     }
 
-    public void testSupportsContentStreamTrue() {
-        when(handler.supportsContentStream()).thenReturn(true);
+    public void testSupportsBulkContentTrue() {
+        when(handler.supportsBulkContent()).thenReturn(true);
         assertTrue(
-            new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false).supportsContentStream()
+            new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false).supportsBulkContent()
         );
     }
 
-    public void testSupportsContentStreamFalse() {
-        when(handler.supportsContentStream()).thenReturn(false);
+    public void testSupportsBulkContentFalse() {
+        when(handler.supportsBulkContent()).thenReturn(false);
         assertFalse(
-            new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false).supportsContentStream()
+            new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false).supportsBulkContent()
         );
     }
 

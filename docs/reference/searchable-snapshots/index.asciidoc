@@ -170,6 +170,20 @@ do not have a dedicated frozen tier, you must configure the
 cache on one or more nodes. Partially mounted indices are only allocated to
 nodes that have a shared cache.
 
+[[manually-mounting-snapshots]]
+[WARNING]
+.Manual snapshot mounting
+====
+Manually mounting snapshots captured by an Index Lifecycle Management ({ilm-init}) policy can
+interfere with {ilm-init}'s automatic management. This may lead to issues such as data loss
+or complications with snapshot handling. 
+
+For optimal results, allow {ilm-init} to manage
+snapshots automatically. 
+
+<<ilm-searchable-snapshot,Learn more about {ilm-init} snapshot management>>.
+====
+
 [[searchable-snapshots-shared-cache]]
 `xpack.searchable.snapshot.shared_cache.size`::
 (<<static-cluster-setting,Static>>)
@@ -324,6 +338,11 @@ you delete it then the data cannot be recovered from elsewhere.
 cluster has write access then you must make sure that the other cluster does not
 delete these snapshots. The snapshot contains the sole full copy of your data.
 If you delete it then the data cannot be recovered from elsewhere.
+
+* The data in a searchable snapshot index are cached in local storage, so if you
+delete the underlying searchable snapshot {es} will continue to operate normally
+until the first cache miss. This may be much later, for instance when a shard
+relocates to a different node, or when the node holding the shard restarts.
 
 * If the repository fails or corrupts the contents of the snapshot and you
 cannot restore it to its previous healthy state then the data is permanently

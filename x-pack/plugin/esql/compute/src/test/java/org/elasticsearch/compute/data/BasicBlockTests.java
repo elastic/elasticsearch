@@ -188,6 +188,8 @@ public class BasicBlockTests extends ESTestCase {
 
             initialBlock = block.asVector().asBlock();
         }
+        assertKeepMask(initialBlock);
+        assertKeepMask(initialBlock.asVector());
     }
 
     public void testIntBlock() {
@@ -723,6 +725,7 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getBytesRef(pos, bytes), equalTo(values[pos]));
                 }
             }
+            assertKeepMask(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -797,6 +800,12 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            try (ToMask mask = block.toMask()) {
+                assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                for (int p = 0; p < positionCount; p++) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(p % 10 == 0));
+                }
+            }
 
             try (BooleanBlock.Builder blockBuilder = blockFactory.newBooleanBlockBuilder(1)) {
                 BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -823,6 +832,7 @@ public class BasicBlockTests extends ESTestCase {
             IntStream.range(0, positionCount).mapToObj(ii -> randomBoolean()).forEach(vectorBuilder::appendBoolean);
             BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            assertToMask(vector);
             releaseAndAssertBreaker(vector.asBlock());
         }
     }
@@ -1355,16 +1365,64 @@ public class BasicBlockTests extends ESTestCase {
         assertTrue(block.isNull(randomNullPosition));
         assertFalse(block.isNull(randomNonNullPosition));
         releaseAndAssertBreaker(block);
+        if (block instanceof BooleanBlock bb) {
+            try (ToMask mask = bb.toMask()) {
+                assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                for (int p = 0; p < positionCount; p++) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(nullsMask.get(p) == false && p % 10 == 0));
+                }
+            }
+        }
+    }
+
+    void assertZeroPositionsAndRelease(BooleanBlock block) {
+        assertToMaskZeroPositions(block);
+        assertZeroPositionsAndRelease((Block) block);
     }
 
     void assertZeroPositionsAndRelease(Block block) {
         assertThat(block.getPositionCount(), is(0));
+        assertKeepMaskEmpty(block);
         releaseAndAssertBreaker(block);
+    }
+
+    void assertZeroPositionsAndRelease(BooleanVector vector) {
+        assertToMask(vector);
+        assertZeroPositionsAndRelease((Vector) vector);
     }
 
     void assertZeroPositionsAndRelease(Vector vector) {
         assertThat(vector.getPositionCount(), is(0));
+        assertKeepMaskEmpty(vector);
         releaseAndAssertBreaker(vector);
+    }
+
+    static void assertKeepMaskEmpty(Block block) {
+        try (BooleanVector mask = randomMask(between(0, 1000)); Block masked = block.keepMask(mask)) {
+            if (false == (masked == block || masked.asVector() == block.asVector())) {
+                fail("should return original block or vector");
+            }
+        }
+    }
+
+    static void assertKeepMaskEmpty(Vector vector) {
+        try (BooleanVector mask = randomMask(between(0, 1000)); Block masked = vector.keepMask(mask)) {
+            assertThat(masked.asVector(), sameInstance(vector));
+        }
+    }
+
+    static void assertToMaskZeroPositions(BooleanBlock block) {
+        try (ToMask mask = block.toMask()) {
+            assertThat(mask.mask().getPositionCount(), equalTo(0));
+            assertThat(mask.hadMultivaluedFields(), equalTo(false));
+        }
+    }
+
+    static void assertToMask(BooleanVector vector) {
+        try (ToMask mask = vector.asBlock().toMask()) {
+            assertThat(mask.mask(), sameInstance(vector));
+            assertThat(mask.hadMultivaluedFields(), equalTo(false));
+        }
     }
 
     void releaseAndAssertBreaker(Block... blocks) {
@@ -1741,6 +1799,88 @@ public class BasicBlockTests extends ESTestCase {
                 extra.accept(b);
             }
             assertThat(lookup.hasNext(), equalTo(false));
+        }
+    }
+
+    static void assertKeepMask(Vector vector) {
+        int maskPositions = vector.getPositionCount();
+        if (randomBoolean()) {
+            maskPositions += between(1, 1000);
+        }
+        try (
+            BooleanVector mask = TestBlockFactory.getNonBreakingInstance().newConstantBooleanVector(true, maskPositions);
+            Block masked = vector.keepMask(mask)
+        ) {
+            assertThat(masked.asVector(), sameInstance(vector));
+        }
+        try (
+            BooleanVector mask = TestBlockFactory.getNonBreakingInstance().newConstantBooleanVector(false, maskPositions);
+            Block masked = vector.keepMask(mask)
+        ) {
+            assertThat(masked.getPositionCount(), equalTo(vector.getPositionCount()));
+            for (int p = 0; p < vector.getPositionCount(); p++) {
+                assertTrue(masked.isNull(p));
+            }
+        }
+        try (BooleanVector mask = randomMask(maskPositions); Block masked = vector.keepMask(mask)) {
+            assertThat(masked.getPositionCount(), equalTo(vector.getPositionCount()));
+            for (int p = 0; p < vector.getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    assertFalse(masked.isNull(p));
+                    assertEquals(1, masked.getValueCount(p));
+                    assertEquals(BlockUtils.toJavaObject(vector.asBlock(), p), BlockUtils.toJavaObject(masked, p));
+                } else {
+                    assertTrue(masked.isNull(p));
+                }
+            }
+        }
+    }
+
+    static void assertKeepMask(Block block) {
+        int maskPositions = block.getPositionCount();
+        if (randomBoolean()) {
+            maskPositions += between(1, 1000);
+        }
+        try (
+            BooleanVector mask = TestBlockFactory.getNonBreakingInstance().newConstantBooleanVector(true, maskPositions);
+            Block masked = block.keepMask(mask)
+        ) {
+            if (false == (masked == block || masked.asVector() == block.asVector())) {
+                fail("should return original block or vector");
+            }
+        }
+        try (
+            BooleanVector mask = TestBlockFactory.getNonBreakingInstance().newConstantBooleanVector(false, maskPositions);
+            Block masked = block.keepMask(mask)
+        ) {
+            assertThat(masked.getPositionCount(), equalTo(block.getPositionCount()));
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                assertTrue(masked.isNull(p));
+            }
+        }
+        try (BooleanVector mask = randomMask(maskPositions); Block masked = block.keepMask(mask)) {
+            assertThat(masked.getPositionCount(), equalTo(block.getPositionCount()));
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                if (mask.getBoolean(p) && false == block.isNull(p)) {
+                    assertFalse(masked.isNull(p));
+                    assertEquals(block.getValueCount(p), masked.getValueCount(p));
+                    assertEquals(BlockUtils.toJavaObject(block, p), BlockUtils.toJavaObject(masked, p));
+                } else {
+                    assertTrue(masked.isNull(p));
+                }
+            }
+        }
+    }
+
+    /**
+     * Build a random valid "mask" of single valued boolean fields that.
+     */
+    static BooleanVector randomMask(int positions) {
+        try (BooleanVector.Builder builder = TestBlockFactory.getNonBreakingInstance().newBooleanVectorFixedBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendBoolean(randomBoolean());
+            }
+            return builder.build();
         }
     }
 }

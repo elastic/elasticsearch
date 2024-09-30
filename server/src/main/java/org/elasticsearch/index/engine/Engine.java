@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -61,7 +62,6 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
@@ -69,6 +69,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -81,6 +82,7 @@ import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -139,6 +141,7 @@ public abstract class Engine implements Closeable {
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
+    protected final boolean enableRecoverySource;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
@@ -167,6 +170,9 @@ public abstract class Engine implements Closeable {
         // we use the engine class directly here to make sure all subclasses have the same logger name
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
+        this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
+            engineConfig.getIndexSettings().getSettings()
+        );
     }
 
     /**
@@ -242,19 +248,32 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the {@link DenseVectorStats} for this engine
      */
-    public DenseVectorStats denseVectorStats() {
+    public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
+        if (mappingLookup == null) {
+            return new DenseVectorStats(0);
+        }
+
+        List<String> fields = new ArrayList<>();
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof DenseVectorFieldMapper) {
+                fields.add(mapper.fullPath());
+            }
+        }
+        if (fields.isEmpty()) {
+            return new DenseVectorStats(0);
+        }
         try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
-            return denseVectorStats(searcher.getIndexReader());
+            return denseVectorStats(searcher.getIndexReader(), fields);
         }
     }
 
-    protected final DenseVectorStats denseVectorStats(IndexReader indexReader) {
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<String> fields) {
         long valueCount = 0;
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                valueCount += getDenseVectorValueCount(readerContext.reader());
+                valueCount += getDenseVectorValueCount(readerContext.reader(), fields);
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
@@ -262,10 +281,11 @@ public abstract class Engine implements Closeable {
         return new DenseVectorStats(valueCount);
     }
 
-    private long getDenseVectorValueCount(final LeafReader atomicReader) throws IOException {
+    private long getDenseVectorValueCount(final LeafReader atomicReader, List<String> fields) throws IOException {
         long count = 0;
-        for (FieldInfo info : atomicReader.getFieldInfos()) {
-            if (info.getVectorDimension() > 0) {
+        for (var field : fields) {
+            var info = atomicReader.getFieldInfos().fieldInfo(field);
+            if (info != null && info.getVectorDimension() > 0) {
                 switch (info.getVectorEncoding()) {
                     case FLOAT32 -> {
                         FloatVectorValues values = atomicReader.getFloatVectorValues(info.name);
@@ -285,23 +305,31 @@ public abstract class Engine implements Closeable {
      * Returns the {@link SparseVectorStats} for this engine
      */
     public SparseVectorStats sparseVectorStats(MappingLookup mappingLookup) {
+        if (mappingLookup == null) {
+            return new SparseVectorStats(0);
+        }
+        List<BytesRef> fields = new ArrayList<>();
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof SparseVectorFieldMapper) {
+                fields.add(new BytesRef(mapper.fullPath()));
+            }
+        }
+        if (fields.isEmpty()) {
+            return new SparseVectorStats(0);
+        }
+        Collections.sort(fields);
         try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
-            return sparseVectorStats(searcher.getIndexReader(), mappingLookup);
+            return sparseVectorStats(searcher.getIndexReader(), fields);
         }
     }
 
-    protected final SparseVectorStats sparseVectorStats(IndexReader indexReader, MappingLookup mappingLookup) {
+    protected final SparseVectorStats sparseVectorStats(IndexReader indexReader, List<BytesRef> fields) {
         long valueCount = 0;
-
-        if (mappingLookup == null) {
-            return new SparseVectorStats(valueCount);
-        }
-
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                valueCount += getSparseVectorValueCount(readerContext.reader(), mappingLookup);
+                valueCount += getSparseVectorValueCount(readerContext.reader(), fields);
             } catch (IOException e) {
                 logger.trace(() -> "failed to get sparse vector stats for [" + readerContext + "]", e);
             }
@@ -309,28 +337,16 @@ public abstract class Engine implements Closeable {
         return new SparseVectorStats(valueCount);
     }
 
-    private long getSparseVectorValueCount(final LeafReader atomicReader, MappingLookup mappingLookup) throws IOException {
+    private long getSparseVectorValueCount(final LeafReader atomicReader, List<BytesRef> fields) throws IOException {
         long count = 0;
-
-        Map<String, FieldMapper> mappers = new HashMap<>();
-        for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof FieldMapper fieldMapper) {
-                if (fieldMapper.fieldType() instanceof SparseVectorFieldMapper.SparseVectorFieldType) {
-                    mappers.put(fieldMapper.fullPath(), fieldMapper);
-                }
-            }
+        Terms terms = atomicReader.terms(FieldNamesFieldMapper.NAME);
+        if (terms == null) {
+            return count;
         }
-
-        for (FieldInfo info : atomicReader.getFieldInfos()) {
-            String name = info.name;
-            if (mappers.containsKey(name)) {
-                Terms terms = atomicReader.terms(FieldNamesFieldMapper.NAME);
-                if (terms != null) {
-                    TermsEnum termsEnum = terms.iterator();
-                    if (termsEnum.seekExact(new BytesRef(name))) {
-                        count += termsEnum.docFreq();
-                    }
-                }
+        TermsEnum termsEnum = terms.iterator();
+        for (var fieldName : fields) {
+            if (termsEnum.seekExact(fieldName)) {
+                count += termsEnum.docFreq();
             }
         }
         return count;

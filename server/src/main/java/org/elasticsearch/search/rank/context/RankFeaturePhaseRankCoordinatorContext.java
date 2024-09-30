@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank.context;
@@ -74,16 +75,12 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         RankFeatureDoc[] featureDocs = extractFeatureDocs(rankSearchResults);
 
         // generate the final `topResults` results, and pass them to fetch phase through the `rankListener`
-        if (featureDocs.length == 0) {
-            rankListener.onResponse(new RankFeatureDoc[0]);
-        } else {
-            computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
-                for (int i = 0; i < featureDocs.length; i++) {
-                    featureDocs[i].score = scores[i];
-                }
-                listener.onResponse(featureDocs);
-            }));
-        }
+        computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
+            for (int i = 0; i < featureDocs.length; i++) {
+                featureDocs[i].score = scores[i];
+            }
+            listener.onResponse(featureDocs);
+        }));
     }
 
     /**

@@ -4,6 +4,7 @@
 ####################################################################################################
 
 spatialMultiValuePointsStats
+required_capability: spatial_points_from_source
 
 FROM multivalue_points
 | MV_EXPAND location

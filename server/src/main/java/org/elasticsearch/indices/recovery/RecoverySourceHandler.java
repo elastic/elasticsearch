@@ -315,7 +315,9 @@ public class RecoverySourceHandler {
                 cancellableThreads,
                 ActionListener.wrap(ignored -> {
                     final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                    logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    }
                     final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
                         "peer-recovery",
                         startingSeqNo,

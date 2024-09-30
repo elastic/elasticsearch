@@ -13,7 +13,6 @@ import com.maxmind.db.DatabaseRecord;
 import com.maxmind.db.Network;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
-import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
@@ -36,7 +35,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -51,7 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
-class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
+class DatabaseReaderLazyLoader implements IpDatabase {
 
     private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
 
@@ -66,7 +64,7 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
 
-    private volatile boolean deleteDatabaseFileOnClose;
+    private volatile boolean deleteDatabaseFileOnShutdown;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
     DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
@@ -189,9 +187,9 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
     }
 
     @Override
-    public void release() throws IOException {
+    public void close() throws IOException {
         if (currentUsages.updateAndGet(current -> current > 0 ? current - 1 : current + 1) == -1) {
-            doClose();
+            doShutdown();
         }
     }
 
@@ -200,9 +198,9 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
     }
 
     @Nullable
-    private <T extends AbstractResponse> T getResponse(
+    private <RESPONSE> RESPONSE getResponse(
         String ipAddress,
-        CheckedBiFunction<Reader, String, Optional<T>, Exception> responseProvider
+        CheckedBiFunction<Reader, String, Optional<RESPONSE>, Exception> responseProvider
     ) {
         return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
             try {
@@ -229,24 +227,23 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
         return md5;
     }
 
-    public void close(boolean shouldDeleteDatabaseFileOnClose) throws IOException {
-        this.deleteDatabaseFileOnClose = shouldDeleteDatabaseFileOnClose;
-        close();
+    public void shutdown(boolean shouldDeleteDatabaseFileOnShutdown) throws IOException {
+        this.deleteDatabaseFileOnShutdown = shouldDeleteDatabaseFileOnShutdown;
+        shutdown();
     }
 
-    @Override
-    public void close() throws IOException {
+    public void shutdown() throws IOException {
         if (currentUsages.updateAndGet(u -> -1 - u) == -1) {
-            doClose();
+            doShutdown();
         }
     }
 
     // Visible for Testing
-    protected void doClose() throws IOException {
+    protected void doShutdown() throws IOException {
         IOUtils.close(databaseReader.get());
         int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
         logger.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
-        if (deleteDatabaseFileOnClose) {
+        if (deleteDatabaseFileOnShutdown) {
             logger.info("deleting [{}]", databasePath);
             Files.delete(databasePath);
         }

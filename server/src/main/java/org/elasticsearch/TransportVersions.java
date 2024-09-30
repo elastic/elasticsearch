@@ -226,7 +226,6 @@ public class TransportVersions {
     public static final TransportVersion SEMANTIC_TEXT_SEARCH_INFERENCE_ID = def(8_750_00_0);
     public static final TransportVersion ML_INFERENCE_CHUNKING_SETTINGS = def(8_751_00_0);
     public static final TransportVersion SEMANTIC_QUERY_INNER_HITS = def(8_752_00_0);
-    public static final TransportVersion ESQL_QUERYEXEC_SORT_GENERALIZATION = def(8_753_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,10 +40,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EsQueryExec",
-        EsQueryExec::new
+        EsQueryExec::deserialize
     );
 
     public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
+    public static final List<Sort> NO_SORTS = List.of();  // only exists to mimic older serialization, but we no longer serialize sorts
 
     private final EsIndex index;
     private final IndexMode indexMode;
@@ -145,41 +145,29 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    private EsQueryExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            new EsIndex(in),
-            EsRelation.readIndexMode(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readOptionalNamedWriteable(QueryBuilder.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalCollectionAsList(EsQueryExec::readSort),
-            in.readOptionalVInt()
-        );
+    /**
+     * The matching constructor is used during physical plan optimization and needs valid sorts. But we no longer serialize sorts.
+     * If this cluster node is talking to an older instance it might receive a plan with sorts, but it will ignore them.
+     */
+    public static EsQueryExec deserialize(StreamInput in) throws IOException {
+        var source = Source.readFrom((PlanStreamInput) in);
+        var index = new EsIndex(in);
+        var indexMode = EsRelation.readIndexMode(in);
+        var attrs = in.readNamedWriteableCollectionAsList(Attribute.class);
+        var query = in.readOptionalNamedWriteable(QueryBuilder.class);
+        var limit = in.readOptionalNamedWriteable(Expression.class);
+        in.readOptionalCollectionAsList(EsQueryExec::readSort);
+        var rowSize = in.readOptionalVInt();
+        // Ignore sorts from the old serialization format
+        return new EsQueryExec(source, index, indexMode, attrs, query, limit, NO_SORTS, rowSize);
     }
 
     private static Sort readSort(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERYEXEC_SORT_GENERALIZATION)) {
-            String name = in.readString();
-            if (name.equals("GeoDistanceSort")) {
-                return GeoDistanceSort.readFrom(in);
-            } else {
-                return FieldSort.readFrom(in);
-            }
-        } else {
-            return FieldSort.readFrom(in);
-        }
+        return FieldSort.readFrom(in);
     }
 
-    private static void writeSort(StreamOutput out, Sort sort) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERYEXEC_SORT_GENERALIZATION)) {
-            out.writeString(sort.getClass().getSimpleName());
-            sort.writeTo(out);
-        } else {
-            assert sort instanceof FieldSort;
-            FieldSort fieldSort = (FieldSort) sort;
-            fieldSort.writeTo(out);
-        }
+    private static void writeSort(StreamOutput out, Sort sort) {
+        throw new IllegalStateException("sorts are no longer serialized");
     }
 
     @Override
@@ -190,7 +178,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
         out.writeOptionalNamedWriteable(limit());
-        out.writeOptionalCollection(sorts(), EsQueryExec::writeSort);
+        out.writeOptionalCollection(NO_SORTS, EsQueryExec::writeSort);
         out.writeOptionalVInt(estimatedRowSize());
     }
 

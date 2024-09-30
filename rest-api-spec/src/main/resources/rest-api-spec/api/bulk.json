@@ -72,6 +72,10 @@
         "type":"list",
         "description":"Default list of fields to extract and return from the _source field, can be overridden on each sub-request"
       },
+      "_source_include_vectors": {
+        "type":"boolean",
+        "description":"True or false to include vector fields in _source"
+      },
       "pipeline":{
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with"

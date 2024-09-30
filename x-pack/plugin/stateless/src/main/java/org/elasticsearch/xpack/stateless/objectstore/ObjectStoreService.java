@@ -325,13 +325,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return objectStore.stats();
     }
 
-    private static RepositoryMetadata getRepositoryMetadata(Settings settings) {
+    protected Settings getRepositorySettings(ObjectStoreType type) {
+        return type.createRepositorySettings(BUCKET_SETTING.get(settings), CLIENT_SETTING.get(settings), BASE_PATH_SETTING.get(settings));
+    }
+
+    private RepositoryMetadata getRepositoryMetadata(Settings settings) {
         ObjectStoreType type = TYPE_SETTING.get(settings);
-        return new RepositoryMetadata(
-            Stateless.NAME,
-            type.toString(),
-            type.createRepositorySettings(BUCKET_SETTING.get(settings), CLIENT_SETTING.get(settings), BASE_PATH_SETTING.get(settings))
-        );
+        return new RepositoryMetadata(Stateless.NAME, type.toString(), getRepositorySettings(type));
     }
 
     @Override

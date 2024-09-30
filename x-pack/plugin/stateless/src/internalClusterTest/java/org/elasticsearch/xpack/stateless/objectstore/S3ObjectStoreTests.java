@@ -17,8 +17,10 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import fixture.s3.S3HttpHandler;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -27,33 +29,39 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -61,6 +69,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -72,6 +81,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     private static final Set<String> EXPECTED_MAIN_STORE_REQUEST_NAMES;
     private static final Set<String> EXPECTED_OBS_REQUEST_NAMES;
+    private static final ByteSizeValue MULTIPART_UPLOAD_BUFFER_SIZE = ByteSizeValue.ofMb(5);
 
     static {
         final var mainStorePurposeNames = Set.of("ClusterState", "Indices", "Translog");
@@ -100,7 +110,11 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), List.of(S3RepositoryPlugin.class).stream()).toList();
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(TestStateless.class);
+        plugins.add(S3RepositoryPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -118,7 +132,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.S3)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test")
-            .put("s3.client.test.max_retries", 1) // default to 1 so that we can test more retries within reasonable backoff
+            // max_retries set rarely to more than 1, so that we can test more retries within reasonable backoff
+            .put("s3.client.test.max_retries", rarely() ? randomIntBetween(2, 3) : 1)
             .setSecureSettings(mockSecureSettings);
     }
 
@@ -428,6 +443,81 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         }
     }
 
+    public void testUploadIndicesDataWithRetries() throws Exception {
+        AtomicLong lastUploadedGeneration = new AtomicLong(-1);
+        s3HttpHandler.setInterceptor(new Interceptor() {
+            private final int errorsPerRequest = randomIntBetween(3, 5);
+            private final Map<String, AtomicInteger> requestPathErrorCount = ConcurrentCollections.newConcurrentMap();
+
+            @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+            @Override
+            public boolean intercept(HttpExchange exchange) throws IOException {
+                final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+                if (request.contains("PUT") && request.contains("indices/")) {
+                    // request format: /bucket/base_path/indices/UUID/0/1/stateless_commit_N?x-purpose=Indices for single part uploads,
+                    // while for multi-part uploads: .../stateless_commit_N?uploadId=UUID&partNumber=N&x-purpose=Indices where the
+                    // upload UUID changes with every retry.
+                    long gen = Long.parseLong(request.substring(request.lastIndexOf('_') + 1, request.lastIndexOf('?')));
+                    long part = 1;
+                    if (request.contains("partNumber")) {
+                        part = Long.parseLong(
+                            request.substring(request.indexOf("partNumber") + "partNumber=".length(), request.lastIndexOf('&'))
+                        );
+                    }
+                    String genAndPart = gen + "/" + part;
+                    final AtomicInteger numberOfErrors = requestPathErrorCount.computeIfAbsent(genAndPart, k -> new AtomicInteger(0));
+                    if (numberOfErrors.getAndIncrement() >= errorsPerRequest) {
+                        lastUploadedGeneration.accumulateAndGet(gen, Math::max);
+                        return false;
+                    }
+                    try (exchange) {
+                        ESMockAPIBasedRepositoryIntegTestCase.drainInputStream(exchange.getRequestBody());
+                        exchange.sendResponseHeaders(
+                            randomFrom(
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                RestStatus.TOO_MANY_REQUESTS,
+                                RestStatus.BAD_GATEWAY,
+                                RestStatus.GATEWAY_TIMEOUT
+                            ).getStatus(),
+                            -1
+                        );
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
+
+        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
+        final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
+        final String searchNode = startSearchNode(nodeSettings);
+
+        try {
+            final String indexName = randomIdentifier();
+            createIndex(indexName, indexSettings(1, 0).build());
+            ensureGreen(indexName);
+            IndexShard indexShard = findIndexShard(indexName);
+            IndexEngine shardEngine = getShardEngine(indexShard, IndexEngine.class);
+
+            // Index enough 1 MiB documents to produce a >5MiB Lucene compound segment file, to ensure S3 multi-part upload
+            int numDocs = randomIntBetween(8, 10);
+            for (int i = 0; i < numDocs; i++) {
+                indexDoc(indexName, "doc_" + i, "field", randomByteArrayOfLength((int) ByteSizeValue.ofMb(1).getBytes()));
+            }
+
+            flush(indexName);
+            assertThat(lastUploadedGeneration.get(), equalTo(shardEngine.getCurrentGeneration()));
+
+            setReplicaCount(1, indexName);
+            ensureGreen(indexName);
+            assertHitCount(prepareSearch(indexName), numDocs);
+        } finally {
+            // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler
+            internalCluster().stopNode(searchNode);
+            internalCluster().stopNode(masterAndIndexNode);
+        }
+    }
+
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     private static class InterceptableS3HttpHandler extends S3HttpHandler {
         private volatile Interceptor interceptor;
@@ -451,5 +541,39 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     interface Interceptor {
         boolean intercept(HttpExchange exchange) throws IOException;
+    }
+
+    public static class TestStateless extends Stateless {
+
+        public TestStateless(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected ObjectStoreService createObjectStoreService(
+            Settings settings,
+            RepositoriesService repositoriesService,
+            ThreadPool threadPool,
+            ClusterService clusterService
+        ) {
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService);
+        }
+    }
+
+    public static class TestObjectStoreService extends ObjectStoreService {
+
+        public TestObjectStoreService(
+            Settings settings,
+            RepositoriesService repositoriesService,
+            ThreadPool threadPool,
+            ClusterService clusterService
+        ) {
+            super(settings, repositoriesService, threadPool, clusterService);
+        }
+
+        @Override
+        protected Settings getRepositorySettings(ObjectStoreType type) {
+            return Settings.builder().put(super.getRepositorySettings(type)).put("buffer_size", MULTIPART_UPLOAD_BUFFER_SIZE).build();
+        }
     }
 }

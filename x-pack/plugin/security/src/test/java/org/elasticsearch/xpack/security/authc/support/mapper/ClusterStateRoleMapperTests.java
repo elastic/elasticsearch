@@ -36,7 +36,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -56,12 +55,13 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
             () -> 1L
         );
         clusterService = mock(ClusterService.class);
-        enabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", true).build();
+
+        disabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", false).build();
         if (randomBoolean()) {
-            disabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", false).build();
+            enabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", true).build();
         } else {
-            // the cluster state role mapper is disabled by default
-            disabledSettings = Settings.EMPTY;
+            // the cluster state role mapper is enabled by default
+            enabledSettings = Settings.EMPTY;
         }
     }
 
@@ -72,7 +72,7 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
 
     public void testNoRegisterForClusterChangesIfNotEnabled() {
         new ClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
-        verifyNoInteractions(clusterService);
+        verify(clusterService, times(0)).addListener(any());
     }
 
     public void testRoleResolving() throws Exception {

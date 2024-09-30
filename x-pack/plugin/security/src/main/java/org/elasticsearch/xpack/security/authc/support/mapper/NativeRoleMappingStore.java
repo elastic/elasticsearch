@@ -208,7 +208,9 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         ActionListener<Result> listener
     ) {
         if (reservedRoleMappings.isReserved(name)) {
-            listener.onFailure(new IllegalArgumentException("Role mapping [" + name + "] cannot be modified via API"));
+            listener.onFailure(
+                new IllegalArgumentException("Role mapping [" + name + "] is reserved and cannot be modified via Native Role Mapping APIs")
+            );
             return;
         }
         if (securityIndex.isIndexUpToDate() == false) {
@@ -317,12 +319,10 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
-        innerGetRoleMappings(
-            names,
-            listener.delegateFailureAndWrap(
-                (l, mappings) -> l.onResponse(enabled == false ? List.of() : reservedRoleMappings.combineWithReserved(mappings))
-            )
-        );
+        innerGetRoleMappings(names, listener.delegateFailureAndWrap((l, mappings) -> {
+            // If native role mappings are disabled, the API should return nothing, even if reserved role mappings are available
+            l.onResponse(enabled == false ? List.of() : reservedRoleMappings.combineWithReserved(mappings));
+        }));
     }
 
     /**

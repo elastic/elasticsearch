@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.cluster.settings.ClusterSettings.CLUSTER_LOGSDB_ENABLED;
+import static org.elasticsearch.xpack.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin {

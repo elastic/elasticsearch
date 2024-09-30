@@ -137,10 +137,16 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     if (indexShard.isSystem()) {
                         continue; // skip system indices
                     }
+                    final ShardRouting shardRouting = indexShard.routingEntry();
+                    if (shardRouting.primary() == false) {
+                        continue; // count primaries only
+                    }
+                    if (shardRouting.relocating()) {
+                        continue; // exclude relocating shards
+                    }
                     final IndexMode indexMode = indexShard.indexSettings().getMode();
                     final IndexStats indexStats = stats.get(indexMode);
-                    final ShardRouting shardRouting = indexShard.routingEntry();
-                    if (shardRouting.primary() && shardRouting.shardId().id() == 0) {
+                    if (shardRouting.shardId().id() == 0) {
                         indexStats.numIndices++;
                     }
                     try {

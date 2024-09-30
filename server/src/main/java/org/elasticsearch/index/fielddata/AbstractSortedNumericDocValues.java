@@ -33,7 +33,7 @@ public abstract class AbstractSortedNumericDocValues extends SortedNumericDocVal
     }
 
     @Override
-    public int advance(int target) throws IOException {
+    public int advance(int target) {
         throw new UnsupportedOperationException();
     }
 

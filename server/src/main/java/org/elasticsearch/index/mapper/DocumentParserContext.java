@@ -123,6 +123,7 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+
     /**
      * Fields that are copied from values of other fields via copy_to.
      * This per-document state is needed since it is possible
@@ -453,24 +454,14 @@ public abstract class DocumentParserContext {
 
     public void markFieldAsCopyTo(String fieldName) {
         copyToFields.add(fieldName);
-        if (mappingLookup.isSourceSynthetic() && indexSettings().getSkipIgnoredSourceWrite() == false) {
-            /*
-            Mark this field as containing copied data meaning it should not be present
-            in synthetic _source (to be consistent with stored _source).
-            Ignored source values take precedence over standard synthetic source implementation
-            so by adding this nothing entry we "disable" field in synthetic source.
-            Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
-            in copied field after reindexing.
-
-            Note that this applies to fields that are copied from fields using ignored source themselves
-            and therefore we don't check for canAddIgnoredField().
-            */
-            ignoredFieldValues.add(IgnoredSourceFieldMapper.NameValue.fromContext(this, fieldName, XContentDataHelper.nothing()));
-        }
     }
 
     public boolean isCopyToDestinationField(String name) {
         return copyToFields.contains(name);
+    }
+
+    public Set<String> getCopyToFields() {
+        return copyToFields;
     }
 
     /**

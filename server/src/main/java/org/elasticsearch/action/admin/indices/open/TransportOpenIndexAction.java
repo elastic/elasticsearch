@@ -90,23 +90,26 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             listener.onResponse(new OpenIndexResponse(true, true));
             return;
         }
-        OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .indices(concreteIndices)
-            .waitForActiveShards(request.waitForActiveShards());
 
-        indexStateService.openIndices(updateRequest, new ActionListener<>() {
+        indexStateService.openIndices(
+            new OpenIndexClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                request.waitForActiveShards(),
+                concreteIndices
+            ),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ShardsAcknowledgedResponse response) {
+                    listener.onResponse(new OpenIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
+                }
 
-            @Override
-            public void onResponse(ShardsAcknowledgedResponse response) {
-                listener.onResponse(new OpenIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
+                @Override
+                public void onFailure(Exception t) {
+                    logger.debug(() -> "failed to open indices [" + Arrays.toString(concreteIndices) + "]", t);
+                    listener.onFailure(t);
+                }
             }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> "failed to open indices [" + Arrays.toString(concreteIndices) + "]", t);
-                listener.onFailure(t);
-            }
-        });
+        );
     }
 }

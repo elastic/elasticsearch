@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -40,7 +41,11 @@ public class MapperFeatures implements FeatureSpecification {
             Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE,
             SourceFieldMapper.SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT,
             SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_FIX,
-            FlattenedFieldMapper.IGNORE_ABOVE_SUPPORT
+            FlattenedFieldMapper.IGNORE_ABOVE_SUPPORT,
+            IndexSettings.IGNORE_ABOVE_INDEX_LEVEL_SETTING,
+            SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX,
+            TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
+            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT
         );
     }
 }

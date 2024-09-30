@@ -9,9 +9,11 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,7 +22,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class FetchSourceContextTests extends AbstractXContentSerializingTestCase<FetchSourceContext> {
+public class FetchSourceContextTests extends AbstractBWCSerializationTestCase<FetchSourceContext> {
     @Override
     protected FetchSourceContext doParseInstance(XContentParser parser) throws IOException {
         return FetchSourceContext.fromXContent(parser);
@@ -60,10 +62,32 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected void assertEqualInstances(FetchSourceContext expectedInstance, FetchSourceContext newInstance) {
-        if (expectedInstance == FetchSourceContext.FETCH_SOURCE || expectedInstance == FetchSourceContext.DO_NOT_FETCH_SOURCE) {
+        if (expectedInstance == FetchSourceContext.FETCH_SOURCE
+            || expectedInstance == FetchSourceContext.DO_NOT_FETCH_SOURCE
+            || expectedInstance == FetchSourceContext.FETCH_SOURCE_WITH_VECTORS) {
             assertSame(expectedInstance, newInstance);
         } else {
             super.assertEqualInstances(expectedInstance, newInstance);
+        }
+    }
+
+    @Override
+    protected FetchSourceContext mutateInstanceForVersion(FetchSourceContext instance, TransportVersion version) {
+        if (version.before(TransportVersions.HIDE_VECTORS_IN_SOURCE)) {
+            // Deserialization logic sets includeVectors to true for old transport versions
+            instance = FetchSourceContext.of(instance.fetchSource(), instance.includes(), instance.excludes(), true);
+        }
+        return instance;
+    }
+
+    @Override
+    protected void assertOnBWCObject(FetchSourceContext bwcSerializedObject, FetchSourceContext testInstance, TransportVersion version) {
+        if (bwcSerializedObject == FetchSourceContext.FETCH_SOURCE
+            || bwcSerializedObject == FetchSourceContext.DO_NOT_FETCH_SOURCE
+            || bwcSerializedObject == FetchSourceContext.FETCH_SOURCE_WITH_VECTORS) {
+            assertSame(version.toString(), bwcSerializedObject, testInstance);
+        } else {
+            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
         }
     }
 }

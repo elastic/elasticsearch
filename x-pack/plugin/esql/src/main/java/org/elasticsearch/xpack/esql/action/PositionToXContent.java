@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xcontent.ToXContent;
@@ -174,8 +173,8 @@ abstract class PositionToXContent {
                     }
                 }
             };
-            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
-                throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
+            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT,
+                PARTIAL_AGG -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }
 }

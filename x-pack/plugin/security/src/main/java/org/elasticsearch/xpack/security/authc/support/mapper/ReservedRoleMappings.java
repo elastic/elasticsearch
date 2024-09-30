@@ -22,7 +22,6 @@ public class ReservedRoleMappings {
     }
 
     public List<ExpressionRoleMapping> combineWithReserved(List<ExpressionRoleMapping> roleMappings) {
-        // TODO ensure these are sorted
         final Set<ExpressionRoleMapping> reservedRoleMappings = clusterStateRoleMapper.getMappings();
         if (reservedRoleMappings.isEmpty()) {
             return roleMappings;

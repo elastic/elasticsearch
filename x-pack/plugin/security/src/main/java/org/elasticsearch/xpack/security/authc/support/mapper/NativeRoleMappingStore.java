@@ -321,9 +321,12 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
-        innerGetRoleMappings(names, listener.delegateFailureAndWrap((l, mappings) -> {
-            l.onResponse(enabled == false ? List.of() : reservedRoleMappings.combineWithReserved(mappings));
-        }));
+        innerGetRoleMappings(
+            names,
+            listener.delegateFailureAndWrap(
+                (l, mappings) -> l.onResponse(enabled == false ? List.of() : reservedRoleMappings.combineWithReserved(mappings))
+            )
+        );
     }
 
     /**

@@ -226,7 +226,10 @@ public class TransportVersions {
     public static final TransportVersion SEMANTIC_TEXT_SEARCH_INFERENCE_ID = def(8_750_00_0);
     public static final TransportVersion ML_INFERENCE_CHUNKING_SETTINGS = def(8_751_00_0);
     public static final TransportVersion SEMANTIC_QUERY_INNER_HITS = def(8_752_00_0);
-    public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_753_00_0);
+    public static final TransportVersion RETAIN_ILM_STEP_INFO = def(8_753_00_0);
+    public static final TransportVersion ADD_DATA_STREAM_OPTIONS = def(8_754_00_0);
+    public static final TransportVersion CCS_REMOTE_TELEMETRY_STATS = def(8_755_00_0);
+    public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_756_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

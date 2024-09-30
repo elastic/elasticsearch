@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class ReservedRoleMappings {
     private final ClusterStateRoleMapper clusterStateRoleMapper;
@@ -26,14 +26,17 @@ public class ReservedRoleMappings {
         if (reservedRoleMappings.isEmpty()) {
             return roleMappings;
         }
-        final Set<String> reservedNames = reservedRoleMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
-        final List<ExpressionRoleMapping> filteredNativeRoleMappings = roleMappings.stream()
-            .filter(roleMapping -> false == reservedNames.contains(roleMapping.getName()))
-            .toList();
-        // TODO optimize
-        final List<ExpressionRoleMapping> combined = new ArrayList<>(reservedRoleMappings);
-        combined.addAll(filteredNativeRoleMappings);
-        return List.copyOf(combined);
+        if (roleMappings.isEmpty()) {
+            return List.copyOf(reservedRoleMappings);
+        }
+        final Map<String, ExpressionRoleMapping> combinedMappings = new LinkedHashMap<>();
+        for (ExpressionRoleMapping mapping : reservedRoleMappings) {
+            combinedMappings.put(mapping.getName(), mapping);
+        }
+        for (ExpressionRoleMapping mapping : roleMappings) {
+            combinedMappings.putIfAbsent(mapping.getName(), mapping);
+        }
+        return List.copyOf(combinedMappings.values());
     }
 
     public boolean isReserved(String roleMappingName) {

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.recovery;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
@@ -139,8 +138,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             assertEquals(referencesToStore, resetRecovery.store().refCount());
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
             assertEquals(recoveryTarget.refCount(), 0);
-            expectThrows(ElasticsearchException.class, () -> recoveryTarget.store());
-            expectThrows(ElasticsearchException.class, () -> recoveryTarget.indexShard());
+            expectThrows(AssertionError.class, recoveryTarget::store);
+            expectThrows(AssertionError.class, recoveryTarget::indexShard);
             String resetTempFileName = resetRecovery.getTempNameForFile("foobar");
             assertNotEquals(tempFileName, resetTempFileName);
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());

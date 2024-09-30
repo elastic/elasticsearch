@@ -227,6 +227,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CHUNKING_SETTINGS = def(8_751_00_0);
     public static final TransportVersion SEMANTIC_QUERY_INNER_HITS = def(8_752_00_0);
     public static final TransportVersion RETAIN_ILM_STEP_INFO = def(8_753_00_0);
+    public static final TransportVersion DEPRECATIONS_TELEMETRY_STATS = def(8_754_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

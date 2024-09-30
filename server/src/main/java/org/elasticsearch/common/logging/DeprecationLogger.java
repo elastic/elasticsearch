@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.usage.UsageService;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -42,6 +43,8 @@ public class DeprecationLogger {
     public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
     private static volatile List<String> skipTheseDeprecations = Collections.emptyList();
     private final Logger logger;
+
+    private static UsageService usageService;
 
     /**
      * Creates a new deprecation logger for the supplied class. Internally, it delegates to
@@ -72,6 +75,14 @@ public class DeprecationLogger {
         skipTheseDeprecations = nodeSettings == null
             ? Collections.emptyList()
             : nodeSettings.getAsList("deprecation.skip_deprecated_settings");
+    }
+
+    /**
+     * Sets the UsageService which is used for counting runtime deprecations which are included in the cluster stats payload.
+     * @param service
+     */
+    public static void setUsageService(UsageService service) {
+        usageService = service;
     }
 
     private DeprecationLogger(String parentLoggerName) {
@@ -120,6 +131,9 @@ public class DeprecationLogger {
             String productOrigin = HeaderWarning.getProductOrigin();
             ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, opaqueId, productOrigin, msg, params);
             doPrivilegedLog(level, deprecationMessage);
+            if (usageService != null && productOrigin.equals("")) {
+                usageService.getDeprecatedUsageHolder().incrementDeprecationUsage(key);
+            }
         }
         return this;
     }

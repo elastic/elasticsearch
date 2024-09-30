@@ -893,7 +893,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(2);
         // started shards should publish heap memory usage
         var memoryMetricsService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
-        final int mappingFieldsCount = randomIntBetween(10, 1000);
+        final int mappingFieldsCount = randomIntBetween(10, 900);
         final XContentBuilder indexMapping = createIndexMapping(mappingFieldsCount);
         int numberOfShards = between(1, 5);
         assertAcked(

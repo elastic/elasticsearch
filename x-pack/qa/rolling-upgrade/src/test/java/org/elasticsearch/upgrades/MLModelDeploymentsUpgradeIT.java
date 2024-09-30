@@ -12,8 +12,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -242,14 +244,30 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        String inferenceThreadParamName = "threads_per_allocation";
+        String modelThreadParamName = "number_of_allocations";
+        String compatibleHeader = null;
+        if (CLUSTER_TYPE.equals(ClusterType.OLD) || CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+            compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
+            inferenceThreadParamName = "inference_threads";
+            modelThreadParamName = "model_threads";
+        }
+
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&"
+                + inferenceThreadParamName
+                + "=1&"
+                + modelThreadParamName
+                + "=1"
         );
+        if (compatibleHeader != null) {
+            request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
+        }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);

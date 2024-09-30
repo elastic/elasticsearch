@@ -223,6 +223,11 @@ public class TransportVersions {
     public static final TransportVersion ESQL_AGGREGATION_OPERATOR_STATUS_FINISH_NANOS = def(8_747_00_0);
     public static final TransportVersion ML_TELEMETRY_MEMORY_ADDED = def(8_748_00_0);
     public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE = def(8_749_00_0);
+    public static final TransportVersion SEMANTIC_TEXT_SEARCH_INFERENCE_ID = def(8_750_00_0);
+    public static final TransportVersion ML_INFERENCE_CHUNKING_SETTINGS = def(8_751_00_0);
+    public static final TransportVersion SEMANTIC_QUERY_INNER_HITS = def(8_752_00_0);
+    public static final TransportVersion RETAIN_ILM_STEP_INFO = def(8_753_00_0);
+    public static final TransportVersion ADD_DATA_STREAM_OPTIONS = def(8_754_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

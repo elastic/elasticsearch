@@ -27,14 +27,19 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
-class DataGenerationHelper {
+public class DataGenerationHelper {
     private final ObjectMapper.Subobjects subobjects;
     private final boolean keepArraySource;
 
     private final DataGenerator dataGenerator;
 
-    DataGenerationHelper() {
+    public DataGenerationHelper() {
+        this(b -> {});
+    }
+
+    public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator) {
         // TODO enable subobjects: auto
         // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using copy_to.
         this.subobjects = ESTestCase.randomValueOtherThan(
@@ -47,7 +52,8 @@ class DataGenerationHelper {
         if (subobjects != ObjectMapper.Subobjects.ENABLED) {
             specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
         }
-        this.dataGenerator = new DataGenerator(specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
+
+        specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
             @Override
             public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
                 if (subobjects == ObjectMapper.Subobjects.ENABLED) {
@@ -113,8 +119,12 @@ class DataGenerationHelper {
                         }
                     })
                 )
-            )
-            .build());
+            );
+
+        // Customize builder if necessary
+        builderConfigurator.accept(specificationBuilder);
+
+        this.dataGenerator = new DataGenerator(specificationBuilder.build());
     }
 
     DataGenerator getDataGenerator() {

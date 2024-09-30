@@ -150,7 +150,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                         dataStreamOptions = DataStreamOptions.FAILURE_STORE_ENABLED;
                     }
                     autoShardingEvent = new DataStreamAutoShardingEvent(
-                        failureIndices.getLast().getName(),
+                        failureIndices.get(failureIndices.size() - 1).getName(),
                         randomIntBetween(1, 10),
                         randomMillisUpToYear9999()
                     );
@@ -164,7 +164,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             }
             case 15 -> failureAutoShardingEvent = randomBoolean() && failureAutoShardingEvent != null
                 ? null
-                : new DataStreamAutoShardingEvent(indices.getLast().getName(), randomIntBetween(1, 10), randomMillisUpToYear9999());
+                : new DataStreamAutoShardingEvent(
+                    indices.get(indices.size() - 1).getName(),
+                    randomIntBetween(1, 10),
+                    randomMillisUpToYear9999()
+                );
         }
 
         return new DataStream(

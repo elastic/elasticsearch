@@ -8,17 +8,12 @@
  */
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.logging.HeaderWarningAppender;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
@@ -28,41 +23,15 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.List;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
-
-    private ThreadContext threadContext;
-    private HeaderWarningAppender headerWarningAppender;
-
-    @Before
-    public final void before() {
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-        this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
-        this.headerWarningAppender.start();
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
-    }
-
-    @After
-    public final void after() {
-        HeaderWarning.removeThreadContext(threadContext);
-        threadContext = null;
-        if (this.headerWarningAppender != null) {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
-            this.headerWarningAppender = null;
-        }
-    }
-
     private static final CommonAnalysisPlugin PLUGIN = new CommonAnalysisPlugin();
 
     public void testEnglishFilterFactory() throws IOException {
@@ -144,12 +113,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
 
         AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        try {
-            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
-            assertTrue(actualWarningStrings.stream().anyMatch(warning -> warning.contains("The [dutch_kp] stemmer is deprecated")));
-        } finally {
-            threadContext.stashContext();
-        }
+        assertCriticalWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
     }
 
     public void testLovinsDeprecation() throws IOException {
@@ -161,12 +125,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
 
-        try {
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
-            assertTrue(actualWarningStrings.stream().anyMatch(warning -> warning.contains("The [lovins] stemmer is deprecated")));
-        } finally {
-            threadContext.stashContext();
-        }
+        AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+        assertCriticalWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
     }
 }

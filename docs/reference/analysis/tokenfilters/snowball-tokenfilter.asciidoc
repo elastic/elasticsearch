@@ -30,7 +30,7 @@ PUT /my-index-000001
       "filter": {
         "my_snow": {
           "type": "snowball",
-          "language": "Irish"
+          "language": "English"
         }
       }
     }

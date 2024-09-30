@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
+import org.hamcrest.Matchers;
 import org.junit.After;
 
 import java.io.ByteArrayInputStream;
@@ -268,11 +269,11 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             assertThat(resolveRolesFuture.get(), containsInAnyOrder("kibana_user", "fleet_user"));
         }
 
-        // the role mappings are retrievable by the role mapping action since they are treated as reserved role mappings and need to be
-        // surfaced via API for BWC
+        // cluster-state role mappings are retrievable by the role mapping action since they are treated as reserved role mappings and need
+        // to be surfaced via API for BWC
         assertGetResponseHasMappings("everyone_kibana", "everyone_fleet");
 
-        // role mappings (with the same names) cannot be stored in the "native" store since they are reserved
+        // role mappings (with the same names) cannot be modified via API calls since they are reserved
         expectThrows(
             IllegalArgumentException.class,
             () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet()
@@ -281,14 +282,16 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             IllegalArgumentException.class,
             () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet()
         );
-    }
-
-    private static void assertGetResponseHasMappings(String... mappings) throws InterruptedException, ExecutionException {
-        var request = new GetRoleMappingsRequest();
-        request.setNames(mappings);
-        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertTrue(response.hasMappings());
-        assertThat(Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(), containsInAnyOrder(mappings));
+        expectThrows(IllegalArgumentException.class, () -> {
+            var deleteRoleMappingRequest = new DeleteRoleMappingRequest();
+            deleteRoleMappingRequest.setName("everyone_kibana");
+            client().execute(DeleteRoleMappingAction.INSTANCE, deleteRoleMappingRequest).actionGet();
+        });
+        expectThrows(IllegalArgumentException.class, () -> {
+            var deleteRoleMappingRequest = new DeleteRoleMappingRequest();
+            deleteRoleMappingRequest.setName("everyone_fleet");
+            client().execute(DeleteRoleMappingAction.INSTANCE, deleteRoleMappingRequest).actionGet();
+        });
     }
 
     public void testRoleMappingsApplied() throws Exception {
@@ -298,31 +301,20 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
-        logger.info("---> cleanup cluster settings...");
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
-
         writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
-        ).get();
-
-        assertNull(
-            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
-        );
-
-        // native role mappings are affected by the removal of the cluster-state based ones
+        // empty cluster state, and no native privileges means empty response from the API
         {
             var request = new GetRoleMappingsRequest();
             request.setNames("everyone_kibana", "everyone_fleet");
             var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
             assertFalse(response.hasMappings());
         }
-
-        // and roles are resolved such that cluster-state mappings take precedence
+        // and for role mapping
         for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
             PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
             userRoleMapper.resolveRoles(
@@ -332,26 +324,49 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             assertThat(resolveRolesFuture.get(), empty());
         }
 
+        // since there are no reserved role mappings, we can create native ones with names of the reserved mappings that existed previously
         {
-            var request = new DeleteRoleMappingRequest();
-            request.setName("everyone_kibana");
-            var response = client().execute(DeleteRoleMappingAction.INSTANCE, request).get();
-            assertFalse(response.isFound());
-            request = new DeleteRoleMappingRequest();
-            request.setName("everyone_fleet");
-            response = client().execute(DeleteRoleMappingAction.INSTANCE, request).get();
-            assertFalse(response.isFound());
+            var putRoleMappingResponse = client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet();
+            assertTrue(putRoleMappingResponse.isCreated());
+            putRoleMappingResponse = client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet();
+            assertTrue(putRoleMappingResponse.isCreated());
         }
 
-        // no roles are resolved now, because both native and cluster-state based stores have been cleared
+        // native mapping is used in role mapping
         for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
             PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
             userRoleMapper.resolveRoles(
                 new UserRoleMapper.UserData("anyUsername", null, List.of(), Map.of(), mock(RealmConfig.class)),
                 resolveRolesFuture
             );
-            assertThat(resolveRolesFuture.get(), empty());
+            assertThat(resolveRolesFuture.get(), Matchers.contains("kibana_user_native"));
         }
+
+        // put back reserved cluster state role mapping
+        savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+        awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        // re-assert everything about native role mappings etc
+        assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
+
+        logger.info("---> cleanup cluster settings...");
+        // clean up
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+        savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
+        awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        assertNull(
+            clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get()))
+                .get()
+                .getState()
+                .metadata()
+                .persistentSettings()
+                .get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
+        );
+
     }
 
     public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(
@@ -493,5 +508,13 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         ) {
             return new PutRoleMappingRequestBuilder(null).source(name, parser).request();
         }
+    }
+
+    private static void assertGetResponseHasMappings(String... mappings) throws InterruptedException, ExecutionException {
+        var request = new GetRoleMappingsRequest();
+        request.setNames(mappings);
+        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+        assertTrue(response.hasMappings());
+        assertThat(Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(), containsInAnyOrder(mappings));
     }
 }

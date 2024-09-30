@@ -81,6 +81,10 @@ public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache im
         }
     }
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     public Set<ExpressionRoleMapping> getMappings() {
         if (enabled == false) {
             return Set.of();

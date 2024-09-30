@@ -21,14 +21,16 @@ public class ReservedRoleMappings {
         this.clusterStateRoleMapper = clusterStateRoleMapper;
     }
 
-    public List<ExpressionRoleMapping> combineWithReserved(List<ExpressionRoleMapping> roleMappings) {
+    public List<ExpressionRoleMapping> mergeWithReserved(List<ExpressionRoleMapping> roleMappings) {
         final Set<ExpressionRoleMapping> reservedRoleMappings = clusterStateRoleMapper.getMappings();
         if (reservedRoleMappings.isEmpty()) {
             return roleMappings;
         }
+
         if (roleMappings.isEmpty()) {
             return List.copyOf(reservedRoleMappings);
         }
+
         final Map<String, ExpressionRoleMapping> combinedMappings = new LinkedHashMap<>();
         for (ExpressionRoleMapping mapping : reservedRoleMappings) {
             combinedMappings.put(mapping.getName(), mapping);

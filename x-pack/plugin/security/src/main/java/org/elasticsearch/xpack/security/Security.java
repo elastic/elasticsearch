@@ -313,6 +313,7 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.ReservedRoleMappings;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
@@ -859,6 +860,7 @@ public class Security extends Plugin
             scriptService,
             new ReservedRoleMappings(clusterStateRoleMapper)
         );
+
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
         final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, threadPool);
@@ -898,7 +900,8 @@ public class Security extends Plugin
         );
         components.add(nativeUsersStore);
         components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
-        components.add(new PluginComponentBinding<>(UserRoleMapper.class, nativeRoleMappingStore));
+        final UserRoleMapper userRoleMapper = getUserRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
+        components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
         components.add(reservedRealm);
         components.add(realms);
         this.realms.set(realms);
@@ -1221,6 +1224,18 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private UserRoleMapper getUserRoleMapper(NativeRoleMappingStore nativeRoleMappingStore, ClusterStateRoleMapper clusterStateRoleMapper) {
+        if (nativeRoleMappingStore.isEnabled()) {
+            // native role mapper is set up to handle both cluster state role mapping AND native role mapping
+            return nativeRoleMappingStore;
+        } else if (clusterStateRoleMapper.isEnabled()) {
+            return clusterStateRoleMapper;
+        } else {
+            // shouldn't happen but might as well handle this
+            return new CompositeRoleMapper();
+        }
     }
 
     private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {

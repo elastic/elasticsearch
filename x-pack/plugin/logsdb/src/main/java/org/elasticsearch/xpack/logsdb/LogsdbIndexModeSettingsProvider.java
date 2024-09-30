@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -21,9 +22,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.cluster.settings.ClusterSettings.CLUSTER_LOGSDB_ENABLED;
-
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
+    static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
+        "cluster.logsdb.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private static final String LOGS_PATTERN = "logs-*-*";
     private volatile boolean isLogsdbEnabled;
 

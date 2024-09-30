@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.create;
 
@@ -37,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMu
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,6 +46,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -190,7 +191,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             clusterService,
                             indexNames.toArray(String[]::new),
                             ActiveShardCount.DEFAULT,
-                            request.timeout(),
+                            request.ackTimeout(),
                             allocationActionMultiListener.delay(listener)
                                 .map(shardsAcked -> new CreateIndexResponse(true, shardsAcked, indexNames.get(0)))
                         );
@@ -253,7 +254,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.index(),
                         dataStreamDescriptor,
                         request.masterNodeTimeout(),
-                        request.timeout(),
+                        request.ackTimeout(),
                         false
                     );
                     assert createRequest.performReroute() == false
@@ -261,14 +262,15 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
                         createRequest,
                         currentState,
-                        rerouteCompletionIsNotRequired()
+                        rerouteCompletionIsNotRequired(),
+                        request.isInitializeFailureStore()
                     );
 
                     final var dataStream = clusterState.metadata().dataStreams().get(request.index());
                     final var backingIndexName = dataStream.getIndices().get(0).getName();
-                    final var indexNames = dataStream.getFailureIndices().isEmpty()
+                    final var indexNames = dataStream.getFailureIndices().getIndices().isEmpty()
                         ? List.of(backingIndexName)
-                        : List.of(backingIndexName, dataStream.getFailureIndices().get(0).getName());
+                        : List.of(backingIndexName, dataStream.getFailureIndices().getIndices().get(0).getName());
                     taskContext.success(getAckListener(indexNames, allocationActionMultiListener));
                     successfulRequests.put(request, indexNames);
                     return clusterState;
@@ -348,7 +350,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     indexName,
                     request.index()
-                ).ackTimeout(request.timeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
+                ).performReroute(false);
                 logger.debug("Auto-creating index {}", indexName);
                 return updateRequest;
             }
@@ -365,7 +367,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     concreteIndexName,
                     request.index()
-                ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
+                ).performReroute(false);
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

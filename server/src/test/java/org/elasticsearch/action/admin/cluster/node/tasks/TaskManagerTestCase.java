@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -61,6 +62,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.transport.MockTransportService.createTaskManager;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -136,14 +138,13 @@ public abstract class TaskManagerTestCase extends ESTestCase {
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends TransportRequest>
-        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
+        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse, Void> {
 
         AbstractTestNodesAction(
             String actionName,
             ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
-            Writeable.Reader<NodesRequest> request,
             Writeable.Reader<NodeRequest> nodeRequest
         ) {
             super(
@@ -176,12 +177,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
-            TaskManager taskManager;
-            if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-                taskManager = new MockTaskManager(settings, threadPool, emptySet());
-            } else {
-                taskManager = new TaskManager(settings, threadPool, emptySet());
-            }
+            TaskManager taskManager = createTaskManager(settings, threadPool, emptySet(), Tracer.NOOP);
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(

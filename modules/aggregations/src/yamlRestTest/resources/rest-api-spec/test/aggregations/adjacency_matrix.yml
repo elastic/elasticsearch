@@ -63,8 +63,8 @@ setup:
 
 ---
 "Terms lookup":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason:  fixed in 7.9.0
   - do:
       indices.create:

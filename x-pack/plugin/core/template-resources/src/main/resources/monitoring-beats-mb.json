@@ -1,5 +1,7 @@
 {
-  "index_patterns": [".monitoring-beats-${xpack.stack.monitoring.template.version}-*"],
+  "index_patterns": [
+    ".monitoring-beats-${xpack.stack.monitoring.template.version}-*"
+  ],
   "version": ${xpack.stack.monitoring.template.release.version},
   "template": {
     "mappings": {
@@ -198,6 +200,9 @@
                                 "ratelimit": {
                                   "type": "long"
                                 },
+                                "timeout": {
+                                  "type": "long"
+                                },
                                 "toolarge": {
                                   "type": "long"
                                 },
@@ -211,16 +216,6 @@
                                   "type": "long"
                                 }
                               }
-                            },
-                            "request": {
-                              "properties": {
-                                "count": {
-                                  "type": "long"
-                                }
-                              }
-                            },
-                            "unset": {
-                              "type": "long"
                             },
                             "valid": {
                               "properties": {
@@ -239,55 +234,416 @@
                               }
                             }
                           }
+                        },
+                        "unset": {
+                          "type": "long"
                         }
                       }
                     },
-                    "decoder": {
+                    "agentcfg": {
                       "properties": {
-                        "deflate": {
+                        "elasticsearch": {
                           "properties": {
-                            "content-length": {
-                              "type": "long"
+                            "cache": {
+                              "properties": {
+                                "entries": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "refresh": {
+                                  "properties": {
+                                    "failures": {
+                                      "type": "long"
+                                    },
+                                    "successes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
                             },
-                            "count": {
-                              "type": "long"
+                            "fetch": {
+                              "properties": {
+                                "es": {
+                                  "type": "long"
+                                },
+                                "fallback": {
+                                  "type": "long"
+                                },
+                                "invalid": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "jaeger": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "collect": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "sampling": {
+                              "properties": {
+                                "event": {
+                                  "properties": {
+                                    "received": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "otlp": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             }
                           }
                         },
-                        "gzip": {
+                        "http": {
                           "properties": {
-                            "content-length": {
-                              "type": "long"
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             },
-                            "count": {
-                              "type": "long"
-                            }
-                          }
-                        },
-                        "missing-content-length": {
-                          "properties": {
-                            "count": {
-                              "type": "long"
-                            }
-                          }
-                        },
-                        "reader": {
-                          "properties": {
-                            "count": {
-                              "type": "long"
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             },
-                            "size": {
-                              "type": "long"
-                            }
-                          }
-                        },
-                        "uncompressed": {
-                          "properties": {
-                            "content-length": {
-                              "type": "long"
-                            },
-                            "count": {
-                              "type": "long"
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             }
                           }
                         }
@@ -297,91 +653,15 @@
                       "properties": {
                         "error": {
                           "properties": {
-                            "decoding": {
-                              "properties": {
-                                "count": {
-                                  "type": "long"
-                                },
-                                "errors": {
-                                  "type": "long"
-                                }
-                              }
-                            },
-                            "frames": {
-                              "type": "long"
-                            },
-                            "spans": {
-                              "type": "long"
-                            },
-                            "stacktraces": {
-                              "type": "long"
-                            },
                             "transformations": {
                               "type": "long"
-                            },
-                            "validation": {
-                              "properties": {
-                                "count": {
-                                  "type": "long"
-                                },
-                                "errors": {
-                                  "type": "long"
-                                }
-                              }
                             }
                           }
                         },
                         "metric": {
                           "properties": {
-                            "decoding": {
-                              "properties": {
-                                "count": {
-                                  "type": "long"
-                                },
-                                "errors": {
-                                  "type": "long"
-                                }
-                              }
-                            },
                             "transformations": {
                               "type": "long"
-                            },
-                            "validation": {
-                              "properties": {
-                                "count": {
-                                  "type": "long"
-                                },
-                                "errors": {
-                                  "type": "long"
-                                }
-                              }
-                            }
-                          }
-                        },
-                        "sourcemap": {
-                          "properties": {
-                            "counter": {
-                              "type": "long"
-                            },
-                            "decoding": {
-                              "properties": {
-                                "count": {
-                                  "type": "long"
-                                },
-                                "errors": {
-                                  "type": "long"
-                                }
-                              }
-                            },
-                            "validation": {
-                              "properties": {
-                                "count": {
-                                  "type": "long"
-                                },
-                                "errors": {
-                                  "type": "long"
-                                }
-                              }
                             }
                           }
                         },
@@ -392,60 +672,127 @@
                             }
                           }
                         },
-                        "transaction": {
+                        "stream": {
                           "properties": {
-                            "decoding": {
+                            "accepted": {
+                              "type": "long"
+                            },
+                            "errors": {
                               "properties": {
-                                "count": {
+                                "invalid": {
                                   "type": "long"
                                 },
-                                "errors": {
-                                  "type": "long"
-                                }
-                              }
-                            },
-                            "frames": {
-                              "type": "long"
-                            },
-                            "spans": {
-                              "type": "long"
-                            },
-                            "stacktraces": {
-                              "type": "long"
-                            },
-                            "transactions": {
-                              "type": "long"
-                            },
-                            "transformations": {
-                              "type": "long"
-                            },
-                            "validation": {
-                              "properties": {
-                                "count": {
-                                  "type": "long"
-                                },
-                                "errors": {
-                                  "type": "long"
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "server": {
-                      "properties": {
-                        "concurrent": {
-                          "properties": {
-                            "wait": {
-                              "properties": {
-                                "ms": {
+                                "toolarge": {
                                   "type": "long"
                                 }
                               }
                             }
                           }
                         },
+                        "transaction": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "root": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "timeout": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "sampling": {
+                      "properties": {
+                        "transactions_dropped": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "server": {
+                      "properties": {
                         "request": {
                           "properties": {
                             "count": {
@@ -478,7 +825,13 @@
                                 "internal": {
                                   "type": "long"
                                 },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
                                 "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
                                   "type": "long"
                                 },
                                 "queue": {
@@ -487,10 +840,16 @@
                                 "ratelimit": {
                                   "type": "long"
                                 },
+                                "timeout": {
+                                  "type": "long"
+                                },
                                 "toolarge": {
                                   "type": "long"
                                 },
                                 "unauthorized": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
                                   "type": "long"
                                 },
                                 "validate": {
@@ -506,12 +865,18 @@
                                 "count": {
                                   "type": "long"
                                 },
+                                "notmodified": {
+                                  "type": "long"
+                                },
                                 "ok": {
                                   "type": "long"
                                 }
                               }
                             }
                           }
+                        },
+                        "unset": {
+                          "type": "long"
                         }
                       }
                     }
@@ -918,6 +1283,37 @@
                       "type": "long"
                     }
                   }
+                },
+                "output": {
+                  "properties": {
+                    "elasticsearch": {
+                      "properties": {
+                        "bulk_requests": {
+                          "properties": {
+                            "available": {
+                              "type": "long"
+                            },
+                            "completed": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "indexers": {
+                          "properties": {
+                            "active": {
+                              "type": "long"
+                            },
+                            "created": {
+                              "type": "long"
+                            },
+                            "destroyed": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             },
@@ -1135,6 +1531,10 @@
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.acm.response.errors.ratelimit"
                                 },
+                                "timeout": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.timeout"
+                                },
                                 "toolarge": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.acm.response.errors.toolarge"
@@ -1152,18 +1552,6 @@
                                   "path": "beat.stats.apm_server.acm.response.errors.validate"
                                 }
                               }
-                            },
-                            "request": {
-                              "properties": {
-                                "count": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.acm.response.request.count"
-                                }
-                              }
-                            },
-                            "unset": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.unset"
                             },
                             "valid": {
                               "properties": {
@@ -1186,64 +1574,480 @@
                               }
                             }
                           }
+                        },
+                        "unset": {
+                          "type": "alias",
+                          "path": "beat.stats.apm_server.acm.unset"
                         }
                       }
                     },
-                    "decoder": {
+                    "agentcfg": {
                       "properties": {
-                        "deflate": {
+                        "elasticsearch": {
                           "properties": {
-                            "content-length": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.deflate.content-length"
+                            "cache": {
+                              "properties": {
+                                "entries": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.agentcfg.elasticsearch.cache.entries.count"
+                                    }
+                                  }
+                                },
+                                "refresh": {
+                                  "properties": {
+                                    "failures": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.agentcfg.elasticsearch.cache.refresh.failures"
+                                    },
+                                    "successes": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.agentcfg.elasticsearch.cache.refresh.successes"
+                                    }
+                                  }
+                                }
+                              }
                             },
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.deflate.count"
+                            "fetch": {
+                              "properties": {
+                                "es": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.agentcfg.elasticsearch.fetch.es"
+                                },
+                                "fallback": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.agentcfg.elasticsearch.fetch.fallback"
+                                },
+                                "invalid": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.agentcfg.elasticsearch.fetch.invalid"
+                                },
+                                "unavailable": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.agentcfg.elasticsearch.fetch.unavailable"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "jaeger": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "collect": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.jaeger.grpc.collect.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.jaeger.grpc.collect.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "sampling": {
+                              "properties": {
+                                "event": {
+                                  "properties": {
+                                    "received": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.sampling.event.received.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.jaeger.grpc.sampling.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.jaeger.grpc.sampling.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.sampling.response.errors.count"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.sampling.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "otlp": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.logs.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.logs.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.metrics.consumer.unsupported_dropped"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.metrics.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.metrics.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.traces.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.traces.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             }
                           }
                         },
-                        "gzip": {
+                        "http": {
                           "properties": {
-                            "content-length": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.gzip.content-length"
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.logs.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.logs.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             },
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.gzip.count"
-                            }
-                          }
-                        },
-                        "missing-content-length": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.missing-content-length.count"
-                            }
-                          }
-                        },
-                        "reader": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.reader.count"
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.metrics.consumer.unsupported_dropped"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.metrics.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.metrics.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             },
-                            "size": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.reader.size"
-                            }
-                          }
-                        },
-                        "uncompressed": {
-                          "properties": {
-                            "content-length": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.uncompressed.content-length"
-                            },
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.decoder.uncompressed.count"
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.traces.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.traces.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             }
                           }
                         }
@@ -1253,109 +2057,17 @@
                       "properties": {
                         "error": {
                           "properties": {
-                            "decoding": {
-                              "properties": {
-                                "count": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.error.decoding.count"
-                                },
-                                "errors": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.error.decoding.errors"
-                                }
-                              }
-                            },
-                            "frames": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.error.frames"
-                            },
-                            "spans": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.error.spans"
-                            },
-                            "stacktraces": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.error.stacktraces"
-                            },
                             "transformations": {
                               "type": "alias",
                               "path": "beat.stats.apm_server.processor.error.transformations"
-                            },
-                            "validation": {
-                              "properties": {
-                                "count": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.error.validation.count"
-                                },
-                                "errors": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.error.validation.errors"
-                                }
-                              }
                             }
                           }
                         },
                         "metric": {
                           "properties": {
-                            "decoding": {
-                              "properties": {
-                                "count": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.metric.decoding.count"
-                                },
-                                "errors": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.metric.decoding.errors"
-                                }
-                              }
-                            },
                             "transformations": {
                               "type": "alias",
                               "path": "beat.stats.apm_server.processor.metric.transformations"
-                            },
-                            "validation": {
-                              "properties": {
-                                "count": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.metric.validation.count"
-                                },
-                                "errors": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.metric.validation.errors"
-                                }
-                              }
-                            }
-                          }
-                        },
-                        "sourcemap": {
-                          "properties": {
-                            "counter": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.sourcemap.counter"
-                            },
-                            "decoding": {
-                              "properties": {
-                                "count": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.sourcemap.decoding.count"
-                                },
-                                "errors": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.sourcemap.decoding.errors"
-                                }
-                              }
-                            },
-                            "validation": {
-                              "properties": {
-                                "count": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.sourcemap.validation.count"
-                                },
-                                "errors": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.sourcemap.validation.errors"
-                                }
-                              }
                             }
                           }
                         },
@@ -1367,70 +2079,154 @@
                             }
                           }
                         },
-                        "transaction": {
+                        "stream": {
                           "properties": {
-                            "decoding": {
+                            "accepted": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.stream.accepted"
+                            },
+                            "errors": {
                               "properties": {
-                                "count": {
+                                "invalid": {
                                   "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.transaction.decoding.count"
+                                  "path": "beat.stats.apm_server.processor.stream.errors.invalid"
                                 },
-                                "errors": {
+                                "toolarge": {
                                   "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.transaction.decoding.errors"
-                                }
-                              }
-                            },
-                            "frames": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.frames"
-                            },
-                            "spans": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.spans"
-                            },
-                            "stacktraces": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.stacktraces"
-                            },
-                            "transactions": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.transactions"
-                            },
-                            "transformations": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.transformations"
-                            },
-                            "validation": {
-                              "properties": {
-                                "count": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.transaction.validation.count"
-                                },
-                                "errors": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.processor.transaction.validation.errors"
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "server": {
-                      "properties": {
-                        "concurrent": {
-                          "properties": {
-                            "wait": {
-                              "properties": {
-                                "ms": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.server.concurrent.wait.ms"
+                                  "path": "beat.stats.apm_server.processor.stream.errors.toolarge"
                                 }
                               }
                             }
                           }
                         },
+                        "transaction": {
+                          "properties": {
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.transaction.transformations"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "root": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.root.request.count"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.root.response.count"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.closed"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.count"
+                                },
+                                "decode": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.decode"
+                                },
+                                "forbidden": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.forbidden"
+                                },
+                                "internal": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.internal"
+                                },
+                                "invalidquery": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.invalidquery"
+                                },
+                                "method": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.method"
+                                },
+                                "notfound": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.notfound"
+                                },
+                                "queue": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.queue"
+                                },
+                                "ratelimit": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.ratelimit"
+                                },
+                                "timeout": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.timeout"
+                                },
+                                "toolarge": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.toolarge"
+                                },
+                                "unauthorized": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.unauthorized"
+                                },
+                                "unavailable": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.unavailable"
+                                },
+                                "validate": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.validate"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.valid.accepted"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.valid.count"
+                                },
+                                "notmodified": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.valid.notmodified"
+                                },
+                                "ok": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.valid.ok"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "alias",
+                          "path": "beat.stats.apm_server.root.unset"
+                        }
+                      }
+                    },
+                    "sampling": {
+                      "properties": {
+                        "transactions_dropped": {
+                          "type": "alias",
+                          "path": "beat.stats.apm_server.sampling.transactions_dropped"
+                        }
+                      }
+                    },
+                    "server": {
+                      "properties": {
                         "request": {
                           "properties": {
                             "count": {
@@ -1471,9 +2267,17 @@
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.server.response.errors.internal"
                                 },
+                                "invalidquery": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.invalidquery"
+                                },
                                 "method": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.server.response.errors.method"
+                                },
+                                "notfound": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.notfound"
                                 },
                                 "queue": {
                                   "type": "alias",
@@ -1483,6 +2287,10 @@
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.server.response.errors.ratelimit"
                                 },
+                                "timeout": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.timeout"
+                                },
                                 "toolarge": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.server.response.errors.toolarge"
@@ -1490,6 +2298,10 @@
                                 "unauthorized": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.server.response.errors.unauthorized"
+                                },
+                                "unavailable": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.unavailable"
                                 },
                                 "validate": {
                                   "type": "alias",
@@ -1507,6 +2319,10 @@
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.server.response.valid.count"
                                 },
+                                "notmodified": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.valid.notmodified"
+                                },
                                 "ok": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.server.response.valid.ok"
@@ -1514,49 +2330,10 @@
                               }
                             }
                           }
-                        }
-                      }
-                    },
-                    "sampling": {
-                      "properties": {
-                        "transactions_dropped": {
-                          "type": "long"
                         },
-                        "tail": {
-                          "properties": {
-                            "dynamic_service_groups": {
-                              "type": "long"
-                            },
-                            "storage": {
-                              "properties": {
-                                "lsm_size": {
-                                  "type": "long"
-                                },
-                                "value_log_size": {
-                                  "type": "long"
-                                }
-                              }
-                            },
-                            "events": {
-                              "properties": {
-                                "processed": {
-                                  "type": "long"
-                                },
-                                "dropped": {
-                                  "type": "long"
-                                },
-                                "stored": {
-                                  "type": "long"
-                                },
-                                "sampled": {
-                                  "type": "long"
-                                },
-                                "head_unsampled": {
-                                  "type": "long"
-                                }
-                              }
-                            }
-                          }
+                        "unset": {
+                          "type": "alias",
+                          "path": "beat.stats.apm_server.server.unset"
                         }
                       }
                     }
@@ -1979,6 +2756,42 @@
                             "15": {
                               "type": "alias",
                               "path": "beat.stats.system.load.norm.15"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "elasticsearch": {
+                      "properties": {
+                        "bulk_requests": {
+                          "properties": {
+                            "available": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.bulk_requests.available"
+                            },
+                            "completed": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.bulk_requests.completed"
+                            }
+                          }
+                        },
+                        "indexers": {
+                          "properties": {
+                            "active": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.indexers.active"
+                            },
+                            "created": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.indexers.created"
+                            },
+                            "destroyed": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.indexers.destroyed"
                             }
                           }
                         }

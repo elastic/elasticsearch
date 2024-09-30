@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.hppc.BitMixer;
+import com.carrotsearch.hppc.BitMixer;
+
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -133,8 +135,8 @@ public final class LongLongHash extends AbstractHash {
         final long id = id(index, -1);
         assert id >= 0;
         long keyOffset = id * 2;
-        final long key1 = keys.set(keyOffset, 0);
-        final long key2 = keys.set(keyOffset + 1, 0);
+        final long key1 = keys.getAndSet(keyOffset, 0);
+        final long key2 = keys.getAndSet(keyOffset + 1, 0);
         reset(key1, key2, id);
     }
 

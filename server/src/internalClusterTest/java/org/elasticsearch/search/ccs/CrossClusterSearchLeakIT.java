@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.ccs;
@@ -110,7 +111,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
         assertFalse(
             client("cluster_a").admin()
                 .cluster()
-                .prepareHealth("prod")
+                .prepareHealth(TEST_REQUEST_TIMEOUT, "prod")
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
@@ -130,7 +131,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
                     .size(between(scroll ? 1 : 0, 1000))
             );
             if (scroll) {
-                searchRequest.scroll("30s");
+                searchRequest.scroll(TimeValue.timeValueSeconds(30));
             }
             searchRequest.setCcsMinimizeRoundtrips(rarely());
             futures.add(client(LOCAL_CLUSTER).search(searchRequest));
@@ -169,7 +170,11 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
 
             settings.put("cluster.remote." + clusterAlias + ".mode", "proxy");
             settings.put("cluster.remote." + clusterAlias + ".proxy_address", seedAddress);
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(settings)
+                .get();
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport.netty4;
 
@@ -30,6 +31,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -78,6 +80,8 @@ public class Netty4Transport extends TcpTransport {
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     protected final boolean remoteClusterPortEnabled;
 
+    private final ThreadWatchdog threadWatchdog;
+
     public Netty4Transport(
         Settings settings,
         TransportVersion version,
@@ -92,6 +96,7 @@ public class Netty4Transport extends TcpTransport {
         Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
+        this.threadWatchdog = networkService.getThreadWatchdog();
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         this.receivePredictorMin = Netty4Plugin.NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
@@ -125,6 +130,7 @@ public class Netty4Transport extends TcpTransport {
                     bindServer(profileSettings);
                 }
             }
+            threadWatchdog.run(settings, threadPool, lifecycle);
             success = true;
         } finally {
             if (success == false) {
@@ -353,14 +359,24 @@ public class Netty4Transport extends TcpTransport {
         if (NetworkTraceFlag.TRACE_ENABLED) {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
-        pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
-        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline(ch, isRemoteClusterServerChannel)));
+        pipeline.addLast(
+            "chunked_writer",
+            new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext(), threadWatchdog.getActivityTrackerForCurrentThread())
+        );
+        pipeline.addLast(
+            "dispatcher",
+            new Netty4MessageInboundHandler(
+                this,
+                getInboundPipeline(ch, isRemoteClusterServerChannel),
+                threadWatchdog.getActivityTrackerForCurrentThread()
+            )
+        );
     }
 
     protected InboundPipeline getInboundPipeline(Channel ch, boolean isRemoteClusterServerChannel) {
         return new InboundPipeline(
             getStatsTracker(),
-            threadPool::relativeTimeInMillis,
+            threadPool.relativeTimeInMillisSupplier(),
             new InboundDecoder(recycler),
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
             this::inboundMessage
@@ -368,9 +384,9 @@ public class Netty4Transport extends TcpTransport {
     }
 
     private static void addClosedExceptionLogger(Channel channel) {
-        channel.closeFuture().addListener(f -> {
-            if (f.isSuccess() == false) {
-                logger.debug(() -> format("exception while closing channel: %s", channel), f.cause());
+        Netty4Utils.addListener(channel.closeFuture(), channelFuture -> {
+            if (channelFuture.isSuccess() == false && logger.isDebugEnabled()) {
+                logger.debug(format("exception while closing channel: %s", channelFuture.channel()), channelFuture.cause());
             }
         });
     }

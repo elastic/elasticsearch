@@ -66,10 +66,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String datafeedId;
+        private final String datafeedId;
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 

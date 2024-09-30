@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,8 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PrefixCodedTerms;
-import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -20,12 +19,10 @@ import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -35,6 +32,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -560,29 +558,6 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Extract a {@link Term} from a query created with {@link #termQuery} by
-     * recursively removing {@link BoostQuery} wrappers.
-     * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
-     */
-    public static Term extractTerm(Query termQuery) {
-        while (termQuery instanceof BoostQuery) {
-            termQuery = ((BoostQuery) termQuery).getQuery();
-        }
-        if (termQuery instanceof TermInSetQuery tisQuery) {
-            PrefixCodedTerms terms = tisQuery.getTermData();
-            if (terms.size() == 1) {
-                TermIterator it = terms.iterator();
-                BytesRef term = it.next();
-                return new Term(it.field(), term);
-            }
-        }
-        if (termQuery instanceof TermQuery == false) {
-            throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
-        }
-        return ((TermQuery) termQuery).getTerm();
-    }
-
-    /**
      * Get the metadata associated with this field.
      */
     public Map<String, String> meta() {
@@ -692,6 +667,11 @@ public abstract class MappedFieldType {
          * The name of the index.
          */
         String indexName();
+
+        /**
+         * The index settings of the index
+         */
+        IndexSettings indexSettings();
 
         /**
          * How the field should be extracted into the BlockLoader. The default is {@link FieldExtractPreference#NONE}, which means

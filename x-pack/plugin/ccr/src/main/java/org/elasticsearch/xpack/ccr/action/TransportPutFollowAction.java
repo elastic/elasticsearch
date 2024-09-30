@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -26,12 +27,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
@@ -187,13 +188,14 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             .build();
 
         final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
-        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(
-            request.getLeaderIndex()
-        )
+        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            request.masterNodeTimeout(),
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(request.getLeaderIndex())
             .indicesOptions(request.indicesOptions())
             .renamePattern("^(.*)$")
             .renameReplacement(Matcher.quoteReplacement(request.getFollowerIndex()))
-            .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings)
             .quiet(true);
 
@@ -205,15 +207,17 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
             (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
         );
+
+        final BiConsumer<ClusterState, Metadata.Builder> updater;
         if (remoteDataStream == null) {
             // If the index we're following is not part of a data stream, start the
             // restoration of the index normally.
-            restoreService.restoreSnapshot(restoreRequest, delegatelistener);
+            updater = (clusterState, mdBuilder) -> {};
         } else {
             String followerIndexName = request.getFollowerIndex();
             // This method is used to update the metadata in the same cluster state
             // update as the snapshot is restored.
-            BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
+            updater = (currentState, mdBuilder) -> {
                 final String localDataStreamName;
 
                 // If we have been given a data stream name, use that name for the local
@@ -238,8 +242,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 );
                 mdBuilder.put(updatedDataStream);
             };
-            restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
         }
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(restoreRequest, l, updater)));
     }
 
     private void afterRestoreStarted(
@@ -294,10 +299,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     ) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
         FollowParameters parameters = request.getParameters();
-        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request(request.masterNodeTimeout());
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
-        resumeFollowRequest.masterNodeTimeout(request.masterNodeTimeout());
         clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
@@ -306,7 +310,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     clusterService,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
-                    request.timeout(),
+                    request.ackTimeout(),
                     l.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
                 )
             )
@@ -328,21 +332,18 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         if (localDataStream == null) {
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
-            return new DataStream(
-                localDataStreamName,
-                List.of(backingIndexToFollow),
-                remoteDataStream.getGeneration(),
-                remoteDataStream.getMetadata(),
-                remoteDataStream.isHidden(),
-                true,
-                remoteDataStream.isSystem(),
-                remoteDataStream.isAllowCustomRouting(),
-                remoteDataStream.getIndexMode(),
-                remoteDataStream.getLifecycle(),
-                remoteDataStream.isFailureStore(),
-                remoteDataStream.getFailureIndices(),
-                remoteDataStream.getAutoShardingEvent()
-            );
+            return remoteDataStream.copy()
+                .setName(localDataStreamName)
+                .setBackingIndices(
+                    // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
+                    // (and potentially even break things).
+                    remoteDataStream.getBackingIndices().copy().setIndices(List.of(backingIndexToFollow)).setRolloverOnWrite(false).build()
+                )
+                // Replicated data streams should not have the failure store marked for lazy rollover (which they do by default for lazy
+                // failure store creation).
+                .setFailureIndices(remoteDataStream.getFailureIndices().copy().setRolloverOnWrite(false).build())
+                .setReplicated(true)
+                .build();
         } else {
             if (localDataStream.isReplicated() == false) {
                 throw new IllegalArgumentException(
@@ -382,21 +383,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 backingIndices = localDataStream.getIndices();
             }
 
-            return new DataStream(
-                localDataStream.getName(),
-                backingIndices,
-                remoteDataStream.getGeneration(),
-                remoteDataStream.getMetadata(),
-                localDataStream.isHidden(),
-                localDataStream.isReplicated(),
-                localDataStream.isSystem(),
-                localDataStream.isAllowCustomRouting(),
-                localDataStream.getIndexMode(),
-                localDataStream.getLifecycle(),
-                localDataStream.isFailureStore(),
-                localDataStream.getFailureIndices(),
-                localDataStream.getAutoShardingEvent()
-            );
+            return localDataStream.copy()
+                .setBackingIndices(localDataStream.getBackingIndices().copy().setIndices(backingIndices).build())
+                .setGeneration(remoteDataStream.getGeneration())
+                .setMetadata(remoteDataStream.getMetadata())
+                .build();
         }
     }
 

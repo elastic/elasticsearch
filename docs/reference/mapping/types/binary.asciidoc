@@ -44,10 +44,49 @@ The following parameters are accepted by `binary` fields:
 
     Should the field be stored on disk in a column-stride fashion, so that it
     can later be used for sorting, aggregations, or scripting? Accepts `true`
-    or `false` (default).
+    or `false` (default). This parameter will be automatically set to `true` for TSDB indices
+(indices that have `index.mode` set to `time_series`).
 
 <<mapping-store,`store`>>::
 
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+[[binary-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will work to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`binary` fields support <<synthetic-source,synthetic `_source`>> only when <<doc-values,`doc_values`>> are enabled. Synthetic source always sorts `binary` values in order of their byte representation. For example:
+[source,console,id=synthetic-source-binary-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "binary": { "type": "binary", "doc_values": true }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "binary": ["IAA=", "EAA="]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "binary": ["EAA=", "IAA="]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

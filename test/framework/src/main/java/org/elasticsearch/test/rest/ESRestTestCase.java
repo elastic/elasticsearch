@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasks
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapsUtils;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -44,7 +46,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -105,6 +106,7 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -129,6 +131,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -157,11 +160,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
         return entityAsMap(response.getEntity());
     }
 
+    /**
+     * Convert the entity from a {@link Response} into a map of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
+     */
     public static Map<String, Object> entityAsMap(HttpEntity entity) throws IOException {
         XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
@@ -174,11 +182,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                 )
         ) {
             return parser.map();
+        } finally {
+            EntityUtils.consumeQuietly(entity);
         }
     }
 
     /**
      * Convert the entity from a {@link Response} into a list of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
      */
     public static List<Object> entityAsList(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
@@ -192,6 +203,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 )
         ) {
             return parser.list();
+        } finally {
+            EntityUtils.consumeQuietly(response.getEntity());
         }
     }
 
@@ -230,20 +243,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static EnumSet<ProductFeature> availableFeatures;
     private static Set<String> nodesVersions;
 
-    private static final TestFeatureService ALL_FEATURES = new TestFeatureService() {
-        @Override
-        public boolean clusterHasFeature(String featureId) {
-            return true;
-        }
-
-        @Override
-        public Set<String> getAllSupportedFeatures() {
-            throw new UnsupportedOperationException(
-                "Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService"
-            );
-        }
-    };
-
     protected static TestFeatureService testFeatureService = ALL_FEATURES;
 
     protected static Set<String> getCachedNodesVersions() {
@@ -264,12 +263,56 @@ public abstract class ESRestTestCase extends ESTestCase {
             .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> (Map<?, ?>) entry.getValue()));
     }
 
+    /**
+     * Does the cluster being tested support the set of capabilities
+     * for specified path and method.
+     */
+    protected static Optional<Boolean> clusterHasCapability(
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        return clusterHasCapability(adminClient, method, path, parameters, capabilities);
+    }
+
+    /**
+     * Does the cluster on the other side of {@code client} support the set
+     * of capabilities for specified path and method.
+     */
+    protected static Optional<Boolean> clusterHasCapability(
+        RestClient client,
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        Request request = new Request("GET", "_capabilities");
+        request.addParameter("method", method);
+        request.addParameter("path", path);
+        if (parameters.isEmpty() == false) {
+            request.addParameter("parameters", String.join(",", parameters));
+        }
+        if (capabilities.isEmpty() == false) {
+            request.addParameter("capabilities", String.join(",", capabilities));
+        }
+        try {
+            Map<String, Object> response = entityAsMap(client.performRequest(request).getEntity());
+            return Optional.ofNullable((Boolean) response.get("supported"));
+        } catch (ResponseException responseException) {
+            if (responseException.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
+                return Optional.empty(); // we don't know, the capabilities API is unsupported
+            }
+            throw responseException;
+        }
+    }
+
     protected static boolean clusterHasFeature(String featureId) {
-        return testFeatureService.clusterHasFeature(featureId);
+        return testFeatureService.clusterHasFeature(featureId, false);
     }
 
     protected static boolean clusterHasFeature(NodeFeature feature) {
-        return testFeatureService.clusterHasFeature(feature.id());
+        return testFeatureService.clusterHasFeature(feature.id(), false);
     }
 
     protected static boolean testFeatureServiceInitialized() {
@@ -353,7 +396,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+    /**
+     * Override to provide additional test-only historical features.
+     *
+     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
+     * must contain only historical features, otherwise an assertion error is thrown.
+     */
+    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
         return List.of();
     }
 
@@ -370,11 +419,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 RestTestLegacyFeatures.class.getCanonicalName()
             );
         }
-        return new ESRestTestFeatureService(
-            createAdditionalFeatureSpecifications(),
-            semanticNodeVersions,
-            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
-        );
+        return new ESRestTestFeatureService(additionalTestOnlyHistoricalFeatures(), semanticNodeVersions, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -1134,7 +1179,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field
                 // or that doesn't support data streams so it's safe to ignore
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
-                if (statusCode < 404 || statusCode > 405) {
+                if (statusCode == 400) {
+                    // the test cluster likely does not include the data streams module so we can ignore this error code
+                    // additionally there is an implementation gotcha that cause response code to be 400 or 405 dependent on if
+                    // "_data_stream/*" matches a registered index pattern such as {a}/{b} but not for the HTTP verb.
+                    // Prior to v9 POST {index}/{type} was registered as a compatible index pattern so the request would partially match
+                    // and return a 405, but without that pattern registered at all the return value is a 400.
+                    return;
+                } else if (statusCode < 404 || statusCode > 405) {
                     throw ee;
                 }
             }
@@ -1455,7 +1507,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             String username = System.getProperty("tests.rest.cluster.username");
             String password = System.getProperty("tests.rest.cluster.password");
             String token = basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
-            return builder.put(ThreadContext.PREFIX + ".Authorization", token).build();
+            builder.put(ThreadContext.PREFIX + ".Authorization", token);
+        }
+        if (System.getProperty("tests.rest.project.id") != null) {
+            final var projectId = System.getProperty("tests.rest.project.id");
+            builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
         }
         return builder.build();
     }
@@ -1603,6 +1659,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return response;
     }
 
+    public static void assertOKAndConsume(Response response) {
+        try {
+            assertOK(response);
+        } finally {
+            EntityUtils.consumeQuietly(response.getEntity());
+        }
+    }
+
     public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
         assertOK(response);
         return ObjectPath.createFromResponse(response);
@@ -1622,9 +1686,14 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     public static void assertAcknowledged(Response response) throws IOException {
-        assertOK(response);
-        String jsonBody = EntityUtils.toString(response.getEntity());
-        assertThat(jsonBody, containsString("\"acknowledged\":true"));
+        try {
+            assertOK(response);
+            String jsonBody = EntityUtils.toString(response.getEntity());
+            assertThat(jsonBody, containsString("\"acknowledged\":true"));
+        } finally {
+            // if assertOK throws an exception, still release resources
+            EntityUtils.consumeQuietly(response.getEntity());
+        }
     }
 
     /**
@@ -1660,7 +1729,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     public final void ensureGreen(String index) throws IOException {
-        ensureHealth(index, (request) -> {
+        ensureGreen(client(), index);
+    }
+
+    public final void ensureGreen(RestClient client, String index) throws IOException {
+        ensureHealth(client, index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
             final String ensureGreenTimeout = getEnsureGreenTimeout();
@@ -1732,6 +1805,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return createIndex(client, name, settings, null, null);
     }
 
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping) throws IOException {
+        return createIndex(client, name, settings, mapping, null);
+    }
+
     protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
         return createIndex(name, settings, mapping, null);
     }
@@ -1778,7 +1855,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
-            return CreateIndexResponse.fromXContent(parser);
+            return TestResponseParsers.parseCreateIndexResponse(parser);
         }
     }
 
@@ -1790,7 +1867,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("DELETE", "/" + name);
         Response response = restClient.performRequest(request);
         try (var parser = responseAsParser(response)) {
-            return AcknowledgedResponse.fromXContent(parser);
+            return TestResponseParsers.parseAcknowledgedResponse(parser);
         }
     }
 
@@ -1955,7 +2032,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Request request = newXContentRequest(
             HttpMethod.PUT,
             "/_snapshot/" + repository,
-            new PutRepositoryRequest(repository).type(type).settings(settings)
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repository).type(type).settings(settings)
         );
         request.addParameter("verify", Boolean.toString(verify));
 
@@ -2389,7 +2466,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Response response = restClient.performRequest(request);
         assertOK(response);
         try (XContentParser parser = responseAsParser(response)) {
-            return FieldCapabilitiesResponse.fromXContent(parser);
+            return FieldCapsUtils.parseFieldCapsResponse(parser);
         }
     }
 

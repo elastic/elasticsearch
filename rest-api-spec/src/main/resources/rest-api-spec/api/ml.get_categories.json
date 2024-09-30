@@ -30,7 +30,7 @@
           }
         },
         {
-          "path":"/_ml/anomaly_detectors/{job_id}/results/categories/",
+          "path":"/_ml/anomaly_detectors/{job_id}/results/categories",
           "methods":[
             "GET",
             "POST"

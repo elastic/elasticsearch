@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a Generative AI
  */
 
 package org.elasticsearch.xpack.ml.autoscaling;
@@ -20,7 +22,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
@@ -52,6 +53,11 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public final class MlAutoscalingResourceTracker {
     private static final Logger logger = LogManager.getLogger(MlAutoscalingResourceTracker.class);
 
+    /**
+     * @param memory     (bytes)
+     * @param processors (count)
+     * @param jobs       (count)
+     */
     record MlJobRequirements(long memory, int processors, int jobs) {
         static MlJobRequirements of(long memory, int processors, int jobs) {
             return new MlJobRequirements(memory, processors, jobs);
@@ -110,6 +116,7 @@ public final class MlAutoscalingResourceTracker {
             processorsAvailableFirstNode,
             maxOpenJobsPerNode,
             mlDummyAutoscalingEntity,
+            clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE),
             listener
         );
     }
@@ -118,13 +125,15 @@ public final class MlAutoscalingResourceTracker {
         MlAutoscalingContext autoscalingContext,
         MlMemoryTracker mlMemoryTracker,
         Map<String, Long> nodeSizeByMlNode,
-        long perNodeAvailableModelMemoryInBytes,
+        long perNodeAvailableModelMemoryBytes,
         int perNodeAvailableProcessors,
         int maxOpenJobsPerNode,
         MlDummyAutoscalingEntity dummyAutoscalingEntity,
+        int allocatedProcessorsScale,
         ActionListener<MlAutoscalingStats> listener
     ) {
-        Map<String, List<MlJobRequirements>> perNodeModelMemoryInBytes = new HashMap<>();
+
+        Map<String, List<MlJobRequirements>> jobRequirementsByNode = new HashMap<>();
 
         int numberMlNodes = nodeSizeByMlNode.size();
 
@@ -134,12 +143,12 @@ public final class MlAutoscalingResourceTracker {
             ? 0L
             : nodeSizeByMlNode.values().iterator().next();
 
-        long modelMemoryBytesSum = 0;
-        long extraSingleNodeModelMemoryInBytes = 0;
+        long existingModelMemoryBytes = 0;
+        long extraPerNodeModelMemoryBytes = 0;
         long extraModelMemoryInBytes = 0;
-        int extraSingleNodeProcessors = 0;
+        int extraPerNodeProcessors = 0;
         int extraProcessors = 0;
-        int processorsSum = 0;
+        int sumOfCurrentlyExistingAndUsedProcessors = 0;
 
         logger.debug(
             "getting ml resources, found [{}] ad jobs, [{}] dfa jobs and [{}] inference deployments",
@@ -148,7 +157,7 @@ public final class MlAutoscalingResourceTracker {
             autoscalingContext.modelAssignments.size()
         );
 
-        // Start with `minNodes = 0`. If any ML job is started this will be increased to 1 in the loops below,
+        // Start with `wantedMinNodes = 0`. If any ML job is started this will be increased to 1 in the loops below,
         // and further adjustments are made for trained models depending on allocations.
         int minNodes = 0;
 
@@ -174,14 +183,14 @@ public final class MlAutoscalingResourceTracker {
 
                 // implementation decision: don't count processors for AD, if this gets a revisit, ensure to change it for the
                 // old autoscaling, too
-                extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, jobMemory);
+                extraPerNodeModelMemoryBytes = Math.max(extraPerNodeModelMemoryBytes, jobMemory);
                 extraModelMemoryInBytes += jobMemory;
             } else {
                 logger.debug("job [{}] assigned to [{}], memory required [{}]", jobId, task.getAssignment(), jobMemory);
 
-                modelMemoryBytesSum += jobMemory;
+                existingModelMemoryBytes += jobMemory;
 
-                perNodeModelMemoryInBytes.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
+                jobRequirementsByNode.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
                     .add(MlJobRequirements.of(jobMemory, 0));
             }
         }
@@ -208,91 +217,114 @@ public final class MlAutoscalingResourceTracker {
 
                 // implementation decision: don't count processors for DFA, if this gets a revisit, ensure to change it for the
                 // old autoscaling, too
-                extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, jobMemory);
+                extraPerNodeModelMemoryBytes = Math.max(extraPerNodeModelMemoryBytes, jobMemory);
                 extraModelMemoryInBytes += jobMemory;
             } else {
                 logger.debug("dfa job [{}] assigned to [{}], memory required [{}]", jobId, task.getAssignment(), jobMemory);
 
-                modelMemoryBytesSum += jobMemory;
-                perNodeModelMemoryInBytes.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
+                existingModelMemoryBytes += jobMemory;
+                jobRequirementsByNode.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
                     .add(MlJobRequirements.of(jobMemory, 0));
             }
         }
 
         // trained models
+        int numberOfAvailableProcessors = (int) Math.floor(
+            MlProcessors.getTotalMlNodeProcessors(autoscalingContext.mlNodes, allocatedProcessorsScale).count()
+        ) - totalAssignedProcessors(autoscalingContext);
         for (var modelAssignment : autoscalingContext.modelAssignments.entrySet()) {
             TrainedModelAssignment assignment = modelAssignment.getValue();
-            final int numberOfAllocations = assignment.getTaskParams().getNumberOfAllocations();
+            final int numberOfRequestedAllocations = assignment.getTaskParams().getNumberOfAllocations();
             final int numberOfThreadsPerAllocation = assignment.getTaskParams().getThreadsPerAllocation();
             final long estimatedMemoryUsage = assignment.getTaskParams().estimateMemoryUsageBytes();
+            final int numberOfTargetAllocationsOnExistingNodes = assignment.totalTargetAllocations();
+            final int numMissingAllocations = numberOfRequestedAllocations - numberOfTargetAllocationsOnExistingNodes;
+            final int numMissingProcessors = numMissingAllocations * numberOfThreadsPerAllocation;
+            int numExistingProcessorsToBeUsed = Math.min(numMissingProcessors, numberOfAvailableProcessors);
 
-            if (AssignmentState.STARTING.equals(assignment.getAssignmentState()) && assignment.getNodeRoutingTable().isEmpty()) {
-
-                logger.debug(
-                    () -> format(
-                        "trained model [%s] lacks assignment , memory required [%d]",
-                        modelAssignment.getKey(),
-                        estimatedMemoryUsage
-                    )
-                );
-
-                extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, estimatedMemoryUsage);
-                extraModelMemoryInBytes += estimatedMemoryUsage;
-
-                // if not low priority, check processor requirements
-                if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
-                    // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
-                    extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
-                    extraProcessors += numberOfAllocations * numberOfThreadsPerAllocation;
-                }
-            } else if (assignment.getNodeRoutingTable().values().stream().allMatch(r -> r.getState().consumesMemory() == false)) {
-                // Ignore states that don't consume memory, for example all allocations are failed
+            if (assignment.getNodeRoutingTable().isEmpty() == false
+                && assignment.getNodeRoutingTable().values().stream().allMatch(r -> r.getState().consumesMemory() == false)) {
+                // Ignore states that don't consume memory, for example all allocations are failed or stopped
+                // if the node routing table is empty, then it will match the above condition, but it needs to be handled in the next branch
                 continue;
             } else {
-                logger.debug(
-                    () -> format(
-                        "trained model [%s] assigned to [%s], memory required [%d]",
-                        modelAssignment.getKey(),
-                        Strings.arrayToCommaDelimitedString(modelAssignment.getValue().getStartedNodes()),
-                        estimatedMemoryUsage
-                    )
-                );
 
-                modelMemoryBytesSum += estimatedMemoryUsage;
-                processorsSum += numberOfAllocations * numberOfThreadsPerAllocation;
+                if (assignment.getNodeRoutingTable().isEmpty() == false) {
+                    // if the routing table is non-empty, this is an existing model
+                    existingModelMemoryBytes += estimatedMemoryUsage;
+                } else {
+                    // only increase memory requirements for new models
+                    extraPerNodeModelMemoryBytes += Math.max(extraPerNodeModelMemoryBytes, estimatedMemoryUsage);
+                    extraModelMemoryInBytes += estimatedMemoryUsage;
+                }
+
+                // if not low priority, check processor requirements.
+                if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
+                    if (numMissingProcessors > numberOfAvailableProcessors) {
+                        // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
+                        extraProcessors += numMissingProcessors - numExistingProcessorsToBeUsed;
+                        extraPerNodeProcessors = Math.max(extraPerNodeProcessors, 1); // if extra processors >0, we need at least 1
+                                                                                      // extraPerNodeProcessors
+                    }
+                    if (perNodeAvailableProcessors < numberOfThreadsPerAllocation) {
+                        extraPerNodeProcessors = Math.max(extraPerNodeProcessors, numberOfThreadsPerAllocation);
+                    }
+                    numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
+                }
+
+                if (extraProcessors > 0 || extraPerNodeProcessors > 0 || extraModelMemoryInBytes > 0 || extraPerNodeModelMemoryBytes > 0) {
+                    logger.info(
+                        () -> format(
+                            "trained model [%s] assigned to [%s], waiting for [%d] allocations to start due to missing hardware",
+                            modelAssignment.getKey(),
+                            Strings.arrayToCommaDelimitedString(modelAssignment.getValue().getStartedNodes()),
+                            numMissingAllocations
+                        )
+                    );
+                }
 
                 for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
-                    perNodeModelMemoryInBytes.computeIfAbsent(node, k -> new ArrayList<>())
+                    sumOfCurrentlyExistingAndUsedProcessors += modelAssignment.getValue()
+                        .getNodeRoutingTable()
+                        .get(node)
+                        .getTargetAllocations() * numberOfThreadsPerAllocation;
+
+                    jobRequirementsByNode.computeIfAbsent(node, k -> new ArrayList<>())
                         .add(
                             MlJobRequirements.of(
                                 estimatedMemoryUsage,
                                 Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority())
                                     ? 0
-                                    : numberOfThreadsPerAllocation
+                                    : modelAssignment.getValue().getNodeRoutingTable().get(node).getTargetAllocations()
+                                        * numberOfThreadsPerAllocation
                             )
                         );
                 }
-            }
 
-            // min(3, max(number of allocations over all deployed models)
-            minNodes = Math.min(3, Math.max(minNodes, numberOfAllocations));
+                // min(3, max(number of allocations over all deployed models)
+                // the minimum number of nodes is equal to the number of allocations, up to 3
+                // if the number of allocations is greater than 3, then wantedMinNodes is still 3
+                // in theory this should help availability for 2-3 allocations
+                // the planner should split over all available nodes
+                minNodes = Math.min(3, Math.max(minNodes, numberOfRequestedAllocations));
+            }
         }
 
         // dummy autoscaling entity
         if (dummyEntityFitsOnLeastLoadedNode(
-            perNodeModelMemoryInBytes,
-            perNodeAvailableModelMemoryInBytes,
+            jobRequirementsByNode,
+            perNodeAvailableModelMemoryBytes,
             perNodeAvailableProcessors,
             dummyAutoscalingEntity
         ) == false) {
-            logger.info(
+            logger.debug(
                 "Scaling up due to dummy entity: dummyEntityMemory: [{}], dummyEntityProcessors: [{}]",
                 dummyAutoscalingEntity.memory,
                 dummyAutoscalingEntity.processors
             );
 
-            modelMemoryBytesSum += dummyAutoscalingEntity.memory;
-            processorsSum += dummyAutoscalingEntity.processors;
+            existingModelMemoryBytes += dummyAutoscalingEntity.memory;
+            sumOfCurrentlyExistingAndUsedProcessors += dummyAutoscalingEntity.processors;
         }
 
         // check for downscaling
@@ -305,15 +337,15 @@ public final class MlAutoscalingResourceTracker {
         // - the total memory usage is less than memory usage after taking away 1 node
         // - the current number of nodes is greater than the minimum number of nodes
         if (perNodeMemoryInBytes > 0
-            && perNodeAvailableModelMemoryInBytes > 0
+            && perNodeAvailableModelMemoryBytes > 0
             && extraModelMemoryInBytes == 0
             && extraProcessors == 0
-            && modelMemoryBytesSum <= perNodeMemoryInBytes * (numberMlNodes - 1)
+            && existingModelMemoryBytes <= perNodeMemoryInBytes * (numberMlNodes - 1)
             && minNodes < numberMlNodes
-            && (perNodeModelMemoryInBytes.size() < numberMlNodes // a node has no assigned jobs
+            && (jobRequirementsByNode.size() < numberMlNodes // a node has no assigned jobs
                 || checkIfOneNodeCouldBeRemoved(
-                    perNodeModelMemoryInBytes,
-                    perNodeAvailableModelMemoryInBytes,
+                    jobRequirementsByNode,
+                    perNodeAvailableModelMemoryBytes,
                     perNodeAvailableProcessors,
                     maxOpenJobsPerNode,
                     dummyAutoscalingEntity
@@ -321,15 +353,18 @@ public final class MlAutoscalingResourceTracker {
             removeNodeMemoryInBytes = perNodeMemoryInBytes;
         }
 
+        // if we need extra processors, we need to tell the elasticsearch-autoscaler that we need at least 1 processor per node
+        assert extraProcessors == 0 || extraPerNodeProcessors > 0;
+
         listener.onResponse(
             new MlAutoscalingStats(
                 numberMlNodes,
                 perNodeMemoryInBytes,
-                modelMemoryBytesSum,
-                processorsSum,
+                existingModelMemoryBytes,
+                sumOfCurrentlyExistingAndUsedProcessors,
                 minNodes,
-                extraSingleNodeModelMemoryInBytes,
-                extraSingleNodeProcessors,
+                extraPerNodeModelMemoryBytes,
+                extraPerNodeProcessors,
                 extraModelMemoryInBytes,
                 extraProcessors,
                 removeNodeMemoryInBytes,
@@ -338,23 +373,27 @@ public final class MlAutoscalingResourceTracker {
         );
     }
 
+    private static int totalAssignedProcessors(MlAutoscalingContext autoscalingContext) {
+        return autoscalingContext.modelAssignments.values().stream().mapToInt(TrainedModelAssignment::totalTargetProcessors).sum();
+    }
+
     /**
      * Check if the dummy autoscaling entity task can be added by placing
      * the task on the least loaded node.
-     *
+     * <p>
      * If there exists a node that can accommodate the dummy entity then return true (nothing to do),
      * else return false and increment the memory and processor counts accordingly.
-     *
+     * <p>
      * We perform the calculation by identifying the least loaded node in terms of memory
      * and determining if the addition of the dummy entity's memory and processor requirements could
      * be accommodated on it.
-     *
+     * <p>
      * If the calculation returns false then treat the case as for a single trained model job
-     * that is already assigned, i.e. increment modelMemoryBytesSum and processorsSum appropriately.
+     * that is already assigned, i.e. increment modelMemoryBytesSum and currentTotalProcessorsInUse appropriately.
      *
      * @param perNodeJobRequirements per Node lists of requirements
-     * @param perNodeMemoryInBytes total model memory available on every node
-     * @param perNodeProcessors total processors on every node
+     * @param perNodeMemoryInBytes   total model memory available on every node
+     * @param perNodeProcessors      total processors on every node
      * @param dummyAutoscalingEntity "dummy" entity requirements used to potentially trigger a scaling event
      * @return true if the dummy entity can be accommodated, false if not
      */
@@ -369,7 +408,7 @@ public final class MlAutoscalingResourceTracker {
             return true;
         }
 
-        if (perNodeJobRequirements.size() < 1) {
+        if (perNodeJobRequirements.isEmpty()) {
             return false;
         }
 
@@ -389,7 +428,6 @@ public final class MlAutoscalingResourceTracker {
             )
             .min(Comparator.comparingLong(value -> value.memory));
 
-        assert (leastLoadedNodeRequirements.isPresent());
         assert leastLoadedNodeRequirements.get().memory >= 0L;
         assert leastLoadedNodeRequirements.get().processors >= 0;
 
@@ -433,8 +471,8 @@ public final class MlAutoscalingResourceTracker {
      * Check if one node can be removed by placing the jobs of the least loaded node to others.
      *
      * @param perNodeJobRequirements per Node lists of requirements
-     * @param perNodeMemoryInBytes total model memory available on every node
-     * @param maxOpenJobsPerNode the maximum number of jobs per node
+     * @param perNodeMemoryInBytes   total model memory available on every node
+     * @param maxOpenJobsPerNode     the maximum number of jobs per node
      * @return true if a node can be removed, false if not
      */
     static boolean checkIfOneNodeCouldBeRemoved(
@@ -502,9 +540,9 @@ public final class MlAutoscalingResourceTracker {
      * <p>Because the metric has no influence on how the jobs are placed in the end, it calculates the possibility of moving in the least
      * efficient way. That way we ensure that autoscaling is not looping between scaling down, up, down, up ... </p>
      *
-     * @param candidateJobRequirements list of job requirements given running on the candidate node
+     * @param candidateJobRequirements    list of job requirements given running on the candidate node
      * @param perNodeMlJobRequirementsSum other nodes requirements
-     * @param perNodeMemoryInBytes available memory per node
+     * @param perNodeMemoryInBytes        available memory per node
      * @return remaining memory, that could not be placed on other nodes, 0L if all jobs got placed
      */
     static long checkIfJobsCanBeMovedInLeastEfficientWay(

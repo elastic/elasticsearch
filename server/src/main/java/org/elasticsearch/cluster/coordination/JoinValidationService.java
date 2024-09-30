@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -37,7 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -207,7 +207,7 @@ public class JoinValidationService {
             transportService.sendRequest(
                 connection,
                 JoinHelper.JOIN_PING_ACTION_NAME,
-                TransportRequest.Empty.INSTANCE,
+                new JoinHelper.JoinPingRequest(),
                 REQUEST_OPTIONS,
                 responseHandler
             );
@@ -357,7 +357,7 @@ public class JoinValidationService {
                 transportService.sendRequest(
                     connection,
                     JoinHelper.JOIN_PING_ACTION_NAME,
-                    TransportRequest.Empty.INSTANCE,
+                    new JoinHelper.JoinPingRequest(),
                     REQUEST_OPTIONS,
                     TransportResponseHandler.empty(responseExecutor, listener)
                 );

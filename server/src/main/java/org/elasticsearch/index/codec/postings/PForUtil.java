@@ -52,14 +52,12 @@ final class PForUtil {
         return true;
     }
 
-    private final ForUtil forUtil;
     // buffer for reading exception data; each exception uses two bytes (pos + high-order bits of the
     // exception)
     private final byte[] exceptionBuff = new byte[MAX_EXCEPTIONS * 2];
 
-    PForUtil(ForUtil forUtil) {
+    PForUtil() {
         assert ForUtil.BLOCK_SIZE <= 256 : "blocksize must fit in one byte. got " + ForUtil.BLOCK_SIZE;
-        this.forUtil = forUtil;
     }
 
     /** Encode 128 integers from {@code longs} into {@code out}. */
@@ -114,7 +112,7 @@ final class PForUtil {
         } else {
             final int token = (numExceptions << 5) | patchedBitsRequired;
             out.writeByte((byte) token);
-            forUtil.encode(longs, patchedBitsRequired, out);
+            ForUtil.encode(longs, patchedBitsRequired, out);
         }
         out.writeBytes(exceptions, exceptions.length);
     }
@@ -127,7 +125,7 @@ final class PForUtil {
         if (bitsPerValue == 0) {
             Arrays.fill(longs, 0, ForUtil.BLOCK_SIZE, in.readVLong());
         } else {
-            forUtil.decode(bitsPerValue, in, longs);
+            ForUtil.decode(bitsPerValue, in, longs);
         }
         for (int i = 0; i < numExceptions; ++i) {
             longs[Byte.toUnsignedInt(in.readByte())] |= Byte.toUnsignedLong(in.readByte()) << bitsPerValue;
@@ -153,7 +151,7 @@ final class PForUtil {
                 }
             } else {
                 // decode the deltas then apply the prefix sum logic
-                forUtil.decodeTo32(bitsPerValue, in, longs);
+                ForUtil.decodeTo32(bitsPerValue, in, longs);
                 prefixSum32(longs, base);
             }
         } else {
@@ -161,7 +159,7 @@ final class PForUtil {
             if (bitsPerValue == 0) {
                 fillSameValue32(longs, in.readVLong());
             } else {
-                forUtil.decodeTo32(bitsPerValue, in, longs);
+                ForUtil.decodeTo32(bitsPerValue, in, longs);
             }
             applyExceptions32(bitsPerValue, numExceptions, in, longs);
             prefixSum32(longs, base);
@@ -177,7 +175,7 @@ final class PForUtil {
             in.readVLong();
             in.skipBytes((numExceptions << 1));
         } else {
-            in.skipBytes(forUtil.numBytes(bitsPerValue) + (numExceptions << 1));
+            in.skipBytes(ForUtil.numBytes(bitsPerValue) + (numExceptions << 1));
         }
     }
 

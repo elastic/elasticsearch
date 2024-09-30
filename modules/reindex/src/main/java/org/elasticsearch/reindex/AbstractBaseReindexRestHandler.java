@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -39,15 +39,10 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected RestChannelConsumer doPrepareRequest(
-        RestRequest request,
-        NamedWriteableRegistry namedWriteableRegistry,
-        NodeClient client,
-        boolean includeCreated,
-        boolean includeUpdated
-    ) throws IOException {
+    protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client, boolean includeCreated, boolean includeUpdated)
+        throws IOException {
         // Build the internal request
-        Request internal = setCommonOptions(request, buildRequest(request, namedWriteableRegistry));
+        Request internal = setCommonOptions(request, buildRequest(request));
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
@@ -78,7 +73,7 @@ public abstract class AbstractBaseReindexRestHandler<
     /**
      * Build the Request based on the RestRequest.
      */
-    protected abstract Request buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException;
+    protected abstract Request buildRequest(RestRequest request) throws IOException;
 
     /**
      * Sets common options of {@link AbstractBulkByScrollRequest} requests.

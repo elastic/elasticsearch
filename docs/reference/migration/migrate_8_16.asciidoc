@@ -1,0 +1,20 @@
+[[migrating-8.16]]
+== Migrating to 8.16
+++++
+<titleabbrev>8.16</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 8.16.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming::[8.16.0]
+
+
+[discrete]
+[[breaking-changes-8.16]]
+=== Breaking changes
+
+There are no breaking changes in {es} 8.16.
+

@@ -220,8 +220,7 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `geo_point` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. Synthetic `_source` cannot be used together with
-<<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or with
+default configuration. Synthetic `_source` cannot be used together with <<copy-to,`copy_to`>> or with
 <<doc-values,`doc_values`>> disabled.
 
 Synthetic source always sorts `geo_point` fields (first by latitude and then

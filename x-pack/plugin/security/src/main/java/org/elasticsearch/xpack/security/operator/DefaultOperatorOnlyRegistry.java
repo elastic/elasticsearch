@@ -39,8 +39,6 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         // Autoscaling does not publish its actions to core, literal strings are needed.
         "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/autoscaling/delete_autoscaling_policy",
-        // Repository analysis is not mentioned in core, a literal string is needed.
-        "cluster:admin/repository/analyze",
         // Node shutdown APIs are operator only
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",

@@ -137,8 +137,8 @@ setup:
 
 ---
 "named filters with bucket sort test":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: introduced in 8.8.0
   - do:
       search:
@@ -288,8 +288,8 @@ setup:
 
 ---
 no meta:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Fixed in 8.5"
 
   - do:
@@ -315,8 +315,8 @@ no meta:
 
 ---
 empty meta:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Fixed in 8.5"
 
   - do:
@@ -342,8 +342,8 @@ empty meta:
 
 ---
 null meta:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Fixed in 8.5"
 
   - do:
@@ -365,8 +365,8 @@ null meta:
 
 ---
 "Bad params":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: "empty bodies throws exception starting in 7.2"
   - do:
       catch: /\[filters\] cannot be empty/
@@ -390,8 +390,8 @@ null meta:
 
 ---
 "cache busting":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason:  cache fixed in 7.11.0
 
   - do:
@@ -458,8 +458,8 @@ null meta:
 
 ---
 nested:
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason:  fixed in 7.11.0
 
   # Tests that we don't accidentally match nested documents when the filter

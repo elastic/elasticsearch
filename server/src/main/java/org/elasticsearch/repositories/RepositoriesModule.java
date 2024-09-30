@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -20,7 +22,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
@@ -40,7 +42,8 @@ public final class RepositoriesModule {
     public RepositoriesModule(
         Environment env,
         List<RepositoryPlugin> repoPlugins,
-        TransportService transportService,
+        NodeClient client,
+        ThreadPool threadPool,
         ClusterService clusterService,
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
@@ -103,9 +106,9 @@ public final class RepositoriesModule {
                     throw new SnapshotRestoreException(
                         snapshot,
                         "the snapshot was created with Elasticsearch version ["
-                            + version
+                            + version.toReleaseVersion()
                             + "] which is below the current versions minimum index compatibility version ["
-                            + IndexVersions.MINIMUM_COMPATIBLE
+                            + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                             + "]"
                     );
                 }
@@ -118,10 +121,10 @@ public final class RepositoriesModule {
         repositoriesService = new RepositoriesService(
             settings,
             clusterService,
-            transportService,
             repositoryTypes,
             internalRepositoryTypes,
-            transportService.getThreadPool(),
+            threadPool,
+            client,
             preRestoreChecks
         );
     }

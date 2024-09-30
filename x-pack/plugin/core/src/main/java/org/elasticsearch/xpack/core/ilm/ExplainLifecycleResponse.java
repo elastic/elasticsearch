@@ -30,7 +30,7 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
 
     public static final ParseField INDICES_FIELD = new ParseField("indices");
 
-    private Map<String, IndexLifecycleExplainResponse> indexResponses;
+    private final Map<String, IndexLifecycleExplainResponse> indexResponses;
 
     public ExplainLifecycleResponse(StreamInput in) throws IOException {
         super(in);

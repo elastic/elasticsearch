@@ -1,5 +1,0 @@
-pr: 106378
-summary: Add Cohere rerank to `_inference` service
-area: Machine Learning
-type: feature
-issues: []

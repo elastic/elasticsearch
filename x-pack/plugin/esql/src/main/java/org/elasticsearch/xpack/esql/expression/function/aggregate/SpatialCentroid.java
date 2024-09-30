@@ -6,39 +6,60 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 /**
  * Calculate spatial centroid of all geo_point or cartesian point values of a field in matching documents.
  */
 public class SpatialCentroid extends SpatialAggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialCentroid",
+        SpatialCentroid::new
+    );
 
-    @FunctionInfo(returnType = { "geo_point", "cartesian_point" }, description = "The centroid of a spatial field.", isAggregation = true)
+    @FunctionInfo(
+        returnType = { "geo_point", "cartesian_point" },
+        description = "Calculate the spatial centroid over a field with spatial point geometry type.",
+        isAggregation = true,
+        examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
+    )
     public SpatialCentroid(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {
         super(source, field, false);
     }
 
     private SpatialCentroid(Source source, Expression field, boolean useDocValues) {
         super(source, field, useDocValues);
+    }
+
+    private SpatialCentroid(StreamInput in) throws IOException {
+        super(in, false);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -73,18 +94,18 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         DataType type = field().dataType();
         if (useDocValues) {
             // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
-            if (type == EsqlDataTypes.GEO_POINT) {
+            if (type == DataType.GEO_POINT) {
                 return new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
             }
-            if (type == EsqlDataTypes.CARTESIAN_POINT) {
+            if (type == DataType.CARTESIAN_POINT) {
                 return new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
             }
         } else {
             // When the points are read as WKB from source or as point literals, feed them into the source-values aggregator
-            if (type == EsqlDataTypes.GEO_POINT) {
+            if (type == DataType.GEO_POINT) {
                 return new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             }
-            if (type == EsqlDataTypes.CARTESIAN_POINT) {
+            if (type == DataType.CARTESIAN_POINT) {
                 return new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             }
         }

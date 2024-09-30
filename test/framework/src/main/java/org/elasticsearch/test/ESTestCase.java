@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
@@ -38,16 +39,26 @@ import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestBuilder;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -64,6 +75,7 @@ import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -73,10 +85,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -84,6 +99,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -106,6 +122,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -142,8 +159,10 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -171,12 +190,15 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -253,11 +275,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
 
     static {
+        Random random = initTestSeed();
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
-        setTestSysProps();
+        setTestSysProps(random);
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
+        MockLog.init();
 
         final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
@@ -354,8 +378,46 @@ public abstract class ESTestCase extends LuceneTestCase {
         JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream().filter(unsupportedZoneIdsPredicate.negate()).sorted().toList();
     }
 
+    static Random initTestSeed() {
+        String inputSeed = System.getProperty("tests.seed");
+        long seed;
+        if (inputSeed == null) {
+            // when running tests in intellij, we don't have a seed. Setup the seed early here, before getting to RandomizedRunner,
+            // so that we can use it in ESTestCase static init
+            seed = System.nanoTime();
+            setTestSeed(Long.toHexString(seed));
+        } else {
+            String[] seedParts = inputSeed.split("[\\:]");
+            seed = Long.parseUnsignedLong(seedParts[0], 16);
+        }
+
+        if (Booleans.parseBoolean(System.getProperty("tests.hackImmutableCollections", "false"))) {
+            forceImmutableCollectionsSeed(seed);
+        }
+
+        return new Random(seed);
+    }
+
+    @SuppressForbidden(reason = "set tests.seed for intellij")
+    static void setTestSeed(String seed) {
+        System.setProperty("tests.seed", seed);
+    }
+
+    private static void forceImmutableCollectionsSeed(long seed) {
+        try {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            Class<?> collectionsClass = Class.forName("java.util.ImmutableCollections");
+            var salt32l = lookup.findStaticVarHandle(collectionsClass, "SALT32L", long.class);
+            var reverse = lookup.findStaticVarHandle(collectionsClass, "REVERSE", boolean.class);
+            salt32l.set(seed & 0xFFFF_FFFFL);
+            reverse.set((seed & 1) == 0);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
     @SuppressForbidden(reason = "force log4j and netty sysprops")
-    private static void setTestSysProps() {
+    private static void setTestSysProps(Random random) {
         System.setProperty("log4j.shutdownHookEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
 
@@ -370,6 +432,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
         // other if we allow them to set the number of available processors as it's set-once in Netty.
         System.setProperty("es.set.netty.runtime.available.processors", "false");
+
+        // sometimes use the java.time date formatters
+        if (random.nextBoolean()) {
+            System.setProperty("es.datetime.java_time_parsers", "true");
+        }
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -511,6 +578,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
+    protected final CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
+        breakers.add(breaker);
+        return breaker;
+    }
+
+    @After
+    public final void allBreakersMemoryReleased() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
     /**
      * Whether or not we check after each test whether it has left warnings behind. That happens if any deprecated feature or syntax
      * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
@@ -519,8 +601,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return true;
     }
 
+    protected boolean enableBigArraysReleasedCheck() {
+        return true;
+    }
+
     @After
     public final void after() throws Exception {
+        if (enableBigArraysReleasedCheck()) {
+            MockBigArrays.ensureAllArraysAreReleased();
+        }
         checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
@@ -598,7 +687,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at WARNING level.
-     * @param expectedWarnings expected general deprecation warnings.
+     * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertWarnings(String... expectedWarnings) {
         assertWarnings(
@@ -612,7 +701,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at CRITICAL level.
-     * @param expectedWarnings expected general deprecation warnings.
+     * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertCriticalWarnings(String... expectedWarnings) {
         assertWarnings(
@@ -707,8 +796,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
-        MockBigArrays.ensureAllArraysAreReleased();
-
         // ensure no one changed the status logger level on us
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
@@ -734,6 +821,17 @@ public abstract class ESTestCase extends LuceneTestCase {
             } finally {
                 loggedLeaks.clear();
             }
+        }
+    }
+
+    /**
+     * Assert that at least one leak was detected, also clear the list of detected leaks
+     * so the test won't fail for leaks detected up until this point.
+     */
+    protected static void assertLeakDetected() {
+        synchronized (loggedLeaks) {
+            assertFalse("No leaks have been detected", loggedLeaks.isEmpty());
+            loggedLeaks.clear();
         }
     }
 
@@ -884,6 +982,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return bytes;
     }
 
+    public static byte randomByteBetween(byte minInclusive, byte maxInclusive) {
+        return (byte) randomIntBetween(minInclusive, maxInclusive);
+    }
+
+    public static void randomBytesBetween(byte[] bytes, byte minInclusive, byte maxInclusive) {
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = randomByteBetween(minInclusive, maxInclusive);
+        }
+    }
+
     public static BytesReference randomBytesReference(int length) {
         final var slices = new ArrayList<BytesReference>();
         var remaining = length;
@@ -925,8 +1033,44 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomInt() & Integer.MAX_VALUE;
     }
 
+    /**
+     * @return an <code>int</code> between <code>Integer.MIN_VALUE</code> and <code>-1</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNegativeInt() {
+        return randomInt() | Integer.MIN_VALUE;
+    }
+
     public static float randomFloat() {
         return random().nextFloat();
+    }
+
+    /**
+     * Returns a float value in the interval [start, end) if lowerInclusive is
+     * set to true, (start, end) otherwise.
+     *
+     * @param start          lower bound of interval to draw uniformly distributed random numbers from
+     * @param end            upper bound
+     * @param lowerInclusive whether or not to include lower end of the interval
+     */
+    public static float randomFloatBetween(float start, float end, boolean lowerInclusive) {
+        float result;
+
+        if (start == -Float.MAX_VALUE || end == Float.MAX_VALUE) {
+            // formula below does not work with very large floats
+            result = Float.intBitsToFloat(randomInt());
+            while (result < start || result > end || Double.isNaN(result)) {
+                result = Float.intBitsToFloat(randomInt());
+            }
+        } else {
+            result = randomFloat();
+            if (lowerInclusive == false) {
+                while (result <= 0.0f) {
+                    result = randomFloat();
+                }
+            }
+            result = result * end + (1.0f - result) * start;
+        }
+        return result;
     }
 
     public static double randomDouble() {
@@ -1047,6 +1191,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 
+    public static SecureString randomSecureStringOfLength(int codeUnits) {
+        var randomAlpha = randomAlphaOfLength(codeUnits);
+        return new SecureString(randomAlpha.toCharArray());
+    }
+
     public static String randomNullOrAlphaOfLength(int codeUnits) {
         return randomBoolean() ? null : randomAlphaOfLength(codeUnits);
     }
@@ -1156,21 +1305,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new HashSet<>(randomList(minSetSize, maxSetSize, valueConstructor));
     }
 
-    private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m", "micros", "nanos" };
-
-    public static String randomTimeValue(int lower, int upper, String... suffixes) {
-        return randomIntBetween(lower, upper) + randomFrom(suffixes);
+    public static TimeValue randomTimeValue(int lower, int upper, TimeUnit... units) {
+        return new TimeValue(between(lower, upper), randomFrom(units));
     }
 
-    public static String randomTimeValue(int lower, int upper) {
-        return randomTimeValue(lower, upper, TIME_SUFFIXES);
+    public static TimeValue randomTimeValue(int lower, int upper) {
+        return randomTimeValue(lower, upper, TimeUnit.values());
     }
 
-    public static String randomTimeValue() {
+    public static TimeValue randomTimeValue() {
         return randomTimeValue(0, 1000);
     }
 
-    public static String randomPositiveTimeValue() {
+    public static TimeValue randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
     }
 
@@ -1291,9 +1438,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @param breakSupplier determines whether to return immediately or continue waiting.
      * @return the last value returned by <code>breakSupplier</code>
-     * @throws InterruptedException if any sleep calls were interrupted.
      */
-    public static boolean waitUntil(BooleanSupplier breakSupplier) throws InterruptedException {
+    public static boolean waitUntil(BooleanSupplier breakSupplier) {
         return waitUntil(breakSupplier, 10, TimeUnit.SECONDS);
     }
 
@@ -1309,9 +1455,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param maxWaitTime the maximum amount of time to wait
      * @param unit the unit of tie for <code>maxWaitTime</code>
      * @return the last value returned by <code>breakSupplier</code>
-     * @throws InterruptedException if any sleep calls were interrupted.
      */
-    public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
+    public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long timeInMillis = 1;
         long sum = 0;
@@ -1319,12 +1464,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             if (breakSupplier.getAsBoolean()) {
                 return true;
             }
-            Thread.sleep(timeInMillis);
+            safeSleep(timeInMillis);
             sum += timeInMillis;
             timeInMillis = Math.min(AWAIT_BUSY_THRESHOLD, timeInMillis * 2);
         }
         timeInMillis = maxTimeInMillis - sum;
-        Thread.sleep(Math.max(timeInMillis, 0));
+        safeSleep(Math.max(timeInMillis, 0));
         return breakSupplier.getAsBoolean();
     }
 
@@ -1358,10 +1503,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         // we override LTC behavior here: wrap even resources with mockfilesystems,
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
+        return getResourceDataPath(getClass(), relativePath);
+    }
+
+    public static Path getResourceDataPath(Class<?> clazz, String relativePath) {
+        final var resource = Objects.requireNonNullElseGet(
+            clazz.getResource(relativePath),
+            () -> fail(null, "resource not found: [%s][%s]", clazz.getCanonicalName(), relativePath)
+        );
+        final URI uri;
         try {
-            return PathUtils.get(getClass().getResource(relativePath).toURI()).toAbsolutePath().normalize();
+            uri = resource.toURI();
         } catch (Exception e) {
-            throw new RuntimeException("resource not found: " + relativePath, e);
+            return fail(null, "resource URI not found: [%s][%s]", clazz.getCanonicalName(), relativePath);
+        }
+        try {
+            return PathUtils.get(uri).toAbsolutePath().normalize();
+        } catch (Exception e) {
+            return fail(e, "resource path not found: %s", uri);
         }
     }
 
@@ -1499,6 +1658,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public String compatibleMediaType(XContentType type, RestApiVersion version) {
+        if (type.canonical().equals(type)) {
+            throw new IllegalArgumentException(
+                "Compatible header is only supported for vendor content types."
+                    + " You requested "
+                    + type.name()
+                    + "but likely want VND_"
+                    + type.name()
+            );
+        }
         return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
     }
@@ -2085,9 +2253,35 @@ public abstract class ESTestCase extends LuceneTestCase {
         return secureRandomFips;
     }
 
+    /**
+     * Various timeouts in various REST APIs default to 30s, and many tests do not care about such timeouts, but must specify some value
+     * anyway when constructing the corresponding transport/action request instance since we would prefer to avoid having implicit defaults
+     * in these requests. This constant can be used as a slightly more meaningful way to refer to the 30s default value in tests.
+     */
+    public static final TimeValue TEST_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
+    /**
+     * The timeout used for the various "safe" wait methods such as {@link #safeAwait} and {@link #safeAcquire}. In tests we generally want
+     * these things to complete almost immediately, but sometimes the CI runner executes things rather slowly so we use {@code 10s} as a
+     * fairly relaxed definition of "immediately".
+     * <p>
+     * A well-designed test should not need to wait for anything close to this duration when run in isolation. If you think you need to do
+     * so, instead seek a better way to write the test such that it does not need to wait for so long. Tests that take multiple seconds to
+     * complete are a big drag on CI times which slows everyone down.
+     * <p>
+     * For instance, tests which verify things that require the passage of time ought to simulate this (e.g. using a {@link
+     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits (e.g.
+     * using a {@link CountDownLatch}) which release as soon as the condition is satisfied.
+     */
+    public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
+    /**
+     * Await on the given {@link CyclicBarrier} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status flag
+     * and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     */
     public static void safeAwait(CyclicBarrier barrier) {
         try {
-            barrier.await(10, TimeUnit.SECONDS);
+            barrier.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CyclicBarrier release");
@@ -2096,39 +2290,196 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Await on the given {@link CountDownLatch} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status
+     * flag and asserting that the latch is indeed completed before the timeout.
+     */
     public static void safeAwait(CountDownLatch countDownLatch) {
         try {
-            assertTrue("safeAwait: CountDownLatch did not reach zero within the timeout", countDownLatch.await(10, TimeUnit.SECONDS));
+            assertTrue(
+                "safeAwait: CountDownLatch did not reach zero within the timeout",
+                countDownLatch.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+            );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
         }
     }
 
+    /**
+     * Acquire a single permit from the given {@link Semaphore}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's
+     * interrupt status flag and asserting that the permit was successfully acquired.
+     */
     public static void safeAcquire(Semaphore semaphore) {
+        safeAcquire(1, semaphore);
+    }
+
+    /**
+     * Acquire the specified number of permits from the given {@link Semaphore}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving
+     * the thread's interrupt status flag and asserting that the permits were all successfully acquired.
+     */
+    public static void safeAcquire(int permits, Semaphore semaphore) {
         try {
-            assertTrue("safeAcquire: Semaphore did not acquire permit within the timeout", semaphore.tryAcquire(10, TimeUnit.SECONDS));
+            assertTrue(
+                "safeAcquire: Semaphore did not acquire permit within the timeout",
+                semaphore.tryAcquire(permits, SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+            );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire " + permits + " permit(s)");
         }
     }
 
+    /**
+     * Wait for the successful completion of the given {@link SubscribableListener}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code listener} was completed.
+     */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        final var future = new PlainActionFuture<T>();
+        final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
+        return safeGet(future);
+    }
+
+    /**
+     * Call an async action (a {@link Consumer} of an {@link ActionListener}), wait for it to complete the listener, and then return the
+     * result. Preserves the thread's interrupt status flag and converts all exceptions into an {@link AssertionError} to trigger a test
+     * failure.
+     *
+     * @return The value with which the consumed listener was completed.
+     */
+    public static <T> T safeAwait(CheckedConsumer<ActionListener<T>, ?> consumer) {
+        return safeAwait(SubscribableListener.newForked(consumer));
+    }
+
+    /**
+     * Execute the given {@link ActionRequest} using the given {@link ActionType} and the given {@link ElasticsearchClient}, wait for
+     * it to complete with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, and then return the result. An exceptional response, timeout or
+     * interrupt triggers a test failure.
+     */
+    public static <T extends ActionResponse> T safeExecute(ElasticsearchClient client, ActionType<T> action, ActionRequest request) {
+        return safeAwait(l -> client.execute(action, request, l));
+    }
+
+    /**
+     * Wait for the successful completion of the given {@link Future}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the
+     * thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code future} was completed.
+     */
+    public static <T> T safeGet(Future<T> future) {
         try {
-            return future.get(10, TimeUnit.SECONDS);
+            return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("safeAwait: interrupted waiting for SubscribableListener", e);
+            throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);
         } catch (ExecutionException e) {
-            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+            throw new AssertionError("safeGet: listener was completed exceptionally", e);
         } catch (TimeoutException e) {
-            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
+            throw new AssertionError("safeGet: listener was not completed within the timeout", e);
         }
     }
 
+    /**
+     * Call a {@link CheckedSupplier}, converting all exceptions into an {@link AssertionError}. Useful for avoiding
+     * try/catch boilerplate or cumbersome propagation of checked exceptions around something that <i>should</i> never throw.
+     *
+     * @return The value returned by the {@code supplier}.
+     */
+    public static <T> T safeGet(CheckedSupplier<T, ?> supplier) {
+        try {
+            return supplier.get();
+        } catch (Exception e) {
+            return fail(e);
+        }
+    }
+
+    /**
+     * Wait for the exceptional completion of the given {@link SubscribableListener}, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
+    public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
+        return safeAwait(exceptionListener -> listener.addListener(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse)));
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <T> Exception safeAwaitFailure(Consumer<ActionListener<T>> consumer) {
+        return safeAwait(exceptionListener -> consumer.accept(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse)));
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @param responseType Class of listener response type, to aid type inference but otherwise ignored.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <T> Exception safeAwaitFailure(@SuppressWarnings("unused") Class<T> responseType, Consumer<ActionListener<T>> consumer) {
+        return safeAwaitFailure(consumer);
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @param responseType  Class of listener response type, to aid type inference but otherwise ignored.
+     * @param exceptionType Expected exception type. This method throws an {@link AssertionError} if a different type of exception is seen.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <Response, ExpectedException extends Exception> ExpectedException safeAwaitFailure(
+        Class<ExpectedException> exceptionType,
+        Class<Response> responseType,
+        Consumer<ActionListener<Response>> consumer
+    ) {
+        return asInstanceOf(exceptionType, safeAwaitFailure(responseType, consumer));
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure. Any layers of {@link ElasticsearchWrapperException} are removed from the thrown exception
+     * using {@link ExceptionsHelper#unwrapCause}.
+     *
+     * @param responseType  Class of listener response type, to aid type inference but otherwise ignored.
+     * @param exceptionType Expected unwrapped exception type. This method throws an {@link AssertionError} if a different type of exception
+     *                      is seen.
+     *
+     * @return The unwrapped exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <Response, ExpectedException extends Exception> ExpectedException safeAwaitAndUnwrapFailure(
+        Class<ExpectedException> exceptionType,
+        Class<Response> responseType,
+        Consumer<ActionListener<Response>> consumer
+    ) {
+        return asInstanceOf(exceptionType, ExceptionsHelper.unwrapCause(safeAwaitFailure(responseType, consumer)));
+    }
+
+    /**
+     * Send the current thread to sleep for the given duration, asserting that the sleep is not interrupted but preserving the thread's
+     * interrupt status flag in any case.
+     */
+    public static void safeSleep(TimeValue timeValue) {
+        safeSleep(timeValue.millis());
+    }
+
+    /**
+     * Send the current thread to sleep for the given number of milliseconds, asserting that the sleep is not interrupted but preserving the
+     * thread's interrupt status flag in any case.
+     */
     public static void safeSleep(long millis) {
         try {
             Thread.sleep(millis);
@@ -2136,6 +2487,34 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.currentThread().interrupt();
             fail(e, "safeSleep: interrupted");
         }
+    }
+
+    /**
+     * Wait for all tasks currently running or enqueued on the given executor to complete.
+     */
+    public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
+        final var maxThreads = threadPool.info(executorName).getMax();
+        final var barrier = new CyclicBarrier(maxThreads + 1);
+        final var executor = threadPool.executor(executorName);
+        for (int i = 0; i < maxThreads; i++) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    safeAwait(barrier);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e, "unexpected");
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+            });
+        }
+        safeAwait(barrier);
     }
 
     protected static boolean isTurkishLocale() {
@@ -2183,5 +2562,75 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    /**
+     * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(int numberOfTasks, IntConsumer taskFactory) {
+        final CyclicBarrier barrier = new CyclicBarrier(numberOfTasks);
+        runInParallel(numberOfTasks, i -> {
+            safeAwait(barrier);
+            taskFactory.accept(i);
+        });
+    }
+
+    /**
+     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
+     * calling thread, the rest will be run on a new thread.
+     * @param numberOfTasks number of tasks to run in parallel
+     * @param taskFactory task factory
+     */
+    public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) {
+        final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
+        final Thread[] threads = new Thread[numberOfTasks - 1];
+        for (int i = 0; i < numberOfTasks; i++) {
+            final int index = i;
+            var future = new FutureTask<Void>(() -> taskFactory.accept(index), null);
+            futures.add(future);
+            if (i == numberOfTasks - 1) {
+                future.run();
+            } else {
+                threads[i] = new Thread(future);
+                threads[i].setName("runInParallel-T#" + i);
+                threads[i].start();
+            }
+        }
+        Exception e = null;
+        try {
+            for (Thread thread : threads) {
+                // no sense in waiting for the rest of the threads, nor any futures, if interrupted, just bail out and fail
+                thread.join();
+            }
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (InterruptedException interruptedException) {
+                    // no sense in waiting for the rest of the futures if interrupted, just bail out and fail
+                    Thread.currentThread().interrupt();
+                    throw interruptedException;
+                } catch (Exception executionException) {
+                    e = ExceptionsHelper.useOrSuppress(e, executionException);
+                }
+            }
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            e = ExceptionsHelper.useOrSuppress(e, interruptedException);
+        }
+        if (e != null) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static void ensureAllContextsReleased(SearchService searchService) {
+        try {
+            assertBusy(() -> {
+                assertThat(searchService.getActiveContexts(), equalTo(0));
+                assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+            });
+        } catch (Exception e) {
+            throw new AssertionError("Failed to verify search contexts", e);
+        }
     }
 }

@@ -53,22 +53,22 @@ automatically if it doesn't exist. For more information, see <<index-creation>>.
 [[docs-update-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
 `lang`::
 (Optional, string) The script language. Default: `painless`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `retry_on_conflict`::
 (Optional, integer) Specify how many times should the operation be retried when
  a conflict occurs. Default: 0.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 `_source`::
 (Optional, list) Set to `false` to disable source retrieval (default: `true`).
@@ -94,7 +94,7 @@ timeout before failing. The actual wait time could be longer, particularly when
 multiple waits occur.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[update-api-example]]
 ==== {api-examples-title}

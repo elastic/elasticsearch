@@ -94,6 +94,82 @@ M              |10
 M              |10           
 ;
 
+caseOnMv
+required_capability: case_mv
+
+FROM employees
+| WHERE emp_no == 10010
+| EVAL foo = CASE(still_hired, "still", is_rehired, "rehired", "not")
+| KEEP still_hired, is_rehired, foo;
+warning:Line 3:41: evaluation of [is_rehired] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 3:41: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+still_hired:boolean |     is_rehired:boolean     | foo:keyword
+              false | [false, false, true, true] | not
+;
+
+caseOnConstantMvFalseTrue
+required_capability: case_mv
+
+ROW foo = CASE([false, true], "a", "b");
+warning:Line 1:16: evaluation of [[false, true]] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
+caseOnConstantMvTrueTrue
+required_capability: case_mv
+
+ROW foo = CASE([true, true], "a", "b");
+warning:Line 1:16: evaluation of [[true, true]] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
+caseOnMvSliceMv
+required_capability: case_mv
+
+ROW foo = [true, false, false] | EVAL foo = CASE(MV_SLICE(foo, 0, 1), "a", "b");
+warning:Line 1:50: evaluation of [MV_SLICE(foo, 0, 1)] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:50: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
+caseOnMvSliceSv
+required_capability: case_mv
+
+ROW foo = [true, false, false] | EVAL foo = CASE(MV_SLICE(foo, 0), "a", "b");
+
+foo:keyword
+a
+;
+
+caseOnConvertMvSliceMv
+required_capability: case_mv
+
+ROW foo = ["true", "false", "false"] | EVAL foo = CASE(MV_SLICE(foo::BOOLEAN, 0, 1), "a", "b");
+warning:Line 1:56: evaluation of [MV_SLICE(foo::BOOLEAN, 0, 1)] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:56: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
+caseOnConvertMvSliceSv
+required_capability: case_mv
+
+ROW foo = ["true", "false", "false"] | EVAL foo = CASE(MV_SLICE(foo::BOOLEAN, 0), "a", "b");
+
+foo:keyword
+a
+;
+
 docsCaseSuccessRate
 // tag::docsCaseSuccessRate[]
 FROM sample_data
@@ -130,7 +206,7 @@ error_rate:double | hour:date
 
 
 nullOnMultivaluesMathOperation
-required_feature: esql.disable_nullable_opts
+required_capability: disable_nullable_opts
 
 ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NULL;
 warning:Line 1:37: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.
@@ -142,7 +218,7 @@ a:integer | b:integer | sum:integer
 
 
 notNullOnMultivaluesMathOperation
-required_feature: esql.disable_nullable_opts
+required_capability: disable_nullable_opts
 
 ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NOT NULL;
 warning:Line 1:37: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.
@@ -153,9 +229,12 @@ a:integer | b:integer | sum:integer
 
 
 nullOnMultivaluesComparisonOperation
-required_feature: esql.disable_nullable_opts
+required_capability: disable_nullable_opts
 
 ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NULL;
+warning:Line 1:38: evaluation of [a == b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
 
 a:integer | b:integer | same:boolean
 5         | [1, 2]    | null
@@ -163,18 +242,42 @@ a:integer | b:integer | same:boolean
 
 
 notNullOnMultivaluesComparisonOperation
-required_feature: esql.disable_nullable_opts
+required_capability: disable_nullable_opts
 
 ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL;
+warning:Line 1:38: evaluation of [a == b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 a:integer | b:integer | same:boolean
 ;
 
 
 notNullOnMultivaluesComparisonOperationWithPartialMatch
-required_feature: esql.disable_nullable_opts
+required_capability: disable_nullable_opts
 
 ROW a = 5, b = [ 5, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL;
+warning:Line 1:38: evaluation of [a == b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 a:integer | b:integer | same:boolean
+;
+
+caseOnTheValue_NotOnTheField
+required_capability: fixed_wrong_is_not_null_check_on_case
+
+FROM employees 
+| WHERE emp_no < 10022 AND emp_no > 10012 
+| KEEP languages, emp_no 
+| EVAL eval = CASE(languages == 1, null, languages == 2, "bilingual", languages > 2, "multilingual", languages IS NULL, "languages is null") 
+| SORT languages, emp_no 
+| WHERE eval IS NOT NULL;
+
+languages:integer| emp_no:integer|eval:keyword                    
+2                |10016          |bilingual        
+2                |10017          |bilingual        
+2                |10018          |bilingual        
+5                |10014          |multilingual     
+5                |10015          |multilingual     
+null             |10020          |languages is null
+null             |10021          |languages is null
 ;

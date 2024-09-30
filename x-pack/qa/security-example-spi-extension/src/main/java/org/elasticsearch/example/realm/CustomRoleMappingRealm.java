@@ -42,7 +42,7 @@ public final class CustomRoleMappingRealm extends Realm implements CachingRealm 
         super(config);
         this.cache = CacheBuilder.<String, User>builder().build();
         this.roleMapper = roleMapper;
-        this.roleMapper.refreshRealmOnChange(this);
+        this.roleMapper.clearRealmCacheOnChange(this);
     }
 
     @Override

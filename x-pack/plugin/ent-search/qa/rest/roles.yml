@@ -25,6 +25,7 @@ user:
       "test-index1",
       "test-search-application",
       "test-search-application-1",
+      "test-search-application-with-aggs",
       "test-search-application-with-list",
       "test-search-application-with-list-invalid",
       ".elastic-connectors-v1",

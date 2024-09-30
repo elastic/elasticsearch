@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -49,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -1217,9 +1219,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, visibleAlias);
             assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
 
-            // A total wildcards does not resolve the hidden index in this case
+            // total wildcards should also resolve both visible and hidden indices if there is a visible alias
             indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
-            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
         }
 
         {
@@ -3167,17 +3169,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .put(index2, false)
                     .put(justAnIndex, false)
                     .put(
-                        new DataStream(
-                            dataStream1,
-                            List.of(index1.getIndex(), index2.getIndex()),
-                            2,
-                            Collections.emptyMap(),
-                            true,
-                            false,
-                            false,
-                            false,
-                            null
-                        )
+                        DataStream.builder(dataStream1, List.of(index1.getIndex(), index2.getIndex()))
+                            .setGeneration(2)
+                            .setMetadata(Map.of())
+                            .setHidden(true)
+                            .build()
                     )
             )
             .build();

@@ -1,6 +1,6 @@
 setup:
-  - skip:
-        version: ' - 8.13.99'
+  - requires:
+        cluster_features: "gte_v8.15.0"
         reason: 'no trimming highlight snippets when number_of_fragments is 0 was introduced  in 8.14'
   - do:
       indices.create:

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.url;
@@ -46,7 +47,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         assertAcked(
             client.admin()
                 .cluster()
-                .preparePutRepository("test-repo")
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
                 .setType(FsRepository.TYPE)
                 .setSettings(
                     Settings.builder()
@@ -69,7 +70,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("test-idx")
             .get();
@@ -79,7 +80,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
 
         SnapshotState state = client.admin()
             .cluster()
-            .prepareGetSnapshots("test-repo")
+            .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo")
             .setSnapshots("test-snap")
             .get()
             .getSnapshots()
@@ -94,7 +95,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         assertAcked(
             client.admin()
                 .cluster()
-                .preparePutRepository("url-repo")
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "url-repo")
                 .setType(URLRepository.TYPE)
                 .setSettings(
                     Settings.builder()
@@ -105,7 +106,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         logger.info("--> restore index after deletion");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
-            .prepareRestoreSnapshot("url-repo", "test-snap")
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "url-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("test-idx")
             .get();
@@ -114,15 +115,18 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         assertHitCount(client.prepareSearch("test-idx").setSize(0), 100);
 
         logger.info("--> list available shapshots");
-        GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
+        GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "url-repo").get();
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
 
         logger.info("--> delete snapshot");
-        AcknowledgedResponse deleteSnapshotResponse = client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
+        AcknowledgedResponse deleteSnapshotResponse = client.admin()
+            .cluster()
+            .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+            .get();
         assertAcked(deleteSnapshotResponse);
 
         logger.info("--> list available shapshot again, no snapshots should be returned");
-        getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
+        getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "url-repo").get();
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
     }
 
@@ -130,7 +134,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         assertAcked(
             client().admin()
                 .cluster()
-                .preparePutRepository("url-repo")
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "url-repo")
                 .setType(URLRepository.TYPE)
                 .setVerify(false)
                 .setSettings(Settings.builder().put(URLRepository.URL_SETTING.getKey(), "http://localhost/"))

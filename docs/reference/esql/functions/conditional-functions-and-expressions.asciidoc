@@ -15,7 +15,7 @@ manner. {esql} supports these conditional functions:
 * <<esql-least>>
 // end::cond_list[]
 
-include::case.asciidoc[]
-include::coalesce.asciidoc[]
-include::greatest.asciidoc[]
-include::least.asciidoc[]
+include::layout/case.asciidoc[]
+include::layout/coalesce.asciidoc[]
+include::layout/greatest.asciidoc[]
+include::layout/least.asciidoc[]

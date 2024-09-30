@@ -118,7 +118,8 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        PostStartTrialRequest request = new PostStartTrialRequest(TEST_REQUEST_TIMEOUT).setType(License.LicenseType.TRIAL.getTypeName())
+            .acknowledge(true);
         client().execute(PostStartTrialAction.INSTANCE, request).get();
     }
 }

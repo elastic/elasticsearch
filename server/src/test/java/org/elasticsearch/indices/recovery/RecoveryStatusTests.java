@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.recovery;
 
@@ -21,6 +22,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.io.IOException;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
     private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
@@ -71,7 +74,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             }
         }
         assertNotNull(expectedFile);
-        indexShard.close("foo", false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
+        closeShardNoCheck(indexShard); // we have to close it here otherwise rename fails since the write.lock is held by the engine
         multiFileWriter.renameAllTempFiles();
         strings = Sets.newHashSet(indexShard.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));

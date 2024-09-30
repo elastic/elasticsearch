@@ -18,12 +18,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -54,7 +54,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -158,11 +157,13 @@ public class DownsampleActionIT extends ESRestTestCase {
         updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
     }
 
-    private void createIndex(String index, String alias, boolean isTimeSeries) throws IOException {
+    private void createIndex(String index, String alias, @Nullable String policy, boolean isTimeSeries) throws IOException {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy);
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        if (policy != null) {
+            settings.put(LifecycleSettings.LIFECYCLE_NAME, policy);
+        }
 
         if (isTimeSeries) {
             settings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
@@ -191,15 +192,15 @@ public class DownsampleActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, settings, mapping);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105437")
     public void testRollupIndex() throws Exception {
-        createIndex(index, alias, true);
-        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
-
+        // Create the ILM policy
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
         createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
-        updatePolicy(client(), index, policy);
+
+        // Create a time series index managed by the policy
+        createIndex(index, alias, policy, true);
+        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String rollupIndex = waitAndGetRollupIndexName(client(), index, fixedInterval);
         assertNotNull("Cannot retrieve rollup index name", rollupIndex);
@@ -222,10 +223,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         );
     }
 
-    public void testRollupIndexInTheHotPhase() throws Exception {
-        createIndex(index, alias, true);
-        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
-
+    public void testRollupIndexInTheHotPhaseWithoutRollover() {
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> createNewSingletonPolicy(
@@ -274,7 +272,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         client().performRequest(createTemplateRequest);
 
         // then create the index and index a document to trigger rollover
-        createIndex(originalIndex, alias, true);
+        createIndex(originalIndex, alias, policy, true);
         index(
             client(),
             originalIndex,
@@ -396,18 +394,22 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.ilm:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
-        createIndex(index, alias, false);
-        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
-
+        // Create the ILM policy
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
         createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
-        updatePolicy(client(), index, policy);
+
+        // Create a non TSDB managed index
+        createIndex(index, alias, policy, false);
+        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         try {
-            assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
+            assertBusy(
+                () -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())),
+                120,
+                TimeUnit.SECONDS
+            );
             String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
             assertNull("Rollup index should not have been created", rollupIndex);
             assertTrue("Source index should not have been deleted", indexExists(index));
@@ -505,7 +507,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105485")
     public void testDownsampleTwiceSameInterval() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);

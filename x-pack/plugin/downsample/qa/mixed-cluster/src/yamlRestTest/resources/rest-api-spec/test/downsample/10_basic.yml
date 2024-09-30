@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "Downsampling executed using persistent task framework from version 8.10"
 
   - do:
@@ -87,8 +87,8 @@ setup:
 
 ---
 "Downsample index":
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "Downsampling executed using persistent task framework from version 8.10"
 
   - do:

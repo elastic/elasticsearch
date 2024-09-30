@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -15,6 +17,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.AssumptionViolatedException;
 
@@ -26,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -87,7 +89,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             e.getCause().getMessage(),
-            containsString("doesn't not support indexing multiple values for the same field in the same document")
+            containsString("doesn't support indexing multiple values for the same field in the same document")
         );
     }
 
@@ -121,9 +123,44 @@ public class HistogramFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
+        var randomString = randomAlphaOfLengthBetween(1, 10);
+        var randomLong = randomLong();
+        var randomDouble = randomDouble();
+        var randomBoolean = randomBoolean();
+
         return List.of(
+            exampleMalformedValue(b -> b.value(randomString)).errorMatches(
+                "Failed to parse object: expecting token of type [START_OBJECT]"
+            ),
+            exampleMalformedValue(b -> b.value(randomLong)).errorMatches("Failed to parse object: expecting token of type [START_OBJECT]"),
+            exampleMalformedValue(b -> b.value(randomDouble)).errorMatches(
+                "Failed to parse object: expecting token of type [START_OBJECT]"
+            ),
+            exampleMalformedValue(b -> b.value(randomBoolean)).errorMatches(
+                "Failed to parse object: expecting token of type [START_OBJECT]"
+            ),
+            exampleMalformedValue(b -> b.startObject().endObject()).errorMatches("expected field called [values]"),
             exampleMalformedValue(b -> b.startObject().startArray("values").value(2).value(2).endArray().endObject()).errorMatches(
                 "expected field called [counts]"
+            ),
+            exampleMalformedValue(b -> b.startObject().startArray("counts").value(2).value(2).endArray().endObject()).errorMatches(
+                "expected field called [values]"
+            ),
+            // Make sure that entire sub-object is preserved in synthetic source
+            exampleMalformedValue(
+                b -> b.startObject()
+                    .startArray("values")
+                    .value(2)
+                    .endArray()
+                    .field("somefield", randomString)
+                    .array("somearray", randomLong, randomLong)
+                    .startObject("someobject")
+                    .field("nestedfield", randomDouble)
+                    .endObject()
+                    .endObject()
+            ).errorMatches("unknown parameter [somefield]"),
+            exampleMalformedValue(b -> b.startArray().value(randomLong).value(randomLong).endArray()).errorMatches(
+                "expecting token of type [START_OBJECT] but found [VALUE_NUMBER]"
             )
         );
     }
@@ -336,13 +373,44 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("synthetic _source support for histogram doesn't support ignore_malformed", ignoreMalformed);
-        return new HistogramFieldSyntheticSourceSupport();
+    public void testArrayValueSyntheticSource() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            syntheticSourceFieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", "true"))
+        );
+
+        var randomString = randomAlphaOfLength(10);
+        CheckedConsumer<XContentBuilder, IOException> arrayValue = b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("counts", new int[] { 1, 2, 3 }).field("values", new double[] { 1, 2, 3 }).endObject();
+                b.startObject().field("counts", new int[] { 4, 5, 6 }).field("values", new double[] { 4, 5, 6 }).endObject();
+                b.value(randomString);
+            }
+            b.endArray();
+        };
+
+        var expected = JsonXContent.contentBuilder().startObject();
+        // First value comes from synthetic field loader and so is formatted in a specific format (e.g. values always come first).
+        // Other values are stored as is as part of ignore_malformed logic for synthetic source.
+        {
+            expected.startArray("field");
+            expected.startObject().field("values", new double[] { 1, 2, 3 }).field("counts", new int[] { 1, 2, 3 }).endObject();
+            expected.startObject().field("counts", new int[] { 4, 5, 6 }).field("values", new double[] { 4, 5, 6 }).endObject();
+            expected.value(randomString);
+            expected.endArray();
+        }
+        expected.endObject();
+
+        var syntheticSource = syntheticSource(mapper, arrayValue);
+        assertEquals(Strings.toString(expected), syntheticSource);
     }
 
-    private static class HistogramFieldSyntheticSourceSupport implements SyntheticSourceSupport {
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new HistogramFieldSyntheticSourceSupport(ignoreMalformed);
+    }
+
+    private record HistogramFieldSyntheticSourceSupport(boolean ignoreMalformed) implements SyntheticSourceSupport {
         @Override
         public SyntheticSourceExample example(int maxVals) {
             if (randomBoolean()) {
@@ -371,21 +439,19 @@ public class HistogramFieldMapperTests extends MapperTestCase {
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "histogram");
+            if (ignoreMalformed) {
+                b.field("ignore_malformed", true);
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern(
-                        "field \\[field] of type \\[histogram] doesn't support synthetic source because it ignores malformed histograms"
-                    ),
-                    b -> {
-                        b.field("type", "histogram");
-                        b.field("ignore_malformed", true);
-                    }
-                )
-            );
+            return List.of();
         }
+    }
+
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 }

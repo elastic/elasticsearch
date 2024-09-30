@@ -142,10 +142,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     public void testNonExistentEnrichPolicy() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"), List.of())
-        );
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsql("from test | enrich countris", Mode.SYNC));
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
             containsString("cannot find enrich policy [countris], did you mean [countries]?")
@@ -153,12 +150,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     public void testNonExistentEnrichPolicy_KeepField() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> RestEsqlTestCase.runEsqlSync(
-                new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris | keep number")
-            )
-        );
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsql("from test | enrich countris | keep number", Mode.SYNC));
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
             containsString("cannot find enrich policy [countris], did you mean [countries]?")
@@ -166,9 +158,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     public void testMatchField_ImplicitFieldsList() throws IOException {
-        Map<String, Object> result = runEsql(
-            new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countries | keep number")
-        );
+        Map<String, Object> result = runEsql("from test | enrich countries | keep number | sort number");
         var columns = List.of(Map.of("name", "number", "type", "long"));
         var values = List.of(List.of(1000), List.of(1000), List.of(5000));
 
@@ -176,25 +166,25 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     public void testMatchField_ImplicitFieldsList_WithStats() throws IOException {
-        Map<String, Object> result = runEsql(
-            new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countries | stats s = sum(number) by country_name")
-
-        );
+        Map<String, Object> result = runEsql("from test | enrich countries | stats s = sum(number) by country_name");
         var columns = List.of(Map.of("name", "s", "type", "long"), Map.of("name", "country_name", "type", "keyword"));
         var values = List.of(List.of(2000, "United States of America"), List.of(5000, "China"));
 
         assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
     }
 
-    private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
-        if (mode == Mode.ASYNC) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS);
-        } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS);
-        }
+    private Map<String, Object> runEsql(String query) throws IOException {
+        return runEsql(query, mode);
     }
 
-    private static final List<String> NO_WARNINGS = List.of();
+    private Map<String, Object> runEsql(String query, Mode mode) throws IOException {
+        var requestObject = new RestEsqlTestCase.RequestObjectBuilder().query(query);
+        if (mode == Mode.ASYNC) {
+            return RestEsqlTestCase.runEsqlAsync(requestObject);
+        } else {
+            return RestEsqlTestCase.runEsqlSync(requestObject);
+        }
+    }
 
     @Override
     protected boolean preserveClusterUponCompletion() {

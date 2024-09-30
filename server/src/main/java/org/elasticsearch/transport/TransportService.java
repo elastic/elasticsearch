@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -40,7 +43,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -90,6 +92,17 @@ public class TransportService extends AbstractLifecycleComponent
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
+    /**
+     * Undocumented on purpose, may be removed at any time. Only use this if instructed to do so, can have other unintended consequences
+     * including deadlocks.
+     */
+    public static final Setting<Boolean> ENABLE_STACK_OVERFLOW_AVOIDANCE = Setting.boolSetting(
+        "transport.enable_stack_protection",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
     private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
     protected final Transport transport;
@@ -104,6 +117,8 @@ public class TransportService extends AbstractLifecycleComponent
     private final TransportInterceptor interceptor;
 
     private final PendingDirectHandlers pendingDirectHandlers = new PendingDirectHandlers();
+
+    private final boolean enableStackOverflowAvoidance;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
@@ -281,6 +296,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
@@ -503,7 +519,19 @@ public class TransportService extends AbstractLifecycleComponent
             handshake(newConnection, actualProfile.getHandshakeTimeout(), Predicates.always(), listener.map(resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (node.equals(remote) == false) {
-                    throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+                    throw new ConnectTransportException(
+                        node,
+                        Strings.format(
+                            """
+                                Connecting to [%s] failed: expected to connect to [%s] but found [%s] instead. Ensure that each node has \
+                                its own distinct publish address, and that your network is configured so that every connection to a node's \
+                                publish address is routed to the correct node. See %s for more information.""",
+                            node.getAddress(),
+                            node.descriptionWithoutAttributes(),
+                            remote.descriptionWithoutAttributes(),
+                            ReferenceDocs.NETWORK_BINDING_AND_PUBLISHING
+                        )
+                    );
                 }
                 return null;
             }));
@@ -1342,36 +1370,40 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
 
-        // Callback that an exception happened, but on a different thread since we don't want handlers to worry about stack overflows.
-        final var executor = threadPool.generic();
-        assert executor.isShutdown() == false : "connections should all be closed before threadpool shuts down";
-        executor.execute(new AbstractRunnable() {
-            @Override
-            public void doRun() {
-                for (Transport.ResponseContext<?> holderToNotify : pruned) {
-                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
-                        tracerLog.trace(
-                            "[{}][{}] pruning request because connection to node [{}] closed",
-                            holderToNotify.requestId(),
-                            holderToNotify.action(),
-                            connection.getNode()
-                        );
+        for (Transport.ResponseContext<?> holderToNotify : pruned) {
+            if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                tracerLog.trace(
+                    "[{}][{}] pruning request because connection to node [{}] closed",
+                    holderToNotify.requestId(),
+                    holderToNotify.action(),
+                    connection.getNode()
+                );
+            }
+            NodeDisconnectedException exception = new NodeDisconnectedException(connection.getNode(), holderToNotify.action());
+
+            TransportResponseHandler<?> handler = holderToNotify.handler();
+            // we used to fork to a different thread always to avoid stack overflows, but we avoid doing that now, expecting handlers
+            // to handle that themselves instead.
+            var executor = handler.executor();
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE && enableStackOverflowAvoidance) {
+                executor = threadPool.generic();
+            }
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                handler.handleException(exception);
+            } else {
+                executor.execute(new ForkingResponseHandlerRunnable(handler, exception, executor) {
+                    @Override
+                    protected void doRun() {
+                        handler.handleException(exception);
                     }
-                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
-                }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                assert false : e;
-                logger.warn(() -> "failed to notify response handler on connection close [" + connection + "]", e);
+                    @Override
+                    public String toString() {
+                        return "onConnectionClosed/handleException[" + handler + "]";
+                    }
+                });
             }
-
-            @Override
-            public String toString() {
-                return "onConnectionClosed(" + connection.getNode() + ")";
-            }
-        });
+        }
     }
 
     final class TimeoutHandler implements Runnable {
@@ -1716,15 +1748,6 @@ public class TransportService extends AbstractLifecycleComponent
             } else {
                 return null;
             }
-        }
-    }
-
-    static {
-        // Ensure that this property, introduced and immediately deprecated in 7.11, is not used in 8.x
-        @UpdateForV9 // we can remove this whole block in v9
-        final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
-        if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
-            throw new IllegalArgumentException("system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] must not be set");
         }
     }
 

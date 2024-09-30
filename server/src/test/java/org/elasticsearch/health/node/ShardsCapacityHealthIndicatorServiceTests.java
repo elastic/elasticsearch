@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthFeatures;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.IndexVersion;
@@ -340,8 +342,10 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             maxConfiguredShardsPerNode,
             numberOfNewShards,
             replicas,
-            state) -> {
-            assertEquals(mockedState, state);
+            discoveryNodes,
+            metadata) -> {
+            assertEquals(mockedState.nodes(), discoveryNodes);
+            assertEquals(mockedState.metadata(), metadata);
             assertEquals(randomMaxShardsPerNodeSetting, maxConfiguredShardsPerNode);
             return new ShardLimitValidator.Result(
                 numberOfNewShards != shardsToAdd && replicas == 1,
@@ -352,13 +356,19 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             );
         };
 
-        assertEquals(calculateFrom(randomMaxShardsPerNodeSetting, mockedState, checkerWrapper.apply(5)).status(), RED);
-        assertEquals(calculateFrom(randomMaxShardsPerNodeSetting, mockedState, checkerWrapper.apply(10)).status(), YELLOW);
+        assertEquals(
+            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checkerWrapper.apply(5)).status(),
+            RED
+        );
+        assertEquals(
+            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checkerWrapper.apply(10)).status(),
+            YELLOW
+        );
 
         // Let's cover the holes :)
         Stream.of(randomIntBetween(1, 4), randomIntBetween(6, 9), randomIntBetween(11, Integer.MAX_VALUE))
             .map(checkerWrapper)
-            .map(checker -> calculateFrom(randomMaxShardsPerNodeSetting, mockedState, checker))
+            .map(checker -> calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checker))
             .map(ShardsCapacityHealthIndicatorService.StatusResult::status)
             .forEach(status -> assertEquals(status, GREEN));
     }
@@ -375,6 +385,21 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             "elasticsearch:health:shards_capacity:diagnosis:increase_max_shards_per_node_frozen",
             SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().getUniqueId()
         );
+    }
+
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        int maxShardsPerNodeFrozen = randomValidMaxShards();
+        var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(11));
+        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, featureService).calculate(
+            false,
+            HealthInfo.EMPTY_HEALTH_INFO
+        );
+
+        assertEquals(indicatorResult.status(), RED);
+        assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
+        assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
+        assertThat(indicatorResult.diagnosisList(), hasSize(0));
+        assertThat(indicatorResult.details(), is(HealthIndicatorDetails.EMPTY));
     }
 
     private static int randomValidMaxShards() {

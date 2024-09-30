@@ -5,7 +5,7 @@
 <titleabbrev>Get follower stats</titleabbrev>
 ++++
 
-Get follower stats.
+Get <<xpack-ccr,{ccr}>> follower stats.
 
 [[ccr-get-follow-stats-request]]
 ==== {api-request-title}

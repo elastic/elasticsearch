@@ -1,0 +1,90 @@
+---
+sort doc with nested object:
+  - requires:
+      cluster_features: ["mapper.index_sorting_on_nested"]
+      reason: uses index sorting on nested fields
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.sort.field: name
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested_field:
+                type: nested
+              nested_array:
+                type: nested
+              other:
+                type: object
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "nested_field": {"a": 1, "b": 2}, "nested_array": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 }], "other": { "value": "A" } }'
+          - '{ "create": { } }'
+          - '{ "name": "cccc", "nested_field": {"a": 3, "b": 4}, "nested_array": [{ "a": 30, "b": 40 }, { "a": 300, "b": 400 }], "other": { "value": "C"} }'
+          - '{ "create": { } }'
+          - '{ "name": "bbbb", "nested_field": {"a": 5, "b": 6}, "nested_array": [{ "a": 50, "b": 60 }, { "a": 500, "b": 600 }], "other": { "value": "B"} }'
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.nested_field.a: 1 }
+  - match: { hits.hits.0._source.nested_field.b: 2 }
+  - match: { hits.hits.0._source.nested_array.0.a: 10 }
+  - match: { hits.hits.0._source.nested_array.0.b: 20 }
+  - match: { hits.hits.0._source.nested_array.1.a: 100 }
+  - match: { hits.hits.0._source.nested_array.1.b: 200 }
+  - match: { hits.hits.0._source.other.value: A }
+  - match: { hits.hits.1._source.name: bbbb }
+  - match: { hits.hits.1._source.nested_field.a: 5 }
+  - match: { hits.hits.1._source.nested_field.b: 6 }
+  - match: { hits.hits.1._source.nested_array.0.a: 50 }
+  - match: { hits.hits.1._source.nested_array.0.b: 60 }
+  - match: { hits.hits.1._source.nested_array.1.a: 500 }
+  - match: { hits.hits.1._source.nested_array.1.b: 600 }
+  - match: { hits.hits.1._source.other.value: B }
+  - match: { hits.hits.2._source.name: cccc }
+  - match: { hits.hits.2._source.nested_field.a: 3 }
+  - match: { hits.hits.2._source.nested_field.b: 4 }
+  - match: { hits.hits.2._source.nested_array.0.a: 30 }
+  - match: { hits.hits.2._source.nested_array.0.b: 40 }
+  - match: { hits.hits.2._source.nested_array.1.a: 300 }
+  - match: { hits.hits.2._source.nested_array.1.b: 400 }
+  - match: { hits.hits.2._source.other.value: C }
+
+
+---
+sort doc on nested field:
+  - requires:
+      cluster_features: [ "mapper.index_sorting_on_nested" ]
+      reason: uses index sorting on nested fields
+  - do:
+      catch: /cannot apply index sort to field \[nested_field\.foo\] under nested object \[nested_field\]/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.sort.field: nested_field.foo
+            index.sort.mode: min
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested_field:
+                type: nested
+                properties:
+                  foo:
+                    type: keyword
+                  bar:
+                    type: keyword

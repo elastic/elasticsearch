@@ -2,6 +2,9 @@
 [[esql-grok]]
 === `GROK`
 
+`GROK` enables you to <<esql-process-data-with-dissect-and-grok,extract
+structured data out of a string>>.
+
 **Syntax**
 
 [source,esql]
@@ -17,6 +20,9 @@ multiple values, `GROK` will process each value.
 
 `pattern`::
 A grok pattern.
+If a field name conflicts with an existing column, the existing column is discarded.
+If a field name is used more than once, a multi-valued column will be created with one value
+per each occurrence of the field name.
 
 *Description*
 
@@ -63,5 +69,17 @@ include::{esql-specs}/docs.csv-spec[tag=grokWithToDatetime]
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/docs.csv-spec[tag=grokWithToDatetime-result]
+|===
+
+If a field name is used more than once, `GROK` creates a multi-valued
+column:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithDuplicateFieldNames]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=grokWithDuplicateFieldNames-result]
 |===
 // end::examples[]

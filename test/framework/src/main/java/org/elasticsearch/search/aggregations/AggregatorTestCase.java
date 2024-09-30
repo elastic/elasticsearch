@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -26,6 +27,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
@@ -88,12 +90,12 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -196,7 +198,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
     // A list of field types that should not be tested, or are not currently supported
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
-        GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
         DenseVectorFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
         SparseVectorFieldMapper.CONTENT_TYPE, // Sparse vectors are no longer supported
 
@@ -347,12 +348,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
             // Alias all fields to <name>-alias to test aliases
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
-                .collect(toList())
+                .collect(toList()),
+            List.of()
         );
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> fieldDataBuilder = (fieldType, context) -> fieldType
             .fielddataBuilder(
                 new FieldDataContext(
                     indexSettings.getIndex().getName(),
+                    indexSettings,
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
                     context.fielddataOperation()
@@ -384,7 +387,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             null,
             () -> true,
             valuesSourceRegistry,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         ) {
             @Override
             public Iterable<MappedFieldType> dimensionFields() {
@@ -459,7 +463,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), Set.of());
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of());
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer, indexSettings.getIndexVersionCreated()))
             .when(subContext)
             .getNestedDocuments();
@@ -640,7 +644,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         bigArraysForReduction,
                         getMockScriptService(),
                         () -> false,
-                        builder
+                        builder,
+                        b -> {}
                     );
                     AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
                         aggregatorSupplier,
@@ -665,7 +670,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     bigArraysForReduction,
                     getMockScriptService(),
                     () -> false,
-                    builder
+                    builder,
+                    b -> {}
                 );
                 internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
                 internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
@@ -1280,7 +1286,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 ScriptCompiler.NONE,
                 null,
                 indexSettings,
-                null
+                null,
+                query -> {
+                    throw new UnsupportedOperationException();
+                }
             );
         }
 
@@ -1393,6 +1402,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         SortedSetDocValues sortedDocValues = context.reader().getSortedSetDocValues(field);
                         subs[i] = sortedDocValues.termsEnum();
                         weights[i] = sortedDocValues.getValueCount();
+                    }
+                    case NUMERIC, SORTED_NUMERIC -> {
+                        final byte[] min = PointValues.getMinPackedValue(reader, field);
+                        final byte[] max = PointValues.getMaxPackedValue(reader, field);
+                        if (min != null && max != null) {
+                            if (min.length == 4) {
+                                return NumericUtils.sortableBytesToInt(max, 0) - NumericUtils.sortableBytesToInt(min, 0);
+                            } else if (min.length == 8) {
+                                return NumericUtils.sortableBytesToLong(max, 0) - NumericUtils.sortableBytesToLong(min, 0);
+                            }
+                        }
+                        return -1;
                     }
                     default -> {
                         return -1;

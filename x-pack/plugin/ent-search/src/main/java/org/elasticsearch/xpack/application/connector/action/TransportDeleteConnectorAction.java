@@ -12,9 +12,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
@@ -24,12 +23,7 @@ public class TransportDeleteConnectorAction extends HandledTransportAction<Delet
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportDeleteConnectorAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportDeleteConnectorAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             DeleteConnectorAction.NAME,
             transportService,
@@ -43,6 +37,7 @@ public class TransportDeleteConnectorAction extends HandledTransportAction<Delet
     @Override
     protected void doExecute(Task task, DeleteConnectorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         String connectorId = request.getConnectorId();
-        connectorIndexService.deleteConnector(connectorId, listener.map(v -> AcknowledgedResponse.TRUE));
+        boolean shouldDeleteSyncJobs = request.shouldDeleteSyncJobs();
+        connectorIndexService.deleteConnector(connectorId, shouldDeleteSyncJobs, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

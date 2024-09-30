@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 
@@ -110,14 +110,14 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
                 return;
             }
 
-            if (response.getInferenceResults().get(0) instanceof TextEmbeddingResults textEmbeddingResults) {
+            if (response.getInferenceResults().get(0) instanceof MlTextEmbeddingResults textEmbeddingResults) {
                 listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
             } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
                 throw new IllegalStateException(
                     "expected a result of type ["
-                        + TextEmbeddingResults.NAME
+                        + MlTextEmbeddingResults.NAME
                         + "] received ["
                         + response.getInferenceResults().get(0).getWriteableName()
                         + "]. Is ["

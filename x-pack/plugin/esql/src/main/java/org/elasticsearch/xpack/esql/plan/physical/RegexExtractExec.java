@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -30,6 +31,11 @@ public abstract class RegexExtractExec extends UnaryExec implements EstimatesRow
     @Override
     public List<Attribute> output() {
         return mergeOutputAttributes(extractedFields, child().output());
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return inputExpression.references();
     }
 
     public Expression inputExpression() {

@@ -4,15 +4,18 @@
 <titleabbrev>Create connector</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Creates an Elastic connector.
-Connectors are third-party {es} integrations which can be deployed on {ecloud} or hosted on your own infrastructure:
+Connectors are {es} integrations that bring content from third-party data sources, which can be deployed on {ecloud} or hosted on your own infrastructure:
 
-* *Native connectors* are a managed service on {ecloud}
-* *Connector clients* are self-managed on your infrastructure
+* *Managed connectors* are a managed service on {ecloud}
+* *Self-managed connectors* are self-hosted on your infrastructure
 
-Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
+Find a list of all supported service types in the <<es-connectors,connectors documentation>>.
+
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [source,console]
 --------------------------------------------------
@@ -33,16 +36,16 @@ DELETE _connector/my-connector
 
 [[create-connector-api-request]]
 ==== {api-request-title}
-`POST _connector`
+* `POST _connector`
 
-`PUT _connector/<connector_id>`
+* `PUT _connector/<connector_id>`
 
 
 [[create-connector-api-prereqs]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
-* The `service_type` parameter should reference an existing connector service type.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
+* The `service_type` parameter should reference a supported third-party service. See the available service types for <<es-native-connectors,Elastic managed>> and <<es-build-connector,self-managed>> connectors. This can also reference the service type of your custom connector.
 
 
 [[create-connector-api-desc]]
@@ -54,7 +57,7 @@ Creates a connector document in the internal index and initializes its configura
 ==== {api-path-parms-title}
 
 `<connector_id>`::
-(Required, string) Unique identifier of a connector.
+(Optional, string) Unique identifier of a connector.
 
 
 [role="child_attributes"]
@@ -65,19 +68,19 @@ Creates a connector document in the internal index and initializes its configura
 (Optional, string) The description of the connector.
 
 `index_name`::
-(Required, string) The target index for syncing data by the connector.
+(Optional, string) The target index to sync data. If the index doesn't exist, it will be created upon the first sync.
 
 `name`::
-(Optional, string) The name of the connector.
+(Optional, string) The name of the connector. Setting the connector name is recommended when managing connectors in {kib}.
 
 `is_native`::
-(Optional, boolean) Indicates if it's a native connector. Defaults to `false`.
+(Optional, boolean) Indicates if it's a managed connector. Defaults to `false`.
 
 `language`::
 (Optional, string) Language analyzer for the data. Limited to supported languages.
 
 `service_type`::
-(Optional, string) Connector service type. Can reference Elastic-supported connector types or a custom connector type.
+(Optional, string) Connector service type. Can reference Elastic-supported third-party services or a custom connector type. See the available service types for <<es-native-connectors,Elastic managed>> and <<es-build-connector,self-managed>> connectors.
 
 
 [role="child_attributes"]
@@ -123,7 +126,8 @@ The API returns the following result:
 [source,console-result]
 ----
 {
-  "result": "created"
+  "result": "created",
+  "id": "my-connector"
 }
 ----
 ////

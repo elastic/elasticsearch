@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -92,8 +93,13 @@ final class RequestDispatcher {
         this.onComplete = new RunOnce(onComplete);
         this.indexSelectors = ConcurrentCollections.newConcurrentMap();
         for (String index : indices) {
-            final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                .searchShards(clusterState, new String[] { index }, null, null, null, null);
+            final GroupShardsIterator<ShardIterator> shardIts;
+            try {
+                shardIts = clusterService.operationRouting().searchShards(clusterState, new String[] { index }, null, null, null, null);
+            } catch (Exception e) {
+                onIndexFailure.accept(index, e);
+                continue;
+            }
             final IndexSelector indexResult = new IndexSelector(shardIts);
             if (indexResult.nodeToShards.isEmpty()) {
                 onIndexFailure.accept(index, new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy"));
@@ -168,7 +174,7 @@ final class RequestDispatcher {
         assert node != null;
         LOGGER.debug("round {} sends field caps node request to node {} for shardIds {}", executionRound, node, shardIds);
         final ActionListener<FieldCapabilitiesNodeResponse> listener = ActionListener.wrap(
-            r -> onRequestResponse(shardIds, r),
+            this::onRequestResponse,
             failure -> onRequestFailure(shardIds, failure)
         );
         final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
@@ -188,7 +194,11 @@ final class RequestDispatcher {
             nodeRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new, executor)
+            new ActionListenerResponseHandler<>(
+                ActionListener.runAfter(listener, () -> afterRequestsCompleted(shardIds.size())),
+                FieldCapabilitiesNodeResponse::new,
+                executor
+            )
         );
     }
 
@@ -201,7 +211,7 @@ final class RequestDispatcher {
         }
     }
 
-    private void onRequestResponse(List<ShardId> shardIds, FieldCapabilitiesNodeResponse nodeResponse) {
+    private void onRequestResponse(FieldCapabilitiesNodeResponse nodeResponse) {
         for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
             if (indexResponse.canMatch()) {
                 if (fieldCapsRequest.includeEmptyFields() == false) {
@@ -224,7 +234,6 @@ final class RequestDispatcher {
                 indexSelector.setFailure(e.getKey(), e.getValue());
             }
         }
-        afterRequestsCompleted(shardIds.size());
     }
 
     private void onRequestFailure(List<ShardId> shardIds, Exception e) {
@@ -234,7 +243,6 @@ final class RequestDispatcher {
                 indexSelector.setFailure(shardId, e);
             }
         }
-        afterRequestsCompleted(shardIds.size());
     }
 
     private static class IndexSelector {
@@ -253,14 +261,23 @@ final class RequestDispatcher {
         synchronized Exception getFailure() {
             Exception first = null;
             for (Exception e : failures.values()) {
-                first = ExceptionsHelper.useOrSuppress(first, e);
+                first = useOrSuppressIfDifferent(first, e);
+            }
+            return first;
+        }
+
+        static Exception useOrSuppressIfDifferent(Exception first, Exception second) {
+            if (first == null) {
+                return second;
+            } else if (ExceptionsHelper.unwrap(first) != ExceptionsHelper.unwrap(second)) {
+                first.addSuppressed(second);
             }
             return first;
         }
 
         synchronized void setFailure(ShardId shardId, Exception failure) {
             assert unmatchedShardIds.contains(shardId) == false : "Shard " + shardId + " was unmatched already";
-            failures.compute(shardId, (k, curr) -> ExceptionsHelper.useOrSuppress(curr, failure));
+            failures.compute(shardId, (k, curr) -> useOrSuppressIfDifferent(curr, failure));
         }
 
         synchronized void addUnmatchedShardId(ShardId shardId) {

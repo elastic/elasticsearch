@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -301,7 +302,8 @@ public class IndexingPressureIT extends ESIntegTestCase {
     public void testWriteCanBeRejectedAtPrimaryLevel() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
         long totalRequestSize = 0;
-        for (int i = 0; i < 80; ++i) {
+        int numberOfIndexRequests = randomIntBetween(50, 100);
+        for (int i = 0; i < numberOfIndexRequests; ++i) {
             IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
                 .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
             totalRequestSize += request.ramBytesUsed();
@@ -395,7 +397,15 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return clusterAdmin().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().values().iterator().next().getName();
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .nodes()
+            .getCoordinatingOnlyNodes()
+            .values()
+            .iterator()
+            .next()
+            .getName();
     }
 
     private Tuple<String, String> getPrimaryReplicaNodeNames() {
@@ -412,7 +422,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
             .findAny()
             .get()
             .currentNodeId();
-        DiscoveryNodes nodes = clusterAdmin().prepareState().get().getState().nodes();
+        DiscoveryNodes nodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes();
         String primaryName = nodes.get(primaryId).getName();
         String replicaName = nodes.get(replicaId).getName();
         return new Tuple<>(primaryName, replicaName);

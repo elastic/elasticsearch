@@ -13,4 +13,9 @@ public class OpenAiServiceFields {
 
     public static final String ORGANIZATION = "organization_id";
 
+    /**
+     * Taken from https://platform.openai.com/docs/api-reference/embeddings/create
+     */
+    public static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
+
 }

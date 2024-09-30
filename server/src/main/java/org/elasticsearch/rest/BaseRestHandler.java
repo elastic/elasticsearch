@@ -1,22 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -75,8 +79,27 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public abstract List<Route> routes();
 
+    private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
+
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // check if the query has any parameters that are not in the supported set (if declared)
+        Set<String> supported = allSupportedParameters();
+        if (supported != null) {
+            var allSupported = Sets.union(
+                RestResponse.RESPONSE_PARAMS,
+                ALWAYS_SUPPORTED,
+                // these internal parameters cannot be set by end-users, but are used by Elasticsearch internally.
+                // they must be accepted by all handlers
+                RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
+                supported
+            );
+            if (allSupported.containsAll(request.params().keySet()) == false) {
+                Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
+                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
+            }
+        }
+
         // prepare the request for execution; has the side effect of touching the request parameters
         try (var action = prepareRequest(request, client)) {
 
@@ -84,6 +107,7 @@ public abstract class BaseRestHandler implements RestHandler {
             // use a sorted set so the unconsumed parameters appear in a reliable sorted order
             final SortedSet<String> unconsumedParams = request.unconsumedParams()
                 .stream()
+                .filter(p -> RestResponse.RESPONSE_PARAMS.contains(p) == false)
                 .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
 
@@ -95,10 +119,26 @@ public abstract class BaseRestHandler implements RestHandler {
                 throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
             }
 
-            if (request.hasContent() && request.isContentConsumed() == false) {
+            if (request.hasContent() && (request.isContentConsumed() == false && request.isFullContent())) {
                 throw new IllegalArgumentException(
                     "request [" + request.method() + " " + request.path() + "] does not support having a body"
                 );
+            }
+
+            if (request.isStreamedContent()) {
+                assert action instanceof RequestBodyChunkConsumer;
+                var chunkConsumer = (RequestBodyChunkConsumer) action;
+                request.contentStream().setHandler(new HttpBody.ChunkHandler() {
+                    @Override
+                    public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                        chunkConsumer.handleChunk(channel, chunk, isLast);
+                    }
+
+                    @Override
+                    public void close() {
+                        chunkConsumer.streamClose();
+                    }
+                });
             }
 
             usageCount.increment();
@@ -156,6 +196,17 @@ public abstract class BaseRestHandler implements RestHandler {
          */
         @Override
         default void close() {}
+    }
+
+    public interface RequestBodyChunkConsumer extends RestChannelConsumer {
+        void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
+
+        /**
+         * Called when the stream closes. This could happen prior to the completion of the request if the underlying channel was closed.
+         * Implementors should do their best to clean up resources and early terminate request processing if it is triggered before a
+         * response is generated.
+         */
+        default void streamClose() {}
     }
 
     /**

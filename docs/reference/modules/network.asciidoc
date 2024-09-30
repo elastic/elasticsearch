@@ -5,7 +5,9 @@ Each {es} node has two different network interfaces. Clients send requests to
 {es}'s REST APIs using its <<http-settings,HTTP interface>>, but nodes
 communicate with other nodes using the <<transport-settings,transport
 interface>>. The transport interface is also used for communication with
-<<remote-clusters,remote clusters>>.
+<<remote-clusters,remote clusters>>. The transport interface uses a custom
+binary protocol sent over <<long-lived-connections,long-lived>> TCP channels.
+Both interfaces can be configured to use <<secure-cluster,TLS for security>>.
 
 You can configure both of these interfaces at the same time using the
 `network.*` settings. If you have a more complicated network, you might need to
@@ -67,7 +69,6 @@ Defaults to `9300-9400`.
 [[remote_cluster.port]]
 `remote_cluster.port`::
 (<<static-cluster-setting,Static>>, integer)
-beta:[]
 The port to bind for remote cluster client communication. Accepts a single value.
 +
 Defaults to `9443`.
@@ -153,6 +154,8 @@ The only requirements are that each node must be:
 * Accessible at its transport publish address by all other nodes in its
   cluster, and by any remote clusters that will discover it using
   <<sniff-mode>>.
+
+Each node must have its own distinct publish address.
 
 If you specify the transport publish address using a hostname then {es} will
 resolve this hostname to an IP address once during startup, and other nodes

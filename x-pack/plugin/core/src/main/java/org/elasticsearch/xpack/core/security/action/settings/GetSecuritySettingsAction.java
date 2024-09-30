@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.settings;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -14,6 +15,8 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -23,23 +26,39 @@ import static org.elasticsearch.xpack.core.security.action.settings.UpdateSecuri
 import static org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction.PROFILES_INDEX_NAME;
 import static org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction.TOKENS_INDEX_NAME;
 
-public class GetSecuritySettingsAction extends ActionType<GetSecuritySettingsAction.Response> {
+public class GetSecuritySettingsAction {
 
-    public static final GetSecuritySettingsAction INSTANCE = new GetSecuritySettingsAction();
-    public static final String NAME = "cluster:admin/xpack/security/settings/get";
+    public static final ActionType<GetSecuritySettingsAction.Response> INSTANCE = new ActionType<>(
+        "cluster:admin/xpack/security/settings/get"
+    );
 
-    public GetSecuritySettingsAction() {
-        super(NAME);
-    }
+    private GetSecuritySettingsAction() {/* no instances */}
 
     public static class Request extends MasterNodeReadRequest<GetSecuritySettingsAction.Request> {
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
-        public Request(StreamInput in) throws IOException {}
+        @UpdateForV9 // no need for bwc any more, this can be inlined
+        public static Request readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SECURITY_SETTINGS_REQUEST_TIMEOUTS)) {
+                return new Request(in);
+            } else {
+                return new Request(TimeValue.THIRTY_SECONDS);
+            }
+        }
+
+        private Request(StreamInput in) throws IOException {
+            super(in);
+        }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SECURITY_SETTINGS_REQUEST_TIMEOUTS)) {
+                super.writeTo(out);
+            }
+        }
 
         @Override
         public ActionRequestValidationException validate() {

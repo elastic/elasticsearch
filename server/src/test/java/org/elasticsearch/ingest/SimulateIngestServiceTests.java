@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -63,7 +65,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
         ingestService.innerUpdatePipelines(ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(null, null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
             assertThat(pipeline.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
@@ -81,7 +83,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
             );
             pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
 
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
             assertThat(
@@ -101,7 +103,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
              */
             Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>();
             pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
             assertThat(pipeline1.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
@@ -115,11 +117,23 @@ public class SimulateIngestServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        return new IngestService(mock(ClusterService.class), threadPool, null, null, null, List.of(new IngestPlugin() {
+        var ingestPlugin = new IngestPlugin() {
             @Override
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client, null, DocumentParsingProvider.EMPTY_INSTANCE);
+        };
+        return new IngestService(
+            mock(ClusterService.class),
+            threadPool,
+            null,
+            null,
+            null,
+            List.of(ingestPlugin),
+            client,
+            null,
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
+        );
     }
 }

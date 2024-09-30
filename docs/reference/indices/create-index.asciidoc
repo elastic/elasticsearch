@@ -60,9 +60,9 @@ Index names must meet the following criteria:
 [[indices-create-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[indices-create-api-request-body]]
@@ -113,9 +113,9 @@ specified, this overwrites the `routing` value for search operations.
 // end::aliases-props[]
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 [[indices-create-api-example]]
 ==== {api-examples-title}

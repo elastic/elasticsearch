@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -37,7 +36,7 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
                 randomAlphaOfLength(4),
                 randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate(),
                 Arrays.asList(generateRandomStringArray(4, 7, false)),
-                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+                randomBoolean() ? null : randomTimeValue()
             );
         } else {
             List<Map<String, Object>> docs = randomList(
@@ -49,7 +48,7 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
                 randomAlphaOfLength(4),
                 randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate(),
                 docs,
-                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+                randomBoolean() ? null : randomTimeValue()
             );
         }
         request.setHighPriority(randomBoolean());

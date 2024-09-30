@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -23,7 +21,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -109,21 +107,17 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testTimerThreadWarningLogging() throws Exception {
-        final Logger threadPoolLogger = LogManager.getLogger(ThreadPool.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        try {
-            Loggers.addAppender(threadPoolLogger, appender);
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ThreadPool.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
                     "timer thread slept for [*] on absolute clock which is above the warn threshold of [100ms]"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -134,30 +128,22 @@ public class ThreadPoolTests extends ESTestCase {
             final ThreadPool.CachedTimeThread thread = new ThreadPool.CachedTimeThread("[timer]", 200, 100);
             thread.start();
 
-            assertBusy(appender::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             thread.interrupt();
             thread.join();
-        } finally {
-            Loggers.removeAppender(threadPoolLogger, appender);
-            appender.stop();
         }
     }
 
     public void testTimeChangeChecker() throws Exception {
-        final Logger threadPoolLogger = LogManager.getLogger(ThreadPool.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        try {
-            Loggers.addAppender(threadPoolLogger, appender);
-
+        try (var mockLog = MockLog.capture(ThreadPool.class)) {
             long absoluteMillis = randomLong(); // overflow should still be handled correctly
             long relativeNanos = randomLong(); // overflow should still be handled correctly
 
             final ThreadPool.TimeChangeChecker timeChangeChecker = new ThreadPool.TimeChangeChecker(100, absoluteMillis, relativeNanos);
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -167,10 +153,10 @@ public class ThreadPoolTests extends ESTestCase {
 
             absoluteMillis += TimeValue.timeValueSeconds(2).millis();
             timeChangeChecker.check(absoluteMillis, relativeNanos);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -180,10 +166,10 @@ public class ThreadPoolTests extends ESTestCase {
 
             relativeNanos += TimeValue.timeValueSeconds(3).nanos();
             timeChangeChecker.check(absoluteMillis, relativeNanos);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -193,10 +179,10 @@ public class ThreadPoolTests extends ESTestCase {
 
             absoluteMillis -= 1;
             timeChangeChecker.check(absoluteMillis, relativeNanos);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.ERROR,
@@ -210,11 +196,8 @@ public class ThreadPoolTests extends ESTestCase {
             } catch (AssertionError e) {
                 // yeah really shouldn't happen but at least we should log the right warning
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-        } finally {
-            Loggers.removeAppender(threadPoolLogger, appender);
-            appender.stop();
         }
     }
 
@@ -288,13 +271,9 @@ public class ThreadPoolTests extends ESTestCase {
             "test",
             Settings.builder().put(ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.getKey(), "10ms").build()
         );
-        final Logger logger = LogManager.getLogger(ThreadPool.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        try {
-            Loggers.addAppender(logger, appender);
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ThreadPool.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for slow task",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -318,10 +297,8 @@ public class ThreadPoolTests extends ESTestCase {
                 }
             };
             threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            assertBusy(appender::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             assertTrue(terminate(threadPool));
         }
     }

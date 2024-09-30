@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -32,7 +33,7 @@ import java.util.Objects;
 public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> {
     private static final Logger LOGGER = LogManager.getLogger(BatchedDocumentsIterator.class);
 
-    private static final String CONTEXT_ALIVE_DURATION = "5m";
+    private static final TimeValue CONTEXT_ALIVE_DURATION = TimeValue.timeValueMinutes(5);
     private static final int BATCH_SIZE = 10000;
 
     private final OriginSettingClient client;

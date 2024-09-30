@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
@@ -33,11 +34,8 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> client.execute(
-            WatcherServiceAction.INSTANCE,
-            new WatcherServiceRequest().start(),
-            new RestToXContentListener<>(channel)
-        );
+        final var req = new WatcherServiceRequest(RestUtils.getMasterNodeTimeout(request)).start();
+        return channel -> client.execute(WatcherServiceAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 
     public static class StopRestHandler extends BaseRestHandler {
@@ -54,8 +52,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-            final WatcherServiceRequest request = new WatcherServiceRequest().stop();
-            request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+            final var request = new WatcherServiceRequest(RestUtils.getMasterNodeTimeout(restRequest)).stop();
             return channel -> client.execute(WatcherServiceAction.INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }

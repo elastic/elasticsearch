@@ -29,6 +29,7 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
         private String[] jobIds;
 
         public Request(String[] jobIds) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobIds = jobIds;
         }
 

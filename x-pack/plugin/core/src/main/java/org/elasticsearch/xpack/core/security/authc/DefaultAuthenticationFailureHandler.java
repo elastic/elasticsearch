@@ -43,7 +43,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         if (failureResponseHeaders == null || failureResponseHeaders.isEmpty()) {
             this.defaultFailureResponseHeaders = Collections.singletonMap(
                 "WWW-Authenticate",
-                Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"")
+                Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"")
             );
         } else {
             this.defaultFailureResponseHeaders = Collections.unmodifiableMap(

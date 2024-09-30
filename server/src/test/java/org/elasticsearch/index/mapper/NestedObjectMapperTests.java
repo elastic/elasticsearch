@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -12,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
@@ -28,6 +30,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -1500,23 +1503,22 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeNested() {
-        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current()).includeInParent(true)
-            .includeInRoot(true)
-            .build(MapperBuilderContext.root(false, false));
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current()).includeInParent(false)
-            .includeInRoot(true)
-            .build(MapperBuilderContext.root(false, false));
+        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }, null).includeInParent(true).includeInRoot(true).build(MapperBuilderContext.root(false, false));
+        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }, null).includeInParent(false).includeInRoot(true).build(MapperBuilderContext.root(false, false));
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstMapper.merge(secondMapper, MapperMergeContext.root(false, false, Long.MAX_VALUE))
+            () -> firstMapper.merge(secondMapper, MapperMergeContext.root(false, false, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE))
         );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
         NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
             secondMapper,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperMergeContext.root(false, false, Long.MAX_VALUE)
+            MapperMergeContext.root(false, false, MapperService.MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE)
         );
         assertFalse(result.isIncludeInParent());
         assertTrue(result.isIncludeInRoot());
@@ -1532,6 +1534,299 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         assertThat(object.withoutMappers().toString(), equalTo(shallowObject.toString()));
+    }
+
+    public void testNestedMapperFilters() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("field1").field("type", "text").endObject();
+                    b.startObject("sub_nested");
+                    {
+                        b.field("type", "nested");
+                        b.startObject("properties");
+                        {
+                            b.startObject("field2").field("type", "text").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        assertThat(docMapper.mappers().nestedLookup().getNestedMappers().size(), equalTo(2));
+        assertThat(docMapper.mappers().nestedLookup().getNestedMappers().get("nested1"), instanceOf(NestedObjectMapper.class));
+        NestedObjectMapper mapper1 = docMapper.mappers().nestedLookup().getNestedMappers().get("nested1");
+        assertThat(mapper1.parentTypeFilter(), equalTo(Queries.newNonNestedFilter(IndexVersion.current())));
+
+        NestedObjectMapper mapper2 = docMapper.mappers().nestedLookup().getNestedMappers().get("nested1.sub_nested");
+        assertThat(mapper2.parentTypeFilter(), equalTo(mapper1.nestedTypeFilter()));
+    }
+
+    public void testStoreArraySourceinSyntheticSourceMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("o").field("type", "nested").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+        }));
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
+    }
+
+    public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("o").field("type", "nested").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+        }));
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
+    }
+
+    public void testSyntheticNestedWithObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                    b.startObject("bar").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"bar":"B","foo":"A"}}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                    b.startObject("bar").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().field("foo", "A").field("bar", "B").endObject();
+                b.startObject().field("foo", "C").field("bar", "D").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"bar":"B","foo":"A"},{"bar":"D","foo":"C"}]}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithSubObjects() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("boolean_value").field("type", "boolean").endObject();
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                    b.startObject("to").field("type", "nested");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("foo").field("type", "keyword").endObject();
+                            b.startObject("bar").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        int intValue = randomInt();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("boolean_value", booleanValue);
+            b.startObject("path");
+            {
+                b.field("int_value", intValue);
+                b.startObject("to").field("foo", "A").field("bar", "B").endObject();
+            }
+            b.endObject();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"boolean_value":%s,"path":{"int_value":%s,"to":{"bar":"B","foo":"A"}}}""", booleanValue, intValue), syntheticSource);
+    }
+
+    public void testSyntheticNestedWithSubArrays() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("boolean_value").field("type", "boolean").endObject();
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                    b.startObject("to").field("type", "nested");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("foo").field("type", "keyword").endObject();
+                            b.startObject("bar").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        int intValue = randomInt();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("boolean_value", booleanValue);
+            b.startObject("path");
+            {
+                b.field("int_value", intValue);
+                b.startArray("to");
+                {
+                    b.startObject().field("foo", "A").field("bar", "B").endObject();
+                    b.startObject().field("foo", "C").field("bar", "D").endObject();
+                }
+                b.endArray();
+            }
+            b.endObject();
+        });
+        assertEquals(
+            String.format(Locale.ROOT, """
+                {"boolean_value":%s,"path":{"int_value":%s,"to":[{"bar":"B","foo":"A"},{"bar":"D","foo":"C"}]}}""", booleanValue, intValue),
+            syntheticSource
+        );
+    }
+
+    public void testSyntheticNestedWithIncludeInRoot() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested").field("include_in_root", true);
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                    b.startObject("bar").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"bar":"B","foo":"A"}}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithEmptyObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> { b.startObject("path").nullField("foo").endObject(); });
+        assertEquals("""
+            {"path":{}}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithEmptySubObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("to").startObject("properties");
+                    {
+                        b.startObject("foo").field("type", "keyword").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startObject("to").nullField("foo").endObject();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{}}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithArrayContainingEmptyObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().field("foo", "A").endObject();
+                b.startObject().nullField("foo").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"foo":"A"},{}]}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithArrayContainingOnlyEmptyObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().nullField("foo").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{}}""", syntheticSource);
     }
 
     private NestedObjectMapper createNestedObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
@@ -1551,5 +1846,92 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
         return (NestedObjectMapper) mapper.mapping().getRoot().getMapper("nested_object");
+    }
+
+    public void testNestedMapperBuilderContextConstructor() {
+        boolean isSourceSynthetic = randomBoolean();
+        boolean isDataStream = randomBoolean();
+        boolean parentContainsDimensions = randomBoolean();
+        MergeReason mergeReason = randomFrom(MergeReason.values());
+        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
+        mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
+        builder.add(new Mapper.Builder("name") {
+            @Override
+            public Mapper build(MapperBuilderContext context) {
+                assertEquals(isSourceSynthetic, context.isSourceSynthetic());
+                assertEquals(isDataStream, context.isDataStream());
+                assertEquals(parentContainsDimensions, context.parentObjectContainsDimensions());
+                return new MockFieldMapper("name");
+            }
+        });
+        NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
+        assertNotNull(nestedObjectMapper.getMapper("name"));
+    }
+
+    public void testNestedMapperMergeContextRootConstructor() {
+        boolean isSourceSynthetic = randomBoolean();
+        boolean isDataStream = randomBoolean();
+        boolean parentContainsDimensions = randomBoolean();
+        MergeReason mergeReason = randomFrom(MergeReason.values());
+        {
+            MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false, mergeReason);
+            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
+            NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
+            MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
+            MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
+            MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
+            assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
+            assertEquals(isDataStream, nestedBuilderContext.isDataStream());
+        }
+        {
+            MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
+            MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
+            MapperBuilderContext childMapperBuilderContext = mapperBuilderContext.createChildContext(
+                "name",
+                parentContainsDimensions,
+                randomFrom(Dynamic.values())
+            );
+            MapperMergeContext childMergeContext = mapperMergeContext.createChildContext(childMapperBuilderContext);
+            MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
+            assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
+            assertEquals(isDataStream, nestedBuilderContext.isDataStream());
+            assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
+        }
+    }
+
+    public void testNestedMapperMergeContextFromConstructor() {
+        boolean isSourceSynthetic = randomBoolean();
+        boolean isDataStream = randomBoolean();
+        boolean parentContainsDimensions = randomBoolean();
+        MergeReason mergeReason = randomFrom(MergeReason.values());
+        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
+        mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
+        NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
+
+        MapperMergeContext mapperMergeContext = MapperMergeContext.from(mapperBuilderContext, randomLong());
+        MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
+        MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
+        assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
+        assertEquals(isDataStream, nestedBuilderContext.isDataStream());
+        assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
+    }
+
+    public void testIsInNestedContext() {
+        NestedObjectMapper.NestedMapperBuilderContext context = new NestedObjectMapper.NestedMapperBuilderContext(
+            "nested_path",
+            false,
+            false,
+            false,
+            null,
+            false,
+            Dynamic.FALSE,
+            MergeReason.INDEX_TEMPLATE
+        );
+        assertTrue(context.isInNestedContext());
+
+        MapperBuilderContext childContext = context.createChildContext("child", false, Dynamic.FALSE);
+        assertTrue(childContext.isInNestedContext());
     }
 }

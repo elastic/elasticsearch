@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -36,11 +36,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
-    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestSearchTemplateAction(NamedWriteableRegistry namedWriteableRegistry, Predicate<NodeFeature> clusterSupportsFeature) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
+    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature) {
         this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
@@ -73,7 +71,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchRequest,
             request,
             null,
-            namedWriteableRegistry,
             clusterSupportsFeature,
             size -> searchRequest.source().size(size)
         );

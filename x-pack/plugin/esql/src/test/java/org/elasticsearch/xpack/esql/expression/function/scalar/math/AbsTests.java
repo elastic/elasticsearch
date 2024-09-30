@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -28,43 +27,43 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER), () -> {
             int arg = randomInt();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.INTEGER, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.INTEGER, "arg")),
                 "AbsIntEvaluator[fieldVal=Attribute[channel=0]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 equalTo(Math.abs(arg))
             );
         }));
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "Attribute[channel=0]",
-            DataTypes.UNSIGNED_LONG,
+            DataType.UNSIGNED_LONG,
             (n) -> n,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.LONG), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG), () -> {
             long arg = randomLong();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.LONG, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.LONG, "arg")),
                 "AbsLongEvaluator[fieldVal=Attribute[channel=0]]",
-                DataTypes.LONG,
+                DataType.LONG,
                 equalTo(Math.abs(arg))
             );
         }));
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.DOUBLE), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE), () -> {
             double arg = randomDouble();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.DOUBLE, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.DOUBLE, "arg")),
                 "AbsDoubleEvaluator[fieldVal=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(Math.abs(arg))
             );
         }));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "numeric");
     }
 
     public AbsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -74,15 +73,5 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Abs(source, args.get(0));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
     }
 }

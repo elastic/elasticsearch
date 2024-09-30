@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.Objects;
 
@@ -22,7 +24,11 @@ public class MapperBuilderContext {
      * The root context, to be used when building a tree of mappers
      */
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC);
+        return root(isSourceSynthetic, isDataStream, MergeReason.MAPPING_UPDATE);
+    }
+
+    public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason, false);
     }
 
     private final String path;
@@ -30,17 +36,17 @@ public class MapperBuilderContext {
     private final boolean isDataStream;
     private final boolean parentObjectContainsDimensions;
     private final ObjectMapper.Dynamic dynamic;
-
-    MapperBuilderContext(String path) {
-        this(path, false, false, false, ObjectMapper.Defaults.DYNAMIC);
-    }
+    private final MergeReason mergeReason;
+    private final boolean inNestedContext;
 
     MapperBuilderContext(
         String path,
         boolean isSourceSynthetic,
         boolean isDataStream,
         boolean parentObjectContainsDimensions,
-        ObjectMapper.Dynamic dynamic
+        ObjectMapper.Dynamic dynamic,
+        MergeReason mergeReason,
+        boolean inNestedContext
     ) {
         Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
@@ -48,6 +54,8 @@ public class MapperBuilderContext {
         this.isDataStream = isDataStream;
         this.parentObjectContainsDimensions = parentObjectContainsDimensions;
         this.dynamic = dynamic;
+        this.mergeReason = mergeReason;
+        this.inNestedContext = inNestedContext;
     }
 
     /**
@@ -79,7 +87,9 @@ public class MapperBuilderContext {
             this.isSourceSynthetic,
             this.isDataStream,
             parentObjectContainsDimensions,
-            getDynamic(dynamic)
+            getDynamic(dynamic),
+            this.mergeReason,
+            isInNestedContext()
         );
     }
 
@@ -120,5 +130,20 @@ public class MapperBuilderContext {
 
     public ObjectMapper.Dynamic getDynamic() {
         return dynamic;
+    }
+
+    /**
+     * The merge reason to use when merging mappers while building the mapper.
+     * See also {@link ObjectMapper.Builder#buildMappers(MapperBuilderContext)}.
+     */
+    public MergeReason getMergeReason() {
+        return mergeReason;
+    }
+
+    /**
+     * Returns true if this context is included in a nested context, either directly or any of its ancestors.
+     */
+    public boolean isInNestedContext() {
+        return inNestedContext;
     }
 }

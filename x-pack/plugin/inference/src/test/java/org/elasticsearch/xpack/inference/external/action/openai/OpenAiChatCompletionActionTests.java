@@ -23,14 +23,16 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.OpenAiCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -42,11 +44,15 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -79,7 +85,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -113,11 +119,11 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("result content"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result content"))));
             assertThat(webServer.requests(), hasSize(1));
 
             MockRequest request = webServer.requests().get(0);
@@ -142,18 +148,18 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> createAction("^^", "org", "secret", "model", "user", sender)
             );
-            assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
+            assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
         }
     }
 
     public void testExecute_ThrowsElasticsearchException() {
         var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any());
+        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -165,16 +171,16 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[1];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
-        }).when(sender).send(any(), any(), any());
+        }).when(sender).send(any(), any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -186,16 +192,16 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[1];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
-        }).when(sender).send(any(), any(), any());
+        }).when(sender).send(any(), any(), any(), any());
 
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -204,12 +210,12 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any());
+        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -218,12 +224,12 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
     public void testExecute_ThrowsExceptionWithNullUrl() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any());
+        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
 
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -233,7 +239,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -267,32 +273,19 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc", "def")), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc", "def")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), CoreMatchers.is("OpenAI completions only accepts 1 input"));
-            assertThat(thrownException.status(), CoreMatchers.is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.getMessage(), is("OpenAI chat completions only accepts 1 input"));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
         }
     }
 
-    public static Map<String, Object> buildExpectedChatCompletionResultMap(List<String> results) {
-        return Map.of(
-            ChatCompletionResults.COMPLETION,
-            results.stream().map(result -> Map.of(ChatCompletionResults.Result.RESULT, result)).toList()
-        );
-    }
-
-    private OpenAiChatCompletionAction createAction(
-        String url,
-        String org,
-        String apiKey,
-        String modelName,
-        @Nullable String user,
-        Sender sender
-    ) {
+    private ExecutableAction createAction(String url, String org, String apiKey, String modelName, @Nullable String user, Sender sender) {
         var model = createChatCompletionModel(url, org, apiKey, modelName, user);
-
-        return new OpenAiChatCompletionAction(sender, model, createWithEmptySettings(threadPool));
+        var requestCreator = OpenAiCompletionRequestManager.of(model, threadPool);
+        var errorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "OpenAI chat completions");
+        return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, "OpenAI chat completions");
     }
 }

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse.AliasActionResult;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -156,11 +159,11 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         // Show that removing non-existing alias with mustExist == true fails
         final ClusterState finalCS = after;
-        final ResourceNotFoundException iae = expectThrows(
-            ResourceNotFoundException.class,
+        final AliasesNotFoundException iae = expectThrows(
+            AliasesNotFoundException.class,
             () -> service.applyAliasActions(finalCS, singletonList(new AliasAction.Remove(index, "test_2", true)))
         );
-        assertThat(iae.getMessage(), containsString("required alias [test_2] does not exist"));
+        assertThat(iae.getMessage(), containsString("aliases [test_2] missing"));
     }
 
     public void testMultipleIndices() {
@@ -690,10 +693,16 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         String index = randomAlphaOfLength(5);
         ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
         IndicesAliasesClusterStateUpdateRequest addAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
-            List.of(new AliasAction.Add(index, "test", null, null, null, null, null))
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            List.of(new AliasAction.Add(index, "test", null, null, null, null, null)),
+            List.of(AliasActionResult.buildSuccess(List.of(index), AliasActions.add().aliases("test").indices(index)))
         );
         IndicesAliasesClusterStateUpdateRequest removeAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
-            List.of(new AliasAction.Remove(index, "test", true))
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            List.of(new AliasAction.Remove(index, "test", true)),
+            List.of(AliasActionResult.buildSuccess(List.of(index), AliasActions.remove().aliases("test").indices(index)))
         );
 
         ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(

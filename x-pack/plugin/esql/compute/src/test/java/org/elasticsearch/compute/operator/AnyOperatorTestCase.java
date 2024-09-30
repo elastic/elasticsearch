@@ -10,8 +10,8 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.hamcrest.Matcher;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
 /**
@@ -27,14 +27,14 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * The description of the operator produced by {@link #simple}.
      */
-    protected abstract String expectedDescriptionOfSimple();
+    protected abstract Matcher<String> expectedDescriptionOfSimple();
 
     /**
      * The {@link #toString} of the operator produced by {@link #simple}.
      * This {@linkplain #toString} is used by the status reporting and
      * generally useful debug information.
      */
-    protected abstract String expectedToStringOfSimple();
+    protected abstract Matcher<String> expectedToStringOfSimple();
 
     /**
      * the description of an Operator should be "OperatorName(additional info)"
@@ -55,7 +55,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     public final void testSimpleDescription() {
         Operator.OperatorFactory factory = simple();
         String description = factory.describe();
-        assertThat(description, equalTo(expectedDescriptionOfSimple()));
+        assertThat(description, expectedDescriptionOfSimple());
         try (Operator op = factory.get(driverContext())) {
             if (op instanceof GroupingAggregatorFunction) {
                 assertThat(description, matchesPattern(GROUPING_AGG_FUNCTION_DESCRIBE_PATTERN));
@@ -70,7 +70,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
      */
     public final void testSimpleToString() {
         try (Operator operator = simple().get(driverContext())) {
-            assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
+            assertThat(operator.toString(), expectedToStringOfSimple());
         }
     }
 

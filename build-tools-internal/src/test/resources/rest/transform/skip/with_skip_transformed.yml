@@ -1,8 +1,7 @@
 ---
 setup:
   - skip:
-      version: "all"
-      reason:  "my reason"
+      awaits_fix:  "my reason"
 ---
 "Test with setup and skip but no feature":
   - do:

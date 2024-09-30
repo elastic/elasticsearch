@@ -10,51 +10,53 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
-import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternContext;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
-import org.elasticsearch.xpack.ql.parser.ParserUtils;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,20 +70,49 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
+/**
+ * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
+ * which change the grammar will need to make changes here as well.
+ *
+ */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    public LogicalPlanBuilder(Map<Token, TypedParamValue> params) {
+    private int queryDepth = 0;
+
+    /**
+     * Maximum number of commands allowed per query
+     */
+    public static final int MAX_QUERY_DEPTH = 500;
+
+    public LogicalPlanBuilder(QueryParams params) {
         super(params);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {
-        return ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        var errors = this.params.parsingErrors();
+        if (errors.hasNext() == false) {
+            return p;
+        } else {
+            StringBuilder message = new StringBuilder();
+            int i = 0;
+
+            while (errors.hasNext()) {
+                if (i > 0) {
+                    message.append("; ");
+                }
+                message.append(errors.next().getMessage());
+                i++;
+            }
+            throw new ParsingException(message.toString());
+        }
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
@@ -95,9 +126,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx) {
-        LogicalPlan input = plan(ctx.query());
-        PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
-        return makePlan.apply(input);
+        queryDepth++;
+        if (queryDepth > MAX_QUERY_DEPTH) {
+            throw new ParsingException(
+                "ESQL statement exceeded the maximum query depth allowed ({}): [{}]",
+                MAX_QUERY_DEPTH,
+                ctx.getText()
+            );
+        }
+        try {
+            LogicalPlan input = plan(ctx.query());
+            PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
+            return makePlan.apply(input);
+        } finally {
+            queryDepth--;
+        }
     }
 
     @Override
@@ -108,10 +151,33 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
+            Source source = source(ctx);
             String pattern = visitString(ctx.string()).fold().toString();
-            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), Grok.pattern(source(ctx), pattern));
+            Grok.Parser grokParser;
+            try {
+                grokParser = Grok.pattern(source, pattern);
+            } catch (SyntaxException e) {
+                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", pattern, e.getMessage());
+            }
+            validateGrokPattern(source, grokParser, pattern);
+            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
         };
+    }
+
+    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern) {
+        Map<String, DataType> definedAttributes = new HashMap<>();
+        for (Attribute field : grokParser.extractedFields()) {
+            String name = field.name();
+            DataType type = field.dataType();
+            DataType prev = definedAttributes.put(name, type);
+            if (prev != null) {
+                throw new ParsingException(
+                    source,
+                    "Invalid GROK pattern [" + pattern + "]: the attribute [" + name + "] is defined multiple times with different types"
+                );
+            }
+        }
     }
 
     @Override
@@ -137,21 +203,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             try {
                 DissectParser parser = new DissectParser(pattern, appendSeparator);
+
                 Set<String> referenceKeys = parser.referenceKeys();
-                if (referenceKeys.size() > 0) {
+                if (referenceKeys.isEmpty() == false) {
                     throw new ParsingException(
                         src,
                         "Reference keys not supported in dissect patterns: [%{*{}}]",
                         referenceKeys.iterator().next()
                     );
                 }
-                List<Attribute> keys = new ArrayList<>();
-                for (var x : parser.outputKeys()) {
-                    if (x.isEmpty() == false) {
-                        keys.add(new ReferenceAttribute(src, x, DataTypes.KEYWORD));
-                    }
-                }
-                return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
+
+                Dissect.Parser esqlDissectParser = new Dissect.Parser(pattern, appendSeparator, parser);
+                List<Attribute> keys = esqlDissectParser.keyAttributes(src);
+
+                return new Dissect(src, p, expression(ctx.primaryExpression()), esqlDissectParser, keys);
             } catch (DissectException e) {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }
@@ -179,14 +244,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), visitFields(ctx.fields()));
+        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitFromIdentifiers(ctx.fromIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
@@ -203,8 +269,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 metadataOptionContext = ctx.metadata().metadataOption();
 
             }
-            for (var c : metadataOptionContext.fromIdentifier()) {
-                String id = visitFromIdentifier(c);
+            for (var c : metadataOptionContext.UNQUOTED_SOURCE()) {
+                String id = c.getText();
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");
@@ -215,29 +281,32 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        EsSourceOptions esSourceOptions = new EsSourceOptions();
-        if (ctx.fromOptions() != null) {
-            for (var o : ctx.fromOptions().configOption()) {
-                var nameContext = o.string().get(0);
-                String name = visitString(nameContext).fold().toString();
-                String value = visitString(o.string().get(1)).fold().toString();
-                try {
-                    esSourceOptions.addOption(name, value);
-                } catch (IllegalArgumentException iae) {
-                    var cause = iae.getCause() != null ? ". " + iae.getCause().getMessage() : "";
-                    throw new ParsingException(iae, source(nameContext), "invalid options provided: " + iae.getMessage() + cause);
-                }
-            }
-        }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), esSourceOptions);
+        return new UnresolvedRelation(
+            source,
+            table,
+            false,
+            List.of(metadataMap.values().toArray(Attribute[]::new)),
+            IndexMode.STANDARD,
+            null,
+            "FROM"
+        );
     }
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
+        final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        return input -> new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
+    }
+
+    private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+
+    }
+
+    private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.FieldsContext aggregatesCtx) {
+        List<NamedExpression> groupings = visitGrouping(groupingsCtx);
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(aggregatesCtx));
         if (aggregates.isEmpty() && groupings.isEmpty()) {
-            throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
+            throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
         }
         // grouping keys are automatically added as aggregations however the user is not allowed to specify them
         if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
@@ -260,8 +329,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (Expression group : groupings) {
             aggregates.add(Expressions.attribute(group));
         }
-
-        return input -> new EsqlAggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
+        return new Stats(new ArrayList<>(groupings), aggregates);
     }
 
     private void fail(Expression exp, String message, Object... args) {
@@ -270,6 +338,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
+        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG.isEnabled()) {
+            throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
+        }
         List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
@@ -286,7 +357,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
+        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input);
     }
 
     @Override
@@ -303,17 +374,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitDropCommand(EsqlBaseParser.DropCommandContext ctx) {
-        var identifiers = ctx.qualifiedNamePattern();
-        List<NamedExpression> removals = new ArrayList<>(identifiers.size());
-
-        for (QualifiedNamePatternContext patternContext : identifiers) {
-            NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        List<NamedExpression> removals = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
             if (ne instanceof UnresolvedStar) {
                 var src = ne.source();
                 throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
             }
-            removals.add(ne);
-        }
+        });
 
         return child -> new Drop(source(ctx), child, removals);
     }
@@ -326,21 +392,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitKeepCommand(EsqlBaseParser.KeepCommandContext ctx) {
-        var identifiers = ctx.qualifiedNamePattern();
-        List<NamedExpression> projections = new ArrayList<>(identifiers.size());
-        boolean hasSeenStar = false;
-        for (QualifiedNamePatternContext patternContext : identifiers) {
-            NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        final Holder<Boolean> hasSeenStar = new Holder<>(false);
+        List<NamedExpression> projections = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
             if (ne instanceof UnresolvedStar) {
-                if (hasSeenStar) {
+                if (hasSeenStar.get()) {
                     var src = ne.source();
                     throw new ParsingException(src, "Cannot specify [*] more than once", src.text());
                 } else {
-                    hasSeenStar = true;
+                    hasSeenStar.set(Boolean.TRUE);
                 }
             }
-            projections.add(ne);
-        }
+        });
+
         return child -> new Keep(source(ctx), child, projections);
     }
 
@@ -364,7 +427,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField instanceof UnresolvedNamePattern up) {
-                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
+                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
@@ -372,7 +435,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyNameString, DataTypes.KEYWORD),
+                new Literal(source(ctx.policyName), policyNameString, DataType.KEYWORD),
                 matchField,
                 null,
                 Map.of(),
@@ -406,6 +469,55 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         String policyName = index < 0 ? stringValue : stringValue.substring(index + 1);
         return new Tuple<>(mode, policyName);
+    }
+
+    @Override
+    public LogicalPlan visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
+        }
+        Source source = source(ctx);
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+
+        if (ctx.aggregates == null && ctx.grouping == null) {
+            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
+        }
+        final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
+        var relation = new UnresolvedRelation(
+            source,
+            table,
+            false,
+            List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
+            IndexMode.TIME_SERIES,
+            null,
+            "FROM TS"
+        );
+        return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
+    }
+
+    @Override
+    public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
+        if (false == Build.current().isSnapshot()) {
+            throw new ParsingException(source(ctx), "LOOKUP is in preview and only available in SNAPSHOT build");
+        }
+        var source = source(ctx);
+
+        @SuppressWarnings("unchecked")
+        List<Attribute> matchFields = (List<Attribute>) (List) visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
+                var src = ne.source();
+                throw new ParsingException(src, "Using wildcards [*] in LOOKUP ON is not allowed yet [{}]", src.text());
+            }
+            if ((ne instanceof UnresolvedAttribute) == false) {
+                throw new IllegalStateException(
+                    "visitQualifiedNamePatterns can only return UnresolvedNamePattern, UnresolvedStar or UnresolvedAttribute"
+                );
+            }
+        });
+
+        Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), DataType.KEYWORD);
+
+        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

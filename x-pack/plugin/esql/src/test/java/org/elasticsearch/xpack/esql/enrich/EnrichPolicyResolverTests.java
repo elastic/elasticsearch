@@ -11,10 +11,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -37,8 +40,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
 import org.junit.Before;
 
@@ -416,7 +418,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             super(
                 mockClusterService(policies),
                 transports.get(cluster),
-                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings), cluster, EsqlDataTypeRegistry.INSTANCE, Set::of)
+                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings))
             );
             this.policies = policies;
             this.cluster = cluster;
@@ -483,30 +485,19 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             String alias = aliases.get(r.indices()[0]);
             assertNotNull(alias);
             Map<String, String> mapping = mappings.get(alias);
+            final FieldCapabilitiesResponse response;
             if (mapping != null) {
-                Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+                Map<String, IndexFieldCapabilities> fieldCaps = new HashMap<>();
                 for (Map.Entry<String, String> e : mapping.entrySet()) {
-                    var f = new FieldCapabilities(
-                        e.getKey(),
-                        e.getValue(),
-                        false,
-                        false,
-                        false,
-                        true,
-                        null,
-                        new String[] { alias },
-                        null,
-                        null,
-                        null,
-                        null,
-                        Map.of()
-                    );
-                    fieldCaps.put(e.getKey(), Map.of(e.getValue(), f));
+                    var f = new IndexFieldCapabilities(e.getKey(), e.getValue(), false, false, false, false, null, Map.of());
+                    fieldCaps.put(e.getKey(), f);
                 }
-                listener.onResponse((Response) new FieldCapabilitiesResponse(new String[] { alias }, fieldCaps));
+                var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD);
+                response = new FieldCapabilitiesResponse(List.of(indexResponse), List.of());
             } else {
-                listener.onResponse((Response) new FieldCapabilitiesResponse(new String[0], Map.of()));
+                response = new FieldCapabilitiesResponse(List.of(), List.of());
             }
+            threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION).execute(ActionRunnable.supply(listener, () -> (Response) response));
         }
     }
 }

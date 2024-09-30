@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -76,6 +78,10 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
         createIndex("test", Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true).build());
         ensureGreen("test");
 
+        assert request.getOptions().containsHeader(Task.X_OPAQUE_ID_HTTP_HEADER) == false;
+        final var opaqueId = getTestClass().getSimpleName() + "-" + getTestName() + "-" + randomUUID();
+        request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId));
+
         final List<Semaphore> searcherBlocks = new ArrayList<>();
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             for (final IndexService indexService : indicesService) {
@@ -96,7 +102,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             }
 
             final PlainActionFuture<Response> future = new PlainActionFuture<>();
-            logger.info("--> sending request");
+            logger.info("--> sending request, opaque id={}", opaqueId);
+
             final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
             awaitTaskWithPrefix(actionPrefix);
@@ -108,7 +115,7 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             cancellable.cancel();
             expectThrows(CancellationException.class, future::actionGet);
 
-            assertAllCancellableTasksAreCancelled(actionPrefix);
+            assertAllCancellableTasksAreCancelled(actionPrefix, opaqueId);
         } finally {
             Releasables.close(releasables);
         }

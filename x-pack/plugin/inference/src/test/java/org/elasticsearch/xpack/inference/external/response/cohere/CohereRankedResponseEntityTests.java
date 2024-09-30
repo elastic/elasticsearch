@@ -47,14 +47,14 @@ public class CohereRankedResponseEntityTests extends ESTestCase {
         responseBuilder.append("\"index\":\"").append(randomAlphaOfLength(36)).append("\",");
         responseBuilder.append("\"results\": [");
         List<Integer> indices = linear(numDocs);
-        List<Double> scores = linearDoubles(numDocs);
+        List<Float> scores = linearFloats(numDocs);
         for (int i = 0; i < numDocs; i++) {
             int index = indices.remove(randomInt(indices.size() - 1));
 
             responseBuilder.append("{");
             responseBuilder.append("\"index\":").append(index).append(",");
             responseBuilder.append("\"relevance_score\":").append(scores.get(i).toString()).append("}");
-            expected.add(new RankedDocsResults.RankedDoc(String.valueOf(index), scores.get(i).toString(), null));
+            expected.add(new RankedDocsResults.RankedDoc(index, scores.get(i), null));
             if (i < numDocs - 1) {
                 responseBuilder.append(",");
             }
@@ -78,9 +78,9 @@ public class CohereRankedResponseEntityTests extends ESTestCase {
     private ArrayList<RankedDocsResults.RankedDoc> responseLiteralDocs() {
         var list = new ArrayList<RankedDocsResults.RankedDoc>();
 
-        list.add(new RankedDocsResults.RankedDoc("2", "0.98005307", null));
-        list.add(new RankedDocsResults.RankedDoc("3", "0.27904198", null));
-        list.add(new RankedDocsResults.RankedDoc("0", "0.10194652", null));
+        list.add(new RankedDocsResults.RankedDoc(2, 0.98005307F, null));
+        list.add(new RankedDocsResults.RankedDoc(3, 0.27904198F, null));
+        list.add(new RankedDocsResults.RankedDoc(0, 0.10194652F, null));
         return list;
 
     };
@@ -160,13 +160,13 @@ public class CohereRankedResponseEntityTests extends ESTestCase {
         """;
 
     private final List<RankedDocsResults.RankedDoc> responseLiteralDocsWithText = List.of(
-        new RankedDocsResults.RankedDoc("2", "0.98005307", "Washington, D.C.."),
+        new RankedDocsResults.RankedDoc(2, 0.98005307F, "Washington, D.C.."),
         new RankedDocsResults.RankedDoc(
-            "3",
-            "0.27904198",
+            3,
+            0.27904198F,
             "Capital punishment has existed in the United States since beforethe United States was a country. "
         ),
-        new RankedDocsResults.RankedDoc("0", "0.10194652", "Carson City is the capital city of the American state of Nevada.")
+        new RankedDocsResults.RankedDoc(0, 0.10194652F, "Carson City is the capital city of the American state of Nevada.")
     );
 
     private ArrayList<Integer> linear(int n) {
@@ -178,12 +178,12 @@ public class CohereRankedResponseEntityTests extends ESTestCase {
     }
 
     // creates a list of doubles of monotonically decreasing magnitude
-    private ArrayList<Double> linearDoubles(int n) {
-        ArrayList<Double> list = new ArrayList<>();
-        double startValue = 1.0;
-        double decrement = startValue / n + 1;
+    private ArrayList<Float> linearFloats(int n) {
+        ArrayList<Float> list = new ArrayList<>();
+        float startValue = 1.0f;
+        float decrement = startValue / n + 1;
         for (int i = 0; i <= n; i++) {
-            list.add(startValue - i * decrement);
+            list.add(startValue - (i * decrement));
         }
         return list;
     }

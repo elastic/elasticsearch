@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.cluster;
@@ -88,6 +89,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -245,7 +247,8 @@ public class ClusterStateChanges {
             xContentRegistry,
             null,
             null,
-            null
+            null,
+            MapperMetrics.NOOP
         ) {
             // metadata upgrader should do nothing
             @Override
@@ -487,6 +490,7 @@ public class ClusterStateChanges {
                             e.getKey().allocationId().getId(),
                             e.getValue(),
                             "shard started",
+                            ShardLongFieldRange.UNKNOWN,
                             ShardLongFieldRange.UNKNOWN
                         ),
                         createTestListener()

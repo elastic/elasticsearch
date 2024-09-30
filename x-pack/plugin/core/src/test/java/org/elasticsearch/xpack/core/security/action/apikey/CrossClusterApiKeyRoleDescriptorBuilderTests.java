@@ -14,9 +14,14 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.ROLE_DESCRIPTOR_NAME;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,11 +44,65 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")
                     .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .build() }
+        );
+    }
+
+    public void testBuildForSearchWithDls() throws IOException {
+        final CrossClusterApiKeyRoleDescriptorBuilder access = parseForAccess("""
+            {
+              "search": [
+                {
+                  "names": ["metrics"],
+                  "query": {"term":{"tag":42}}
+                }
+              ]
+            }""");
+
+        final RoleDescriptor roleDescriptor = access.build();
+
+        assertRoleDescriptor(
+            roleDescriptor,
+            new String[] { "cross_cluster_search", "monitor_enrich" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .query("{\"term\":{\"tag\":42}}")
+                    .build() }
+        );
+    }
+
+    public void testBuildForSearchWithFls() throws IOException {
+        final CrossClusterApiKeyRoleDescriptorBuilder access = parseForAccess("""
+            {
+              "search": [
+                {
+                  "names": ["metrics"],
+                  "field_security": {
+                    "grant": ["*"],
+                    "except": ["private"]
+                  }
+                }
+              ]
+            }""");
+
+        final RoleDescriptor roleDescriptor = access.build();
+
+        assertRoleDescriptor(
+            roleDescriptor,
+            new String[] { "cross_cluster_search", "monitor_enrich" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .grantedFields("*")
+                    .deniedFields("private")
                     .build() }
         );
     }
@@ -76,15 +135,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
             {
               "search": [
                 {
-                  "names": ["metrics"],
-                  "query": {"term":{"tag":42}}
+                  "names": ["metrics"]
                 },
                 {
-                  "names": ["logs"],
-                  "field_security": {
-                    "grant": ["*"],
-                    "except": ["private"]
-                  }
+                  "names": ["logs"]
                 }
               ],
               "replication": [
@@ -99,18 +153,15 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_search", "cross_cluster_replication" },
+            new String[] { "cross_cluster_search", "cross_cluster_replication", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")
                     .privileges("read", "read_cross_cluster", "view_index_metadata")
-                    .query("{\"term\":{\"tag\":42}}")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
                     .privileges("read", "read_cross_cluster", "view_index_metadata")
-                    .grantedFields("*")
-                    .deniedFields("private")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("archive")
@@ -118,6 +169,157 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
                     .allowRestrictedIndices(true)
                     .build() }
         );
+    }
+
+    public void testBuildForSearchAndReplicationWithDLSandFLS() throws IOException {
+        // DLS
+        CrossClusterApiKeyRoleDescriptorBuilder access = parseForAccess("""
+            {
+              "search": [
+                {
+                  "names": ["metrics"],
+                  "query": {"term":{"tag":42}}
+                }
+              ],
+              "replication": [
+                {
+                  "names": [ "archive" ]
+                }
+              ]
+            }""");
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, access::build);
+        assertThat(
+            exception.getMessage(),
+            containsString("search does not support document or field level security if " + "replication is assigned")
+        );
+
+        // FLS
+        access = parseForAccess("""
+            {
+              "search": [
+                {
+                  "names": ["metrics"],
+                   "field_security": {
+                      "grant": ["*"],
+                      "except": ["private"]
+                  }
+                }
+              ],
+              "replication": [
+                {
+                  "names": [ "archive" ]
+                }
+              ]
+            }""");
+        exception = expectThrows(IllegalArgumentException.class, access::build);
+        assertThat(
+            exception.getMessage(),
+            containsString("search does not support document or field level security if " + "replication is assigned")
+        );
+
+        // DLS and FLS
+        access = parseForAccess("""
+            {
+              "search": [
+                {
+                  "names": ["metrics"],
+                   "query": {"term":{"tag":42}},
+                   "field_security": {
+                      "grant": ["*"],
+                      "except": ["private"]
+                  }
+                }
+              ],
+              "replication": [
+                {
+                  "names": [ "archive" ]
+                }
+              ]
+            }""");
+
+        exception = expectThrows(IllegalArgumentException.class, access::build);
+        assertThat(
+            exception.getMessage(),
+            containsString("search does not support document or field level security if " + "replication is assigned")
+        );
+    }
+
+    public void testCheckForInvalidLegacyRoleDescriptors() {
+        // legacy here is in reference to RCS API privileges pre GA, we know which privileges are used in those versions and is used for
+        // minor optimizations. the "legacy" privileges might also be the same as in newer versions, and that is OK too.
+        final String[] legacyClusterPrivileges_searchAndReplication = { "cross_cluster_search", "cross_cluster_replication" };
+        final String[] legacyClusterPrivileges_searchOnly = { "cross_cluster_search" };
+        final String[] legacyIndexPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
+        final String[] otherPrivileges = randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(5));
+        String apiKeyId = randomAlphaOfLength(5);
+        RoleDescriptor.IndicesPrivileges legacySearchIndexPrivileges_noDLS = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(randomAlphaOfLength(5))
+            .privileges(legacyIndexPrivileges)
+            .build();
+        RoleDescriptor.IndicesPrivileges legacySearchIndexPrivileges_withDLS = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(randomAlphaOfLength(5))
+            .privileges(legacyIndexPrivileges)
+            .query("{\"term\":{\"tag\":42}}")
+            .build();
+        RoleDescriptor.IndicesPrivileges otherIndexPrivilege = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(randomAlphaOfLength(5))
+            .privileges(otherPrivileges) // replication has fixed index privileges, but for this test we don't care about the actual values
+            .build();
+
+        // role descriptor emulates pre GA with search and replication with DLS: this is the primary case we are trying to catch
+        RoleDescriptor legacyApiKeyRoleDescriptor_withSearchAndReplication_withDLS = new RoleDescriptor(
+            ROLE_DESCRIPTOR_NAME,
+            legacyClusterPrivileges_searchAndReplication,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_withDLS, otherIndexPrivilege },
+            null
+        );
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
+                apiKeyId,
+                List.of(legacyApiKeyRoleDescriptor_withSearchAndReplication_withDLS)
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "Cross cluster API key ["
+                    + apiKeyId
+                    + "] is invalid: search does not support document or field level security if replication is assigned"
+            )
+        );
+        // role descriptor emulates search only with DLS, this could be a valid role descriptor for pre/post GA
+        RoleDescriptor apiKeyRoleDescriptor_withSearch_withDLS = new RoleDescriptor(
+            ROLE_DESCRIPTOR_NAME,
+            legacyClusterPrivileges_searchOnly,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_withDLS },
+            null
+        );
+        noErrorCheckRoleDescriptor(apiKeyRoleDescriptor_withSearch_withDLS);
+
+        // role descriptor emulates search and replication without DLS, this could be a valid role descriptor for pre/post GA
+        RoleDescriptor apiKeyRoleDescriptor_withSearchAndReplication_noDLS = new RoleDescriptor(
+            ROLE_DESCRIPTOR_NAME,
+            legacyClusterPrivileges_searchAndReplication,
+            new RoleDescriptor.IndicesPrivileges[] { legacySearchIndexPrivileges_noDLS, otherIndexPrivilege },
+            null
+        );
+        noErrorCheckRoleDescriptor(apiKeyRoleDescriptor_withSearchAndReplication_noDLS);
+
+        // role descriptor that will never have search and replication with DLS but may have other privileges
+        RoleDescriptor notLegacyApiKeyRoleDescriptor_withSearchAndReplication_DLS = new RoleDescriptor(
+            ROLE_DESCRIPTOR_NAME,
+            otherPrivileges,
+            new RoleDescriptor.IndicesPrivileges[] { otherIndexPrivilege, otherIndexPrivilege },
+            null
+        );
+        noErrorCheckRoleDescriptor(notLegacyApiKeyRoleDescriptor_withSearchAndReplication_DLS);
+    }
+
+    private void noErrorCheckRoleDescriptor(RoleDescriptor roleDescriptor) {
+        // should not raise an exception
+        CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(randomAlphaOfLength(5), List.of(roleDescriptor));
     }
 
     public void testExplicitlySpecifyingPrivilegesIsNotAllowed() {
@@ -151,6 +353,12 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
             () -> parseForAccess(randomFrom("{\"search\":null}", "{\"replication\":null}", "{\"search\":null,\"replication\":null}"))
         );
         assertThat(e2.getMessage(), containsString("doesn't support values of type: VALUE_NULL"));
+    }
+
+    public void testAPIKeyAllowsAllRemoteClusterPrivilegesForCCS() {
+        // if users can add remote cluster permissions to a role, then the APIKey should also allow that for that permission
+        // the inverse however, is not guaranteed. cross_cluster_search exists largely for internal use and is not exposed to the users role
+        assertTrue(Set.of(CCS_CLUSTER_PRIVILEGE_NAMES).containsAll(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()));
     }
 
     private static void assertRoleDescriptor(

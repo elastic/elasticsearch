@@ -3,23 +3,25 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.external.response.cohere;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 
 import java.io.IOException;
@@ -27,6 +29,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
@@ -138,7 +142,7 @@ public class CohereEmbeddingsResponseEntity {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
             positionParserAtTokenAfterField(jsonParser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
@@ -181,21 +185,21 @@ public class CohereEmbeddingsResponseEntity {
     }
 
     private static InferenceServiceResults parseByteEmbeddingsArray(XContentParser parser) throws IOException {
-        var embeddingList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseByteArrayEntry);
+        var embeddingList = parseList(parser, CohereEmbeddingsResponseEntity::parseByteArrayEntry);
 
-        return new TextEmbeddingByteResults(embeddingList);
+        return new InferenceTextEmbeddingByteResults(embeddingList);
     }
 
-    private static TextEmbeddingByteResults.Embedding parseByteArrayEntry(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Byte> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
+    private static InferenceTextEmbeddingByteResults.InferenceByteEmbedding parseByteArrayEntry(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        List<Byte> embeddingValuesList = parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
 
-        return new TextEmbeddingByteResults.Embedding(embeddingValues);
+        return InferenceTextEmbeddingByteResults.InferenceByteEmbedding.of(embeddingValuesList);
     }
 
     private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
         var parsedByte = parser.shortValue();
         checkByteBounds(parsedByte);
 
@@ -209,22 +213,16 @@ public class CohereEmbeddingsResponseEntity {
     }
 
     private static InferenceServiceResults parseFloatEmbeddingsArray(XContentParser parser) throws IOException {
-        var embeddingList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseFloatArrayEntry);
+        var embeddingList = parseList(parser, CohereEmbeddingsResponseEntity::parseFloatArrayEntry);
 
-        return new TextEmbeddingResults(embeddingList);
+        return new InferenceTextEmbeddingFloatResults(embeddingList);
     }
 
-    private static TextEmbeddingResults.Embedding parseFloatArrayEntry(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Float> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
-
-        return new TextEmbeddingResults.Embedding(embeddingValues);
-    }
-
-    private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-        return parser.floatValue();
+    private static InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding parseFloatArrayEntry(XContentParser parser)
+        throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
+        return InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embeddingValuesList);
     }
 
     private CohereEmbeddingsResponseEntity() {}

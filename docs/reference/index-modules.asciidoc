@@ -76,11 +76,47 @@ breaking change].
 
     The +default+ value compresses stored data with LZ4
     compression, but this can be set to +best_compression+
-    which uses {wikipedia}/DEFLATE[DEFLATE] for a higher
-    compression ratio, at the expense of slower stored fields performance.
+    which uses {wikipedia}/Zstd[ZSTD] for a higher
+    compression ratio, at the expense of slower stored fields read performance.
     If you are updating the compression type, the new one will be applied
     after segments are merged. Segment merging can be forced using
-    <<indices-forcemerge,force merge>>.
+    <<indices-forcemerge,force merge>>. Experiments with indexing log datasets
+    have shown that `best_compression` gives up to ~28% lower storage usage and
+    similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared
+    to `default` while affecting get by id latencies between ~10% and ~33%. The higher get
+    by id latencies is not a concern for many use cases like logging or metrics, since
+    these don't really rely on get by id functionality (Get APIs or searching by _id).
+
+[[index-mode-setting]] `index.mode`::
++
+The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs.
+Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents,
+sorting and other parameters whose value affects indexing or query performance.
++
+[source,console]
+----------------
+PUT my-index-000001
+{
+  "settings": {
+    "index":{
+      "mode":"standard" <1>
+    }
+  }
+}
+----------------
++
+<1> This index uses the `standard` index mode
++
+Index mode supports the following values:
+
+`null`::: Default value (same as `standard`).
+
+`standard`::: Standard indexing with default settings.
+
+`time_series`::: Index mode optimized for storage of metrics documented in <<tsds-index-settings,TSDS Settings>>.
+
+`logsdb`::: Index mode optimized for storage of logs. It applies default sort settings on the `hostname` and `timestamp` fields and uses <<synthetic-source,synthetic `_source`>>. <<index-modules-index-sorting,Index sorting>> on different fields is still allowed.
+preview:[]
 
 [[routing-partition-size]] `index.routing_partition_size`::
 
@@ -273,7 +309,7 @@ are ignored for this index.
 [[index-max-regex-length]]
  `index.max_regex_length`::
 
-    The maximum length of regex that can be used in Regexp Query.
+    The maximum length of value that can be used in `regexp` or `prefix` query.
     Defaults to `1000`.
 
 [[index-query-default-field]]

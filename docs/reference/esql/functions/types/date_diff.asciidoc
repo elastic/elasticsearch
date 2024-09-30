@@ -5,6 +5,6 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 unit | startTimestamp | endTimestamp | result
-keyword | datetime | datetime | integer
-text | datetime | datetime | integer
+keyword | date | date | integer
+text | date | date | integer
 |===

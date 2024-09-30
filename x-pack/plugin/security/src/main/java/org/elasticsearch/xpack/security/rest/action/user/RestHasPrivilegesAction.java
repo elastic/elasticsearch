@@ -91,8 +91,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
         if (username == null) {
             return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
         }
-        HasPrivilegesRequestBuilder requestBuilder = builderFactory.create(client, request.hasParam(RestRequest.PATH_RESTRICTED))
-            .source(username, content.v2(), content.v1());
+        final HasPrivilegesRequestBuilder requestBuilder = builderFactory.create(client).source(username, content.v2(), content.v1());
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(HasPrivilegesResponse response, XContentBuilder builder) throws Exception {

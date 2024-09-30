@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank;
@@ -42,6 +43,8 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -56,14 +59,14 @@ public class RankSearchContext extends SearchContext {
 
     private final SearchContext parent;
     private final Query rankQuery;
-    private final int windowSize;
+    private final int rankWindowSize;
     private final QuerySearchResult querySearchResult;
 
     @SuppressWarnings("this-escape")
-    public RankSearchContext(SearchContext parent, Query rankQuery, int windowSize) {
+    public RankSearchContext(SearchContext parent, Query rankQuery, int rankWindowSize) {
         this.parent = parent;
         this.rankQuery = parent.buildFilteredQuery(rankQuery);
-        this.windowSize = windowSize;
+        this.rankWindowSize = rankWindowSize;
         this.querySearchResult = new QuerySearchResult(parent.readerContext().id(), parent.shardTarget(), parent.request());
         this.addReleasable(querySearchResult::decRef);
     }
@@ -181,7 +184,7 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public int size() {
-        return windowSize;
+        return rankWindowSize;
     }
 
     /**
@@ -282,13 +285,17 @@ public class RankSearchContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public RankShardContext rankShardContext() {
+    public void suggest(SuggestionSearchContext suggest) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
         throw new UnsupportedOperationException();
     }
 
@@ -484,6 +491,16 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public FetchPhase fetchPhase() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void addRankFeatureResult() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
         throw new UnsupportedOperationException();
     }
 

@@ -12,7 +12,7 @@ exceeds 85%.
 
 **Check JVM memory pressure**
 
-include::{es-repo-dir}/tab-widgets/jvm-memory-pressure-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/jvm-memory-pressure-widget.asciidoc[]
 
 **Check garbage collection logs**
 
@@ -30,7 +30,8 @@ collection.
 **Capture a JVM heap dump**
 
 To determine the exact reason for the high JVM memory pressure, capture a heap
-dump of the JVM while its memory usage is high.
+dump of the JVM while its memory usage is high, and also capture the
+<<gc-logging,garbage collector logs>> covering the same time period.
 
 [discrete]
 [[reduce-jvm-memory-pressure]]
@@ -64,6 +65,8 @@ searches, consider the following setting changes:
 * Disable expensive queries using the
 <<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>> cluster
 setting.
+
+* Set a default search timeout using the <<search-timeout,`search.default_search_timeout`>> cluster setting. 
 
 [source,console]
 ----

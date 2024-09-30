@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -29,6 +30,12 @@ public class IndexingPressure {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> SPLIT_BULK_THRESHOLD = Setting.memorySizeSetting(
+        "indexing_pressure.memory.split_bulk_threshold",
+        "8.5%",
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
     private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
@@ -46,18 +53,22 @@ public class IndexingPressure {
     private final AtomicLong totalReplicaBytes = new AtomicLong(0);
 
     private final AtomicLong totalCoordinatingOps = new AtomicLong(0);
+    private final AtomicLong totalCoordinatingRequests = new AtomicLong(0);
     private final AtomicLong totalPrimaryOps = new AtomicLong(0);
     private final AtomicLong totalReplicaOps = new AtomicLong(0);
 
     private final AtomicLong coordinatingRejections = new AtomicLong(0);
     private final AtomicLong primaryRejections = new AtomicLong(0);
     private final AtomicLong replicaRejections = new AtomicLong(0);
+    private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
     private final long primaryAndCoordinatingLimits;
+    private final long splitBulkThreshold;
     private final long replicaLimits;
 
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
+        this.splitBulkThreshold = SPLIT_BULK_THRESHOLD.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
@@ -108,6 +119,7 @@ public class IndexingPressure {
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalCoordinatingBytes.getAndAdd(bytes);
         totalCoordinatingOps.getAndAdd(operations);
+        totalCoordinatingRequests.getAndIncrement();
         return wrapReleasable(() -> {
             logger.trace(() -> Strings.format("removing [%d] coordinating operations and [%d] bytes", operations, bytes));
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -136,6 +148,7 @@ public class IndexingPressure {
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.primaryRejections.getAndIncrement();
+            this.primaryDocumentRejections.addAndGet(operations);
             throw new EsRejectedExecutionException(
                 "rejected execution of primary operation ["
                     + "coordinating_and_primary_bytes="
@@ -199,6 +212,10 @@ public class IndexingPressure {
         });
     }
 
+    public boolean shouldSplitBulks() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get() >= splitBulkThreshold;
+    }
+
     public IndexingPressureStats stats() {
         return new IndexingPressureStats(
             totalCombinedCoordinatingAndPrimaryBytes.get(),
@@ -218,7 +235,9 @@ public class IndexingPressure {
             totalReplicaOps.get(),
             currentCoordinatingOps.get(),
             currentPrimaryOps.get(),
-            currentReplicaOps.get()
+            currentReplicaOps.get(),
+            primaryDocumentRejections.get(),
+            totalCoordinatingRequests.get()
         );
     }
 }

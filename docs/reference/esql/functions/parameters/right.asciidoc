@@ -3,7 +3,7 @@
 *Parameters*
 
 `string`::
-
+The string from which to returns a substring.
 
 `length`::
-
+The number of characters to return.

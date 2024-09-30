@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,11 +29,10 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        public static final ParseField POLICY_FIELD = new ParseField("policy");
+        private final String policyName;
 
-        private String policyName;
-
-        public Request(String policyName) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String policyName) {
+            super(masterNodeTimeout, ackTimeout);
             this.policyName = policyName;
         }
 
@@ -41,8 +40,6 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
             super(in);
             policyName = in.readString();
         }
-
-        public Request() {}
 
         public String getPolicyName() {
             return policyName;

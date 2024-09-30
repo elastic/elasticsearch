@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.ordinals;
@@ -19,7 +20,6 @@ import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
@@ -107,7 +107,6 @@ public class MultiOrdinals extends Ordinals {
 
         private int currentDoc = -1;
         private long currentStartOffset;
-        private long currentEndOffset;
 
         SingleDocs(MultiOrdinals ordinals, ValuesHolder values) {
             this.valueCount = (int) ordinals.valueCount;
@@ -122,11 +121,10 @@ public class MultiOrdinals extends Ordinals {
         }
 
         @Override
-        public boolean advanceExact(int docId) throws IOException {
+        public boolean advanceExact(int docId) {
             currentDoc = docId;
             currentStartOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
-            currentEndOffset = endOffsets.get(docId);
-            return currentStartOffset != currentEndOffset;
+            return currentStartOffset != endOffsets.get(docId);
         }
 
         @Override
@@ -169,14 +167,14 @@ public class MultiOrdinals extends Ordinals {
         }
 
         @Override
-        public boolean advanceExact(int docId) throws IOException {
+        public boolean advanceExact(int docId) {
             currentOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             currentEndOffset = endOffsets.get(docId);
             return currentOffset != currentEndOffset;
         }
 
         @Override
-        public long nextOrd() throws IOException {
+        public long nextOrd() {
             if (currentOffset == currentEndOffset) {
                 return SortedSetDocValues.NO_MORE_ORDS;
             } else {

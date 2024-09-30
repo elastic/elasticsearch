@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -46,6 +48,16 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     @Override
     public Block filter(int... positions) {
         return new DocBlock(asVector().filter(positions));
+    }
+
+    @Override
+    public Block keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        throw new UnsupportedOperationException("can't lookup values from DocBlock");
     }
 
     @Override
@@ -150,11 +162,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            throw new UnsupportedOperationException("DocBlock doesn't support appendBlockAndMerge");
-        }
-
-        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             /*
              * This is called when copying but otherwise doesn't do
@@ -163,6 +170,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
              * only reference one doc.
              */
             return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return DocVector.BASE_RAM_BYTES_USED + shards.estimatedBytes() + segments.estimatedBytes() + docs.estimatedBytes();
         }
 
         @Override

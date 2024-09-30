@@ -1,0 +1,5 @@
+pr: 111600
+summary: Make ecs@mappings work with OTel attributes
+area: Data streams
+type: enhancement
+issues: []

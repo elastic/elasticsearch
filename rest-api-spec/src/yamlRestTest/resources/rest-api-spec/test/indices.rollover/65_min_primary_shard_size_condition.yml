@@ -1,7 +1,7 @@
 ---
 "Rollover with min_primary_shard_size condition":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   # create index with alias and replica

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -26,7 +27,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -109,20 +110,20 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final long startTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
         clusterFormationFailureHelper.start();
 
-        var mockLogAppender = new MockLogAppender();
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
-        );
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "troubleshooting link",
-                LOGGER_NAME,
-                Level.WARN,
-                "* for troubleshooting guidance, see "
-                    + "https://www.elastic.co/guide/en/elasticsearch/reference/*/discovery-troubleshooting.html*"
-            )
-        );
-        try (var ignored = mockLogAppender.capturing(ClusterFormationFailureHelper.class)) {
+        try (var mockLog = MockLog.capture(ClusterFormationFailureHelper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "troubleshooting link",
+                    LOGGER_NAME,
+                    Level.WARN,
+                    "* for troubleshooting guidance, see "
+                        + "https://www.elastic.co/guide/en/elasticsearch/reference/*/discovery-troubleshooting.html*"
+                )
+            );
+
             while (warningCount.get() == 0) {
                 assertTrue(clusterFormationFailureHelper.isRunning());
                 if (deterministicTaskQueue.hasRunnableTasks()) {
@@ -133,7 +134,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             }
             assertThat(warningCount.get(), is(1L));
             assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         while (warningCount.get() < 5) {

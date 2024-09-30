@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -38,7 +39,7 @@ public final class Pipeline {
     @Nullable
     private final Map<String, Object> metadata;
     private final CompoundProcessor compoundProcessor;
-    private final IngestMetric metrics;
+    private final IngestPipelineMetric metrics;
     private final LongSupplier relativeTimeProvider;
     @Nullable
     private final Boolean deprecated;
@@ -79,7 +80,7 @@ public final class Pipeline {
         this.metadata = metadata;
         this.compoundProcessor = compoundProcessor;
         this.version = version;
-        this.metrics = new IngestMetric();
+        this.metrics = new IngestPipelineMetric();
         this.relativeTimeProvider = relativeTimeProvider;
         this.deprecated = deprecated;
     }
@@ -199,7 +200,7 @@ public final class Pipeline {
     /**
      * The metrics associated with this pipeline.
      */
-    public IngestMetric getMetrics() {
+    public IngestPipelineMetric getMetrics() {
         return metrics;
     }
 

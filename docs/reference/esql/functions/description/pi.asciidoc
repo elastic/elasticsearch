@@ -2,4 +2,4 @@
 
 *Description*
 
-The ratio of a circle’s circumference to its diameter.
+Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.

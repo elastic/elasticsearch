@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -20,6 +22,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator.Factory;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash.GroupSpec;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -29,7 +32,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.HashAggregationOperator.GroupSpec;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -44,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -323,7 +326,11 @@ public class OrdinalsGroupingOperator implements Operator {
 
     @Override
     public String toString() {
-        return this.getClass().getSimpleName() + "[" + "aggregators=" + aggregatorFactories + "]";
+        String aggregatorDescriptions = aggregatorFactories.stream()
+            .map(factory -> "\"" + factory.describe() + "\"")
+            .collect(Collectors.joining(", "));
+
+        return this.getClass().getSimpleName() + "[" + "aggregators=[" + aggregatorDescriptions + "]]";
     }
 
     record SegmentID(int shardIndex, int segmentIndex) {
@@ -350,7 +357,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 final SortedSetDocValues sortedSetDocValues = docValuesSupplier.get();
                 bitArray = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
                 groupingAggregators = aggregatorsSupplier.get();
-                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues, blockFactory);
+                this.currentReader = BlockOrdinalsReader.newReader(blockFactory, sortedSetDocValues);
                 this.blockFactory = blockFactory;
                 this.docValuesSupplier = docValuesSupplier;
                 this.aggregators = groupingAggregators;
@@ -372,25 +379,44 @@ public class OrdinalsGroupingOperator implements Operator {
                 }
 
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
-                    currentReader = new BlockOrdinalsReader(docValuesSupplier.get(), blockFactory);
+                    currentReader = BlockOrdinalsReader.newReader(blockFactory, docValuesSupplier.get());
                 }
                 try (IntBlock ordinals = currentReader.readOrdinalsAdded1(docs)) {
-                    for (int p = 0; p < ordinals.getPositionCount(); p++) {
-                        int start = ordinals.getFirstValueIndex(p);
-                        int end = start + ordinals.getValueCount(p);
-                        for (int i = start; i < end; i++) {
-                            long ord = ordinals.getInt(i);
-                            visitedOrds.set(ord);
-                        }
-                    }
-                    for (GroupingAggregatorFunction.AddInput addInput : prepared) {
-                        addInput.add(0, ordinals);
+                    final IntVector ordinalsVector = ordinals.asVector();
+                    if (ordinalsVector != null) {
+                        addOrdinalsInput(ordinalsVector, prepared);
+                    } else {
+                        addOrdinalsInput(ordinals, prepared);
                     }
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
                 page.releaseBlocks();
+            }
+        }
+
+        void addOrdinalsInput(IntBlock ordinals, GroupingAggregatorFunction.AddInput[] prepared) {
+            for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                int start = ordinals.getFirstValueIndex(p);
+                int end = start + ordinals.getValueCount(p);
+                for (int i = start; i < end; i++) {
+                    long ord = ordinals.getInt(i);
+                    visitedOrds.set(ord);
+                }
+            }
+            for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                addInput.add(0, ordinals);
+            }
+        }
+
+        void addOrdinalsInput(IntVector ordinals, GroupingAggregatorFunction.AddInput[] prepared) {
+            for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                long ord = ordinals.getInt(p);
+                visitedOrds.set(ord);
+            }
+            for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                addInput.add(0, ordinals);
             }
         }
 
@@ -510,17 +536,45 @@ public class OrdinalsGroupingOperator implements Operator {
         }
     }
 
-    static final class BlockOrdinalsReader {
-        private final SortedSetDocValues sortedSetDocValues;
-        private final Thread creationThread;
-        private final BlockFactory blockFactory;
+    abstract static class BlockOrdinalsReader {
+        protected final Thread creationThread;
+        protected final BlockFactory blockFactory;
 
-        BlockOrdinalsReader(SortedSetDocValues sortedSetDocValues, BlockFactory blockFactory) {
-            this.sortedSetDocValues = sortedSetDocValues;
+        BlockOrdinalsReader(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
             this.creationThread = Thread.currentThread();
         }
 
+        static BlockOrdinalsReader newReader(BlockFactory blockFactory, SortedSetDocValues sortedSetDocValues) {
+            SortedDocValues singleValues = DocValues.unwrapSingleton(sortedSetDocValues);
+            if (singleValues != null) {
+                return new SortedDocValuesBlockOrdinalsReader(blockFactory, singleValues);
+            } else {
+                return new SortedSetDocValuesBlockOrdinalsReader(blockFactory, sortedSetDocValues);
+            }
+        }
+
+        abstract IntBlock readOrdinalsAdded1(IntVector docs) throws IOException;
+
+        abstract int docID();
+
+        /**
+         * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
+         */
+        static boolean canReuse(BlockOrdinalsReader reader, int startingDocID) {
+            return reader != null && reader.creationThread == Thread.currentThread() && reader.docID() <= startingDocID;
+        }
+    }
+
+    private static class SortedSetDocValuesBlockOrdinalsReader extends BlockOrdinalsReader {
+        private final SortedSetDocValues sortedSetDocValues;
+
+        SortedSetDocValuesBlockOrdinalsReader(BlockFactory blockFactory, SortedSetDocValues sortedSetDocValues) {
+            super(blockFactory);
+            this.sortedSetDocValues = sortedSetDocValues;
+        }
+
+        @Override
         IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positionCount)) {
@@ -545,15 +599,38 @@ public class OrdinalsGroupingOperator implements Operator {
             }
         }
 
+        @Override
         int docID() {
             return sortedSetDocValues.docID();
         }
+    }
 
-        /**
-         * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
-         */
-        static boolean canReuse(BlockOrdinalsReader reader, int startingDocID) {
-            return reader != null && reader.creationThread == Thread.currentThread() && reader.docID() <= startingDocID;
+    private static class SortedDocValuesBlockOrdinalsReader extends BlockOrdinalsReader {
+        private final SortedDocValues sortedDocValues;
+
+        SortedDocValuesBlockOrdinalsReader(BlockFactory blockFactory, SortedDocValues sortedDocValues) {
+            super(blockFactory);
+            this.sortedDocValues = sortedDocValues;
+        }
+
+        @Override
+        IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    if (sortedDocValues.advanceExact(docs.getInt(p))) {
+                        builder.appendInt(p, sortedDocValues.ordValue() + 1);
+                    } else {
+                        builder.appendInt(p, 0);
+                    }
+                }
+                return builder.build().asBlock();
+            }
+        }
+
+        @Override
+        int docID() {
+            return sortedDocValues.docID();
         }
     }
 }

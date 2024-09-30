@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
@@ -15,6 +16,9 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,6 +26,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.Transports;
 
+import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.lang.management.ManagementFactory;
@@ -549,5 +554,44 @@ public class HotThreads {
                 LogManager.getLogger(HotThreads.class).warn("Thread wait/blocked time accounting cannot be enabled.");
             }
         }
+    }
+
+    public record RequestOptions(
+        int threads,
+        HotThreads.ReportType reportType,
+        HotThreads.SortOrder sortOrder,
+        TimeValue interval,
+        int snapshots,
+        boolean ignoreIdleThreads
+    ) implements Writeable {
+
+        public static RequestOptions readFrom(StreamInput in) throws IOException {
+            var threads = in.readInt();
+            var ignoreIdleThreads = in.readBoolean();
+            var reportType = HotThreads.ReportType.of(in.readString());
+            var interval = in.readTimeValue();
+            var snapshots = in.readInt();
+            var sortOrder = HotThreads.SortOrder.of(in.readString());
+            return new RequestOptions(threads, reportType, sortOrder, interval, snapshots, ignoreIdleThreads);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(threads);
+            out.writeBoolean(ignoreIdleThreads);
+            out.writeString(reportType.getTypeValue());
+            out.writeTimeValue(interval);
+            out.writeInt(snapshots);
+            out.writeString(sortOrder.getOrderValue());
+        }
+
+        public static final RequestOptions DEFAULT = new RequestOptions(
+            3,
+            ReportType.CPU,
+            SortOrder.TOTAL,
+            TimeValue.timeValueMillis(500),
+            10,
+            true
+        );
     }
 }

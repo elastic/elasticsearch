@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.set;
@@ -132,6 +133,15 @@ public final class Sets {
     public static <T> Set<T> union(Set<T> left, Set<T> right) {
         Set<T> union = new HashSet<>(left);
         union.addAll(right);
+        return union;
+    }
+
+    @SafeVarargs
+    public static <T> Set<T> union(Set<T> first, Set<T>... others) {
+        Set<T> union = new HashSet<>(first);
+        for (Set<T> other : others) {
+            union.addAll(other);
+        }
         return union;
     }
 

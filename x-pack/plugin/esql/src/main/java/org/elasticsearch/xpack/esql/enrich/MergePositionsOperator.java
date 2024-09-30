@@ -11,12 +11,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Combines values at the given blocks with the same positions into a single position for the blocks at the given channels
@@ -44,25 +45,17 @@ import java.util.Arrays;
  */
 final class MergePositionsOperator implements Operator {
     private boolean finished = false;
-    private int filledPositions = 0;
-    private final boolean singleMode;
-    private final int positionCount;
     private final int positionChannel;
-
-    private final Block.Builder[] outputBuilders;
-    private final int[] mergingChannels;
-    private final ElementType[] mergingTypes;
-    private PositionBuilder positionBuilder = null;
+    private final EnrichResultBuilder[] builders;
+    private final IntBlock selectedPositions;
 
     private Page outputPage;
-    private final BlockFactory blockFactory;
 
     MergePositionsOperator(
-        boolean singleMode,
-        int positionCount,
         int positionChannel,
         int[] mergingChannels,
         ElementType[] mergingTypes,
+        IntBlock selectedPositions,
         BlockFactory blockFactory
     ) {
         if (mergingChannels.length != mergingTypes.length) {
@@ -73,123 +66,53 @@ final class MergePositionsOperator implements Operator {
                     + Arrays.toString(mergingTypes)
             );
         }
-        this.blockFactory = blockFactory;
-        this.singleMode = singleMode;
-        this.positionCount = positionCount;
         this.positionChannel = positionChannel;
-        this.mergingChannels = mergingChannels;
-        this.mergingTypes = mergingTypes;
-        this.outputBuilders = new Block.Builder[mergingTypes.length];
+        this.builders = new EnrichResultBuilder[mergingTypes.length];
         try {
             for (int i = 0; i < mergingTypes.length; i++) {
-                outputBuilders[i] = mergingTypes[i].newBlockBuilder(positionCount, blockFactory);
+                builders[i] = EnrichResultBuilder.enrichResultBuilder(mergingTypes[i], blockFactory, mergingChannels[i]);
             }
         } finally {
-            if (outputBuilders[outputBuilders.length - 1] == null) {
-                Releasables.close(outputBuilders);
+            if (builders[builders.length - 1] == null) {
+                Releasables.close(Releasables.wrap(builders));
             }
         }
+        selectedPositions.mustIncRef();
+        this.selectedPositions = selectedPositions;
     }
 
     @Override
     public boolean needsInput() {
-        return true;
+        return finished == false;
     }
 
     @Override
     public void addInput(Page page) {
         try {
             final IntBlock positions = page.getBlock(positionChannel);
-            final int currentPosition = positions.getInt(0);
-            if (singleMode) {
-                fillNullUpToPosition(currentPosition);
-                for (int i = 0; i < mergingChannels.length; i++) {
-                    int channel = mergingChannels[i];
-                    outputBuilders[i].appendAllValuesToCurrentPosition(page.getBlock(channel));
-                }
-                filledPositions++;
-            } else {
-                if (positionBuilder != null && positionBuilder.position != currentPosition) {
-                    flushPositionBuilder();
-                }
-                if (positionBuilder == null) {
-                    positionBuilder = new PositionBuilder(currentPosition, mergingTypes, blockFactory);
-                }
-                positionBuilder.combine(page, mergingChannels);
+            final IntVector positionsVector = Objects.requireNonNull(positions.asVector(), "positions must be a vector");
+            for (EnrichResultBuilder builder : builders) {
+                builder.addInputPage(positionsVector, page);
             }
         } finally {
             Releasables.closeExpectNoException(page::releaseBlocks);
         }
     }
 
-    static final class PositionBuilder implements Releasable {
-        private final int position;
-        private final Block.Builder[] builders;
-
-        PositionBuilder(int position, ElementType[] elementTypes, BlockFactory blockFactory) {
-            this.position = position;
-            this.builders = new Block.Builder[elementTypes.length];
-            try {
-                for (int i = 0; i < builders.length; i++) {
-                    builders[i] = elementTypes[i].newBlockBuilder(1, blockFactory);
-                }
-            } finally {
-                if (builders[builders.length - 1] == null) {
-                    Releasables.close(builders);
-                }
-            }
-        }
-
-        void combine(Page page, int[] channels) {
-            for (int i = 0; i < channels.length; i++) {
-                Block block = page.getBlock(channels[i]);
-                builders[i].appendAllValuesToCurrentPosition(block);
-            }
-        }
-
-        void buildTo(Block.Builder[] output) {
-            for (int i = 0; i < output.length; i++) {
-                try (var b = builders[i]; Block block = b.build()) {
-                    output[i].appendAllValuesToCurrentPosition(block);
-                }
-            }
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(builders);
-        }
-    }
-
-    private void flushPositionBuilder() {
-        fillNullUpToPosition(positionBuilder.position);
-        filledPositions++;
-        try (var p = positionBuilder) {
-            p.buildTo(outputBuilders);
-        } finally {
-            positionBuilder = null;
-        }
-    }
-
-    private void fillNullUpToPosition(int position) {
-        while (filledPositions < position) {
-            for (Block.Builder builder : outputBuilders) {
-                builder.appendNull();
-            }
-            filledPositions++;
-        }
-    }
-
     @Override
     public void finish() {
-        if (positionBuilder != null) {
-            flushPositionBuilder();
+        final Block[] blocks = new Block[builders.length];
+        try {
+            for (int i = 0; i < builders.length; i++) {
+                blocks[i] = builders[i].build(selectedPositions);
+            }
+            outputPage = new Page(blocks);
+        } finally {
+            finished = true;
+            if (outputPage == null) {
+                Releasables.close(blocks);
+            }
         }
-        fillNullUpToPosition(positionCount);
-        final Block[] blocks = Block.Builder.buildAll(outputBuilders);
-        outputPage = new Page(blocks);
-        assert outputPage.getPositionCount() == positionCount;
-        finished = true;
     }
 
     @Override
@@ -206,7 +129,7 @@ final class MergePositionsOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(Releasables.wrap(outputBuilders), positionBuilder, () -> {
+        Releasables.close(Releasables.wrap(builders), selectedPositions, () -> {
             if (outputPage != null) {
                 outputPage.releaseBlocks();
             }

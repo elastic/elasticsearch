@@ -1,9 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -20,6 +19,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation project(path: ':x-pack:plugin:stack')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:data-streams')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:ingest-geoip')

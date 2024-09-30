@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -27,22 +29,28 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -65,7 +73,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
     private final NodeClient client;
-    private final ClusterService clusterService;
 
     @Inject
     public TransportUpdateAction(
@@ -84,7 +91,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
-        this.clusterService = clusterService;
     }
 
     @Override
@@ -181,7 +187,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
-        final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
+        final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
+        final UpdateHelper.Result result = deleteInferenceResults(
+            request,
+            updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis),
+            indexService.getMetadata(),
+            mappingLookup
+        );
+
         switch (result.getResponseResult()) {
             case CREATED -> {
                 IndexRequest upsertRequest = result.action();
@@ -209,6 +222,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 UpdateHelper.extractGetResult(
                                     request,
                                     request.concreteIndex(),
+                                    mappingLookup,
                                     response.getSeqNo(),
                                     response.getPrimaryTerm(),
                                     response.getVersion(),
@@ -245,6 +259,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             UpdateHelper.extractGetResult(
                                 request,
                                 request.concreteIndex(),
+                                mappingLookup,
                                 response.getSeqNo(),
                                 response.getPrimaryTerm(),
                                 response.getVersion(),
@@ -276,6 +291,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             UpdateHelper.extractGetResult(
                                 request,
                                 request.concreteIndex(),
+                                mappingLookup,
                                 response.getSeqNo(),
                                 response.getPrimaryTerm(),
                                 response.getVersion(),
@@ -334,5 +350,89 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return;
         }
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
+    }
+
+    /**
+     * <p>
+     * Delete stale inference results from the provided {@link UpdateHelper.Result} instance.
+     * </p>
+     * <p>
+     * We need to do this because when handling Bulk API requests (which the Update API generates), we assume any inference results present
+     * in source are up-to-date.
+     * We do this to support reindex and update by query use cases without re-generating inference results unnecessarily.
+     * </p>
+     *
+     * @param updateRequest The update request
+     * @param result The result generated using the update request
+     * @param indexMetadata The index metadata
+     * @param mappingLookup The index's mapping lookup
+     * @return A result with stale inference results removed from source
+     */
+    private static UpdateHelper.Result deleteInferenceResults(
+        UpdateRequest updateRequest,
+        UpdateHelper.Result result,
+        IndexMetadata indexMetadata,
+        MappingLookup mappingLookup
+    ) {
+        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED) {
+            return result;
+        }
+
+        Map<String, InferenceFieldMetadata> inferenceFields = indexMetadata.getInferenceFields();
+        if (inferenceFields.isEmpty()) {
+            return result;
+        }
+
+        if (updateRequest.script() != null) {
+            throw new ElasticsearchStatusException(
+                "Cannot apply update with a script on indices that contain inference field(s)",
+                RestStatus.BAD_REQUEST
+            );
+        }
+
+        IndexRequest doc = updateRequest.doc();
+        if (doc == null) {
+            // No doc update, nothing to do
+            return result;
+        }
+
+        Map<String, Object> updateRequestSource = doc.sourceAsMap();
+        Map<String, Object> updatedSource = result.updatedSourceAsMap();
+        boolean updatedSourceModified = false;
+        for (var entry : inferenceFields.entrySet()) {
+            String inferenceFieldName = entry.getKey();
+            Mapper mapper = mappingLookup.getMapper(inferenceFieldName);
+
+            if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
+                String[] sourceFields = entry.getValue().getSourceFields();
+                for (String sourceField : sourceFields) {
+                    if (sourceField.equals(inferenceFieldName) == false
+                        && XContentMapValues.extractValue(sourceField, updateRequestSource) != null) {
+                        // Replace the inference field's value with its original value (i.e. the user-specified value).
+                        // This has two important side effects:
+                        // - The inference field value will remain parsable by its mapper
+                        // - The inference results will be removed, forcing them to be re-generated downstream
+                        updatedSource.put(inferenceFieldName, inferenceFieldMapper.getOriginalValue(updatedSource));
+                        updatedSourceModified = true;
+                        break;
+                    }
+                }
+            } else {
+                throw new IllegalStateException(
+                    "Field [" + inferenceFieldName + "] is of type [ " + mapper.typeName() + "], which is not an inference field"
+                );
+            }
+        }
+
+        UpdateHelper.Result returnedResult = result;
+        if (updatedSourceModified) {
+            XContentType contentType = result.updateSourceContentType();
+            IndexRequest indexRequest = result.action();
+            indexRequest.source(updatedSource, contentType);
+
+            returnedResult = new UpdateHelper.Result(indexRequest, result.getResponseResult(), updatedSource, contentType);
+        }
+
+        return returnedResult;
     }
 }

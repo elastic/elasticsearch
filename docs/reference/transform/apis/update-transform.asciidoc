@@ -57,7 +57,7 @@ permanent failure.
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[update-transform-query-parms]]
 == {api-query-parms-title}
@@ -82,7 +82,7 @@ expires, the request fails and returns an error. Defaults to `30s`.
 //Begin dest
 `dest`::
 (Optional, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=dest]
 +
 .Properties of `dest`
 [%collapsible%open]
@@ -90,12 +90,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
 
 `index`:::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
 //Begin aliases
 `aliases`:::
 (Optional, array of objects)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases]
 +
 .Properties of `aliases`
 [%collapsible%open]
@@ -103,53 +103,53 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases]
 
 `alias`::::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases-alias]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases-alias]
 
 `move_on_creation`::::
 (Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases-move-on-creation]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases-move-on-creation]
 
 =====
 //End aliases
 
 `pipeline`:::
 (Optional, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 ====
 //End dest
 
 `frequency`::
 (Optional, <<time-units, time units>>)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
 //Begin _meta
 `_meta`::
 (Optional, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-metadata]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-metadata]
 //End _meta
 
 //Begin retention policy
 `retention_policy`::
 (Optional, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
 +
 .Properties of `retention_policy`
 [%collapsible%open]
 ====
 `time`:::
 (Required, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
 +
 .Properties of `time`
 [%collapsible%open]
 =====
 `field`:::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
 
 `max_age`:::
 (Required, <<time-units, time units>>)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
 =====
 ====
 //End retention policy
@@ -157,39 +157,39 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-ti
 //Begin settings
 `settings`::
 (Optional, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 +
 .Properties of `settings`
 [%collapsible%open]
 ====
 `align_checkpoints`:::
 (Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
 `dates_as_epoch_millis`:::
 (Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `deduce_mappings`:::
 (Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
 `docs_per_second`:::
 (Optional, float)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `max_page_search_size`:::
 (Optional, integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
 `num_failure_retries`:::
 (Optional, integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-num-failure-retries]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-num-failure-retries]
 `unattended`:::
 (Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-unattended]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-unattended]
 ====
 //End settings
 
 //Begin source
 `source`::
 (Optional, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 +
 .Properties of `source`
 [%collapsible%open]
@@ -197,18 +197,18 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 
 `index`:::
 (Required, string or array)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
 
 `query`:::
 (Optional, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
 ====
 //End source
 
 //Begin sync
 `sync`::
 (Optional, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=sync]
 +
 --
 NOTE: You can update these properties only if it is a continuous {transform}. You
@@ -224,7 +224,7 @@ Instead, clone the {transform} in {kib} and add or remove the `sync` property.
 //Begin sync.time
 `time`:::
 (Required, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 +
 .Properties of `time`
 [%collapsible%open]
@@ -232,11 +232,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 
 `delay`::::
 (Optional, <<time-units, time units>>)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
 
 `field`::::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the

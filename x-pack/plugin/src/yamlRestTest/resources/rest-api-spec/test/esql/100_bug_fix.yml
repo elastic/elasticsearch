@@ -1,9 +1,9 @@
 ---
 "Coalesce and to_ip functions":
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: "fixes in 8.12 or later"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       bulk:
         index: test
@@ -41,7 +41,6 @@
       esql.query:
         body:
           query: 'FROM test | sort emp_no | eval x1 = concat(ip1, ip2), x2 = coalesce(x1, "255.255.255.255"), x3 = to_ip(x2) | keep emp_no, x*'
-
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
   - match: { columns.1.name: "x1" }
@@ -58,8 +57,8 @@
 
 ---
 "unsupported and invalid mapped fields":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "fixes in 8.13 or later"
   - do:
       indices.create:
@@ -129,8 +128,8 @@
 
 ---
 "null MappedFieldType on single value detection #103141":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "fixes in 8.13 or later"
   - do:
       indices.create:
@@ -198,8 +197,8 @@
 
 ---
 "text in functions #105379":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "fixes in 8.13 or later"
   - do:
       indices.create:
@@ -254,3 +253,88 @@
   - match: { values.0.1: true }
   - match: { values.1.0: 3 }
   - match: { values.1.1: false }
+
+
+---
+"mv_dedupe from index #104745":
+  - requires:
+      cluster_features: ["esql.mv_ordering_sorted_ascending"]
+      reason: "fixed by introducing a sorted, non-deduplicated MvOrdering"
+  - do:
+      indices.create:
+        index: idx_with_multivalues
+        body:
+          mappings:
+            properties:
+              boolean:
+                type: boolean
+              double:
+                type: double
+              integer :
+                type : integer
+              keyword :
+                type : keyword
+              long:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx_with_multivalues" } }
+          - { "boolean": [true,false,false,true], "keyword": [foo,bar,bar,foo], "integer": [1,2,2,1], "long": [1,2,2,1], "double": [1.1,2.2,2.2,1.1] }
+  - do:
+      esql.query:
+        body:
+          query: 'from idx_with_multivalues | eval b = mv_dedupe(boolean), k = mv_dedupe(keyword), i = mv_dedupe(integer), l = mv_dedupe(long), d = mv_dedupe(double) | keep b, k, i, l, d | limit 1'
+  - match: { columns.0.name: b }
+  - match: { columns.0.type: boolean }
+  - match: { columns.1.name: k }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: i }
+  - match: { columns.2.type: integer }
+  - match: { columns.3.name: l }
+  - match: { columns.3.type: long }
+  - match: { columns.4.name: d }
+  - match: { columns.4.type: double }
+  - length: { values: 1 }
+  - match: { values.0.0: [false, true] }
+  - match: { values.0.1: ["bar", "foo"] }
+  - match: { values.0.2: [1, 2] }
+  - match: { values.0.3: [1, 2] }
+  - match: { values.0.4: [1.1, 2.2] }
+
+
+---
+"grok with duplicate names and different types #110533":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [grok_validation]
+      reason: "fixed grok validation with patterns containing the same attribute multiple times with different types"
+  - do:
+      indices.create:
+        index: test_grok
+        body:
+          mappings:
+            properties:
+              first_name :
+                type : keyword
+              last_name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_grok" } }
+          - { "first_name": "Georgi", "last_name":"Facello" }
+
+  - do:
+      catch: '/Invalid GROK pattern \[%\{NUMBER:foo\} %\{WORD:foo\}\]: the attribute \[foo\] is defined multiple times with different types/'
+      esql.query:
+        body:
+          query: 'FROM test_grok | KEEP name | WHERE last_name == "Facello" | EVAL name = concat("1 ", last_name) | GROK name "%{NUMBER:foo} %{WORD:foo}"'

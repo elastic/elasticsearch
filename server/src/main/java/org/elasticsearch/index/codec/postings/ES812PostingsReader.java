@@ -61,8 +61,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
     private final IndexInput posIn;
     private final IndexInput payIn;
 
-    private final int version;
-
     /** Sole constructor. */
     ES812PostingsReader(SegmentReadState state) throws IOException {
         boolean success = false;
@@ -78,7 +76,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         String docName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, ES812PostingsFormat.DOC_EXTENSION);
         try {
             docIn = state.directory.openInput(docName, state.context);
-            version = CodecUtil.checkIndexHeader(
+            int version = CodecUtil.checkIndexHeader(
                 docIn,
                 DOC_CODEC,
                 VERSION_START,
@@ -267,9 +265,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
             return new BlockImpactsDocsEnum(fieldInfo, (IntBlockTermState) state);
         }
 
-        if (indexHasPositions
-            && PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS)
-            && (indexHasOffsets == false || PostingsEnum.featureRequested(flags, PostingsEnum.OFFSETS) == false)
+        if ((indexHasOffsets == false || PostingsEnum.featureRequested(flags, PostingsEnum.OFFSETS) == false)
             && (indexHasPayloads == false || PostingsEnum.featureRequested(flags, PostingsEnum.PAYLOADS) == false)) {
             return new BlockImpactsPostingsEnum(fieldInfo, (IntBlockTermState) state);
         }
@@ -279,7 +275,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
     final class BlockDocsEnum extends PostingsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE + 1];
         private final long[] freqBuffer = new long[BLOCK_SIZE];
@@ -288,8 +284,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
         private ES812SkipReader skipper;
         private boolean skipped;
-
-        final IndexInput startDocIn;
 
         IndexInput docIn;
         final boolean indexHasFreq;
@@ -322,8 +316,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private boolean isFreqsRead;
         private int singletonDocID; // docid when there is a single pulsed posting, otherwise -1
 
-        BlockDocsEnum(FieldInfo fieldInfo) throws IOException {
-            this.startDocIn = ES812PostingsReader.this.docIn;
+        BlockDocsEnum(FieldInfo fieldInfo) {
             this.docIn = null;
             indexHasFreq = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) >= 0;
             indexHasPos = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
@@ -335,7 +328,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         }
 
         public boolean canReuse(IndexInput docIn, FieldInfo fieldInfo) {
-            return docIn == startDocIn
+            return docIn == ES812PostingsReader.this.docIn
                 && indexHasFreq == (fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) >= 0)
                 && indexHasPos == (fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0)
                 && indexHasPayloads == fieldInfo.hasPayloads();
@@ -350,7 +343,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
             if (docFreq > 1) {
                 if (docIn == null) {
                     // lazy init
-                    docIn = startDocIn.clone();
+                    docIn = ES812PostingsReader.this.docIn.clone();
                 }
                 docIn.seek(docTermStartFP);
             }
@@ -381,22 +374,22 @@ final class ES812PostingsReader extends PostingsReaderBase {
         }
 
         @Override
-        public int nextPosition() throws IOException {
+        public int nextPosition() {
             return -1;
         }
 
         @Override
-        public int startOffset() throws IOException {
+        public int startOffset() {
             return -1;
         }
 
         @Override
-        public int endOffset() throws IOException {
+        public int endOffset() {
             return -1;
         }
 
         @Override
-        public BytesRef getPayload() throws IOException {
+        public BytesRef getPayload() {
             return null;
         }
 
@@ -526,7 +519,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
     // Also handles payloads + offsets
     final class EverythingEnum extends PostingsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE + 1];
         private final long[] freqBuffer = new long[BLOCK_SIZE + 1];
@@ -606,7 +599,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private boolean needsPayloads; // true if we actually need payloads
         private int singletonDocID; // docid when there is a single pulsed posting, otherwise -1
 
-        EverythingEnum(FieldInfo fieldInfo) throws IOException {
+        EverythingEnum(FieldInfo fieldInfo) {
             indexHasOffsets = fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
             indexHasPayloads = fieldInfo.hasPayloads();
 
@@ -692,7 +685,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         }
 
         @Override
-        public int freq() throws IOException {
+        public int freq() {
             return freq;
         }
 
@@ -853,16 +846,13 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
             // Now scan:
             long doc;
-            while (true) {
+            do {
                 doc = docBuffer[docBufferUpto];
                 freq = (int) freqBuffer[docBufferUpto];
                 posPendingCount += freq;
                 docBufferUpto++;
 
-                if (doc >= target) {
-                    break;
-                }
-            }
+            } while (doc < target);
 
             position = 0;
             lastStartOffset = 0;
@@ -876,10 +866,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private void skipPositions() throws IOException {
             // Skip positions now:
             int toSkip = posPendingCount - freq;
-            // if (DEBUG) {
-            // System.out.println(" FPR.skipPositions: toSkip=" + toSkip);
-            // }
-
             final int leftInBlock = BLOCK_SIZE - posBufferUpto;
             if (toSkip < leftInBlock) {
                 int end = posBufferUpto + toSkip;
@@ -999,7 +985,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
     final class BlockImpactsDocsEnum extends ImpactsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE + 1];
         private final long[] freqBuffer = new long[BLOCK_SIZE];
@@ -1012,7 +998,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
         final boolean indexHasFreqs;
 
-        private int docFreq; // number of docs in this posting list
+        private final int docFreq; // number of docs in this posting list
         private int blockUpto; // number of documents in or before the current block
         private int doc; // doc we last read
         private long accum; // accumulator for doc deltas
@@ -1169,7 +1155,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         }
 
         @Override
-        public int nextPosition() throws IOException {
+        public int nextPosition() {
             return -1;
         }
 
@@ -1196,7 +1182,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
     final class BlockImpactsPostingsEnum extends ImpactsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE];
         private final long[] freqBuffer = new long[BLOCK_SIZE];
@@ -1213,8 +1199,8 @@ final class ES812PostingsReader extends PostingsReaderBase {
         final boolean indexHasOffsets;
         final boolean indexHasPayloads;
 
-        private int docFreq; // number of docs in this posting list
-        private long totalTermFreq; // number of positions in this posting list
+        private final int docFreq; // number of docs in this posting list
+        private final long totalTermFreq; // number of positions in this posting list
         private int docUpto; // how many docs we've read
         private int doc; // doc we last read
         private long accum; // accumulator for doc deltas
@@ -1229,20 +1215,10 @@ final class ES812PostingsReader extends PostingsReaderBase {
         // before reading positions:
         private long posPendingFP;
 
-        // Where this term's postings start in the .doc file:
-        private long docTermStartFP;
-
-        // Where this term's postings start in the .pos file:
-        private long posTermStartFP;
-
-        // Where this term's payloads/offsets start in the .pay
-        // file:
-        private long payTermStartFP;
-
         // File pointer where the last (vInt encoded) pos delta
         // block is. We need this to know whether to bulk
         // decode vs vInt decode the block:
-        private long lastPosBlockFP;
+        private final long lastPosBlockFP;
 
         private int nextSkipDoc = -1;
 
@@ -1257,9 +1233,13 @@ final class ES812PostingsReader extends PostingsReaderBase {
             this.posIn = ES812PostingsReader.this.posIn.clone();
 
             docFreq = termState.docFreq;
-            docTermStartFP = termState.docStartFP;
-            posTermStartFP = termState.posStartFP;
-            payTermStartFP = termState.payStartFP;
+            // Where this term's postings start in the .doc file:
+            long docTermStartFP = termState.docStartFP;
+            // Where this term's postings start in the .pos file:
+            long posTermStartFP = termState.posStartFP;
+            // Where this term's payloads/offsets start in the .pay
+            // file:
+            long payTermStartFP = termState.payStartFP;
             totalTermFreq = termState.totalTermFreq;
             docIn.seek(docTermStartFP);
             posPendingFP = posTermStartFP;
@@ -1282,7 +1262,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         }
 
         @Override
-        public int freq() throws IOException {
+        public int freq() {
             return freq;
         }
 
@@ -1476,7 +1456,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
     final class BlockImpactsEverythingEnum extends ImpactsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE];
         private final long[] freqBuffer = new long[BLOCK_SIZE];
@@ -1509,8 +1489,8 @@ final class ES812PostingsReader extends PostingsReaderBase {
         final boolean indexHasOffsets;
         final boolean indexHasPayloads;
 
-        private int docFreq; // number of docs in this posting list
-        private long totalTermFreq; // number of positions in this posting list
+        private final int docFreq; // number of docs in this posting list
+        private final long totalTermFreq; // number of positions in this posting list
         private int docUpto; // how many docs we've read
         private int posDocUpTo; // for how many docs we've read positions, offsets, and payloads
         private int doc; // doc we last read
@@ -1529,20 +1509,10 @@ final class ES812PostingsReader extends PostingsReaderBase {
         // before reading payloads/offsets:
         private long payPendingFP;
 
-        // Where this term's postings start in the .doc file:
-        private long docTermStartFP;
-
-        // Where this term's postings start in the .pos file:
-        private long posTermStartFP;
-
-        // Where this term's payloads/offsets start in the .pay
-        // file:
-        private long payTermStartFP;
-
         // File pointer where the last (vInt encoded) pos delta
         // block is. We need this to know whether to bulk
         // decode vs vInt decode the block:
-        private long lastPosBlockFP;
+        private final long lastPosBlockFP;
 
         private int nextSkipDoc = -1;
 
@@ -1599,20 +1569,17 @@ final class ES812PostingsReader extends PostingsReaderBase {
             }
 
             docFreq = termState.docFreq;
-            docTermStartFP = termState.docStartFP;
-            posTermStartFP = termState.posStartFP;
-            payTermStartFP = termState.payStartFP;
             totalTermFreq = termState.totalTermFreq;
-            docIn.seek(docTermStartFP);
-            posPendingFP = posTermStartFP;
-            payPendingFP = payTermStartFP;
+            docIn.seek(termState.docStartFP);
+            posPendingFP = termState.posStartFP;
+            payPendingFP = termState.payStartFP;
             posPendingCount = 0;
             if (termState.totalTermFreq < BLOCK_SIZE) {
-                lastPosBlockFP = posTermStartFP;
+                lastPosBlockFP = termState.posStartFP;
             } else if (termState.totalTermFreq == BLOCK_SIZE) {
                 lastPosBlockFP = -1;
             } else {
-                lastPosBlockFP = posTermStartFP + termState.lastPosBlockOffset;
+                lastPosBlockFP = termState.posStartFP + termState.lastPosBlockOffset;
             }
 
             doc = -1;
@@ -1623,7 +1590,13 @@ final class ES812PostingsReader extends PostingsReaderBase {
             docBufferUpto = BLOCK_SIZE;
 
             skipper = new ES812ScoreSkipReader(docIn.clone(), MAX_SKIP_LEVELS, indexHasPos, indexHasOffsets, indexHasPayloads);
-            skipper.init(docTermStartFP + termState.skipOffset, docTermStartFP, posTermStartFP, payTermStartFP, docFreq);
+            skipper.init(
+                termState.docStartFP + termState.skipOffset,
+                termState.docStartFP,
+                termState.posStartFP,
+                termState.payStartFP,
+                docFreq
+            );
 
             if (indexHasFreq == false) {
                 for (int i = 0; i < ForUtil.BLOCK_SIZE; ++i) {
@@ -1837,10 +1810,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private void skipPositions() throws IOException {
             // Skip positions now:
             int toSkip = posPendingCount - (int) freqBuffer[docBufferUpto - 1];
-            // if (DEBUG) {
-            // System.out.println(" FPR.skipPositions: toSkip=" + toSkip);
-            // }
-
             final int leftInBlock = BLOCK_SIZE - posBufferUpto;
             if (toSkip < leftInBlock) {
                 int end = posBufferUpto + toSkip;

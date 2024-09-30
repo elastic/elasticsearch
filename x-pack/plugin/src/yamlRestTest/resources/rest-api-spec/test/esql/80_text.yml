@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
 
   - do:
       indices.create:
@@ -123,10 +123,10 @@ setup:
 
 ---
 "IN on text":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "IN on text fixed in v 8.14"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -148,10 +148,10 @@ setup:
 
 ---
 "IN on text and itself":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "IN on text fixed in v 8.14"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -174,10 +174,10 @@ setup:
 
 ---
 "NOT IN on text":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "IN on text fixed in v 8.14"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -368,10 +368,10 @@ setup:
 
 ---
 "split text":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "functions fixed for text in v 8.14"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

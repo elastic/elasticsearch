@@ -1,28 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,15 +42,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
-import static org.elasticsearch.TransportVersions.NODE_STATS_REQUEST_SIMPLIFIED;
+import java.util.Objects;
 
 public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsRequest,
     NodesStatsResponse,
     TransportNodesStatsAction.NodeStatsRequest,
-    NodeStats> {
+    NodeStats,
+    SubscribableListener<TransportGetAllocationStatsAction.Response>> {
 
     public static final ActionType<NodesStatsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/stats");
 
@@ -55,8 +61,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        NodeService nodeService,
         ActionFilters actionFilters,
+        NodeService nodeService,
         NodeClient client
     ) {
         super(
@@ -73,34 +79,64 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     @Override
     protected NodesStatsResponse newResponse(NodesStatsRequest request, List<NodeStats> responses, List<FailedNodeException> failures) {
-        return new NodesStatsResponse(clusterService.getClusterName(), responses, failures);
+        assert false;
+        throw new UnsupportedOperationException("use newResponseAsync instead");
+    }
+
+    @Override
+    protected SubscribableListener<TransportGetAllocationStatsAction.Response> createActionContext(Task task, NodesStatsRequest request) {
+        return SubscribableListener.newForked(l -> {
+            var metrics = request.getNodesStatsRequestParameters().requestedMetrics();
+            if (metrics.contains(Metric.FS) || metrics.contains(Metric.ALLOCATIONS)) {
+                new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
+                    TransportGetAllocationStatsAction.TYPE,
+                    new TransportGetAllocationStatsAction.Request(
+                        Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
+                        new TaskId(clusterService.localNode().getId(), task.getId()),
+                        metrics
+                    ),
+                    l
+                );
+            } else {
+                l.onResponse(null);
+            }
+        });
     }
 
     @Override
     protected void newResponseAsync(
         Task task,
         NodesStatsRequest request,
+        SubscribableListener<TransportGetAllocationStatsAction.Response> actionContext,
         List<NodeStats> responses,
         List<FailedNodeException> failures,
         ActionListener<NodesStatsResponse> listener
     ) {
-        Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
-        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)) {
-            client.execute(
-                TransportGetAllocationStatsAction.TYPE,
-                new TransportGetAllocationStatsAction.Request(new TaskId(clusterService.localNode().getId(), task.getId())),
-                listener.delegateFailure((l, r) -> {
-                    ActionListener.respondAndRelease(l, newResponse(request, merge(responses, r.getNodeAllocationStats()), failures));
-                })
-            );
-        } else {
-            ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));
-        }
+        actionContext
+            // merge in the stats from the master, if available
+            .andThenApply(
+                getAllocationStatsResponse -> new NodesStatsResponse(
+                    clusterService.getClusterName(),
+                    getAllocationStatsResponse == null
+                        ? responses
+                        : merge(
+                            responses,
+                            getAllocationStatsResponse.getNodeAllocationStats(),
+                            getAllocationStatsResponse.getDiskThresholdSettings()
+                        ),
+                    failures
+                )
+            )
+            .addListener(listener);
     }
 
-    private static List<NodeStats> merge(List<NodeStats> responses, Map<String, NodeAllocationStats> allocationStats) {
+    private static List<NodeStats> merge(
+        List<NodeStats> responses,
+        Map<String, NodeAllocationStats> allocationStats,
+        DiskThresholdSettings masterThresholdSettings
+    ) {
         return responses.stream()
-            .map(response -> response.withNodeAllocationStats(allocationStats.get(response.getNode().getId())))
+            .map(response -> response.withNodeAllocationStats(allocationStats.get(response.getNode().getId()), masterThresholdSettings))
             .toList();
     }
 
@@ -119,49 +155,45 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     protected NodeStats nodeOperation(NodeStatsRequest request, Task task) {
         assert task instanceof CancellableTask;
 
-        final NodesStatsRequestParameters nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
-        Set<String> metrics = nodesStatsRequestParameters.requestedMetrics();
+        final var nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
+        final var metrics = nodesStatsRequestParameters.requestedMetrics();
+
         return nodeService.stats(
             nodesStatsRequestParameters.indices(),
             nodesStatsRequestParameters.includeShardsStats(),
-            NodesStatsRequestParameters.Metric.OS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.PROCESS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.JVM.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.THREAD_POOL.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.FS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.TRANSPORT.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.HTTP.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.BREAKER.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.SCRIPT.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.DISCOVERY.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.INGEST.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.REPOSITORIES.containedIn(metrics)
+            metrics.contains(Metric.OS),
+            metrics.contains(Metric.PROCESS),
+            metrics.contains(Metric.JVM),
+            metrics.contains(Metric.THREAD_POOL),
+            metrics.contains(Metric.FS),
+            metrics.contains(Metric.TRANSPORT),
+            metrics.contains(Metric.HTTP),
+            metrics.contains(Metric.BREAKER),
+            metrics.contains(Metric.SCRIPT),
+            metrics.contains(Metric.DISCOVERY),
+            metrics.contains(Metric.INGEST),
+            metrics.contains(Metric.ADAPTIVE_SELECTION),
+            metrics.contains(Metric.SCRIPT_CACHE),
+            metrics.contains(Metric.INDEXING_PRESSURE),
+            metrics.contains(Metric.REPOSITORIES)
         );
     }
 
     public static class NodeStatsRequest extends TransportRequest {
 
-        private NodesStatsRequestParameters nodesStatsRequestParameters;
-        private String[] nodesIds;
+        private final NodesStatsRequestParameters nodesStatsRequestParameters;
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(NODE_STATS_REQUEST_SIMPLIFIED)) {
-                this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
-                this.nodesIds = in.readStringArray();
-            } else {
-                final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(in);
-                this.nodesStatsRequestParameters = nodesStatsRequest.getNodesStatsRequestParameters();
-                this.nodesIds = nodesStatsRequest.nodesIds();
+            this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+                && in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+                in.readStringArray(); // formerly nodeIds, now unused
             }
         }
 
         NodeStatsRequest(NodesStatsRequest request) {
             this.nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
-            this.nodesIds = request.nodesIds();
         }
 
         @Override
@@ -170,8 +202,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
                 @Override
                 public String getDescription() {
                     return Strings.format(
-                        "nodes=%s, metrics=%s, flags=%s",
-                        Arrays.toString(nodesIds),
+                        "metrics=%s, flags=%s",
                         nodesStatsRequestParameters.requestedMetrics().toString(),
                         Arrays.toString(nodesStatsRequestParameters.indices().getFlags())
                     );
@@ -182,11 +213,10 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(NODE_STATS_REQUEST_SIMPLIFIED)) {
-                this.nodesStatsRequestParameters.writeTo(out);
-                out.writeStringArrayNullable(nodesIds);
-            } else {
-                new NodesStatsRequest(nodesStatsRequestParameters, this.nodesIds).writeTo(out);
+            nodesStatsRequestParameters.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+                && out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+                out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
             }
         }
 

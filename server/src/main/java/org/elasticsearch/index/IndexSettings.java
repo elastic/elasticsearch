@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -24,6 +25,9 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -35,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
@@ -284,7 +287,7 @@ public final class IndexSettings {
         TimeValue.MINUS_ONE,
         Property.NodeScope
     ); // TODO: remove setting
-    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(15); // TODO: this value is still not final
+    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5); // TODO: this value is still not final
     public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
         if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
@@ -294,6 +297,12 @@ public final class IndexSettings {
     }, new RefreshIntervalValidator(), Property.Dynamic, Property.IndexScope, Property.ServerlessPublic);
 
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
+
+        static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
+        private static final boolean IS_OVERRIDE_ALLOWED = Boolean.parseBoolean(
+            System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
+        );
+
         @Override
         public void validate(TimeValue value) {}
 
@@ -308,16 +317,19 @@ public final class IndexSettings {
                 && value.compareTo(TimeValue.ZERO) > 0
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersions.V_8_10_0)) {
-                throw new IllegalArgumentException(
-                    "index setting ["
-                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
-                        + "="
-                        + value
-                        + "] should be either "
-                        + TimeValue.MINUS_ONE
-                        + " or equal to or greater than "
-                        + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
-                );
+
+                if (IS_OVERRIDE_ALLOWED == false) {
+                    throw new IllegalArgumentException(
+                        "index setting ["
+                            + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                            + "="
+                            + value
+                            + "] should be either "
+                            + TimeValue.MINUS_ONE
+                            + " or equal to or greater than "
+                            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                    );
+                }
             }
         }
 
@@ -506,19 +518,17 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    public static final Setting<String> DEFAULT_PIPELINE = new Setting<>(
+    public static final Setting<String> DEFAULT_PIPELINE = Setting.simpleString(
         "index.default_pipeline",
         IngestService.NOOP_PIPELINE_NAME,
-        Function.identity(),
         Property.Dynamic,
         Property.IndexScope,
         Property.ServerlessPublic
     );
 
-    public static final Setting<String> FINAL_PIPELINE = new Setting<>(
+    public static final Setting<String> FINAL_PIPELINE = Setting.simpleString(
         "index.final_pipeline",
         IngestService.NOOP_PIPELINE_NAME,
-        Function.identity(),
         Property.Dynamic,
         Property.IndexScope,
         Property.ServerlessPublic
@@ -607,16 +617,25 @@ public final class IndexSettings {
 
             @Override
             public void validate(Instant value, Map<Setting<?>, Object> settings) {
-                @SuppressWarnings("unchecked")
                 Instant startTime = (Instant) settings.get(TIME_SERIES_START_TIME);
                 if (startTime.toEpochMilli() > value.toEpochMilli()) {
                     throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
+                }
+
+                // The index.time_series.end_time setting can only be specified if the index.mode setting has been set to time_series
+                // This check here is specifically needed because in case of updating index settings the validation the gets executed
+                // in IndexSettings constructor when reading the index.mode setting doesn't get executed.
+                IndexMode indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode != IndexMode.TIME_SERIES) {
+                    throw new IllegalArgumentException(
+                        "[" + TIME_SERIES_END_TIME.getKey() + "] requires [index.mode=" + IndexMode.TIME_SERIES + "]"
+                    );
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME, MODE);
                 return settings.iterator();
             }
         },
@@ -678,6 +697,31 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
+
+    /**
+     * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
+     * or stored. If the length of the field’s content exceeds this limit, the field value will be ignored during indexing.
+     * This setting is  useful for `keyword`, `flattened`, and `wildcard` fields where very large values are undesirable.
+     * It allows users to manage the size of indexed data by skipping fields with excessively long content. As an index-level
+     * setting, it applies to all `keyword` and `wildcard` fields, as well as to keyword values within `flattened` fields.
+     * When it comes to arrays, the `ignore_above` setting applies individually to each element of the array. If any element's
+     * length exceeds the specified limit, only that element will be ignored during indexing, while the rest of the array will
+     * still be processed. This behavior is consistent with the field-level `ignore_above` setting.
+     * This setting can be overridden at the field level by specifying a custom `ignore_above` value in the field mapping.
+     * <p>
+     * Example usage:
+     * <pre>
+     * "index.mapping.ignore_above": 256
+     * </pre>
+     */
+    public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
+        "index.mapping.ignore_above",
+        Integer.MAX_VALUE,
+        0,
+        Property.IndexScope,
+        Property.ServerlessPublic
+    );
+    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting");
 
     private final Index index;
     private final IndexVersion version;
@@ -758,6 +802,8 @@ public final class IndexSettings {
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
+    private volatile boolean skipIgnoredSourceWrite;
+    private volatile boolean skipIgnoredSourceRead;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -774,6 +820,16 @@ public final class IndexSettings {
     private volatile int maxRegexLength;
 
     private final IndexRouting indexRouting;
+
+    /**
+     * The default mode for storing source, for all mappers not overriding this setting.
+     * This is only relevant for indexes configured with synthetic-source code.
+     */
+    public Mapper.SourceKeepMode sourceKeepMode() {
+        return sourceKeepMode;
+    }
+
+    private final Mapper.SourceKeepMode sourceKeepMode;
 
     /**
      * Returns the default search fields for this index.
@@ -904,7 +960,10 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
+        skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -987,6 +1046,11 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(
+            IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
+            this::setSkipIgnoredSourceWrite
+        );
+        scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1114,16 +1178,21 @@ public final class IndexSettings {
         final Settings newSettings = indexMetadata.getSettings();
         IndexVersion newIndexVersion = SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
-            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
+            throw new IllegalArgumentException(
+                "version mismatch on settings update expected: "
+                    + version.toReleaseVersion()
+                    + " but was: "
+                    + newIndexVersion.toReleaseVersion()
+            );
         }
         IndexVersion newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
         IndexVersion compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
             throw new IllegalArgumentException(
                 "compatibility version mismatch on settings update expected: "
-                    + compatibilityVersion
+                    + compatibilityVersion.toReleaseVersion()
                     + " but was: "
-                    + newCompatibilityVersion
+                    + newCompatibilityVersion.toReleaseVersion()
             );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
@@ -1556,6 +1625,22 @@ public final class IndexSettings {
 
     private void setMappingDimensionFieldsLimit(long value) {
         this.mappingDimensionFieldsLimit = value;
+    }
+
+    public boolean getSkipIgnoredSourceWrite() {
+        return skipIgnoredSourceWrite;
+    }
+
+    private void setSkipIgnoredSourceWrite(boolean value) {
+        this.skipIgnoredSourceWrite = value;
+    }
+
+    public boolean getSkipIgnoredSourceRead() {
+        return skipIgnoredSourceRead;
+    }
+
+    private void setSkipIgnoredSourceRead(boolean value) {
+        this.skipIgnoredSourceRead = value;
     }
 
     /**

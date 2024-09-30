@@ -160,7 +160,7 @@ public class Querier {
             TransportOpenPointInTimeAction.TYPE,
             openPitRequest,
             listener.delegateFailureAndWrap((delegate, openPointInTimeResponse) -> {
-                String pitId = openPointInTimeResponse.getPointInTimeId();
+                BytesReference pitId = openPointInTimeResponse.getPointInTimeId();
                 search.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
                 search.indices(Strings.EMPTY_ARRAY);
                 search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
@@ -176,14 +176,14 @@ public class Querier {
         );
     }
 
-    private static void closePointInTimeAfterError(Client client, String pointInTimeId, Exception e, ActionListener<?> listener) {
+    private static void closePointInTimeAfterError(Client client, BytesReference pointInTimeId, Exception e, ActionListener<?> listener) {
         closePointInTime(client, pointInTimeId, wrap(r -> listener.onFailure(e), closeError -> {
             e.addSuppressed(closeError);
             listener.onFailure(e);
         }));
     }
 
-    public static void closePointInTime(Client client, String pointInTimeId, ActionListener<Boolean> listener) {
+    public static void closePointInTime(Client client, BytesReference pointInTimeId, ActionListener<Boolean> listener) {
         if (pointInTimeId != null) {
             // request should not be made with the parent task assigned because the parent task might already be canceled
             client = client instanceof ParentTaskAssigningClient wrapperClient ? wrapperClient.unwrap() : client;

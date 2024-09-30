@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util;
@@ -110,6 +111,13 @@ public class ServerUtils {
      */
     private static HttpResponse execute(Request request, String username, String password, Path caCert) throws Exception {
         final Executor executor;
+        logger.info(
+            "Executing request [{}] with username/password [{}/{}] and caCert [{}]",
+            request.toString(),
+            username,
+            password,
+            caCert
+        );
         if (caCert != null) {
             try (InputStream inStream = Files.newInputStream(caCert)) {
                 CertificateFactory cf = CertificateFactory.getInstance("X.509");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.stats;
@@ -32,10 +33,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long coordinatingRejections;
     private final long primaryRejections;
     private final long replicaRejections;
+    private final long primaryDocumentRejections;
     private final long memoryLimit;
 
     // These fields will be used for additional back-pressure and metrics in the future
     private final long totalCoordinatingOps;
+    private final long totalCoordinatingRequests;
     private final long totalPrimaryOps;
     private final long totalReplicaOps;
     private final long currentCoordinatingOps;
@@ -70,6 +73,18 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentCoordinatingOps = 0;
         this.currentPrimaryOps = 0;
         this.currentReplicaOps = 0;
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            primaryDocumentRejections = in.readVLong();
+        } else {
+            primaryDocumentRejections = -1L;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT)) {
+            totalCoordinatingRequests = in.readVLong();
+        } else {
+            totalCoordinatingRequests = -1L;
+        }
     }
 
     public IndexingPressureStats(
@@ -90,7 +105,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         long totalReplicaOps,
         long currentCoordinatingOps,
         long currentPrimaryOps,
-        long currentReplicaOps
+        long currentReplicaOps,
+        long primaryDocumentRejections,
+        long totalCoordinatingRequests
     ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
@@ -111,6 +128,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentCoordinatingOps = currentCoordinatingOps;
         this.currentPrimaryOps = currentPrimaryOps;
         this.currentReplicaOps = currentReplicaOps;
+
+        this.primaryDocumentRejections = primaryDocumentRejections;
+        this.totalCoordinatingRequests = totalCoordinatingRequests;
     }
 
     @Override
@@ -131,6 +151,14 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeVLong(memoryLimit);
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            out.writeVLong(primaryDocumentRejections);
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT)) {
+            out.writeVLong(totalCoordinatingRequests);
         }
     }
 
@@ -206,6 +234,14 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return memoryLimit;
     }
 
+    public long getPrimaryDocumentRejections() {
+        return primaryDocumentRejections;
+    }
+
+    public long getTotalCoordinatingRequests() {
+        return totalCoordinatingRequests;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";
@@ -219,6 +255,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private static final String COORDINATING_REJECTIONS = "coordinating_rejections";
     private static final String PRIMARY_REJECTIONS = "primary_rejections";
     private static final String REPLICA_REJECTIONS = "replica_rejections";
+    private static final String PRIMARY_DOCUMENT_REJECTIONS = "primary_document_rejections";
     private static final String LIMIT = "limit";
     private static final String LIMIT_IN_BYTES = "limit_in_bytes";
 
@@ -246,6 +283,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(COORDINATING_REJECTIONS, coordinatingRejections);
         builder.field(PRIMARY_REJECTIONS, primaryRejections);
         builder.field(REPLICA_REJECTIONS, replicaRejections);
+        builder.field(PRIMARY_DOCUMENT_REJECTIONS, primaryDocumentRejections);
         builder.endObject();
         builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, ByteSizeValue.ofBytes(memoryLimit));
         builder.endObject();

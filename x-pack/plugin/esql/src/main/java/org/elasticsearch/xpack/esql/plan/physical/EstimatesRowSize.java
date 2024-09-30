@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
@@ -104,20 +103,12 @@ public interface EstimatesRowSize {
 
     static int estimateSize(DataType dataType) {
         ElementType elementType = PlannerUtils.toElementType(dataType);
-        return switch (elementType) {
-            case BOOLEAN -> 1;
-            case BYTES_REF -> {
-                if (dataType == DataTypes.IP) {
-                    yield 16;
-                }
-                yield 50; // wild estimate for the size of a string.
-            }
-            case DOC -> throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");
-            case DOUBLE -> Double.BYTES;
-            case INT -> Integer.BYTES;
-            case LONG -> Long.BYTES;
-            case NULL -> 0;
-            case UNKNOWN -> throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
-        };
+        if (elementType == ElementType.DOC) {
+            throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");
+        }
+        if (elementType == ElementType.UNKNOWN) {
+            throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
+        }
+        return dataType.estimatedSize().orElse(50);
     }
 }

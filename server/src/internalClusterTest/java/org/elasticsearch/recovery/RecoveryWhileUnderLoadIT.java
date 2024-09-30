@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.recovery;
@@ -101,7 +102,12 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for GREEN health status ...");
             // make sure the cluster state is green, and all has been recovered
-            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus());
+            assertNoTimeout(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout(TimeValue.timeValueMinutes(5))
+                    .setWaitForGreenStatus()
+            );
 
             logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
             waitForDocs(totalNumDocs, indexer);
@@ -157,7 +163,12 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 4);
 
             logger.info("--> waiting for GREEN health status ...");
-            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus());
+            assertNoTimeout(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout(TimeValue.timeValueMinutes(5))
+                    .setWaitForGreenStatus()
+            );
 
             logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
             waitForDocs(totalNumDocs, indexer);
@@ -215,9 +226,9 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for GREEN health status ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
-                    .setTimeout("5m")
+                    .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForGreenStatus()
                     .setWaitForNoRelocatingShards(true)
             );
@@ -232,21 +243,30 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 3);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true)
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout(TimeValue.timeValueMinutes(5))
+                    .setWaitForNoRelocatingShards(true)
             );
 
             logger.info("--> allow 2 nodes for index [test] ...");
             allowNodes("test", 2);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true)
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout(TimeValue.timeValueMinutes(5))
+                    .setWaitForNoRelocatingShards(true)
             );
 
             logger.info("--> allow 1 nodes for index [test] ...");
             allowNodes("test", 1);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true)
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout(TimeValue.timeValueMinutes(5))
+                    .setWaitForNoRelocatingShards(true)
             );
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
@@ -254,7 +274,10 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> indexing threads stopped");
 
             assertNoTimeout(
-                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true)
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout(TimeValue.timeValueMinutes(5))
+                    .setWaitForNoRelocatingShards(true)
             );
 
             logger.info("--> refreshing the index");

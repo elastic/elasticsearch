@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -17,6 +21,9 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
@@ -41,6 +48,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -52,6 +61,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -63,10 +73,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
@@ -88,12 +100,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // we must wait for the node to actually be up and running. otherwise the node might have started,
         // elected itself master but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
-        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
         indicesAdmin().preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .setSettings(indexSettings(1, 0))
             .get();
         indicesAdmin().preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
@@ -126,12 +138,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        awaitIndexShardCloseAsyncTasks();
         ensureNoInitializingShards();
-        SearchService searchService = getInstanceFromNode(SearchService.class);
-        assertThat(searchService.getActiveContexts(), equalTo(0));
-        assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+        ensureAllFreeContextActionsAreConsumed();
+
+        ensureAllContextsReleased(getInstanceFromNode(SearchService.class));
         super.tearDown();
-        var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
+        var deleteDataStreamsRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {
             assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest));
@@ -147,7 +160,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         var deleteComponentTemplateRequest = new TransportDeleteComponentTemplateAction.Request("*");
         assertAcked(client().execute(TransportDeleteComponentTemplateAction.TYPE, deleteComponentTemplateRequest).actionGet());
         assertAcked(indicesAdmin().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get());
-        Metadata metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
         assertThat(
             "test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
             metadata.persistentSettings().size(),
@@ -289,6 +302,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     /**
+     * Execute the given {@link ActionRequest} using the given {@link ActionType} and the default node client, wait for it to complete with
+     * a timeout of {@link #SAFE_AWAIT_TIMEOUT}, and then return the result. An exceptional response, timeout or interrupt triggers a test
+     * failure.
+     */
+    public <T extends ActionResponse> T safeExecute(ActionType<T> action, ActionRequest request) {
+        return safeExecute(client(), action, request);
+    }
+
+    /**
      * Returns an admin client.
      */
     protected AdminClient admin() {
@@ -368,7 +390,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
         ClusterHealthResponse health = clusterAdmin().health(
-            new ClusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, index).waitForYellowStatus()
+                .waitForEvents(Priority.LANGUID)
+                .waitForNoRelocatingShards(true)
         ).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
@@ -412,7 +436,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
         ClusterHealthResponse actionGet = clusterAdmin().health(
-            new ClusterHealthRequest(indices).timeout(timeout)
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indices).masterNodeTimeout(timeout)
+                .timeout(timeout)
                 .waitForGreenStatus()
                 .waitForEvents(Priority.LANGUID)
                 .waitForNoRelocatingShards(true)
@@ -420,7 +445,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (actionGet.isTimedOut()) {
             logger.info(
                 "ensureGreen timed out, cluster state:\n{}\n{}",
-                clusterAdmin().prepareState().get().getState(),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
                 ESIntegTestCase.getClusterPendingTasks(client())
             );
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
@@ -445,10 +470,19 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * inspired by {@link ESRestTestCase}
      */
     protected void ensureNoInitializingShards() {
-        ClusterHealthResponse actionGet = clusterAdmin().health(new ClusterHealthRequest("_all").waitForNoInitializingShards(true))
-            .actionGet();
+        ClusterHealthResponse actionGet = clusterAdmin().health(
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "_all").waitForNoInitializingShards(true)
+        ).actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());
+    }
+
+    /**
+     * waits until all free_context actions have been handled by the generic thread pool
+     */
+    protected void ensureAllFreeContextActionsAreConsumed() throws Exception {
+        logger.info("--> waiting for all free_context tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_ACTION_NAME + "*").setWaitForCompletion(true).execute());
     }
 
     /**
@@ -458,5 +492,45 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected boolean enableConcurrentSearch() {
         return true;
+    }
+
+    protected void awaitIndexShardCloseAsyncTasks() {
+        final var latch = new CountDownLatch(1);
+        getInstanceFromNode(IndicesClusterStateService.class).onClusterStateShardsClosed(latch::countDown);
+        safeAwait(latch);
+    }
+
+    /**
+     * Create an ingest pipeline with the given ID and body, using the default {@link ESSingleNodeTestCase#client()}.
+     *
+     * @param id         The pipeline id.
+     * @param jsonString The body of the {@link PutPipelineRequest} as a JSON-formatted {@link String}.
+     */
+    protected final void putJsonPipeline(String id, String jsonString) {
+        IngestPipelineTestUtils.putJsonPipeline(client(), id, jsonString);
+    }
+
+    /**
+     * Create an ingest pipeline with the given ID and body, using the default {@link ESSingleNodeTestCase#client()}.
+     *
+     * @param id         The pipeline id.
+     * @param toXContent The body of the {@link PutPipelineRequest} as a {@link ToXContentFragment}.
+     */
+    protected final void putJsonPipeline(String id, ToXContentFragment toXContent) throws IOException {
+        IngestPipelineTestUtils.putJsonPipeline(client(), id, toXContent);
+    }
+
+    /**
+     * Delete the ingest pipeline with the given {@code id}, the default {@link ESSingleNodeTestCase#client()}.
+     */
+    protected final void deletePipeline(String id) {
+        assertAcked(
+            safeGet(
+                client().execute(
+                    DeletePipelineTransportAction.TYPE,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
+                )
+            )
+        );
     }
 }

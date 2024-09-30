@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns a substring of a string, specified by a start position and an optional length
+Returns a substring of a string, specified by a start position and an optional length.

@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -43,7 +44,8 @@ public class PutRoleRequest extends ActionRequest {
     private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
-    private boolean restrictRequest = false;
+    private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
+    private String description;
 
     public PutRoleRequest() {}
 
@@ -59,6 +61,10 @@ public class PutRoleRequest extends ActionRequest {
 
     public void name(String name) {
         this.name = name;
+    }
+
+    public void description(String description) {
+        this.description = description;
     }
 
     public void cluster(String... clusterPrivilegesArray) {
@@ -77,12 +83,8 @@ public class PutRoleRequest extends ActionRequest {
         remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
-    public void restrictRequest(boolean restrictRequest) {
-        this.restrictRequest = restrictRequest;
-    }
-
-    public boolean restrictRequest() {
-        return restrictRequest;
+    public void putRemoteCluster(RemoteClusterPermissions remoteClusterPermissions) {
+        this.remoteClusterPermissions = remoteClusterPermissions;
     }
 
     public void addRemoteIndex(
@@ -158,6 +160,10 @@ public class PutRoleRequest extends ActionRequest {
         return name;
     }
 
+    public String description() {
+        return description;
+    }
+
     public String[] cluster() {
         return clusterPrivileges;
     }
@@ -206,7 +212,9 @@ public class PutRoleRequest extends ActionRequest {
             metadata,
             Collections.emptyMap(),
             remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]),
-            null
+            remoteClusterPermissions,
+            null,
+            description
         );
     }
 }

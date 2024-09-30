@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.common.util.set.Sets;
@@ -278,6 +278,7 @@ public class PrivilegeTests extends ESTestCase {
             ProfileHasPrivilegesAction.NAME,
             SuggestProfilesAction.NAME,
             GetRolesAction.NAME,
+            ActionTypes.QUERY_ROLE_ACTION.name(),
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME,
@@ -285,7 +286,7 @@ public class PrivilegeTests extends ESTestCase {
             ActionTypes.QUERY_USER_ACTION.name(),
             HasPrivilegesAction.NAME,
             GetUserPrivilegesAction.NAME,
-            GetSecuritySettingsAction.NAME
+            GetSecuritySettingsAction.INSTANCE.name()
         );
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.READ_SECURITY,
@@ -297,6 +298,7 @@ public class PrivilegeTests extends ESTestCase {
             PutUserAction.NAME,
             DeleteUserAction.NAME,
             PutRoleAction.NAME,
+            ActionTypes.BULK_PUT_ROLES.name(),
             DeleteRoleAction.NAME,
             PutRoleMappingAction.NAME,
             DeleteRoleMappingAction.NAME,
@@ -305,12 +307,12 @@ public class PrivilegeTests extends ESTestCase {
             InvalidateApiKeyAction.NAME,
             TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             NodeEnrollmentAction.NAME,
             KibanaEnrollmentAction.NAME,
             TransportPutIndexTemplateAction.TYPE.name(),
             GetIndexTemplatesAction.NAME,
-            ClusterRerouteAction.NAME,
+            TransportClusterRerouteAction.TYPE.name(),
             ClusterUpdateSettingsAction.NAME,
             ClearRealmCacheAction.NAME,
             ClearSecurityCacheAction.NAME,
@@ -321,7 +323,7 @@ public class PrivilegeTests extends ESTestCase {
             ActivateProfileAction.NAME,
             SetProfileEnabledAction.NAME,
             UpdateProfileDataAction.NAME,
-            UpdateSecuritySettingsAction.NAME
+            UpdateSecuritySettingsAction.INSTANCE.name()
         );
     }
 
@@ -339,6 +341,7 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
             "cluster:admin/xpack/security/role/put",
             "cluster:admin/xpack/security/role/get",
+            "cluster:admin/xpack/security/role/query",
             "cluster:admin/xpack/security/role/delete"
         );
         verifyClusterActionDenied(
@@ -352,10 +355,10 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
             TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             TransportPutIndexTemplateAction.TYPE.name(),
             GetIndexTemplatesAction.NAME,
-            ClusterRerouteAction.NAME,
+            TransportClusterRerouteAction.TYPE.name(),
             ClusterUpdateSettingsAction.NAME
         );
     }
@@ -460,7 +463,12 @@ public class PrivilegeTests extends ESTestCase {
         }
 
         {
-            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_SLM, "cluster:admin/slm/get", "cluster:admin/ilm/operation_mode/get");
+            verifyClusterActionAllowed(
+                ClusterPrivilegeResolver.READ_SLM,
+                "cluster:admin/slm/get",
+                "cluster:admin/slm/status",
+                "cluster:admin/ilm/operation_mode/get"
+            );
             verifyClusterActionDenied(
                 ClusterPrivilegeResolver.READ_SLM,
                 "cluster:admin/slm/delete",

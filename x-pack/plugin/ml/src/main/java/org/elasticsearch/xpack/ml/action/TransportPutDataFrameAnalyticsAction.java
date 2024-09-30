@@ -18,11 +18,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -252,10 +252,14 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             delegate.onResponse(finalConfig);
         });
 
+        final var deleterTimeout = masterNodeTimeout.millis() < 0 ? TimeValue.MAX_VALUE : masterNodeTimeout;
+        // NB a negative masterNodeTimeout means never to time out, but recording dataframe analytics configs does not support infinite
+        // timeouts so we just use a very long timeout here instead
+
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, masterNodeTimeout, auditingListener);
+            configProvider.put(config, headers, deleterTimeout, auditingListener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -264,7 +268,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             client,
             clusterState,
             masterNodeTimeout,
-            auditingListener.delegateFailureAndWrap((l, unused) -> configProvider.put(config, headers, masterNodeTimeout, l)),
+            auditingListener.delegateFailureAndWrap((l, unused) -> configProvider.put(config, headers, deleterTimeout, l)),
             MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }

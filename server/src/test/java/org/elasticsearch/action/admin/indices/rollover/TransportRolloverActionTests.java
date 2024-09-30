@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -59,11 +60,13 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -105,15 +108,16 @@ public class TransportRolloverActionTests extends ESTestCase {
     final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
     final Client mockClient = mock(Client.class);
     final AllocationService mockAllocationService = mock(AllocationService.class);
+    final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
     final MetadataRolloverService rolloverService = new MetadataRolloverService(
         mockThreadPool,
         mockCreateIndexService,
         mdIndexAliasesService,
         EmptySystemIndices.INSTANCE,
         WriteLoadForecaster.DEFAULT,
-        mockClusterService
+        mockClusterService,
+        telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
     );
-
     final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
         Settings.EMPTY,
         mockClusterService,
@@ -427,29 +431,23 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        final DataStream dataStream = new DataStream(
-            "logs-ds",
-            List.of(backingIndexMetadata.getIndex()),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(backingIndexMetadata, false).put(dataStream))
             .build();
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
-            assert args.length == 5;
+            assert args.length == 6;
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[4];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[5];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(mockMetadataDataStreamService).setRolloverOnWrite(eq(dataStream.getName()), eq(true), any(), any(), anyActionListener());
+        }).when(mockMetadataDataStreamService)
+            .setRolloverOnWrite(eq(dataStream.getName()), eq(true), eq(false), any(), any(), anyActionListener());
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
@@ -489,17 +487,11 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        final DataStream dataStream = new DataStream(
-            "logs-ds",
-            List.of(backingIndexMetadata.getIndex()),
-            randomIntBetween(1, 10),
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setGeneration(randomIntBetween(1, 10))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
             .build();
@@ -559,17 +551,11 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        final DataStream dataStream = new DataStream(
-            "logs-ds",
-            List.of(backingIndexMetadata.getIndex()),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setGeneration(1)
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
         Metadata.Builder metadataBuilder = Metadata.builder().put(backingIndexMetadata, false).put(dataStream);
         metadataBuilder.put("ds-alias", dataStream.getName(), true, null);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
@@ -690,6 +676,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
                 stats.denseVectorStats = new DenseVectorStats();
+                stats.sparseVectorStats = new SparseVectorStats();
                 shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0));
             }
         }

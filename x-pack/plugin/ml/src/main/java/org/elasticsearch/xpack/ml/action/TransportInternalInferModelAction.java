@@ -13,12 +13,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -66,6 +67,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
+    private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
 
     TransportInternalInferModelAction(
         String actionName,
@@ -75,7 +77,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Client client,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TrainedModelProvider trainedModelProvider
+        TrainedModelProvider trainedModelProvider,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService
     ) {
         super(actionName, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelLoadingService = modelLoadingService;
@@ -83,6 +86,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         this.clusterService = clusterService;
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
+        this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
     }
 
     @Inject
@@ -93,7 +97,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Client client,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TrainedModelProvider trainedModelProvider
+        TrainedModelProvider trainedModelProvider,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService
     ) {
         this(
             InferModelAction.NAME,
@@ -103,7 +108,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             client,
             clusterService,
             licenseState,
-            trainedModelProvider
+            trainedModelProvider,
+            adaptiveAllocationsScalerService
         );
     }
 
@@ -253,10 +259,13 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         }
 
         if (nodes.isEmpty()) {
-            logger.trace(() -> format("[%s] model deployment not allocated to any node", assignment.getDeploymentId()));
-            listener.onFailure(
-                ExceptionsHelper.conflictStatusException("Trained model deployment [" + request.getId() + "] is not allocated to any nodes")
-            );
+            String message = "Trained model deployment [" + request.getId() + "] is not allocated to any nodes";
+            boolean starting = adaptiveAllocationsScalerService.maybeStartAllocation(assignment);
+            if (starting) {
+                message += "; starting deployment of one allocation";
+            }
+            logger.debug(message);
+            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
 
@@ -290,6 +299,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             deploymentRequest.setPrefixType(request.getPrefixType());
             deploymentRequest.setNodes(node.v1());
             deploymentRequest.setParentTask(parentTaskId);
+            deploymentRequest.setChunkResults(request.isChunked());
 
             startPos += node.v2();
 

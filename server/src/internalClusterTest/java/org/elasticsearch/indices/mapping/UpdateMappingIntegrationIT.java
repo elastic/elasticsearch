@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.mapping;
@@ -37,7 +38,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -63,7 +63,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test")
             .setSettings(indexSettings(1, 0).put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE))
             .get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
         updateClusterSettings(
             Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
         );
@@ -101,7 +101,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}
             """).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}
@@ -116,7 +116,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
         createIndex("test", 1, 0);
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}""", XContentType.JSON).get();
@@ -132,7 +132,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(2, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}
             """).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         try {
             indicesAdmin().preparePutMapping("test").setSource("""
@@ -164,7 +164,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingNoChanges() {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(2, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}""").get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"_doc":{"properties":{"body":{"type":"text"}}}}
@@ -179,66 +179,53 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         final AtomicReference<Exception> threadException = new AtomicReference<>();
         final AtomicBoolean stop = new AtomicBoolean(false);
-        Thread[] threads = new Thread[3];
-        final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         final ArrayList<Client> clientArray = new ArrayList<>();
         for (Client c : clients()) {
             clientArray.add(c);
         }
 
-        for (int j = 0; j < threads.length; j++) {
-            threads[j] = new Thread(() -> {
-                try {
-                    barrier.await();
-
-                    for (int i = 0; i < 100; i++) {
-                        if (stop.get()) {
-                            return;
-                        }
-
-                        Client client1 = clientArray.get(i % clientArray.size());
-                        Client client2 = clientArray.get((i + 1) % clientArray.size());
-                        String indexName = i % 2 == 0 ? "test2" : "test1";
-                        String fieldName = Thread.currentThread().getName() + "_" + i;
-
-                        AcknowledgedResponse response = client1.admin()
-                            .indices()
-                            .preparePutMapping(indexName)
-                            .setSource(
-                                JsonXContent.contentBuilder()
-                                    .startObject()
-                                    .startObject("_doc")
-                                    .startObject("properties")
-                                    .startObject(fieldName)
-                                    .field("type", "text")
-                                    .endObject()
-                                    .endObject()
-                                    .endObject()
-                                    .endObject()
-                            )
-                            .setMasterNodeTimeout(TimeValue.timeValueMinutes(5))
-                            .get();
-
-                        assertThat(response.isAcknowledged(), equalTo(true));
-                        GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
-                        MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> properties = (Map<String, Object>) mappings.getSourceAsMap().get("properties");
-                        assertThat(properties.keySet(), Matchers.hasItem(fieldName));
+        startInParallel(3, j -> {
+            try {
+                for (int i = 0; i < 100; i++) {
+                    if (stop.get()) {
+                        return;
                     }
-                } catch (Exception e) {
-                    threadException.set(e);
-                    stop.set(true);
+
+                    Client client1 = clientArray.get(i % clientArray.size());
+                    Client client2 = clientArray.get((i + 1) % clientArray.size());
+                    String indexName = i % 2 == 0 ? "test2" : "test1";
+                    String fieldName = "t_" + j + "_" + i;
+
+                    AcknowledgedResponse response = client1.admin()
+                        .indices()
+                        .preparePutMapping(indexName)
+                        .setSource(
+                            JsonXContent.contentBuilder()
+                                .startObject()
+                                .startObject("_doc")
+                                .startObject("properties")
+                                .startObject(fieldName)
+                                .field("type", "text")
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                        )
+                        .setMasterNodeTimeout(TimeValue.timeValueMinutes(5))
+                        .get();
+
+                    assertThat(response.isAcknowledged(), equalTo(true));
+                    GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
+                    MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> properties = (Map<String, Object>) mappings.getSourceAsMap().get("properties");
+                    assertThat(properties.keySet(), Matchers.hasItem(fieldName));
                 }
-            });
-
-            threads[j].setName("t_" + j);
-            threads[j].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
+            } catch (Exception e) {
+                threadException.set(e);
+                stop.set(true);
+            }
+        });
 
         if (threadException.get() != null) {
             throw threadException.get();

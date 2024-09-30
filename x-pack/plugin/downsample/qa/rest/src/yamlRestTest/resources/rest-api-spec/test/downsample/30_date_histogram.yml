@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup: unsupported aggregations errors added in 8.5.0"
 
   - do:
@@ -41,10 +41,10 @@ setup:
 
 ---
 "Date histogram aggregation on time series index and rollup indices":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup: unsupported aggregations errors added in 8.5.0"
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.put_settings:
@@ -232,8 +232,8 @@ setup:
 
 ---
 timezone support - 15m:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "timezone support added in 8.13"
 
   - do:
@@ -432,8 +432,8 @@ timezone support - 15m:
 
 ---
 timezone support - 1h:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "timezone support added in 8.13"
 
   - do:
@@ -632,8 +632,8 @@ timezone support - 1h:
 
 ---
 timezone support - 1d:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "timezone support added in 8.13"
 
   - do:

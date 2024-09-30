@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
-import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
@@ -37,9 +36,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -244,38 +241,43 @@ public class TransformIT extends TransformRestTestCase {
             long sleepAfterStartMillis = randomLongBetween(0, 5_000);
             boolean force = randomBoolean();
             try {
-                // Create the continuous transform
+                // Create the continuous transform.
                 putTransform(transformId, config, RequestOptions.DEFAULT);
                 assertThat(getTransformTasks(), is(empty()));
-                assertThatTransformTaskDoesNotExist(transformId);
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(0)));
 
                 startTransform(transformId, RequestOptions.DEFAULT);
-                // There is 1 transform task after start
+                // There is 1 transform task after start.
                 assertThat(getTransformTasks(), hasSize(1));
-                assertThatTransformTaskExists(transformId);
+                assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(1)));
 
                 Thread.sleep(sleepAfterStartMillis);
-                // There should still be 1 transform task as the transform is continuous
+                // There should still be 1 transform task as the transform is continuous.
                 assertThat(getTransformTasks(), hasSize(1));
-                assertThatTransformTaskExists(transformId);
+                assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(1)));
 
-                // Stop the transform with force set randomly
+                // Stop the transform with force set randomly.
                 stopTransform(transformId, true, null, false, force);
-                // After the transform is stopped, there should be no transform task left
-                assertThat(getTransformTasks(), is(empty()));
-                assertThatTransformTaskDoesNotExist(transformId);
+                if (force) {
+                    // If the "force" has been used, then the persistent task is removed from the cluster state but the local task can still
+                    // be seen by the PersistentTasksNodeService. We need to wait until PersistentTasksNodeService reconciles the state.
+                    assertBusy(() -> assertThat(getTransformTasks(), is(empty())));
+                } else {
+                    // If the "force" hasn't been used then we can expect the local task to be already gone.
+                    assertThat(getTransformTasks(), is(empty()));
+                }
+                // After the transform is stopped, there should be no transform task left in the cluster state.
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(0)));
 
                 // Delete the transform
                 deleteTransform(transformId);
             } catch (AssertionError | Exception e) {
                 throw new AssertionError(
-                    format(
-                        "Failure at iteration %d (sleepAfterStartMillis=%s,force=%s): %s",
-                        i,
-                        sleepAfterStartMillis,
-                        force,
-                        e.getMessage()
-                    ),
+                    format("Failure at iteration %d (sleepAfterStart=%sms,force=%s): %s", i, sleepAfterStartMillis, force, e.getMessage()),
                     e
                 );
             }
@@ -301,63 +303,6 @@ public class TransformIT extends TransformRestTestCase {
         ).setSyncConfig(syncConfig).setPivotConfig(pivotConfig).build();
 
         return Strings.toString(config);
-    }
-
-    /**
-     * Returns the list of transform tasks as reported by _tasks API.
-     */
-    @SuppressWarnings("unchecked")
-    protected List<String> getTransformTasks() throws IOException {
-        final Request tasksRequest = new Request("GET", "/_tasks");
-        tasksRequest.addParameter("actions", TransformField.TASK_NAME + "*");
-        final Map<String, Object> tasksResponse = entityAsMap(client().performRequest(tasksRequest));
-
-        Map<String, Object> nodes = (Map<String, Object>) tasksResponse.get("nodes");
-        if (nodes == null) {
-            return List.of();
-        }
-
-        List<String> foundTasks = new ArrayList<>();
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
-            Map<String, Object> tasks = (Map<String, Object>) nodeInfo.get("tasks");
-            if (tasks != null) {
-                foundTasks.addAll(tasks.keySet());
-            }
-        }
-        return foundTasks;
-    }
-
-    /**
-     * Verifies that the given transform task exists in cluster state.
-     */
-    private void assertThatTransformTaskExists(String transformId) throws IOException {
-        assertThatTransformTaskCountIsEqualTo(transformId, 1);
-    }
-
-    /**
-     * Verifies that the given transform task does not exist in cluster state.
-     */
-    private void assertThatTransformTaskDoesNotExist(String transformId) throws IOException {
-        assertThatTransformTaskCountIsEqualTo(transformId, 0);
-    }
-
-    /**
-     * Verifies that the number of transform tasks in cluster state for the given transform is as expected.
-     */
-    @SuppressWarnings("unchecked")
-    private void assertThatTransformTaskCountIsEqualTo(String transformId, int expectedCount) throws IOException {
-        Request request = new Request("GET", "_cluster/state");
-        Map<String, Object> response = entityAsMap(adminClient().performRequest(request));
-
-        List<Map<String, Object>> tasks = (List<Map<String, Object>>) XContentMapValues.extractValue(
-            response,
-            "metadata",
-            "persistent_tasks",
-            "tasks"
-        );
-
-        assertThat("Tasks were: " + tasks, tasks.stream().filter(t -> transformId.equals(t.get("id"))).toList(), hasSize(expectedCount));
     }
 
     public void testContinuousTransformUpdate() throws Exception {
@@ -447,7 +392,7 @@ public class TransformIT extends TransformRestTestCase {
             assertOK(searchResponse);
             var responseMap = entityAsMap(searchResponse);
             assertThat((Integer) XContentMapValues.extractValue("hits.total.value", responseMap), greaterThan(0));
-            refreshIndex(dest, RequestOptions.DEFAULT);
+            refreshIndex(dest);
         }, 30, TimeUnit.SECONDS);
 
         stopTransform(config.getId());
@@ -645,6 +590,7 @@ public class TransformIT extends TransformRestTestCase {
         deleteTransform(config.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109101")
     public void testStartTransform_GivenTimeout_Returns408() throws Exception {
         String indexName = "start-transform-timeout-index";
         String transformId = "start-transform-timeout";

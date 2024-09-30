@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -239,13 +241,20 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     if (nodes.getMasterNode() == null) {
                         logger.debug("no known master node, scheduling a retry");
                         retryOnNextState(currentStateVersion, null);
+                    } else if (clusterState.term() < request.masterTerm()) {
+                        logger.debug(
+                            "request routed to master in term [{}] but local term is [{}], waiting for local term bump",
+                            request.masterTerm(),
+                            clusterState.term()
+                        );
+                        retry(currentStateVersion, null, cs -> request.masterTerm() <= cs.term());
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
                         transportService.sendRequest(
                             masterNode,
                             actionName,
-                            request,
+                            new TermOverridingMasterNodeRequest(request, clusterState.term()),
                             new ActionListenerResponseHandler<>(listener, responseReader, executor) {
                                 @Override
                                 public void handleException(final TransportException exp) {
@@ -285,16 +294,22 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
         private void retry(long currentStateVersion, final Throwable failure, final Predicate<ClusterState> statePredicate) {
             if (observer == null) {
-                final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
-                if (remainingTimeoutMS <= 0) {
-                    logger.debug(() -> "timed out before retrying [" + actionName + "] after failure", failure);
-                    listener.onFailure(new MasterNotDiscoveredException(failure));
-                    return;
+                final TimeValue timeout;
+                if (request.masterNodeTimeout().millis() < 0) {
+                    timeout = null;
+                } else {
+                    final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
+                    if (remainingTimeoutMS <= 0) {
+                        logger.debug(() -> "timed out before retrying [" + actionName + "] after failure", failure);
+                        listener.onFailure(new MasterNotDiscoveredException(failure));
+                        return;
+                    }
+                    timeout = TimeValue.timeValueMillis(remainingTimeoutMS);
                 }
                 this.observer = new ClusterStateObserver(
                     currentStateVersion,
                     clusterService.getClusterApplierService(),
-                    TimeValue.timeValueMillis(remainingTimeoutMS),
+                    timeout,
                     logger,
                     threadPool.getThreadContext()
                 );
@@ -316,11 +331,25 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     logger.debug(() -> format("timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout), failure);
                     listener.onFailure(new MasterNotDiscoveredException(failure));
                 }
+
+                @Override
+                public String toString() {
+                    return Strings.format(
+                        "listener for [%s] retrying after cluster state version [%d]",
+                        AsyncSingleAction.this,
+                        currentStateVersion
+                    );
+                }
             }, clusterState -> isTaskCancelled() || statePredicate.test(clusterState));
         }
 
         private boolean isTaskCancelled() {
-            return task instanceof CancellableTask && ((CancellableTask) task).isCancelled();
+            return task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled();
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format("execution of [%s]", task);
         }
     }
 }

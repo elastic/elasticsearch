@@ -18,7 +18,7 @@ import java.io.IOException;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
+abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * a list of metrics that will be computed for the field
      */
@@ -64,7 +64,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    abstract static class Metric {
+    abstract static sealed class Metric {
         final String name;
 
         /**
@@ -89,7 +89,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * Metric implementation that computes the maximum of all values of a field
      */
-    static class Max extends Metric {
+    static final class Max extends Metric {
         private Double max;
 
         Max() {
@@ -115,7 +115,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * Metric implementation that computes the minimum of all values of a field
      */
-    static class Min extends Metric {
+    static final class Min extends Metric {
         private Double min;
 
         Min() {
@@ -141,7 +141,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * Metric implementation that computes the sum of all values of a field
      */
-    static class Sum extends Metric {
+    static final class Sum extends Metric {
         private final CompensatedSum kahanSummation = new CompensatedSum();
 
         Sum() {
@@ -171,7 +171,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * Metric implementation that counts all values collected for a metric field
      */
-    static class ValueCount extends Metric {
+    static final class ValueCount extends Metric {
         private long count;
 
         ValueCount() {
@@ -201,7 +201,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
      * the implementation of this class end up storing the first value it is empty and then
      * ignoring everything else.
      */
-    static class LastValue extends Metric {
+    static final class LastValue extends Metric {
         private Number lastValue;
 
         LastValue() {
@@ -229,7 +229,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * {@link MetricFieldProducer} implementation for a counter metric field
      */
-    static class CounterMetricFieldProducer extends MetricFieldProducer {
+    static final class CounterMetricFieldProducer extends MetricFieldProducer {
 
         CounterMetricFieldProducer(String name) {
             super(name, new LastValue());
@@ -262,7 +262,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * {@link MetricFieldProducer} implementation for a gauge metric field
      */
-    static class GaugeMetricFieldProducer extends MetricFieldProducer {
+    static final class GaugeMetricFieldProducer extends MetricFieldProducer {
 
         GaugeMetricFieldProducer(String name) {
             this(name, new Min(), new Max(), new Sum(), new ValueCount());

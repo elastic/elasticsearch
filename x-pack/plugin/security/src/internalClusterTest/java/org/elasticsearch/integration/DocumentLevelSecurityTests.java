@@ -27,6 +27,7 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -883,7 +884,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50, 50, null);
 
         if (randomBoolean()) {
             query.addFilterQuery(new WildcardQueryBuilder("other", "value*"));
@@ -1012,6 +1013,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         prepareIndex("test").setId("2").setSource("color", "yellow", "fruit", "banana", "count", -2).setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("test").setId("3").setSource("color", "green", "fruit", "grape", "count", -3).setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("test").setId("4").setSource("color", "red", "fruit", "grape", "count", -4).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("5")
+            .setSource("color", new String[] { "green", "black" }, "fruit", "grape", "count", -5)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
         indicesAdmin().prepareForceMerge("test").get();
 
         assertResponse(
@@ -1303,7 +1308,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh();
 
-        String pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
+        BytesReference pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
         SearchResponse response = null;
         try {
             for (int from = 0; from < numVisible; from++) {

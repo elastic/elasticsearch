@@ -11,38 +11,42 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 /**
  * This is the primary class for supporting the function ST_CONTAINS.
@@ -51,6 +55,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
  * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
  */
 public class SpatialContains extends SpatialRelatesFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialContains",
+        SpatialContains::new
+    );
+
     // public for test access with reflection
     public static final SpatialRelationsContains GEO = new SpatialRelationsContains(
         SpatialCoordinateTypes.GEO,
@@ -69,6 +79,7 @@ public class SpatialContains extends SpatialRelatesFunction {
      * This applies to multi-component geometries (MultiPolygon, etc.) as well as polygons that cross the dateline.
      */
     static final class SpatialRelationsContains extends SpatialRelations {
+
         SpatialRelationsContains(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
             super(ShapeField.QueryRelation.CONTAINS, spatialCoordinateType, encoder, shapeIndexer);
         }
@@ -77,6 +88,26 @@ public class SpatialContains extends SpatialRelatesFunction {
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
             Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, fromBytesRef(right));
             return geometryRelatesGeometries(left, rightComponent2Ds);
+        }
+
+        @Override
+        protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
+            throws IOException {
+            if (right.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                processSourceAndConstant(builder, position, left, asLuceneComponent2Ds(crsType, right, position));
+            }
+        }
+
+        @Override
+        protected void processPointDocValuesAndSource(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            BytesRefBlock rightValue
+        ) throws IOException {
+            processPointDocValuesAndConstant(builder, position, leftValue, asLuceneComponent2Ds(crsType, rightValue, position));
         }
 
         private boolean geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
@@ -96,38 +127,54 @@ public class SpatialContains extends SpatialRelatesFunction {
             return true;
         }
 
-        private boolean pointRelatesGeometries(long encoded, Component2D[] rightComponent2Ds) {
-            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
-            Point point = spatialCoordinateType.longAsPoint(encoded);
-            for (Component2D rightComponent2D : rightComponent2Ds) {
-                // Every component of the right geometry must be contained within the left geometry for this to pass
-                if (pointRelatesGeometry(point, rightComponent2D) == false) {
-                    return false;
-                }
+        private void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, @Fixed Component2D[] right)
+            throws IOException {
+            if (left.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
+                builder.appendBoolean(geometryRelatesGeometries(reader, right));
             }
-            return true;
+        }
+
+        private void processPointDocValuesAndConstant(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock left,
+            @Fixed Component2D[] right
+        ) throws IOException {
+            if (left.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(
+                    coordinateEncoder,
+                    shapeIndexer,
+                    left,
+                    position,
+                    spatialCoordinateType::longAsPoint
+                );
+                builder.appendBoolean(geometryRelatesGeometries(reader, right));
+            }
         }
     }
 
     @FunctionInfo(
         returnType = { "boolean" },
-        description = "Returns whether the first geometry contains the second geometry.",
-        note = "The second parameter must also have the same coordinate system as the first. "
-            + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
+        description = """
+            Returns whether the first geometry contains the second geometry.
+            This is the inverse of the <<esql-st_within,ST_WITHIN>> function.""",
         examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries")
     )
     public SpatialContains(
         Source source,
-        @Param(
-            name = "geomA",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
-        ) Expression left,
-        @Param(
-            name = "geomB",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
-        ) Expression right
+        @Param(name = "geomA", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
+            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
+            If `null`, the function returns `null`.""") Expression left,
+        @Param(name = "geomB", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
+            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
+            If `null`, the function returns `null`.
+            The second parameter must also have the same coordinate system as the first.
+            This means it is not possible to combine `geo_*` and `cartesian_*` parameters.""") Expression right
     ) {
         this(source, left, right, false, false);
     }
@@ -136,9 +183,18 @@ public class SpatialContains extends SpatialRelatesFunction {
         super(source, left, right, leftDocValues, rightDocValues);
     }
 
+    private SpatialContains(StreamInput in) throws IOException {
+        super(in, false, false);
+    }
+
     @Override
-    public ShapeField.QueryRelation queryRelation() {
-        return ShapeField.QueryRelation.CONTAINS;
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public ShapeRelation queryRelation() {
+        return ShapeRelation.CONTAINS;
     }
 
     @Override
@@ -162,10 +218,10 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Override
     public Object fold() {
         try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(right());
-            Component2D[] components = asLuceneComponent2Ds(crsType, rightGeom);
-            return (crsType == SpatialCrsType.GEO)
+            Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
+            return (crsType() == SpatialCrsType.GEO)
                 ? GEO.geometryRelatesGeometries(docValueReader, components)
                 : CARTESIAN.geometryRelatesGeometries(docValueReader, components);
         } catch (IOException e) {
@@ -206,7 +262,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                         SpatialContainsGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -238,7 +294,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                         SpatialContainsCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -257,44 +313,49 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
-        return GEO.geometryRelatesGeometries(leftValue, rightValue);
+    static void processGeoSourceAndConstant(BooleanBlock.Builder results, int p, BytesRefBlock left, @Fixed Component2D[] right)
+        throws IOException {
+        GEO.processSourceAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return GEO.geometryRelatesGeometry(leftValue, rightValue);
+    static void processGeoSourceAndSource(BooleanBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right) throws IOException {
+        GEO.processSourceAndSource(builder, p, left, right);
     }
 
-    @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D[] rightValue) {
-        return GEO.pointRelatesGeometries(leftValue, rightValue);
+    @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D[] right)
+        throws IOException {
+        GEO.processPointDocValuesAndConstant(builder, p, left, right);
     }
 
-    @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class })
-    static boolean processGeoPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
-        return GEO.pointRelatesGeometry(leftValue, geometry);
+    @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, int p, LongBlock left, BytesRefBlock right)
+        throws IOException {
+        GEO.processPointDocValuesAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometries(leftValue, rightValue);
+    static void processCartesianSourceAndConstant(BooleanBlock.Builder builder, int p, BytesRefBlock left, @Fixed Component2D[] right)
+        throws IOException {
+        CARTESIAN.processSourceAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
+    static void processCartesianSourceAndSource(BooleanBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right)
+        throws IOException {
+        CARTESIAN.processSourceAndSource(builder, p, left, right);
     }
 
-    @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D[] rightValue) {
-        return CARTESIAN.pointRelatesGeometries(leftValue, rightValue);
+    @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processCartesianPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D[] right)
+        throws IOException {
+        CARTESIAN.processPointDocValuesAndConstant(builder, p, left, right);
     }
 
-    @Evaluator(extraName = "CartesianPointDocValuesAndSource")
-    static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
-        return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
+    @Evaluator(extraName = "CartesianPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processCartesianPointDocValuesAndSource(BooleanBlock.Builder builder, int p, LongBlock left, BytesRefBlock right)
+        throws IOException {
+        CARTESIAN.processPointDocValuesAndSource(builder, p, left, right);
     }
 }

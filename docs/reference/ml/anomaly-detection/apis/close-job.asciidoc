@@ -59,7 +59,7 @@ results the job might have recently produced or might produce in the future.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
 +
 You can close all jobs by using `_all` or by specifying `*` as the job
 identifier.
@@ -69,7 +69,7 @@ identifier.
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 `force`::
   (Optional, Boolean) Use to close a failed job, or to forcefully close a job

@@ -4,10 +4,15 @@
 <titleabbrev>Delete connector</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
-Removes a connector and its associated data.
+Removes a connector and associated sync jobs.
 This is a destructive action that is not recoverable.
+
+Note: this action doesn't delete any API key, ingest pipeline or data index associated with the connector. These need to be removed manually.
+
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[delete-connector-api-request]]
 ==== {api-request-title}
@@ -17,7 +22,7 @@ This is a destructive action that is not recoverable.
 [[delete-connector-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[delete-connector-api-path-params]]
@@ -25,6 +30,9 @@ This is a destructive action that is not recoverable.
 
 `<connector_id>`::
 (Required, string)
+
+`delete_sync_jobs`::
+(Optional, boolean) A flag indicating if associated sync jobs should be also removed. Defaults to `false`.
 
 [[delete-connector-api-response-codes]]
 ==== {api-response-codes-title}
@@ -45,7 +53,12 @@ The following example deletes the connector with ID `my-connector`:
 --------------------------------------------------
 PUT _connector/my-connector
 {
-  "index_name": "search-google-drive",
+  "name": "My Connector",
+  "service_type": "google_drive"
+}
+
+PUT _connector/another-connector
+{
   "name": "My Connector",
   "service_type": "google_drive"
 }
@@ -55,7 +68,7 @@ PUT _connector/my-connector
 
 [source,console]
 ----
-DELETE _connector/my-connector
+DELETE _connector/another-connector?delete_sync_jobs=true
 ----
 
 [source,console-result]
@@ -64,3 +77,5 @@ DELETE _connector/my-connector
     "acknowledged": true
 }
 ----
+
+The following example deletes the connector with ID `another-connector` and its associated sync jobs.

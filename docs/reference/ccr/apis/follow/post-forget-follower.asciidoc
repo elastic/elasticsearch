@@ -5,7 +5,7 @@
 <titleabbrev>Forget follower</titleabbrev>
 ++++
 
-Removes the follower retention leases from the leader.
+Removes the <<xpack-ccr,{ccr}>> follower retention leases from the leader.
 
 [[ccr-post-forget-follower-request]]
 ==== {api-request-title}

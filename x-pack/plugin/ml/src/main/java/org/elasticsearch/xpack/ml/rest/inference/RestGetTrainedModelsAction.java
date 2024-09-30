@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -49,13 +49,24 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTrainedModelsAction.class);
     private static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
 
+    @UpdateForV9
+    // one or more routes use ".replaces" with RestApiVersion.V_8 which will require use of REST API compatibility headers to access
+    // that route in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
+    // continue to emit deprecations warnings but will not require any special headers to access the API in v9.
+    // Please review and update the code and tests as needed. The original code remains commented out below for reference.
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
-                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8)
+            // Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
+            // .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8)
+            // .build(),
+            // Route.builder(GET, BASE_PATH + "trained_models").replaces(GET, BASE_PATH + "inference", RestApiVersion.V_8).build()
+            new Route(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}"),
+            Route.builder(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}")
+                .deprecateAndKeep("Use the trained_models API instead.")
                 .build(),
-            Route.builder(GET, BASE_PATH + "trained_models").replaces(GET, BASE_PATH + "inference", RestApiVersion.V_8).build()
+            new Route(GET, BASE_PATH + "trained_models"),
+            Route.builder(GET, BASE_PATH + "inference").deprecateAndKeep("Use the trained_models API instead.").build()
         );
     }
 

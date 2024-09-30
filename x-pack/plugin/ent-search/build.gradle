@@ -30,6 +30,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(":test:framework")
   testImplementation(project(':modules:lang-mustache'))
+  testImplementation(project(':modules:reindex'))
 
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))

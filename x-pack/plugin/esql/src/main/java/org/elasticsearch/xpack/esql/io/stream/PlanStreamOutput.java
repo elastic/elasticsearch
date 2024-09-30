@@ -8,96 +8,83 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBigArrayBlock;
+import org.elasticsearch.compute.data.DoubleBigArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.LongBigArrayBlock;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
-import java.util.function.Function;
-
-import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSourceNoText;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
  * output with methods that write plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamOutput extends StreamOutput {
+public final class PlanStreamOutput extends StreamOutput implements org.elasticsearch.xpack.esql.core.util.PlanStreamOutput {
+
+    /**
+     * max number of attributes that can be cached for serialization
+     * <p>
+     * TODO should this be a cluster setting...?
+     */
+    protected static final int MAX_SERIALIZED_ATTRIBUTES = 1_000_000;
+
+    /**
+     * Cache of written blocks. We use an {@link IdentityHashMap} for this
+     * because calculating the {@link Object#hashCode} of a {@link Block}
+     * is slow. And so is {@link Object#equals}. So, instead we just use
+     * object identity.
+     */
+    private final Map<Block, BytesReference> cachedBlocks = new IdentityHashMap<>();
+
+    /**
+     * Cache for field attributes.
+     * Field attributes can be a significant part of the query execution plan, especially
+     * for queries like `from *`, that can have thousands of output columns.
+     * Attributes can be shared by many plan nodes (eg. ExcahngeSink output, Project output, EsRelation fields);
+     * in addition, multiple Attributes can share the same parent field.
+     * This cache allows to send each attribute only once; from the second occurrence, only an id will be sent
+     */
+    protected final Map<Attribute, Integer> cachedAttributes = new IdentityHashMap<>();
+
+    /**
+     * Cache for EsFields.
+     */
+    protected final Map<EsField, Integer> cachedEsFields = new IdentityHashMap<>();
 
     private final StreamOutput delegate;
-    private final PlanNameRegistry registry;
 
-    private final Function<Class<?>, String> nameSupplier;
+    private int nextCachedBlock = 0;
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry) {
-        this(delegate, registry, PlanNamedTypes::name);
+    private final int maxSerializedAttributes;
+
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration) throws IOException {
+        this(delegate, configuration, MAX_SERIALIZED_ATTRIBUTES);
     }
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, Function<Class<?>, String> nameSupplier) {
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration, int maxSerializedAttributes) throws IOException {
         this.delegate = delegate;
-        this.registry = registry;
-        this.nameSupplier = nameSupplier;
-    }
-
-    public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
-        assert logicalPlan.children().size() <= 1;
-        writeNamed(LogicalPlan.class, logicalPlan);
-    }
-
-    public void writePhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        assert physicalPlan.children().size() <= 1;
-        writeNamed(PhysicalPlan.class, physicalPlan);
-    }
-
-    public void writeOptionalPhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        if (physicalPlan == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writePhysicalPlanNode(physicalPlan);
+        if (configuration != null) {
+            for (Map.Entry<String, Map<String, Column>> table : configuration.tables().entrySet()) {
+                for (Map.Entry<String, Column> column : table.getValue().entrySet()) {
+                    cachedBlocks.put(column.getValue().values(), fromConfigKey(table.getKey(), column.getKey()));
+                }
+            }
         }
-    }
-
-    public void writeSource(Source source) throws IOException {
-        writeBoolean(true);
-        writeSourceNoText(this, source);
-    }
-
-    public void writeNoSource() throws IOException {
-        writeBoolean(false);
-    }
-
-    public void writeExpression(Expression expression) throws IOException {
-        writeNamed(Expression.class, expression);
-    }
-
-    public void writeNamedExpression(NamedExpression namedExpression) throws IOException {
-        writeNamed(NamedExpression.class, namedExpression);
-    }
-
-    public void writeAttribute(Attribute attribute) throws IOException {
-        writeNamed(Attribute.class, attribute);
-    }
-
-    public void writeOptionalExpression(Expression expression) throws IOException {
-        if (expression == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeExpression(expression);
-        }
-    }
-
-    public <T> void writeNamed(Class<T> type, T value) throws IOException {
-        String name = nameSupplier.apply(value.getClass());
-        @SuppressWarnings("unchecked")
-        PlanWriter<T> writer = (PlanWriter<T>) registry.getWriter(type, name);
-        writeString(name);
-        writer.write(this, value);
+        this.maxSerializedAttributes = maxSerializedAttributes;
     }
 
     @Override
@@ -129,5 +116,152 @@ public final class PlanStreamOutput extends StreamOutput {
     public void setTransportVersion(TransportVersion version) {
         delegate.setTransportVersion(version);
         super.setTransportVersion(version);
+    }
+
+    /**
+     * Write a {@link Block} as part of the plan.
+     * <p>
+     *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
+     *     does nothing so they should be small. We do make sure not to send duplicates,
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
+     *     possible, otherwise sending a {@linkplain Block} inline.
+     * </p>
+     */
+    public void writeCachedBlock(Block block) throws IOException {
+        assert block instanceof LongBigArrayBlock == false : "BigArrays not supported because we don't close";
+        assert block instanceof IntBigArrayBlock == false : "BigArrays not supported because we don't close";
+        assert block instanceof DoubleBigArrayBlock == false : "BigArrays not supported because we don't close";
+        assert block instanceof BooleanBigArrayBlock == false : "BigArrays not supported because we don't close";
+        BytesReference key = cachedBlocks.get(block);
+        if (key != null) {
+            key.writeTo(this);
+            return;
+        }
+        writeByte(NEW_BLOCK_KEY);
+        writeVInt(nextCachedBlock);
+        cachedBlocks.put(block, fromPreviousKey(nextCachedBlock));
+        writeNamedWriteable(block);
+        nextCachedBlock++;
+    }
+
+    @Override
+    public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            Integer cacheId = attributeIdFromCache(attribute);
+            if (cacheId != null) {
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheAttribute(attribute);
+            writeZLong(-1 - cacheId);
+        }
+        return true;
+    }
+
+    private Integer attributeIdFromCache(Attribute attr) {
+        return cachedAttributes.get(attr);
+    }
+
+    private int cacheAttribute(Attribute attr) {
+        if (cachedAttributes.containsKey(attr)) {
+            throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
+        }
+        int id = cachedAttributes.size();
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized attributes exceeded [{}]", maxSerializedAttributes);
+        }
+        cachedAttributes.put(attr, id);
+        return id;
+    }
+
+    @Override
+    public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            Integer cacheId = esFieldIdFromCache(field);
+            if (cacheId != null) {
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheEsField(field);
+            writeZLong(-1 - cacheId);
+        }
+        writeString(field.getWriteableName());
+        return true;
+    }
+
+    private Integer esFieldIdFromCache(EsField field) {
+        return cachedEsFields.get(field);
+    }
+
+    private int cacheEsField(EsField attr) {
+        if (cachedEsFields.containsKey(attr)) {
+            throw new IllegalArgumentException("EsField already present in the serialization cache [" + attr + "]");
+        }
+        int id = cachedEsFields.size();
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized EsFields exceeded [{}]", maxSerializedAttributes);
+        }
+        cachedEsFields.put(attr, id);
+        return id;
+    }
+
+    /**
+     * The byte representing a {@link Block} sent for the first time. The byte
+     * will be followed by a {@link StreamOutput#writeVInt} encoded identifier
+     * and then the contents of the {@linkplain Block} will immediately follow
+     * this byte.
+     */
+    static final byte NEW_BLOCK_KEY = 0;
+
+    /**
+     * The byte representing a {@link Block} that has previously been sent.
+     * This byte will be followed up a {@link StreamOutput#writeVInt} encoded
+     * identifier pointing to the block to read.
+     */
+    static final byte FROM_PREVIOUS_KEY = 1;
+
+    /**
+     * The byte representing a {@link Block} that was part of the
+     * {@link Configuration#tables()} map. It is followed a string for
+     * the table name and then a string for the column name.
+     */
+    static final byte FROM_CONFIG_KEY = 2;
+
+    /**
+     * Build the key for reading a {@link Block} from the cache of previously
+     * received {@linkplain Block}s.
+     */
+    static BytesReference fromPreviousKey(int id) throws IOException {
+        try (BytesStreamOutput key = new BytesStreamOutput()) {
+            key.writeByte(FROM_PREVIOUS_KEY);
+            key.writeVInt(id);
+            return key.bytes();
+        }
+    }
+
+    /**
+     * Build the key for reading a {@link Block} from the {@link Configuration}.
+     * This is important because some operations like {@code LOOKUP} frequently read
+     * {@linkplain Block}s directly from the configuration.
+     * <p>
+     *     It'd be possible to implement this by adding all of the Blocks as "previous"
+     *     keys in the constructor and never use this construct at all, but that'd
+     *     require there be a consistent ordering of Blocks there. We could make one,
+     *     but I'm afraid that'd be brittle as we evolve the code. It'd make wire
+     *     compatibility difficult. This signal is much simpler to deal with even though
+     *     it is more bytes over the wire.
+     * </p>
+     */
+    static BytesReference fromConfigKey(String table, String column) throws IOException {
+        try (BytesStreamOutput key = new BytesStreamOutput()) {
+            key.writeByte(FROM_CONFIG_KEY);
+            key.writeString(table);
+            key.writeString(column);
+            return key.bytes();
+        }
     }
 }

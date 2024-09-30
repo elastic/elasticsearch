@@ -1,0 +1,5 @@
+pr: 112058
+summary: Fix RRF validation for `rank_constant` < 1
+area: Ranking
+type: bug
+issues: []

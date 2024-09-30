@@ -21,10 +21,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     private BytesRefArray values;
 
-    BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
-    }
-
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
         super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
@@ -76,56 +72,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     @Override
     protected void writeNullValue() {
         values.append(BytesRefBlock.NULL_VALUE);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((BytesRefBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(BytesRefBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        BytesRef scratch = new BytesRef();
-        final BytesRefVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendBytesRef(vector.getBytesRef(p, scratch));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendBytesRef(block.getBytesRef(i++, scratch));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
     }
 
     @Override
@@ -188,6 +134,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     public BytesRefBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         this.mvOrdering = mvOrdering;
         return this;
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
     }
 
     private BytesRefBlock buildFromBytesArray() {

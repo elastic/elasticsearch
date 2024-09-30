@@ -373,6 +373,96 @@ public class BlockFactoryTests extends ESTestCase {
         }
     }
 
+    public void testFloatBlockBuilderWithPossiblyLargeEstimateEmpty() {
+        var builder = blockFactory.newFloatBlockBuilder(randomIntBetween(0, 2048));
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        var block = builder.build();
+        releaseAndAssertBreaker(block);
+
+        block = blockFactory.newFloatArrayBlock(new float[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering());
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        releaseAndAssertBreaker(block);
+    }
+
+    public void testFloatBlockBuilderWithPossiblyLargeEstimateSingle() {
+        var builder = blockFactory.newFloatBlockBuilder(randomIntBetween(0, 2048));
+        builder.appendFloat(randomFloat());
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        var block = builder.build();
+        releaseAndAssertBreaker(block);
+
+        block = blockFactory.newFloatArrayBlock(new float[] { randomFloat() }, 1, new int[] { 0, 1 }, new BitSet(), randomOrdering());
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        releaseAndAssertBreaker(block);
+
+        block = blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 2048));
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        releaseAndAssertBreaker(block);
+    }
+
+    public void testFloatBlockBuilderWithPossiblyLargeEstimateRandom() {
+        for (int i = 0; i < 1000; i++) {
+            assertThat(breaker.getUsed(), is(0L));
+            var builder = blockFactory.newFloatBlockBuilder(randomIntBetween(0, 2048));
+
+            builder.appendFloat(randomFloat());
+            if (randomBoolean()) {  // null-ness
+                builder.appendNull();
+            }
+            if (randomBoolean()) { // mv-ness
+                builder.beginPositionEntry();
+                builder.appendFloat(randomFloat());
+                builder.appendFloat(randomFloat());
+                builder.endPositionEntry();
+            }
+            builder.appendFloat(randomFloat());
+            assertThat(breaker.getUsed(), greaterThan(0L));
+            var block = builder.build();
+            releaseAndAssertBreaker(block);
+        }
+    }
+
+    public void testFloatVectorBuilderWithPossiblyLargeEstimateEmpty() {
+        var builder = blockFactory.newFloatVectorBuilder(randomIntBetween(0, 2048));
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        var vector = builder.build();
+        releaseAndAssertBreaker(vector);
+
+        vector = blockFactory.newFloatArrayVector(new float[] {}, 0);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        releaseAndAssertBreaker(vector);
+    }
+
+    public void testFloatVectorBuilderWithPossiblyLargeEstimateSingle() {
+        var builder = blockFactory.newFloatVectorBuilder(randomIntBetween(0, 2048));
+        builder.appendFloat(randomFloat());
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        var vector = builder.build();
+        releaseAndAssertBreaker(vector);
+
+        vector = blockFactory.newFloatArrayVector(new float[] { randomFloat() }, 1);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        releaseAndAssertBreaker(vector);
+
+        vector = blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 2048)).asVector();
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        releaseAndAssertBreaker(vector);
+    }
+
+    public void testFloatVectorBuilderWithPossiblyLargeEstimateRandom() {
+        for (int i = 0; i < 1000; i++) {
+            assertThat(breaker.getUsed(), is(0L));
+            var builder = blockFactory.newFloatVectorBuilder(randomIntBetween(0, 2048));
+            builder.appendFloat(randomFloat());
+            if (randomBoolean()) {  // constant-ness or not
+                builder.appendFloat(randomFloat());
+            }
+            assertThat(breaker.getUsed(), greaterThan(0L));
+            var vector = builder.build();
+            releaseAndAssertBreaker(vector);
+        }
+    }
+
     public void testBooleanBlockBuilderWithPossiblyLargeEstimateEmpty() {
         var builder = blockFactory.newBooleanBlockBuilder(randomIntBetween(0, 2048));
         assertThat(breaker.getUsed(), greaterThan(0L));

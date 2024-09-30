@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
@@ -232,6 +234,27 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
+
+        assert compatibilityVersions.isEmpty()
+            || blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            || assertEventIngestedIsUnknownInMixedClusters(metadata, this.minVersions);
+    }
+
+    private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
+        if (compatibilityVersions.transportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+            && metadata != null
+            && metadata.indices() != null) {
+            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+                assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
+                    : "event.ingested range should be UNKNOWN but is "
+                        + indexMetadata.getEventIngestedRange()
+                        + " for index: "
+                        + indexMetadata.getIndex()
+                        + " minTransportVersion: "
+                        + compatibilityVersions.transportVersion();
+            }
+        }
+        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -862,6 +885,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return Collections.unmodifiableMap(this.nodeFeatures);
         }
 
+        public Builder putNodeFeatures(String node, Set<String> features) {
+            this.nodeFeatures.put(node, features);
+            return this;
+        }
+
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
             return routingTable(routingTableBuilder.build());
         }
@@ -957,7 +985,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 routingTable,
                 nodes,
                 compatibilityVersions,
-                new ClusterFeatures(nodeFeatures),
+                previous != null && getNodeFeatures(previous.clusterFeatures).equals(nodeFeatures)
+                    ? previous.clusterFeatures
+                    : new ClusterFeatures(nodeFeatures),
                 blocks,
                 customs.build(),
                 fromDiff,
@@ -1054,7 +1084,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         routingTable.writeTo(out);
         nodes.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(compatibilityVersions, (streamOutput, versions) -> versions.writeTo(streamOutput));
+            out.writeMap(compatibilityVersions, StreamOutput::writeWriteable);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             clusterFeatures.writeTo(out);

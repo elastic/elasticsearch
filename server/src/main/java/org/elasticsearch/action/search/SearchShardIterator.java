@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -19,7 +20,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -174,14 +174,24 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterAlias, shardId);
+        var clusterAlias = this.clusterAlias;
+        return 31 * (31 + (clusterAlias == null ? 0 : clusterAlias.hashCode())) + shardId.hashCode();
     }
-
-    private static final Comparator<SearchShardIterator> COMPARATOR = Comparator.comparing(SearchShardIterator::shardId)
-        .thenComparing(SearchShardIterator::getClusterAlias, Comparator.nullsFirst(String::compareTo));
 
     @Override
     public int compareTo(SearchShardIterator o) {
-        return COMPARATOR.compare(this, o);
+        int res = shardId.compareTo(o.shardId);
+        if (res != 0) {
+            return res;
+        }
+        var thisClusterAlias = clusterAlias;
+        var otherClusterAlias = o.clusterAlias;
+        if (thisClusterAlias == null) {
+            return otherClusterAlias == null ? 0 : -1;
+        } else if (otherClusterAlias == null) {
+            return 1;
+        } else {
+            return thisClusterAlias.compareTo(otherClusterAlias);
+        }
     }
 }

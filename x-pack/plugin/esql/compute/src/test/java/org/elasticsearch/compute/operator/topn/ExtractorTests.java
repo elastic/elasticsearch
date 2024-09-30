@@ -40,6 +40,11 @@ public class ExtractorTests extends ESTestCase {
             switch (e) {
                 case UNKNOWN -> {
                 }
+                case COMPOSITE -> {
+                    // TODO: add later
+                }
+                case FLOAT -> {
+                }
                 case BYTES_REF -> {
                     cases.add(valueTestCase("single alpha", e, TopNEncoder.UTF8, () -> randomAlphaOfLength(5)));
                     cases.add(valueTestCase("many alpha", e, TopNEncoder.UTF8, () -> randomList(2, 10, () -> randomAlphaOfLength(5))));

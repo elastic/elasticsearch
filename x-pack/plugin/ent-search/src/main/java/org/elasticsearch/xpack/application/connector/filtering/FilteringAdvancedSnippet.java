@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.connector.filtering;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents an advanced snippet used in filtering processes, providing detailed criteria or rules.
@@ -31,8 +33,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * actual snippet content represented as a map.
  */
 public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
-
+    @Nullable
     private final Instant advancedSnippetCreatedAt;
+    @Nullable
     private final Instant advancedSnippetUpdatedAt;
     private final Object advancedSnippetValue;
 
@@ -48,14 +51,26 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
     }
 
     public FilteringAdvancedSnippet(StreamInput in) throws IOException {
-        this.advancedSnippetCreatedAt = in.readInstant();
-        this.advancedSnippetUpdatedAt = in.readInstant();
+        this.advancedSnippetCreatedAt = in.readOptionalInstant();
+        this.advancedSnippetUpdatedAt = in.readOptionalInstant();
         this.advancedSnippetValue = in.readGenericValue();
     }
 
     private static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
     private static final ParseField UPDATED_AT_FIELD = new ParseField("updated_at");
     private static final ParseField VALUE_FIELD = new ParseField("value");
+
+    public Instant getAdvancedSnippetCreatedAt() {
+        return advancedSnippetCreatedAt;
+    }
+
+    public Instant getAdvancedSnippetUpdatedAt() {
+        return advancedSnippetUpdatedAt;
+    }
+
+    public Object getAdvancedSnippetValue() {
+        return advancedSnippetValue;
+    }
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<FilteringAdvancedSnippet, Void> PARSER = new ConstructingObjectParser<>(
@@ -69,13 +84,13 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> ConnectorUtils.parseInstant(p, CREATED_AT_FIELD.getPreferredName()),
             CREATED_AT_FIELD,
             ObjectParser.ValueType.STRING
         );
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> ConnectorUtils.parseInstant(p, UPDATED_AT_FIELD.getPreferredName()),
             UPDATED_AT_FIELD,
             ObjectParser.ValueType.STRING
@@ -108,8 +123,8 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInstant(advancedSnippetCreatedAt);
-        out.writeInstant(advancedSnippetUpdatedAt);
+        out.writeOptionalInstant(advancedSnippetCreatedAt);
+        out.writeOptionalInstant(advancedSnippetUpdatedAt);
         out.writeGenericValue(advancedSnippetValue);
     }
 
@@ -133,14 +148,15 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
         private Instant advancedSnippetCreatedAt;
         private Instant advancedSnippetUpdatedAt;
         private Object advancedSnippetValue;
+        private final Instant currentTimestamp = Instant.now();
 
         public Builder setAdvancedSnippetCreatedAt(Instant advancedSnippetCreatedAt) {
-            this.advancedSnippetCreatedAt = advancedSnippetCreatedAt;
+            this.advancedSnippetCreatedAt = Objects.requireNonNullElse(advancedSnippetCreatedAt, currentTimestamp);
             return this;
         }
 
         public Builder setAdvancedSnippetUpdatedAt(Instant advancedSnippetUpdatedAt) {
-            this.advancedSnippetUpdatedAt = advancedSnippetUpdatedAt;
+            this.advancedSnippetUpdatedAt = Objects.requireNonNullElse(advancedSnippetUpdatedAt, currentTimestamp);
             return this;
         }
 

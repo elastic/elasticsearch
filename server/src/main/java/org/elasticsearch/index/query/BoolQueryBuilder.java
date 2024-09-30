@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -409,5 +410,29 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
+    }
+
+    /**
+     * Create a new builder with the same clauses but modification of
+     * the builder won't modify the original. Modifications of any
+     * of the copy's clauses will modify the original. Don't so that.
+     */
+    public BoolQueryBuilder shallowCopy() {
+        BoolQueryBuilder copy = new BoolQueryBuilder();
+        copy.adjustPureNegative = adjustPureNegative;
+        copy.minimumShouldMatch = minimumShouldMatch;
+        for (QueryBuilder q : mustClauses) {
+            copy.must(q);
+        }
+        for (QueryBuilder q : mustNotClauses) {
+            copy.mustNot(q);
+        }
+        for (QueryBuilder q : filterClauses) {
+            copy.filter(q);
+        }
+        for (QueryBuilder q : shouldClauses) {
+            copy.should(q);
+        }
+        return copy;
     }
 }

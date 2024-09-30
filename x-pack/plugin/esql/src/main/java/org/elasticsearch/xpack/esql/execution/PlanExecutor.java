@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -17,60 +18,69 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
+
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
 
     private final IndexResolver indexResolver;
-    private final EsqlIndexResolver esqlIndexResolver;
     private final PreAnalyzer preAnalyzer;
-    private final FunctionRegistry functionRegistry;
+    private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
+    private final PlanningMetricsManager planningMetricsManager;
 
-    public PlanExecutor(IndexResolver indexResolver, EsqlIndexResolver esqlIndexResolver) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry) {
         this.indexResolver = indexResolver;
-        this.esqlIndexResolver = esqlIndexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper(functionRegistry);
         this.metrics = new Metrics();
         this.verifier = new Verifier(metrics);
+        this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
     }
 
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
-        EsqlConfiguration cfg,
+        Configuration cfg,
         EnrichPolicyResolver enrichPolicyResolver,
-        ActionListener<PhysicalPlan> listener
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        ActionListener<Result> listener
     ) {
+        final PlanningMetrics planningMetrics = new PlanningMetrics();
         final var session = new EsqlSession(
             sessionId,
             cfg,
             indexResolver,
-            esqlIndexResolver,
             enrichPolicyResolver,
             preAnalyzer,
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
-            verifier
+            verifier,
+            planningMetrics
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, wrap(listener::onResponse, ex -> {
+        session.execute(request, runPhase, wrap(x -> {
+            planningMetricsManager.publish(planningMetrics, true);
+            listener.onResponse(x);
+        }, ex -> {
             // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
             metrics.failed(clientId);
+            planningMetricsManager.publish(planningMetrics, false);
             listener.onFailure(ex);
         }));
     }

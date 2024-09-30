@@ -67,7 +67,7 @@ public class SnapshotLifecyclePolicyItemTests extends AbstractWireSerializingTes
                 return new SnapshotLifecyclePolicyItem(
                     instance.getPolicy(),
                     instance.getVersion(),
-                    randomValueOtherThan(instance.getModifiedDate(), ESTestCase::randomNonNegativeLong),
+                    randomValueOtherThan(instance.getModifiedDate(), SnapshotLifecyclePolicyMetadataTests::randomModifiedTime),
                     instance.getLastSuccess(),
                     instance.getLastFailure(),
                     instance.getSnapshotInProgress(),

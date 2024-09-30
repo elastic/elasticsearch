@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams;
@@ -37,7 +38,7 @@ public class DataStreamFeatures implements FeatureSpecification {
             DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE,  // Added in 8.12
             LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER,                    // Added in 8.13
             DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE,
-            DataStreamGlobalRetention.GLOBAL_RETENTION                      // Added in 8.14
+            DataStreamGlobalRetention.GLOBAL_RETENTION                       // Added in 8.14
         );
     }
 }

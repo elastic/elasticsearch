@@ -2,6 +2,8 @@
 [[esql-sort]]
 === `SORT`
 
+The `SORT` processing command sorts a table on one or more columns.
+
 **Syntax**
 
 [source,esql]

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -58,6 +60,7 @@ public class IndexMetadataVerifier {
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
+    private final MapperMetrics mapperMetrics;
 
     public IndexMetadataVerifier(
         Settings settings,
@@ -65,7 +68,8 @@ public class IndexMetadataVerifier {
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        MapperMetrics mapperMetrics
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -74,6 +78,7 @@ public class IndexMetadataVerifier {
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptCompiler;
+        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -110,9 +115,9 @@ public class IndexMetadataVerifier {
                 "The index "
                     + indexMetadata.getIndex()
                     + " has current compatibility version ["
-                    + indexMetadata.getCompatibilityVersion()
+                    + indexMetadata.getCompatibilityVersion().toReleaseVersion()
                     + "] but the minimum compatible version is ["
-                    + minimumIndexCompatibilityVersion
+                    + minimumIndexCompatibilityVersion.toReleaseVersion()
                     + "]. It should be re-indexed in Elasticsearch "
                     + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
@@ -182,7 +187,11 @@ public class IndexMetadataVerifier {
                     mapperRegistry,
                     () -> null,
                     indexSettings.getMode().idFieldMapperWithoutFieldData(),
-                    scriptService
+                    scriptService,
+                    query -> {
+                        throw new UnsupportedOperationException("IndexMetadataVerifier");
+                    },
+                    mapperMetrics
                 )
             ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);

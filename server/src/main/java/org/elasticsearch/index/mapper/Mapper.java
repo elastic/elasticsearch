@@ -1,20 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,24 +28,90 @@ import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
-    public abstract static class Builder {
+    public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep");
 
-        private String name;
+    public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
-        protected Builder(String name) {
-            setName(name);
+    // Only relevant for synthetic source mode.
+    public enum SourceKeepMode {
+        NONE("none"),      // No source recording
+        ARRAYS("arrays"),  // Store source for arrays of mapped fields
+        ALL("all");        // Store source for both singletons and arrays of mapped fields
+
+        SourceKeepMode(String name) {
+            this.name = name;
         }
 
-        // TODO rename this to leafName?
-        public final String name() {
-            return this.name;
+        static SourceKeepMode from(String input) {
+            if (input == null) {
+                input = "null";
+            }
+            if (input.equals(NONE.name)) {
+                return NONE;
+            }
+            if (input.equals(ALL.name)) {
+                return ALL;
+            }
+            if (input.equals(ARRAYS.name)) {
+                return ARRAYS;
+            }
+            throw new IllegalArgumentException(
+                "Unknown "
+                    + SYNTHETIC_SOURCE_KEEP_PARAM
+                    + " value ["
+                    + input
+                    + "], accepted values are ["
+                    + String.join(",", Arrays.stream(SourceKeepMode.values()).map(SourceKeepMode::toString).toList())
+                    + "]"
+            );
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+
+        public void toXContent(XContentBuilder builder) throws IOException {
+            builder.field(SYNTHETIC_SOURCE_KEEP_PARAM, name);
+        }
+
+        private final String name;
+    }
+
+    // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
+    // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
+    // Setting to SourceKeepMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
+    public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
+        SourceKeepMode.class,
+        "index.mapping.synthetic_source_keep",
+        SourceKeepMode.NONE,
+        value -> {
+            if (value == SourceKeepMode.ALL) {
+                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value.toString() + "]");
+            }
+        },
+        Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic
+    );
+
+    public abstract static class Builder {
+
+        private String leafName;
+
+        @SuppressWarnings("this-escape")
+        protected Builder(String leafName) {
+            setLeafName(leafName);
+        }
+
+        public final String leafName() {
+            return this.leafName;
         }
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
 
-        void setName(String name) {
-            this.name = internFieldName(name);
+        void setLeafName(String leafName) {
+            this.leafName = internFieldName(leafName);
         }
     }
 
@@ -54,23 +126,25 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
     }
 
-    private final String simpleName;
+    private final String leafName;
 
-    public Mapper(String simpleName) {
-        Objects.requireNonNull(simpleName);
-        this.simpleName = internFieldName(simpleName);
+    @SuppressWarnings("this-escape")
+    public Mapper(String leafName) {
+        Objects.requireNonNull(leafName);
+        this.leafName = internFieldName(leafName);
     }
 
-    /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
-     * TODO: make this protected once Mapper and FieldMapper are merged together */
-    // TODO rename this to leafName?
-    public final String simpleName() {
-        return simpleName;
+    /**
+     * Returns the name of the field.
+     * When the field has a parent object, its leaf name won't include the entire path.
+     * When subobjects are disabled, its leaf name will be the same as {@link #fullPath()} in practice, because its parent is the root.
+     */
+    public final String leafName() {
+        return leafName;
     }
 
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
-    // TODO rename this to fullPath???
-    public abstract String name();
+    public abstract String fullPath();
 
     /**
      * Returns a name representing the type of this mapper.
@@ -98,7 +172,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      *         fields properly.
      */
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+        throw new IllegalArgumentException("field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source");
     }
 
     @Override

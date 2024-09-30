@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -25,18 +26,15 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.geoip.Database.Property;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,6 +43,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.DEFAULT_DATABASES;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -56,8 +57,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class GeoIpProcessorFactoryTests extends ESTestCase {
-
-    static Set<String> DEFAULT_DATABASE_FILENAMES = Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb");
 
     private Path geoipTmpDir;
     private Path geoIpConfigDir;
@@ -74,7 +73,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Client client = mock(Client.class);
         GeoIpCache cache = new GeoIpCache(1000);
         configDatabases = new ConfigDatabases(geoIpConfigDir, new GeoIpCache(1000));
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
         geoipTmpDir = createTempDir();
         clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
@@ -84,7 +83,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     @After
     public void closeDatabaseReaders() throws IOException {
-        databaseNodeService.close();
+        databaseNodeService.shutdown();
         databaseNodeService = null;
     }
 
@@ -181,7 +180,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertFalse(processor.isIgnoreMissing());
     }
 
-    public void testBuildWithCountryDbAndAsnFields() throws Exception {
+    public void testBuildWithCountryDbAndAsnFields() {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -196,12 +195,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             equalTo(
                 "[properties] illegal property value ["
                     + asnProperty
-                    + "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"
+                    + "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_CODE, CONTINENT_NAME]"
             )
         );
     }
 
-    public void testBuildWithAsnDbAndCityFields() throws Exception {
+    public void testBuildWithAsnDbAndCityFields() {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -218,10 +217,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildNonExistingDbFile() throws Exception {
-        Files.copy(
-            GeoIpProcessorFactoryTests.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-            geoipTmpDir.resolve("GeoLite2-City.mmdb")
-        );
+        copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir.resolve("GeoLite2-City.mmdb"));
         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City.mmdb"));
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
 
@@ -234,11 +230,11 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildBuiltinDatabaseMissing() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
-        cleanDatabaseFiles(geoIpConfigDir, configDatabases);
+        cleanDatabases(geoIpConfigDir, configDatabases);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", randomFrom(DEFAULT_DATABASE_FILENAMES));
+        config.put("database_file", randomFrom(DEFAULT_DATABASES));
         Processor processor = factory.create(null, null, null, config);
         assertThat(processor, instanceOf(GeoIpProcessor.DatabaseUnavailableProcessor.class));
     }
@@ -267,7 +263,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertFalse(processor.isIgnoreMissing());
     }
 
-    public void testBuildIllegalFieldOption() throws Exception {
+    public void testBuildIllegalFieldOption() {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
 
         Map<String, Object> config1 = new HashMap<>();
@@ -278,7 +274,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             e.getMessage(),
             equalTo(
                 "[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, "
-                    + "COUNTRY_NAME, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"
+                    + "COUNTRY_NAME, CONTINENT_CODE, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"
             )
         );
 
@@ -291,9 +287,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildUnsupportedDatabase() throws Exception {
         // mock up some unsupported database (it has a databaseType that we don't recognize)
-        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        IpDatabase database = mock(IpDatabase.class);
         when(database.getDatabaseType()).thenReturn("some-unsupported-database");
-        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        IpDatabaseProvider provider = mock(IpDatabaseProvider.class);
         when(provider.getDatabase(anyString())).thenReturn(database);
 
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
@@ -310,9 +306,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildNullDatabase() throws Exception {
         // mock up a provider that returns a null databaseType
-        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        IpDatabase database = mock(IpDatabase.class);
         when(database.getDatabaseType()).thenReturn(null);
-        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        IpDatabaseProvider provider = mock(IpDatabaseProvider.class);
         when(provider.getDatabase(anyString())).thenReturn(database);
 
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
@@ -324,14 +320,13 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null] for file [GeoLite2-City.mmdb]"));
     }
 
-    @SuppressWarnings("HiddenField")
     public void testLazyLoading() throws Exception {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
         GeoIpCache cache = new GeoIpCache(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
 
         // Loading another database reader instances, because otherwise we can't test lazy loading as the
         // database readers used at class level are reused between tests. (we want to keep that otherwise running this
@@ -358,7 +353,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-City.mmdb");
         final GeoIpProcessor city = (GeoIpProcessor) factory.create(null, "_tag", null, config);
 
-        // these are lazy loaded until first use so we expect null here
+        // these are lazy loaded until first use, so we expect null here
         assertNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoLite2-City.mmdb").databaseReader.get());
         city.execute(document);
         // the first ingest should trigger a database load
@@ -369,7 +364,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-Country.mmdb");
         final GeoIpProcessor country = (GeoIpProcessor) factory.create(null, "_tag", null, config);
 
-        // these are lazy loaded until first use so we expect null here
+        // these are lazy loaded until first use, so we expect null here
         assertNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoLite2-Country.mmdb").databaseReader.get());
         country.execute(document);
         // the first ingest should trigger a database load
@@ -380,22 +375,21 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-ASN.mmdb");
         final GeoIpProcessor asn = (GeoIpProcessor) factory.create(null, "_tag", null, config);
 
-        // these are lazy loaded until first use so we expect null here
+        // these are lazy loaded until first use, so we expect null here
         assertNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoLite2-ASN.mmdb").databaseReader.get());
         asn.execute(document);
         // the first ingest should trigger a database load
         assertNotNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoLite2-ASN.mmdb").databaseReader.get());
     }
 
-    @SuppressWarnings("HiddenField")
     public void testLoadingCustomDatabase() throws IOException {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, new GeoIpCache(1000));
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
         // fake the GeoIP2-City database
-        copyDatabaseFile(geoIpConfigDir, "GeoLite2-City.mmdb");
+        copyDatabase("GeoLite2-City.mmdb", geoIpConfigDir);
         Files.move(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), geoIpConfigDir.resolve("GeoIP2-City.mmdb"));
 
         /*
@@ -428,7 +422,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoIP2-City.mmdb");
         final GeoIpProcessor city = (GeoIpProcessor) factory.create(null, "_tag", null, config);
 
-        // these are lazy loaded until first use so we expect null here
+        // these are lazy loaded until first use, so we expect null here
         assertNull(databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb").databaseReader.get());
         city.execute(document);
         // the first ingest should trigger a database load
@@ -490,7 +484,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(geoData.get("city_name"), equalTo("Tumba"));
         }
         {
-            copyDatabaseFile(geoipTmpDir, "GeoLite2-City-Test.mmdb");
+            copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir);
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
             processor.execute(ingestDocument);
@@ -498,7 +492,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(geoData.get("city_name"), equalTo("Linköping"));
         }
         {
-            // No databases are available, so assume that databases still need to be downloaded and therefor not fail:
+            // No databases are available, so assume that databases still need to be downloaded and therefore not fail:
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             databaseNodeService.removeStaleEntries(List.of("GeoLite2-City.mmdb"));
             configDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), false);
@@ -507,7 +501,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(geoData, nullValue());
         }
         {
-            // There are database available, but not the right one, so tag:
+            // There are databases available, but not the right one, so tag:
             databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             processor.execute(ingestDocument);
@@ -517,7 +511,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testDatabaseNotReadyYet() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
-        cleanDatabaseFiles(geoIpConfigDir, configDatabases);
+        cleanDatabases(geoIpConfigDir, configDatabases);
 
         {
             Map<String, Object> config = new HashMap<>();
@@ -542,7 +536,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             );
         }
 
-        copyDatabaseFile(geoipTmpDir, "GeoLite2-City-Test.mmdb");
+        copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir);
         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
 
         {
@@ -562,25 +556,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    private static void copyDatabaseFile(final Path path, final String databaseFilename) throws IOException {
-        Files.copy(
-            new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/" + databaseFilename)),
-            path.resolve(databaseFilename),
-            StandardCopyOption.REPLACE_EXISTING
-        );
-    }
-
-    static void copyDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
-        for (final String databaseFilename : DEFAULT_DATABASE_FILENAMES) {
-            copyDatabaseFile(path, databaseFilename);
-            configDatabases.updateDatabase(path.resolve(databaseFilename), true);
+    private static void cleanDatabases(final Path directory, ConfigDatabases configDatabases) {
+        for (final String database : DEFAULT_DATABASES) {
+            configDatabases.updateDatabase(directory.resolve(database), false);
         }
     }
-
-    static void cleanDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
-        for (final String databaseFilename : DEFAULT_DATABASE_FILENAMES) {
-            configDatabases.updateDatabase(path.resolve(databaseFilename), false);
-        }
-    }
-
 }

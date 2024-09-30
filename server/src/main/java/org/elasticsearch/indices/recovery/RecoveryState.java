@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -609,6 +610,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.field(Fields.TOTAL_ON_START, totalOnStart);
             builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             return builder;
+        }
+
+        @Override
+        public synchronized String toString() {
+            return Strings.format(
+                "Translog{recovered=%d, total=%d, totalOnStart=%d, totalLocal=%d}",
+                recovered,
+                total,
+                totalOnStart,
+                totalLocal
+            );
         }
     }
 

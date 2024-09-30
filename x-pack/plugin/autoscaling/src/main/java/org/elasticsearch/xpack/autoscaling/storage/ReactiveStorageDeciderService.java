@@ -816,11 +816,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                final Tuple<String, Long> rolledDataStreamInfo = stream.unsafeNextWriteIndexAndGeneration(state.metadata());
+                final Tuple<String, Long> rolledDataStreamInfo = stream.unsafeNextWriteIndexAndGeneration(
+                    state.metadata(),
+                    stream.getBackingIndices()
+                );
                 stream = stream.unsafeRollover(
                     new Index(rolledDataStreamInfo.v1(), uuid),
                     rolledDataStreamInfo.v2(),
-                    false,
+                    null,
                     stream.getAutoShardingEvent()
                 );
 

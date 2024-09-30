@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
+
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -59,11 +60,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty 'tests.upgrade_from_version', oldVersion
     nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
     nonInputProperties.systemProperty('tests.clustername', baseName)
-    if (bwcVersion.before("8.4.0")) {
-      excludeList.addAll(["old_cluster/30_vector_search/*"])
-    } else if (bwcVersion.before("8.6.0")) {
-      excludeList.addAll(["old_cluster/30_vector_search/Create indexed byte vectors and search"])
-    }
     if (excludeList.isEmpty() == false) {
       systemProperty 'tests.rest.blacklist', excludeList.join(',')
     }
@@ -81,11 +77,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
     nonInputProperties.systemProperty('tests.clustername', baseName)
     def excludeList = []
-    if (bwcVersion.before("8.4.0")) {
-      excludeList.addAll(["mixed_cluster/30_vector_search/*"])
-    } else if (bwcVersion.before("8.6.0")) {
-      excludeList.addAll(["mixed_cluster/30_vector_search/Search byte indices created in old cluster"])
-    }
     if (excludeList.isEmpty() == false) {
       systemProperty 'tests.rest.blacklist', excludeList.join(',')
     }
@@ -103,11 +94,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
     nonInputProperties.systemProperty('tests.clustername', baseName)
     def excludeList = []
-    if (bwcVersion.before("8.4.0")) {
-      excludeList.addAll(["mixed_cluster/30_vector_search/*"])
-    } else if (bwcVersion.before("8.6.0")) {
-      excludeList.addAll(["mixed_cluster/30_vector_search/Search byte indices created in old cluster"])
-    }
     if (excludeList.isEmpty() == false) {
       systemProperty 'tests.rest.blacklist', excludeList.join(',')
     }
@@ -124,11 +110,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
     nonInputProperties.systemProperty('tests.clustername', baseName)
     def excludeList = []
-    if (bwcVersion.before("8.4.0")) {
-      excludeList.addAll(["upgraded_cluster/30_vector_search/*"])
-    } else if (bwcVersion.before("8.6.0")) {
-      excludeList.addAll(["upgraded_cluster/30_vector_search/Search byte indices created in old cluster"])
-    }
     if (excludeList.isEmpty() == false) {
       systemProperty 'tests.rest.blacklist', excludeList.join(',')
     }

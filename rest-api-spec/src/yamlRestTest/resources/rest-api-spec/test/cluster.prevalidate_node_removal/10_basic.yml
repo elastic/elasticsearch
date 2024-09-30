@@ -2,7 +2,7 @@
 "Prevalidation basic test":
   - requires:
       test_runner_features: ["contains"]
-      cluster_features: ["cluster_prevalidate_node_removal_reason"]
+      cluster_features: ["gte_v8.7.0"]
       reason: "The reason field was introduced in 8.7.0"
 
   # Fetch a node ID and stash it in node_id
@@ -20,7 +20,7 @@
 ---
 "Prevalidation with no node specified":
   - requires:
-      cluster_features: ["cluster_prevalidate_node_removal"]
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in 8.6.0"
   - do:
       catch: bad_request
@@ -32,7 +32,7 @@
 ---
 "Prevalidation with more than one query parameter":
   - requires:
-      cluster_features: ["cluster_prevalidate_node_removal"]
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in 8.6.0"
   - do:
       catch: bad_request
@@ -46,7 +46,7 @@
 ---
 "Prevalidation with non-existing node":
   - requires:
-      cluster_features: ["cluster_prevalidate_node_removal"]
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in 8.6.0"
   - do:
       catch: missing

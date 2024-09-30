@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -686,5 +687,53 @@ public class InferenceProcessorTests extends ESTestCase {
             var requestInputs = request.getInputs();
             assertThat(requestInputs, contains("body_text", ""));
         }
+    }
+
+    public void testBuildRequestReturnsNullWhenAllFieldsMissing() {
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("body.text", "ml.results", "body_tokens", Map.of()));
+        inputs.add(new InferenceProcessor.Factory.InputConfig("title.text", "ml.results", "title_tokens", Map.of()));
+
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+            client,
+            auditor,
+            "my_processor_tag",
+            "description",
+            "elser",
+            new EmptyConfigUpdate(),
+            inputs,
+            true
+        );
+
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        assertNull(inferenceProcessor.buildRequest(document));
+    }
+
+    public void testInferenceNotCalledWhenAllFieldsMissing() {
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("body.text", "ml.results", "body_tokens", Map.of()));
+        inputs.add(new InferenceProcessor.Factory.InputConfig("title.text", "ml.results", "title_tokens", Map.of()));
+
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+            client,
+            auditor,
+            "my_processor_tag",
+            "description",
+            "elser",
+            new EmptyConfigUpdate(),
+            inputs,
+            true
+        );
+
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        var capturedDoc = new AtomicReference<IngestDocument>();
+        var capturedError = new AtomicReference<Exception>();
+        inferenceProcessor.execute(document, (d, e) -> {
+            capturedDoc.set(d);
+            capturedError.set(e);
+        });
+
+        assertSame(document, capturedDoc.get());
+        assertNull(capturedError.get());
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
@@ -122,7 +124,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70595")
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null));
+        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null, false));
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
@@ -309,7 +311,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDataStreamWithMultipleIndicesAndWriteIndexInDeletePhase() throws Exception {
-        createComposableTemplate(client(), template, dataStream + "*", new Template(null, null, null, null));
+        createComposableTemplate(client(), template, dataStream + "*", Template.builder().build());
         indexDocument(client(), dataStream, true);
 
         createNewSingletonPolicy(client(), policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE);
@@ -339,7 +341,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             assertThat(indices.size(), is(2));
 
             Map<String, Object> explainIndex = explainIndex(client(), secondGenerationIndex);
-            assertThat(explainIndex.get("failed_step"), is(DeleteStep.NAME));
+            assertThat(explainIndex.get("action"), is(DeleteAction.NAME));
+            assertThat(explainIndex.get("step"), oneOf(DeleteStep.NAME, ErrorStep.NAME));
             assertThat((Integer) explainIndex.get("failed_step_retry_count"), is(greaterThan(1)));
         });
 

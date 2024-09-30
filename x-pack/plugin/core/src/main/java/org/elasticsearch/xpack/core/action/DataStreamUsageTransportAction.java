@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,9 +50,25 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         final Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+        long backingIndicesCounter = 0;
+        long failureStoreEnabledCounter = 0;
+        long failureIndicesCounter = 0;
+        for (DataStream ds : dataStreams.values()) {
+            backingIndicesCounter += ds.getIndices().size();
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                if (ds.isFailureStoreEnabled()) {
+                    failureStoreEnabledCounter++;
+                }
+                if (ds.getFailureIndices().getIndices().isEmpty() == false) {
+                    failureIndicesCounter += ds.getFailureIndices().getIndices().size();
+                }
+            }
+        }
         final DataStreamFeatureSetUsage.DataStreamStats stats = new DataStreamFeatureSetUsage.DataStreamStats(
             dataStreams.size(),
-            dataStreams.values().stream().map(ds -> ds.getIndices().size()).reduce(Integer::sum).orElse(0)
+            backingIndicesCounter,
+            failureStoreEnabledCounter,
+            failureIndicesCounter
         );
         final DataStreamFeatureSetUsage usage = new DataStreamFeatureSetUsage(stats);
         listener.onResponse(new XPackUsageFeatureResponse(usage));

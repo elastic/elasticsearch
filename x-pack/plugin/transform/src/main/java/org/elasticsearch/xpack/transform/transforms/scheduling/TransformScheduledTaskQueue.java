@@ -108,6 +108,15 @@ class TransformScheduledTaskQueue {
         return task;
     }
 
+    /**
+     * Returns the current queue size.
+     *
+     * @return the current queue size
+     */
+    public synchronized int size() {
+        return tasks.size();
+    }
+
     // Visible for testing
     /**
      * @return the set of all the transform ids

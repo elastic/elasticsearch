@@ -59,6 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -81,6 +82,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     @Before
     public void setup() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
+        nodeLevelReduction = randomBoolean();
         READ_DESCRIPTION = """
             \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
@@ -92,10 +94,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             \\_ProjectOperator[projection = [0]]
             \\_LimitOperator[limit = 1000]
             \\_OutputOperator[columns = [sum(pause_me)]]""";
-        REDUCE_DESCRIPTION = """
-            \\_ExchangeSourceOperator[]
-            \\_ExchangeSinkOperator""";
-        nodeLevelReduction = randomBoolean();
+        REDUCE_DESCRIPTION = "\\_ExchangeSourceOperator[]\n"
+            + (nodeLevelReduction ? "\\_AggregationOperator[mode = INTERMEDIATE, aggs = sum of longs]\n" : "")
+            + "\\_ExchangeSinkOperator";
+
     }
 
     public void testTaskContents() throws Exception {
@@ -113,7 +115,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 assertThat(status.sessionId(), not(emptyOrNullString()));
                 for (DriverStatus.OperatorStatus o : status.activeOperators()) {
                     logger.info("status {}", o);
-                    if (o.operator().startsWith("LuceneSourceOperator[maxPageSize=" + pageSize())) {
+                    if (o.operator().startsWith("LuceneSourceOperator[maxPageSize = " + pageSize())) {
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                         assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));
                         assertThat(oStatus.processedQueries(), equalTo(Set.of("*:*")));
@@ -322,7 +324,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
          * or the cancellation chained from another cancellation and has
          * "task cancelled".
          */
-        assertThat(cancelException.getMessage(), either(equalTo("test cancel")).or(equalTo("task cancelled")));
+        assertThat(
+            cancelException.getMessage(),
+            in(List.of("test cancel", "task cancelled", "request cancelled test cancel", "parent task was cancelled [test cancel]"))
+        );
         assertBusy(
             () -> assertThat(
                 client().admin()
@@ -367,7 +372,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         try {
             scriptPermits.release(numberOfDocs()); // do not block Lucene operators
             Client client = client(coordinator);
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             client().admin()
                 .indices()
                 .prepareUpdateSettings("test")
@@ -450,6 +455,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107293")
     public void testTaskContentsForLimitQuery() throws Exception {
         String limit = Integer.toString(randomIntBetween(pageSize() + 1, 2 * numberOfDocs()));
         READ_DESCRIPTION = """
@@ -475,6 +481,37 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             scriptPermits.release(numberOfDocs());
             try (EsqlQueryResponse esqlResponse = response.get()) {
                 assertThat(Iterators.flatMap(esqlResponse.values(), i -> i).next(), equalTo(1L));
+            }
+        }
+    }
+
+    public void testTaskContentsForGroupingStatsQuery() throws Exception {
+        READ_DESCRIPTION = """
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_ValuesSourceReaderOperator[fields = [foo]]
+            \\_OrdinalsGroupingOperator(aggs = max of longs)
+            \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));
+        MERGE_DESCRIPTION = """
+            \\_ExchangeSourceOperator[]
+            \\_HashAggregationOperator[mode = <not-needed>, aggs = max of longs]
+            \\_ProjectOperator[projection = [1, 0]]
+            \\_LimitOperator[limit = 1000]
+            \\_OutputOperator[columns = [max(foo), pause_me]]""";
+        REDUCE_DESCRIPTION = "\\_ExchangeSourceOperator[]\n"
+            + (nodeLevelReduction ? "\\_HashAggregationOperator[mode = <not-needed>, aggs = max of longs]\n" : "")
+            + "\\_ExchangeSinkOperator";
+
+        ActionFuture<EsqlQueryResponse> response = startEsql("from test | stats max(foo) by pause_me");
+        try {
+            getTasksStarting();
+            scriptPermits.release(pageSize());
+            getTasksRunning();
+        } finally {
+            scriptPermits.release(numberOfDocs());
+            try (EsqlQueryResponse esqlResponse = response.get()) {
+                var it = Iterators.flatMap(esqlResponse.values(), i -> i);
+                assertThat(it.next(), equalTo(numberOfDocs() - 1L)); // max of numberOfDocs() generated int values
+                assertThat(it.next(), equalTo(1L)); // pause_me always emits 1
             }
         }
     }

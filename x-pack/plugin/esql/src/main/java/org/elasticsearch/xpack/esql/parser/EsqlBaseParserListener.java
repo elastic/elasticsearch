@@ -1,5 +1,13 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.esql.parser;
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
 /**
@@ -71,6 +79,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
@@ -154,6 +174,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.
    * @param ctx the parse tree
@@ -214,18 +244,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitArithmeticUnary(EsqlBaseParser.ArithmeticUnaryContext ctx);
   /**
-   * Enter a parse tree produced by the {@code constantDefault}
-   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterConstantDefault(EsqlBaseParser.ConstantDefaultContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code constantDefault}
-   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitConstantDefault(EsqlBaseParser.ConstantDefaultContext ctx);
-  /**
    * Enter a parse tree produced by the {@code dereference}
    * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -238,17 +256,29 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDereference(EsqlBaseParser.DereferenceContext ctx);
   /**
-   * Enter a parse tree produced by the {@code function}
+   * Enter a parse tree produced by the {@code inlineCast}
    * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
    */
-  void enterFunction(EsqlBaseParser.FunctionContext ctx);
+  void enterInlineCast(EsqlBaseParser.InlineCastContext ctx);
   /**
-   * Exit a parse tree produced by the {@code function}
+   * Exit a parse tree produced by the {@code inlineCast}
    * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
    */
-  void exitFunction(EsqlBaseParser.FunctionContext ctx);
+  void exitInlineCast(EsqlBaseParser.InlineCastContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code constantDefault}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterConstantDefault(EsqlBaseParser.ConstantDefaultContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code constantDefault}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitConstantDefault(EsqlBaseParser.ConstantDefaultContext ctx);
   /**
    * Enter a parse tree produced by the {@code parenthesizedExpression}
    * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
@@ -262,6 +292,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx);
   /**
+   * Enter a parse tree produced by the {@code function}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterFunction(EsqlBaseParser.FunctionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code function}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitFunction(EsqlBaseParser.FunctionContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#functionExpression}.
    * @param ctx the parse tree
    */
@@ -271,6 +313,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code toDataType}
+   * labeled alternative in {@link EsqlBaseParser#dataType}.
+   * @param ctx the parse tree
+   */
+  void enterToDataType(EsqlBaseParser.ToDataTypeContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code toDataType}
+   * labeled alternative in {@link EsqlBaseParser#dataType}.
+   * @param ctx the parse tree
+   */
+  void exitToDataType(EsqlBaseParser.ToDataTypeContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#rowCommand}.
    * @param ctx the parse tree
@@ -312,35 +366,35 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fromIdentifier}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    */
-  void enterFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx);
+  void enterIndexPattern(EsqlBaseParser.IndexPatternContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fromIdentifier}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    */
-  void exitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx);
+  void exitIndexPattern(EsqlBaseParser.IndexPatternContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fromOptions}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#clusterString}.
    * @param ctx the parse tree
    */
-  void enterFromOptions(EsqlBaseParser.FromOptionsContext ctx);
+  void enterClusterString(EsqlBaseParser.ClusterStringContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fromOptions}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#clusterString}.
    * @param ctx the parse tree
    */
-  void exitFromOptions(EsqlBaseParser.FromOptionsContext ctx);
+  void exitClusterString(EsqlBaseParser.ClusterStringContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#configOption}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    */
-  void enterConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
+  void enterIndexString(EsqlBaseParser.IndexStringContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#configOption}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    */
-  void exitConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
+  void exitIndexString(EsqlBaseParser.IndexStringContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#metadata}.
    * @param ctx the parse tree
@@ -372,6 +426,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree
    */
@@ -392,16 +456,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitStatsCommand(EsqlBaseParser.StatsCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   */
-  void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   */
-  void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
    */
@@ -421,6 +475,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
@@ -502,17 +566,17 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanLiteral(EsqlBaseParser.BooleanLiteralContext ctx);
   /**
-   * Enter a parse tree produced by the {@code inputParam}
+   * Enter a parse tree produced by the {@code inputParams}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void enterInputParam(EsqlBaseParser.InputParamContext ctx);
+  void enterInputParams(EsqlBaseParser.InputParamsContext ctx);
   /**
-   * Exit a parse tree produced by the {@code inputParam}
+   * Exit a parse tree produced by the {@code inputParams}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void exitInputParam(EsqlBaseParser.InputParamContext ctx);
+  void exitInputParams(EsqlBaseParser.InputParamsContext ctx);
   /**
    * Enter a parse tree produced by the {@code stringLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
@@ -561,6 +625,30 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code inputParam}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   */
+  void enterInputParam(EsqlBaseParser.InputParamContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputParam}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   */
+  void exitInputParam(EsqlBaseParser.InputParamContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code inputNamedOrPositionalParam}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   */
+  void enterInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputNamedOrPositionalParam}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   */
+  void exitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
@@ -805,4 +893,24 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   */
+  void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   */
+  void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * @param ctx the parse tree
+   */
+  void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * @param ctx the parse tree
+   */
+  void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
 }

@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: position metric introduced in 8.8.0
   - do:
       indices.create:

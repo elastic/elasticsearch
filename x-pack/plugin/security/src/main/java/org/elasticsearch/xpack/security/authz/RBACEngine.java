@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.AliasesRequest;
@@ -726,12 +727,13 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
+        final TransportVersion remoteClusterVersion,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo rbacAuthzInfo) {
             final Role role = rbacAuthzInfo.getRole();
-            listener.onResponse(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias));
+            listener.onResponse(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias, remoteClusterVersion));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info: " + authorizationInfo.getClass().getSimpleName())
@@ -798,7 +800,15 @@ public class RBACEngine implements AuthorizationEngine {
             runAs = runAsPrivilege.name();
         }
 
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs, remoteIndices);
+        return new GetUserPrivilegesResponse(
+            cluster,
+            conditionalCluster,
+            indices,
+            application,
+            runAs,
+            remoteIndices,
+            userRole.remoteCluster()
+        );
     }
 
     private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {

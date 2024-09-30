@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -37,6 +38,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -265,17 +268,6 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             equalTo("aliases, mappings, and index settings may not be specified when rolling over a data stream")
-        );
-
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, req, true)
-        );
-        assertThat(
-            exception.getMessage(),
-            equalTo(
-                "unable to roll over failure store because [" + randomDataStream.getName() + "] does not have the failure store enabled"
-            )
         );
     }
 
@@ -533,6 +525,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().put(indexMetadata))
             .build();
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -540,7 +533,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 null,
                 testThreadPool,
                 Set.of(),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -586,6 +580,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
             assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
+
+            for (String metric : MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.values()) {
+                assertThat(telemetryPlugin.getLongCounterMeasurement(metric), empty());
+            }
         } finally {
             testThreadPool.shutdown();
         }
@@ -606,6 +604,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         }
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -613,7 +612,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 dataStream,
                 testThreadPool,
                 Set.of(),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -672,9 +672,12 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         dataStream.getIndices().forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
-        dataStream.getFailureIndices().forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
+        dataStream.getFailureIndices()
+            .getIndices()
+            .forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -682,7 +685,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 dataStream,
                 testThreadPool,
                 Set.of(),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -711,15 +715,18 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(dataStream.getIndices().size() + dataStream.getFailureIndices().size() + 1, rolloverMetadata.indices().size());
+            assertEquals(
+                dataStream.getIndices().size() + dataStream.getFailureIndices().getIndices().size() + 1,
+                rolloverMetadata.indices().size()
+            );
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
             var ds = (DataStream) rolloverMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size()));
-            assertThat(ds.getFailureIndices(), hasSize(dataStream.getFailureIndices().size() + 1));
-            assertThat(ds.getFailureIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
-            assertThat(ds.getFailureIndices(), hasItem(rolloverIndexMetadata.getIndex()));
+            assertThat(ds.getFailureIndices().getIndices(), hasSize(dataStream.getFailureIndices().getIndices().size() + 1));
+            assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
             assertThat(ds.getFailureStoreWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
             RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
@@ -744,7 +751,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 // ensure no replicate data stream
                 .promoteDataStream();
             rolloverTarget = dataStream.getName();
-            if (dataStream.isFailureStore() && randomBoolean()) {
+            if (dataStream.isFailureStoreEnabled() && randomBoolean()) {
                 failureStoreOptions = new FailureStoreOptions(false, true);
                 sourceIndexName = dataStream.getFailureStoreWriteIndex().getName();
                 defaultRolloverIndexName = DataStream.getDefaultFailureStoreName(
@@ -782,13 +789,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataCreateIndexService createIndexService = mock(MetadataCreateIndexService.class);
         MetadataIndexAliasesService metadataIndexAliasesService = mock(MetadataIndexAliasesService.class);
         ClusterService clusterService = mock(ClusterService.class);
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         MetadataRolloverService rolloverService = new MetadataRolloverService(
             null,
             createIndexService,
             metadataIndexAliasesService,
             EmptySystemIndices.INSTANCE,
             WriteLoadForecaster.DEFAULT,
-            clusterService
+            clusterService,
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
         );
 
         String newIndexName = useDataStream == false && randomBoolean() ? "logs-index-9" : null;
@@ -821,13 +830,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         }
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = mock(ThreadPool.class);
         MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
             dataStream,
             testThreadPool,
             Set.of(),
-            xContentRegistry()
+            xContentRegistry(),
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
         );
 
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());

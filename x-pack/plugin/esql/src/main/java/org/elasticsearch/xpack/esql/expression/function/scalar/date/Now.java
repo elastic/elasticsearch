@@ -7,38 +7,56 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
 public class Now extends EsqlConfigurationFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Now", Now::new);
 
     private final long now;
 
-    @FunctionInfo(returnType = "date", description = "Returns current date and time.")
+    @FunctionInfo(
+        returnType = "date",
+        description = "Returns current date and time.",
+        examples = {
+            @Example(file = "date", tag = "docsNow"),
+            @Example(file = "date", tag = "docsNowWhere", description = "To retrieve logs from the last hour:") }
+    )
     public Now(Source source, Configuration configuration) {
         super(source, List.of(), configuration);
-        this.now = configuration.now() == null ? System.currentTimeMillis() : configuration.now().toInstant().toEpochMilli();
+        assert configuration.now() != null;
+        this.now = configuration.now().toInstant().toEpochMilli();
     }
 
-    private Now(Source source, long now) {
-        super(source, List.of(), null);
-        this.now = now;
+    private Now(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).configuration());
     }
 
-    public static Now newInstance(Source source, long now) {
-        return new Now(source, now);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -53,7 +71,7 @@ public class Now extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.DATETIME;
+        return DataType.DATETIME;
     }
 
     @Evaluator

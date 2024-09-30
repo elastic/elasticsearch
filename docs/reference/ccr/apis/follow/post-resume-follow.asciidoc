@@ -5,7 +5,7 @@
 <titleabbrev>Resume follower</titleabbrev>
 ++++
 
-Resumes a follower index.
+Resumes a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-post-resume-follow-request]]
 ==== {api-request-title}
@@ -69,10 +69,7 @@ returns, the follower index will resume fetching operations from the leader inde
 [[ccr-post-resume-follow-query-params]]
 ==== {api-query-parms-title}
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-post-resume-follow-request-body]]
 ==== {api-request-body-title}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -161,31 +162,18 @@ public class DynamicMappingIT extends ESIntegTestCase {
     private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings) throws Throwable {
         indicesAdmin().prepareCreate("index").setSettings(settings).get();
         ensureGreen("index");
-        final Thread[] indexThreads = new Thread[numberOfFieldsToCreate];
-        final CountDownLatch startLatch = new CountDownLatch(1);
         final AtomicReference<Throwable> error = new AtomicReference<>();
-        for (int i = 0; i < indexThreads.length; ++i) {
+        startInParallel(numberOfFieldsToCreate, i -> {
             final String id = Integer.toString(i);
-            indexThreads[i] = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        startLatch.await();
-                        assertEquals(
-                            DocWriteResponse.Result.CREATED,
-                            prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
-                        );
-                    } catch (Exception e) {
-                        error.compareAndSet(null, e);
-                    }
-                }
-            });
-            indexThreads[i].start();
-        }
-        startLatch.countDown();
-        for (Thread thread : indexThreads) {
-            thread.join();
-        }
+            try {
+                assertEquals(
+                    DocWriteResponse.Result.CREATED,
+                    prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
+                );
+            } catch (Exception e) {
+                error.compareAndSet(null, e);
+            }
+        });
         if (error.get() != null) {
             throw error.get();
         }

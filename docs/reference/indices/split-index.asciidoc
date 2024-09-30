@@ -255,15 +255,15 @@ on index creation applies to the split index action as well.
 (Required, string)
 Name of the source index to split.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=target-index]
 
 
 [[split-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[split-index-api-request-body]]
@@ -272,6 +272,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 `aliases`::
 (Optional, object of objects) Aliases for the resulting index.
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

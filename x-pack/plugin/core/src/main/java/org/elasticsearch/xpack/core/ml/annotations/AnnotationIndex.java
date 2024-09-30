@@ -14,9 +14,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -72,8 +72,7 @@ public class AnnotationIndex {
     ) {
 
         final ActionListener<Boolean> annotationsIndexCreatedListener = finalListener.delegateFailureAndWrap((delegate, success) -> {
-            final ClusterHealthRequest request = new ClusterHealthRequest(READ_ALIAS_NAME).waitForYellowStatus()
-                .masterNodeTimeout(masterNodeTimeout);
+            final ClusterHealthRequest request = new ClusterHealthRequest(masterNodeTimeout, READ_ALIAS_NAME).waitForYellowStatus();
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
@@ -130,7 +129,9 @@ public class AnnotationIndex {
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,
                 requestBuilder.request(),
-                finalDelegate.<AcknowledgedResponse>delegateFailureAndWrap((l, r) -> checkMappingsListener.onResponse(r.isAcknowledged())),
+                finalDelegate.<IndicesAliasesResponse>delegateFailureAndWrap(
+                    (l, r) -> checkMappingsListener.onResponse(r.isAcknowledged())
+                ),
                 client.admin().indices()::aliases
             );
         });

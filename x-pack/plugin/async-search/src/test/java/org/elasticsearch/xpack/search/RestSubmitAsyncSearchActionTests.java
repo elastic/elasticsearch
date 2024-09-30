@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
@@ -27,19 +26,12 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
-    private RestSubmitAsyncSearchAction action;
-
     @Before
     public void setUpAction() {
-        action = new RestSubmitAsyncSearchAction(
-            new UsageService().getSearchUsageHolder(),
-            mock(NamedWriteableRegistry.class),
-            nf -> false
-        );
+        RestSubmitAsyncSearchAction action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder(), nf -> false);
         controller().registerHandler(action);
     }
 
@@ -73,14 +65,9 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
     }
 
     public void testParameters() throws Exception {
-        String tvString = randomTimeValue(1, 100);
-        doTestParameter("keep_alive", tvString, TimeValue.parseTimeValue(tvString, ""), SubmitAsyncSearchRequest::getKeepAlive);
-        doTestParameter(
-            "wait_for_completion_timeout",
-            tvString,
-            TimeValue.parseTimeValue(tvString, ""),
-            SubmitAsyncSearchRequest::getWaitForCompletionTimeout
-        );
+        TimeValue tv = randomTimeValue(1, 100);
+        doTestParameter("keep_alive", tv.getStringRep(), tv, SubmitAsyncSearchRequest::getKeepAlive);
+        doTestParameter("wait_for_completion_timeout", tv.getStringRep(), tv, SubmitAsyncSearchRequest::getWaitForCompletionTimeout);
         boolean keepOnCompletion = randomBoolean();
         doTestParameter(
             "keep_on_completion",

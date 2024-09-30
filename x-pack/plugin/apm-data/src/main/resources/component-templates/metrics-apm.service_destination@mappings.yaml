@@ -9,8 +9,6 @@ template:
       metricset.name:
         type: constant_keyword
         value: service_destination
-      metricset.interval:
-        type: constant_keyword
       transaction.duration.histogram:
         type: histogram
       transaction.duration.summary:

@@ -436,6 +436,23 @@ ROW a = "1.2.3.4 [2023-01-23T12:15:00.000Z] Connected"
 // end::grokWithEscape-result[]
 ;
 
+grokWithDuplicateFieldNames
+// tag::grokWithDuplicateFieldNames[]
+FROM addresses
+| KEEP city.name, zip_code
+| GROK zip_code "%{WORD:zip_parts} %{WORD:zip_parts}"
+// end::grokWithDuplicateFieldNames[]
+| SORT city.name
+;
+
+// tag::grokWithDuplicateFieldNames-result[]
+city.name:keyword | zip_code:keyword | zip_parts:keyword
+Amsterdam         | 1016 ED          | ["1016", "ED"]
+San Francisco     | CA 94108         | ["CA", "94108"]
+Tokyo             | 100-7014         | null
+// end::grokWithDuplicateFieldNames-result[]
+;
+
 basicDissect
 // tag::basicDissect[]
 ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 

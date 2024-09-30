@@ -32,4 +32,10 @@ public class LevelTests extends ESTestCase {
         assertThat(Level.WARNING.ordinal(), equalTo(1));
         assertThat(Level.ERROR.ordinal(), equalTo(2));
     }
+
+    public void testLog4JLevel() {
+        assertThat(Level.INFO.log4jLevel(), equalTo(org.apache.logging.log4j.Level.INFO));
+        assertThat(Level.WARNING.log4jLevel(), equalTo(org.apache.logging.log4j.Level.WARN));
+        assertThat(Level.ERROR.log4jLevel(), equalTo(org.apache.logging.log4j.Level.ERROR));
+    }
 }

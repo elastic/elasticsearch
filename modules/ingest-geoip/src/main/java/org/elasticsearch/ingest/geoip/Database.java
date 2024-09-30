@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
@@ -30,6 +32,7 @@ enum Database {
         Set.of(
             Property.IP,
             Property.COUNTRY_ISO_CODE,
+            Property.CONTINENT_CODE,
             Property.COUNTRY_NAME,
             Property.CONTINENT_NAME,
             Property.REGION_ISO_CODE,
@@ -39,9 +42,9 @@ enum Database {
             Property.LOCATION
         ),
         Set.of(
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
             Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_NAME,
             Property.REGION_ISO_CODE,
             Property.REGION_NAME,
             Property.CITY_NAME,
@@ -49,17 +52,127 @@ enum Database {
         )
     ),
     Country(
-        Set.of(Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(Property.IP, Property.CONTINENT_CODE, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
         Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
     ),
     Asn(
         Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK),
         Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
+    ),
+    AnonymousIp(
+        Set.of(
+            Property.IP,
+            Property.HOSTING_PROVIDER,
+            Property.TOR_EXIT_NODE,
+            Property.ANONYMOUS_VPN,
+            Property.ANONYMOUS,
+            Property.PUBLIC_PROXY,
+            Property.RESIDENTIAL_PROXY
+        ),
+        Set.of(
+            Property.HOSTING_PROVIDER,
+            Property.TOR_EXIT_NODE,
+            Property.ANONYMOUS_VPN,
+            Property.ANONYMOUS,
+            Property.PUBLIC_PROXY,
+            Property.RESIDENTIAL_PROXY
+        )
+    ),
+    ConnectionType(Set.of(Property.IP, Property.CONNECTION_TYPE), Set.of(Property.CONNECTION_TYPE)),
+    Domain(Set.of(Property.IP, Property.DOMAIN), Set.of(Property.DOMAIN)),
+    Enterprise(
+        Set.of(
+            Property.IP,
+            Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_CODE,
+            Property.CONTINENT_NAME,
+            Property.REGION_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.TIMEZONE,
+            Property.LOCATION,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK,
+            Property.HOSTING_PROVIDER,
+            Property.TOR_EXIT_NODE,
+            Property.ANONYMOUS_VPN,
+            Property.ANONYMOUS,
+            Property.PUBLIC_PROXY,
+            Property.RESIDENTIAL_PROXY,
+            Property.DOMAIN,
+            Property.ISP,
+            Property.ISP_ORGANIZATION_NAME,
+            Property.MOBILE_COUNTRY_CODE,
+            Property.MOBILE_NETWORK_CODE,
+            Property.USER_TYPE,
+            Property.CONNECTION_TYPE
+        ),
+        Set.of(
+            Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_NAME,
+            Property.REGION_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.LOCATION
+        )
+    ),
+    Isp(
+        Set.of(
+            Property.IP,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK,
+            Property.ISP,
+            Property.ISP_ORGANIZATION_NAME,
+            Property.MOBILE_COUNTRY_CODE,
+            Property.MOBILE_NETWORK_CODE
+        ),
+        Set.of(
+            Property.IP,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK,
+            Property.ISP,
+            Property.ISP_ORGANIZATION_NAME,
+            Property.MOBILE_COUNTRY_CODE,
+            Property.MOBILE_NETWORK_CODE
+        )
     );
 
     private static final String CITY_DB_SUFFIX = "-City";
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
+    private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
+    private static final String CONNECTION_TYPE_DB_SUFFIX = "-Connection-Type";
+    private static final String DOMAIN_DB_SUFFIX = "-Domain";
+    private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
+    private static final String ISP_DB_SUFFIX = "-ISP";
+
+    @Nullable
+    private static Database getMaxmindDatabase(final String databaseType) {
+        if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
+            return Database.City;
+        } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
+            return Database.Country;
+        } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
+            return Database.Asn;
+        } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
+            return Database.AnonymousIp;
+        } else if (databaseType.endsWith(Database.CONNECTION_TYPE_DB_SUFFIX)) {
+            return Database.ConnectionType;
+        } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
+            return Database.Domain;
+        } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
+            return Database.Enterprise;
+        } else if (databaseType.endsWith(Database.ISP_DB_SUFFIX)) {
+            return Database.Isp;
+        } else {
+            return null; // no match was found
+        }
+    }
 
     /**
      * Parses the passed-in databaseType (presumably from the passed-in databaseFile) and return the Database instance that is
@@ -72,14 +185,9 @@ enum Database {
      */
     public static Database getDatabase(final String databaseType, final String databaseFile) {
         Database database = null;
-        if (databaseType != null) {
-            if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
-                database = Database.City;
-            } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
-                database = Database.Country;
-            } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
-                database = Database.Asn;
-            }
+
+        if (Strings.hasText(databaseType)) {
+            database = getMaxmindDatabase(databaseType);
         }
 
         if (database == null) {
@@ -139,6 +247,7 @@ enum Database {
         IP,
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
+        CONTINENT_CODE,
         CONTINENT_NAME,
         REGION_ISO_CODE,
         REGION_NAME,
@@ -147,7 +256,20 @@ enum Database {
         LOCATION,
         ASN,
         ORGANIZATION_NAME,
-        NETWORK;
+        NETWORK,
+        HOSTING_PROVIDER,
+        TOR_EXIT_NODE,
+        ANONYMOUS_VPN,
+        ANONYMOUS,
+        PUBLIC_PROXY,
+        RESIDENTIAL_PROXY,
+        DOMAIN,
+        ISP,
+        ISP_ORGANIZATION_NAME,
+        MOBILE_COUNTRY_CODE,
+        MOBILE_NETWORK_CODE,
+        CONNECTION_TYPE,
+        USER_TYPE;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

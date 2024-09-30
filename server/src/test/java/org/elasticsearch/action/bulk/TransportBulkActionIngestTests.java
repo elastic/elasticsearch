@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -36,9 +38,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
@@ -47,9 +47,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -57,22 +55,28 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
-import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.Predicate;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -95,6 +99,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
     private FeatureService mockFeatureService;
 
+    private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
+    private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
+
     /** Services needed by bulk action */
     TransportService transportService;
     ClusterService clusterService;
@@ -103,7 +110,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
     @Captor
-    ArgumentCaptor<Predicate<String>> redirectPredicate;
+    ArgumentCaptor<Function<String, Boolean>> redirectPredicate;
     @Captor
     ArgumentCaptor<TriConsumer<Integer, String, Exception>> redirectHandler;
     @Captor
@@ -139,16 +146,17 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         TestTransportBulkAction() {
             super(
-                threadPool,
+                TransportBulkActionIngestTests.this.threadPool,
                 transportService,
-                clusterService,
+                TransportBulkActionIngestTests.this.clusterService,
                 ingestService,
                 mockFeatureService,
-                new NodeClient(Settings.EMPTY, threadPool),
+                new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool),
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                FailureStoreMetrics.NOOP
             );
         }
 
@@ -158,16 +166,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             BulkRequest bulkRequest,
             long startTimeNanos,
             ActionListener<BulkResponse> listener,
-            String executorName,
-            AtomicArray<BulkItemResponse> responses,
-            Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+            Executor executor,
+            AtomicArray<BulkItemResponse> responses
         ) {
             assertTrue(indexCreated);
             isExecuted = true;
         }
 
         @Override
-        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
         }
@@ -186,13 +193,95 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
     }
 
+    private static final class NamedDirectExecutorService implements ExecutorService {
+
+        private final String name;
+
+        NamedDirectExecutorService(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            command.run();
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+
+        @Override
+        public void shutdown() {
+            fail("shutdown not supported");
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public <T> Future<T> submit(Callable<T> task) {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public <T> Future<T> submit(Runnable task, T result) {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public Future<?> submit(Runnable task) {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
+            return null;
+        }
+
+        @Override
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
+            return fail(null, "shutdown not supported");
+        }
+
+        @Override
+        public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+            return fail(null, "shutdown not supported");
+        }
+    }
+
     @Before
-    public void setupAction() throws IOException {
+    public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(eq(ThreadPool.Names.WRITE))).thenReturn(writeExecutor);
+        when(threadPool.executor(eq(ThreadPool.Names.SYSTEM_WRITE))).thenReturn(systemWriteExecutor);
         MockitoAnnotations.openMocks(this);
         // setup services that will be called by action
-        transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
         localIngest = true;
         // setup nodes for local and remote
@@ -312,7 +401,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             redirectHandler.capture(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.WRITE)
+            same(writeExecutor)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -321,9 +410,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Iterator<DocWriteRequest<?>> req = bulkDocsItr.getValue().iterator();
         failureHandler.getValue().accept(0, exception); // have an exception for our one index request
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        assertTrue(redirectPredicate.getValue().test(WITH_FAILURE_STORE_ENABLED + "-1")); // ensure redirects on failure store data stream
-        assertFalse(redirectPredicate.getValue().test(WITH_DEFAULT_PIPELINE)); // no redirects for random existing indices
-        assertFalse(redirectPredicate.getValue().test("index")); // no redirects for non-existant indices with no templates
+        // ensure redirects on failure store data stream
+        assertTrue(redirectPredicate.getValue().apply(WITH_FAILURE_STORE_ENABLED + "-1"));
+        assertNull(redirectPredicate.getValue().apply(WITH_DEFAULT_PIPELINE)); // no redirects for random existing indices
+        assertNull(redirectPredicate.getValue().apply("index")); // no redirects for non-existent indices with no templates
         redirectHandler.getValue().apply(2, WITH_FAILURE_STORE_ENABLED + "-1", exception); // exception and redirect for request 3 (slot 2)
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null); // all ingestion completed
         assertTrue(action.isExecuted);
@@ -360,7 +450,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.WRITE)
+            same(writeExecutor)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -408,7 +498,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.SYSTEM_WRITE)
+            same(systemWriteExecutor)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -567,7 +657,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.WRITE)
+            same(writeExecutor)
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
@@ -617,7 +707,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.WRITE)
+            same(writeExecutor)
         );
         completionHandler.getValue().accept(null, exception);
         assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
@@ -713,7 +803,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.WRITE)
+            same(writeExecutor)
         );
     }
 
@@ -753,7 +843,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.WRITE)
+            same(writeExecutor)
         );
     }
 
@@ -782,7 +872,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.WRITE)
+            same(writeExecutor)
         );
         indexRequest1.autoGenerateId();
         completionHandler.getValue().accept(Thread.currentThread(), null);
@@ -821,7 +911,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            eq(Names.WRITE)
+            same(writeExecutor)
         );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");
         completionHandler.getValue().accept(null, exception);

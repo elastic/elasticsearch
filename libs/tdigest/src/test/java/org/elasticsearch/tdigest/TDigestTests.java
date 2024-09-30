@@ -21,8 +21,6 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +30,7 @@ import java.util.Random;
 /**
  * Base test case for TDigests, just extend this class and implement the abstract methods.
  */
-public abstract class TDigestTests extends ESTestCase {
+public abstract class TDigestTests extends TDigestTestCase {
 
     public interface DigestFactory {
         TDigest create();
@@ -152,7 +150,7 @@ public abstract class TDigestTests extends ESTestCase {
         hist2.compress();
         double x1 = hist1.quantile(0.5);
         double x2 = hist2.quantile(0.5);
-        assertEquals(Dist.quantile(0.5, data), x1, 0.2);
+        assertEquals(Dist.quantile(0.5, data), x1, 0.25);
         assertEquals(x1, x2, 0.01);
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.spatial;
@@ -427,7 +428,7 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
             // Most data (notably geo data) has values within bounds, and an absolute delta makes more sense.
             double delta = (value > 1e28 || value < -1e28) ? Math.abs(value / 1e6)
                 : (value > 1e20 || value < -1e20) ? Math.abs(value / 1e10)
-                : (value > 1e10 || value < -1e10) ? Math.abs(value / 1e15)
+                : (value > 1e9 || value < -1e9) ? Math.abs(value / 1e15)
                 : DELTA;
             return closeTo(value, delta);
         }

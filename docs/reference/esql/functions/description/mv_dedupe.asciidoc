@@ -3,3 +3,5 @@
 *Description*
 
 Remove duplicate values from a multivalued field.
+
+NOTE: `MV_DEDUPE` may, but won't always, sort the values in the column.

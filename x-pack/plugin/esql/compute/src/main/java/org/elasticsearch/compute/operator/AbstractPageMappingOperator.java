@@ -112,13 +112,13 @@ public abstract class AbstractPageMappingOperator implements Operator {
         }
 
         protected Status(StreamInput in) throws IOException {
-            processNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
+            processNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
             pagesProcessed = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeVLong(processNanos);
             }
             out.writeVInt(pagesProcessed);

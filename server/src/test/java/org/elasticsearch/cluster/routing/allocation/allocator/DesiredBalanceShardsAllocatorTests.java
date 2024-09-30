@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -11,7 +12,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +21,9 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -68,6 +71,7 @@ import static org.elasticsearch.cluster.routing.AllocationId.newInitializing;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -96,7 +100,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 var shardRouting = routingTable.shardRoutingTable("test-index", 0).primaryShard();
                 assertFalse(shardRouting.assignedToNode());
                 assertThat(
-                    shardRouting.unassignedInfo().getLastAllocationStatus(),
+                    shardRouting.unassignedInfo().lastAllocationStatus(),
                     equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
                 );
             }
@@ -107,7 +111,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         testAllocate((allocation, unassignedAllocationHandler) -> {}, routingTable -> {
             var shardRouting = routingTable.shardRoutingTable("test-index", 0).primaryShard();
             assertTrue(shardRouting.assignedToNode());// assigned by a followup reconciliation
-            assertThat(shardRouting.unassignedInfo().getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
+            assertThat(shardRouting.unassignedInfo().lastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
         });
     }
 
@@ -324,7 +328,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             var unassigned = reconciledState.getRoutingNodes().unassigned();
             assertThat(unassigned.size(), equalTo(1));
             var unassignedShard = unassigned.iterator().next();
-            assertThat(unassignedShard.unassignedInfo().isDelayed(), equalTo(true));
+            assertThat(unassignedShard.unassignedInfo().delayed(), equalTo(true));
 
         } finally {
             clusterService.close();
@@ -651,6 +655,101 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
+    public void testResetDesiredBalanceOnNodeShutdown() {
+        var node1 = newNode(LOCAL_NODE_ID);
+        var node2 = newNode(OTHER_NODE_ID);
+
+        var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
+        var index = createIndex(shardId.getIndexName());
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+            .metadata(Metadata.builder().put(index, false).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(index).build())
+            .build();
+
+        var threadPool = new TestThreadPool(getTestName());
+        var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+
+        final var resetCalled = new AtomicBoolean();
+        var delegateAllocator = createShardsAllocator();
+        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
+        var desiredBalanceAllocator = new DesiredBalanceShardsAllocator(
+            delegateAllocator,
+            threadPool,
+            clusterService,
+            desiredBalanceComputer,
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
+            TelemetryProvider.NOOP
+        ) {
+            @Override
+            public void resetDesiredBalance() {
+                resetCalled.set(true);
+                super.resetDesiredBalance();
+            }
+        };
+
+        var service = createAllocationService(desiredBalanceAllocator, createGatewayAllocator());
+
+        try {
+            rerouteAndWait(service, clusterState, "initial-allocation");
+            assertThat(desiredBalanceAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.INITIAL)));
+
+            final var shutdownType = randomFrom(Type.SIGTERM, Type.REMOVE, Type.REPLACE);
+            final var singleShutdownMetadataBuilder = SingleNodeShutdownMetadata.builder()
+                .setNodeId(node2.getId())
+                .setReason("test")
+                .setType(shutdownType)
+                .setStartedAtMillis(randomNonNegativeLong());
+            if (shutdownType.equals(Type.REPLACE)) {
+                singleShutdownMetadataBuilder.setTargetNodeName(randomIdentifier());
+            } else if (shutdownType.equals(Type.SIGTERM)) {
+                singleShutdownMetadataBuilder.setGracePeriod(TimeValue.MAX_VALUE);
+            }
+            final var nodeShutdownMetadata = new NodesShutdownMetadata(Map.of(node2.getId(), singleShutdownMetadataBuilder.build()));
+            // Add shutdown marker
+            clusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
+                .build();
+            assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
+            rerouteAndWait(service, clusterState, "reroute-after-shutdown");
+            assertTrue("desired balance reset should be called on node shutdown", resetCalled.get());
+            assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), equalTo(Set.of(node2.getId())));
+
+            resetCalled.set(false);
+            rerouteAndWait(service, clusterState, "random-reroute");
+            assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
+            assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), equalTo(Set.of(node2.getId())));
+            // Node may or may not have been removed
+            final var removeNodeFromCluster = randomBoolean();
+            if (removeNodeFromCluster) {
+                clusterState = ClusterState.builder(clusterState)
+                    .nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+                    .build();
+            }
+            rerouteAndWait(service, clusterState, "random-reroute");
+            assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
+            // Remove the shutdown marker
+            clusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY))
+                .build();
+            rerouteAndWait(service, clusterState, "random-reroute");
+            if (removeNodeFromCluster) {
+                assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
+            } else {
+                assertTrue("desired balance reset should be called again for processed shutdowns", resetCalled.get());
+            }
+            assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
+
+            resetCalled.set(false);
+            rerouteAndWait(service, clusterState, "random-reroute");
+            assertFalse("desired balance reset should not be called", resetCalled.get());
+            assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), empty());
+        } finally {
+            clusterService.close();
+            terminate(threadPool);
+        }
+    }
+
     private static IndexMetadata createIndex(String name) {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
     }
@@ -719,6 +818,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static void rerouteAndWait(AllocationService service, ClusterState clusterState, String reason) {
-        PlainActionFuture.<Void, RuntimeException>get(f -> service.reroute(clusterState, reason, f), 10, TimeUnit.SECONDS);
+        safeAwait((ActionListener<Void> listener) -> service.reroute(clusterState, reason, listener));
     }
 }

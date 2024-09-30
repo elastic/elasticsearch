@@ -277,7 +277,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
         });
         SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-            .setScroll("1m")
+            .setScroll(TimeValue.timeValueMinutes(1))
             .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
             .setSize(randomIntBetween(1, 10))
             .get();
@@ -349,14 +349,26 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete index and stop the data node");
         assertAcked(client().admin().indices().prepareDelete(sourceIdx).get());
         internalCluster().stopRandomDataNode();
-        assertFalse(clusterAdmin().prepareHealth().setTimeout("30s").setWaitForNodes("1").get().isTimedOut());
+        assertFalse(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForNodes("1")
+                .get()
+                .isTimedOut()
+        );
 
         final String newDataNode = internalCluster().startDataOnlyNode();
         logger.info("--> start a new data node " + newDataNode);
-        assertFalse(clusterAdmin().prepareHealth().setTimeout("30s").setWaitForNodes("2").get().isTimedOut());
+        assertFalse(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForNodes("2")
+                .get()
+                .isTimedOut()
+        );
 
         logger.info("--> restore the index and ensure all shards are allocated");
-        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(repo, snapshot)
+        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot)
             .setWaitForCompletion(true)
             .setIndices(sourceIdx)
             .get();

@@ -80,7 +80,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         var metadata = Metadata.builder().putCustom(TYPE, nodesShutdownMetadata).build();
         var clusterStateWithShutdown = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
-        var request = new DeleteShutdownNodeAction.Request("node1");
+        var request = new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "node1");
         action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(DeleteShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);

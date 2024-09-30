@@ -99,3 +99,67 @@ setup:
   - match: { daily-snapshots.policy.schedule: "1 1 1 1 1 ?" }
   - is_true: daily-snapshots.next_execution_millis
   - is_true: daily-snapshots.stats
+
+---
+"Test version/modified_date is unchanged if updated policy is the same":
+  - do:
+      snapshot.create_repository:
+        repository: repo
+        body:
+          type: fs
+          settings:
+            location: "my-snaps"
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "daily-snapshots"
+        body: |
+          {
+            "schedule": "0 1 2 3 4 ?",
+            "name": "<production-snap-{now/d}>",
+            "repository": "repo",
+            "config": {
+              "indices": ["foo-*", "important"],
+              "ignore_unavailable": false,
+              "include_global_state": false
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 1,
+              "max_count": 50
+            }
+          }
+
+  - do:
+      slm.get_lifecycle:
+        policy_id: "daily-snapshots"
+  - match: { daily-snapshots.policy.name: "<production-snap-{now/d}>" }
+  - match: { daily-snapshots.version: 1 }
+  - set: { daily-snapshots.modified_date_millis: modified }
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "daily-snapshots"
+        body: |
+          {
+            "schedule": "0 1 2 3 4 ?",
+            "name": "<production-snap-{now/d}>",
+            "repository": "repo",
+            "config": {
+              "indices": ["foo-*", "important"],
+              "ignore_unavailable": false,
+              "include_global_state": false
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 1,
+              "max_count": 50
+            }
+          }
+
+  - do:
+      slm.get_lifecycle:
+        policy_id: "daily-snapshots"
+  - match: { daily-snapshots.policy.name: "<production-snap-{now/d}>" }
+  - match: { daily-snapshots.version: 1 }
+  - match: { daily-snapshots.modified_date_millis: $modified }

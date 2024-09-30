@@ -1,0 +1,6 @@
+pr: 111937
+summary: Handle `BigInteger` in xcontent copy
+area: Infra/Core
+type: bug
+issues: 
+  - 111812

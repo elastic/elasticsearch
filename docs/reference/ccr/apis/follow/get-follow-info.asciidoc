@@ -5,7 +5,7 @@
 <titleabbrev>Get follower info</titleabbrev>
 ++++
 
-Retrieves information about all follower indices.
+Retrieves information about all <<xpack-ccr,{ccr}>> follower indices.
 
 [[ccr-get-follow-info-request]]
 ==== {api-request-title}
@@ -52,10 +52,7 @@ replication options and whether the follower indices are active or paused.
 [[ccr-get-follow-info-query-params]]
 ==== {api-query-parms-title}
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [role="child_attributes"]
 [[ccr-get-follow-info-response-body]]

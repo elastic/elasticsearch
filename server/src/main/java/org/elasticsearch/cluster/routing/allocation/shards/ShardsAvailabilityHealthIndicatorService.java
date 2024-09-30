@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.shards;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -39,9 +41,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -55,6 +59,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -107,10 +112,28 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
 
+    /**
+     * Changes the behavior of isNewlyCreatedAndInitializingReplica so that the
+     * shard_availability health indicator returns YELLOW if a primary
+     * is STARTED, but a replica is still INITIALIZING and the replica has been
+     * unassigned for less than the value of this setting. This function is
+     * only used in serverless, so this setting has no effect in stateless.
+     */
+    public static final Setting<TimeValue> REPLICA_UNASSIGNED_BUFFER_TIME = Setting.timeSetting(
+        "health.shards_availability.replica_unassigned_buffer_time",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueSeconds(0),
+        TimeValue.timeValueSeconds(20),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final ClusterService clusterService;
     private final AllocationService allocationService;
 
     private final SystemIndices systemIndices;
+
+    private volatile TimeValue replicaUnassignedBufferTime;
 
     public ShardsAvailabilityHealthIndicatorService(
         ClusterService clusterService,
@@ -120,6 +143,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.systemIndices = systemIndices;
+        this.replicaUnassignedBufferTime = REPLICA_UNASSIGNED_BUFFER_TIME.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(REPLICA_UNASSIGNED_BUFFER_TIME, this::setReplicaUnassignedBufferTime);
+    }
+
+    private void setReplicaUnassignedBufferTime(TimeValue replicaUnassignedBufferTime) {
+        this.replicaUnassignedBufferTime = replicaUnassignedBufferTime;
     }
 
     @Override
@@ -143,7 +172,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = createNewStatus(state.getMetadata());
-        updateShardAllocationStatus(status, state, shutdown, verbose);
+        updateShardAllocationStatus(status, state, shutdown, verbose, replicaUnassignedBufferTime);
         return createIndicator(
             status.getStatus(),
             status.getSymptom(),
@@ -157,14 +186,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ShardAllocationStatus status,
         ClusterState state,
         NodesShutdownMetadata shutdown,
-        boolean verbose
+        boolean verbose,
+        TimeValue replicaUnassignedBufferTime
     ) {
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
                 status.addPrimary(shardRouting.primaryShard(), state, shutdown, verbose);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, verbose);
+                    status.addReplica(replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
                 }
             }
         }
@@ -437,10 +467,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         public SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
         final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+        public void increment(
+            ShardRouting routing,
+            ClusterState state,
+            NodesShutdownMetadata shutdowns,
+            boolean verbose,
+            TimeValue replicaUnassignedBufferTime
+        ) {
             boolean isNew = isUnassignedDueToNewInitialization(routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
-            boolean allUnavailable = areAllShardsOfThisTypeUnavailable(routing, state);
+            long replicaUnassignedCutoffTime = Instant.now().toEpochMilli() - replicaUnassignedBufferTime.millis();
+            boolean allUnavailable = areAllShardsOfThisTypeUnavailable(routing, state)
+                && isNewlyCreatedAndInitializingReplica(routing, state, replicaUnassignedCutoffTime) == false;
             if (allUnavailable) {
                 indicesWithAllShardsUnavailable.add(routing.getIndexName());
             }
@@ -498,7 +536,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * example: if a replica is passed then this will return true if ALL replicas are unassigned,
      * but if at least one is assigned, it will return false.
      */
-    private boolean areAllShardsOfThisTypeUnavailable(ShardRouting routing, ClusterState state) {
+    boolean areAllShardsOfThisTypeUnavailable(ShardRouting routing, ClusterState state) {
         return StreamSupport.stream(
             state.routingTable().allActiveShardsGrouped(new String[] { routing.getIndexName() }, true).spliterator(),
             false
@@ -509,17 +547,45 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             .allMatch(ShardRouting::unassigned);
     }
 
-    private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {
-        var info = routing.unassignedInfo();
-        if (info == null || info.getReason() != UnassignedInfo.Reason.NODE_RESTARTING) {
+    /**
+     * Returns true if the given shard is a replica that is only unassigned due to its primary being
+     * newly created. See {@link ClusterShardHealth#getInactivePrimaryHealth(ShardRouting)} for more
+     * information.
+     *
+     * We use this information when considering whether a cluster should turn red. For some cases
+     * (a newly created index having unassigned replicas for example), we don't want the cluster
+     * to turn "unhealthy" for the tiny amount of time before the shards are allocated.
+     */
+    static boolean isNewlyCreatedAndInitializingReplica(ShardRouting routing, ClusterState state, long replicaUnassignedCutoffTime) {
+        if (routing.active()) {
             return false;
         }
-        var shutdown = shutdowns.get(info.getLastAllocatedNodeId(), SingleNodeShutdownMetadata.Type.RESTART);
+        if (routing.primary()) {
+            return false;
+        }
+        ShardRouting primary = state.routingTable().shardRoutingTable(routing.shardId()).primaryShard();
+        if (primary.active() == false) {
+            return ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
+        }
+
+        Optional<UnassignedInfo> ui = Optional.ofNullable(routing.unassignedInfo());
+        return ui.filter(info -> info.failedAllocations() == 0)
+            .filter(info -> info.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO)
+            .filter(info -> info.unassignedTimeMillis() > replicaUnassignedCutoffTime)
+            .isPresent();
+    }
+
+    private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {
+        var info = routing.unassignedInfo();
+        if (info == null || info.reason() != UnassignedInfo.Reason.NODE_RESTARTING) {
+            return false;
+        }
+        var shutdown = shutdowns.get(info.lastAllocatedNodeId(), SingleNodeShutdownMetadata.Type.RESTART);
         if (shutdown == null) {
             return false;
         }
         var now = System.nanoTime();
-        var restartingAllocationDelayExpiration = info.getUnassignedTimeInNanos() + shutdown.getAllocationDelay().nanos();
+        var restartingAllocationDelayExpiration = info.unassignedTimeNanos() + shutdown.getAllocationDelay().nanos();
         return now - restartingAllocationDelayExpiration <= 0;
     }
 
@@ -542,10 +608,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     List<Diagnosis.Definition> diagnoseUnassignedShardRouting(ShardRouting shardRouting, ClusterState state) {
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
-        switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
+        switch (shardRouting.unassignedInfo().lastAllocationStatus()) {
             case NO_VALID_SHARD_COPY -> diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
             case NO_ATTEMPT -> {
-                if (shardRouting.unassignedInfo().isDelayed()) {
+                if (shardRouting.unassignedInfo().delayed()) {
                     diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 } else {
                     diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
@@ -885,11 +951,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
-            primaries.increment(routing, state, shutdowns, verbose);
+            primaries.increment(routing, state, shutdowns, verbose, TimeValue.MINUS_ONE);
         }
 
-        void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
-            replicas.increment(routing, state, shutdowns, verbose);
+        void addReplica(
+            ShardRouting routing,
+            ClusterState state,
+            NodesShutdownMetadata shutdowns,
+            boolean verbose,
+            TimeValue replicaUnassignedBufferTime
+        ) {
+            replicas.increment(routing, state, shutdowns, verbose, replicaUnassignedBufferTime);
         }
 
         void updateSearchableSnapshotsOfAvailableIndices() {
@@ -959,34 +1031,33 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         public HealthIndicatorDetails getDetails(boolean verbose) {
-            if (verbose) {
-                return new SimpleHealthIndicatorDetails(
-                    Map.of(
-                        "unassigned_primaries",
-                        primaries.unassigned,
-                        "initializing_primaries",
-                        primaries.initializing,
-                        "creating_primaries",
-                        primaries.unassigned_new,
-                        "restarting_primaries",
-                        primaries.unassigned_restarting,
-                        "started_primaries",
-                        primaries.started + primaries.relocating,
-                        "unassigned_replicas",
-                        replicas.unassigned,
-                        "initializing_replicas",
-                        replicas.initializing,
-                        "creating_replicas",
-                        replicas.unassigned_new,
-                        "restarting_replicas",
-                        replicas.unassigned_restarting,
-                        "started_replicas",
-                        replicas.started + replicas.relocating
-                    )
-                );
-            } else {
+            if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
+            return new SimpleHealthIndicatorDetails(
+                Map.of(
+                    "unassigned_primaries",
+                    primaries.unassigned,
+                    "initializing_primaries",
+                    primaries.initializing,
+                    "creating_primaries",
+                    primaries.unassigned_new,
+                    "restarting_primaries",
+                    primaries.unassigned_restarting,
+                    "started_primaries",
+                    primaries.started + primaries.relocating,
+                    "unassigned_replicas",
+                    replicas.unassigned,
+                    "initializing_replicas",
+                    replicas.initializing,
+                    "creating_replicas",
+                    replicas.unassigned_new,
+                    "restarting_replicas",
+                    replicas.unassigned_restarting,
+                    "started_replicas",
+                    replicas.started + replicas.relocating
+                )
+            );
         }
 
         public List<HealthIndicatorImpact> getImpacts() {

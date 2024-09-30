@@ -136,14 +136,15 @@ public class BasicPageTests extends SerializationTestCase {
         int blockCount = randomIntBetween(1, 256);
         Block[] blocks = new Block[blockCount];
         for (int blockIndex = 0; blockIndex < blockCount; blockIndex++) {
-            blocks[blockIndex] = switch (randomInt(6)) {
+            blocks[blockIndex] = switch (randomInt(7)) {
                 case 0 -> blockFactory.newIntArrayVector(randomInts(positions).toArray(), positions).asBlock();
                 case 1 -> blockFactory.newLongArrayVector(randomLongs(positions).toArray(), positions).asBlock();
-                case 2 -> blockFactory.newDoubleArrayVector(randomDoubles(positions).toArray(), positions).asBlock();
-                case 3 -> blockFactory.newConstantIntBlockWith(randomInt(), positions);
-                case 4 -> blockFactory.newConstantLongBlockWith(randomLong(), positions);
-                case 5 -> blockFactory.newConstantDoubleBlockWith(randomDouble(), positions);
-                case 6 -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(Integer.toHexString(randomInt())), positions);
+                case 2 -> blockFactory.newFloatArrayVector(randomFloats(positions), positions).asBlock();
+                case 3 -> blockFactory.newDoubleArrayVector(randomDoubles(positions).toArray(), positions).asBlock();
+                case 4 -> blockFactory.newConstantIntBlockWith(randomInt(), positions);
+                case 5 -> blockFactory.newConstantLongBlockWith(randomLong(), positions);
+                case 6 -> blockFactory.newConstantDoubleBlockWith(randomDouble(), positions);
+                case 7 -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(Integer.toHexString(randomInt())), positions);
                 default -> throw new AssertionError();
             };
         }
@@ -184,6 +185,7 @@ public class BasicPageTests extends SerializationTestCase {
         Page origPage = new Page(
             blockFactory.newIntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock(),
             blockFactory.newLongArrayVector(LongStream.range(10, 20).toArray(), 10).asBlock(),
+            blockFactory.newFloatArrayVector(randomFloats(10), 10).asBlock(),
             blockFactory.newDoubleArrayVector(LongStream.range(30, 40).mapToDouble(i -> i).toArray(), 10).asBlock(),
             blockFactory.newBytesRefArrayVector(bytesRefArrayOf("0a", "1b", "2c", "3d", "4e", "5f", "6g", "7h", "8i", "9j"), 10).asBlock(),
             blockFactory.newConstantIntBlockWith(randomInt(), 10),
@@ -247,5 +249,11 @@ public class BasicPageTests extends SerializationTestCase {
         var array = new BytesRefArray(values.length, bigArrays);
         Arrays.stream(values).map(BytesRef::new).forEach(array::append);
         return array;
+    }
+
+    float[] randomFloats(int size) {
+        float[] fa = new float[size];
+        IntStream.range(0, size).forEach(i -> fa[i] = randomFloat());
+        return fa;
     }
 }

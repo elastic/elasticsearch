@@ -45,6 +45,7 @@ public class TransformContext {
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
+    private volatile boolean shouldRecreateDestinationIndex = false;
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
 
@@ -172,6 +173,14 @@ public class TransformContext {
 
     public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+    }
+
+    public boolean shouldRecreateDestinationIndex() {
+        return shouldRecreateDestinationIndex;
+    }
+
+    public void setShouldRecreateDestinationIndex(boolean shouldRecreateDestinationIndex) {
+        this.shouldRecreateDestinationIndex = shouldRecreateDestinationIndex;
     }
 
     public AuthorizationState getAuthState() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,14 +16,11 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.script.DateFieldScript;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,10 +29,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.containsString;
@@ -46,7 +44,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
 
 public class DateFieldMapperTests extends MapperTestCase {
 
@@ -152,7 +149,13 @@ public class DateFieldMapperTests extends MapperTestCase {
         return List.of(
             exampleMalformedValue("2016-03-99").mapping(mappingWithFormat("strict_date_optional_time||epoch_millis"))
                 .errorMatches("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"),
-            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("long overflow")
+            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("long overflow"),
+            exampleMalformedValue("2020").mapping(mappingWithFormat("strict_date"))
+                .errorMatches("failed to parse date field [2020] with format [strict_date]"),
+            exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
+                .errorMatches("failed to parse date field [hello world]"),
+            exampleMalformedValue("true").mapping(mappingWithFormat("strict_date_optional_time"))
+                .errorMatches("failed to parse date field [true]")
         );
     }
 
@@ -177,10 +180,10 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testChangeLocale() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "de"))
+            fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "fr"))
         );
 
-        mapper.parse(source(b -> b.field("field", "Mi, 06 Dez 2000 02:55:00 -0800")));
+        mapper.parse(source(b -> b.field("field", "mer., 6 déc. 2000 02:55:00 -0800")));
     }
 
     public void testNullValue() throws IOException {
@@ -242,10 +245,6 @@ public class DateFieldMapperTests extends MapperTestCase {
                     + "failed to parse date field [foo] with format [strict_date_optional_time||epoch_millis]"
             )
         );
-
-        createDocumentMapper(IndexVersions.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
-
-        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testNullConfigValuesFail() {
@@ -561,7 +560,16 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("synthetic _source for date and date_millis doesn't support ignore_malformed", ignoreMalformed);
+        return syntheticSourceSupportInternal(ignoreMalformed, true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+        // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
+        return syntheticSourceSupportInternal(ignoreMalformed, false);
+    }
+
+    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal) {
         return new SyntheticSourceSupport() {
             private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
             private final Object nullValue = usually()
@@ -577,36 +585,62 @@ public class DateFieldMapperTests extends MapperTestCase {
             @Override
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
-                    Tuple<Object, String> v = generateValue();
+                    Value v = generateValue();
+                    if (v.malformedOutput != null) {
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                    }
+
                     return new SyntheticSourceExample(
-                        v.v1(),
-                        v.v2(),
-                        resolution.convert(Instant.from(formatter.parse(v.v2()))),
+                        v.input,
+                        v.output,
+                        resolution.convert(Instant.from(formatter.parse(v.output))),
                         this::mapping
                     );
                 }
-                List<Tuple<Object, String>> values = randomList(1, maxValues, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                List<String> outList = values.stream()
+
+                List<Value> values = randomList(1, maxValues, this::generateValue);
+                List<Object> in = values.stream().map(Value::input).toList();
+
+                List<String> outputFromDocValues = values.stream()
+                    .filter(v -> v.malformedOutput == null)
                     .sorted(
-                        Comparator.comparing(v -> Instant.from(formatter.parse(v.v1() == null ? nullValue.toString() : v.v1().toString())))
+                        Comparator.comparing(
+                            v -> Instant.from(formatter.parse(v.input == null ? nullValue.toString() : v.input.toString()))
+                        )
                     )
-                    .map(Tuple::v2)
+                    .map(Value::output)
                     .toList();
+
+                Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+
+                // Malformed values are always last in the implementation.
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<Long> outBlockList = outList.stream().map(v -> resolution.convert(Instant.from(formatter.parse(v)))).toList();
+                List<Long> outBlockList = outputFromDocValues.stream()
+                    .map(v -> resolution.convert(Instant.from(formatter.parse(v))))
+                    .toList();
                 Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
                 return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
 
-            private Tuple<Object, String> generateValue() {
+            private record Value(Object input, String output, Object malformedOutput) {}
+
+            private Value generateValue() {
                 if (nullValue != null && randomBoolean()) {
-                    return Tuple.tuple(null, outValue(nullValue));
+                    return new Value(null, outValue(nullValue), null);
                 }
+                // Different malformed values are tested in #exampleMalformedValues().
+                // Here we only verify behavior of arrays that contain malformed
+                // values since there are modifications specific to synthetic source.
+                if (ignoreMalformed && randomBoolean()) {
+                    var malformedInput = randomAlphaOfLengthBetween(1, 10);
+                    return new Value(malformedInput, null, malformedInput);
+                }
+
                 Object in = randomValue();
                 String out = outValue(in);
-                return Tuple.tuple(in, out);
+                return new Value(in, out, null);
             }
 
             private Object randomValue() {
@@ -617,7 +651,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                         }
                         return randomLongBetween(0, MAX_ISO_DATE);
                     case NANOSECONDS:
-                        return switch (randomInt(2)) {
+                        return switch (randomInt(allowBigDecimal ? 2 : 1)) {
                             case 0 -> randomLongBetween(0, MAX_NANOS);
                             case 1 -> randomIs8601Nanos(MAX_NANOS);
                             case 2 -> new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
@@ -637,34 +671,14 @@ public class DateFieldMapperTests extends MapperTestCase {
                 if (nullValue != null) {
                     b.field("null_value", nullValue);
                 }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
             }
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                List<SyntheticSourceInvalidExample> examples = new ArrayList<>();
-                for (String fieldType : new String[] { "date", "date_nanos" }) {
-                    examples.add(
-                        new SyntheticSourceInvalidExample(
-                            equalTo(
-                                "field [field] of type ["
-                                    + fieldType
-                                    + "] doesn't support synthetic source because it doesn't have doc values"
-                            ),
-                            b -> b.field("type", fieldType).field("doc_values", false)
-                        )
-                    );
-                    examples.add(
-                        new SyntheticSourceInvalidExample(
-                            equalTo(
-                                "field [field] of type ["
-                                    + fieldType
-                                    + "] doesn't support synthetic source because it ignores malformed dates"
-                            ),
-                            b -> b.field("type", fieldType).field("ignore_malformed", true)
-                        )
-                    );
-                }
-                return examples;
+                return List.of();
             }
         };
     }
@@ -707,7 +721,18 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Function<Object, Object> loadBlockExpected() {
-        return v -> ((Number) v).longValue();
+        return v -> asJacksonNumberOutput(((Number) v).longValue());
+    }
+
+    protected static Object asJacksonNumberOutput(long l) {
+        // If a long value fits in int, Jackson will write it as int in NumberOutput.outputLong()
+        // and we hit this during serialization of expected values.
+        // Code below mimics that behaviour in order for matching to work.
+        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
+            return (int) l;
+        } else {
+            return l;
+        }
     }
 
     public void testLegacyField() throws Exception {
@@ -732,51 +757,4 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
 
-    public void testLegacyDateFormatName() {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
-            "format",
-            DateFieldMapper.Resolution.MILLISECONDS,
-            null,
-            mock(ScriptService.class),
-            true,
-            // BWC compatible index, e.g 7.x
-            IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-            )
-        );
-
-        // Check that we allow the use of camel case date formats on 7.x indices
-        @SuppressWarnings("unchecked")
-        FieldMapper.Parameter<String> formatParam = (FieldMapper.Parameter<String>) builder.getParameters()[3];
-        formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
-        builder.buildFormatter(); // shouldn't throw exception
-
-        formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime||strictDateOptionalTimeNanos");
-        builder.buildFormatter(); // shouldn't throw exception
-
-        DateFieldMapper.Builder newFieldBuilder = new DateFieldMapper.Builder(
-            "format",
-            DateFieldMapper.Resolution.MILLISECONDS,
-            null,
-            mock(ScriptService.class),
-            true,
-            IndexVersion.current()
-        );
-
-        @SuppressWarnings("unchecked")
-        final FieldMapper.Parameter<String> newFormatParam = (FieldMapper.Parameter<String>) newFieldBuilder.getParameters()[3];
-
-        // Check that we don't allow the use of camel case date formats on 8.x indices
-        assertEquals(
-            "Error parsing [format] on field [format]: Invalid format: [strictDateOptionalTime]: Unknown pattern letter: t",
-            expectThrows(IllegalArgumentException.class, () -> {
-                newFormatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
-                assertEquals("strictDateOptionalTime", newFormatParam.getValue());
-                newFieldBuilder.buildFormatter();
-            }).getMessage()
-        );
-
-    }
 }

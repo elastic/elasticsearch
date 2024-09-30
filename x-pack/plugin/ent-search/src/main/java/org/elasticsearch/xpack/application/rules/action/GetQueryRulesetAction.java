@@ -112,7 +112,6 @@ public class GetQueryRulesetAction {
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final QueryRuleset queryRuleset;
-        private static final ParseField QUERY_RULESET_FIELD = new ParseField("queryRuleset");
 
         public Response(StreamInput in) throws IOException {
             super(in);

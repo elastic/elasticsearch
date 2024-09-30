@@ -20,7 +20,6 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRElement;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
 import java.awt.Font;
 import java.awt.FontFormatException;
@@ -50,18 +49,28 @@ public class RailRoadDiagram {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
-        boolean first = true;
-        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
-        for (String arg : args) {
-            if (arg.endsWith("...")) {
-                expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));
-            } else {
-                if (first) {
-                    first = false;
+
+        if (definition.name().equals("case")) {
+            // CASE is so weird let's just hack this together manually
+            Sequence seq = new Sequence(new Literal("condition"), new Syntax(","), new Literal("trueValue"));
+            expressions.add(new Repetition(seq, 1, null));
+            expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
+        } else {
+            boolean first = true;
+            List<String> args = EsqlFunctionRegistry.description(definition).argNames();
+            for (String arg : args) {
+                if (arg.endsWith("...")) {
+                    expressions.add(
+                        new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null)
+                    );
                 } else {
-                    expressions.add(new Syntax(","));
+                    if (first) {
+                        first = false;
+                    } else {
+                        expressions.add(new Syntax(","));
+                    }
+                    expressions.add(new Literal(arg));
                 }
-                expressions.add(new Literal(arg));
             }
         }
         expressions.add(new Syntax(")"));

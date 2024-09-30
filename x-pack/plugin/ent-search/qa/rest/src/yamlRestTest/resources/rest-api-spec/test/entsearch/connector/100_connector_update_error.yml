@@ -1,0 +1,92 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Error":
+  - do:
+      connector.update_error:
+        connector_id: test-connector
+        body:
+          error: "some error"
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { error: "some error" }
+  - match: { status: error }
+
+
+---
+"Reset Connector Error":
+
+  # Set error
+  - do:
+      connector.update_error:
+        connector_id: test-connector
+        body:
+          error: "some error"
+
+
+  - match: { result: updated }
+
+  # Reset error to null
+  - do:
+      connector.update_error:
+        connector_id: test-connector
+        body:
+          error: null
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { error: null }
+  - match: { status: connected }
+
+---
+"Update Connector Error - 404 when connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_error:
+        connector_id: test-non-existent-connector
+        body:
+          error: "some error"
+
+---
+"Update Connector Error - 400 status code when connector_id is empty":
+  - do:
+      catch: "bad_request"
+      connector.update_error:
+        connector_id: ""
+        body:
+          error: "some error"
+
+---
+"Update Connector Error - 400 status code when payload is not string":
+  - do:
+      catch: "bad_request"
+      connector.update_error:
+        connector_id: test-connector
+        body:
+          error:
+            field_1: test
+            field_2: something

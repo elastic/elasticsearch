@@ -48,8 +48,22 @@ import static org.mockito.Mockito.when;
 
 public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testInterceptorThrowsWhenFLSDLSEnabled() {
+        checkInterceptorWithDlsFlsConfigured(
+            true,
+            "Alias requests are not allowed for users who have field or document level security enabled on one of the indices"
+        );
+    }
+
+    public void testInterceptorWorksAsNormalWhenFLSDLSDisabled() {
+        checkInterceptorWithDlsFlsConfigured(
+            false,
+            "Adding an alias is not allowed when the alias has more permissions than any of the indices"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void checkInterceptorWithDlsFlsConfigured(boolean dlsFlsFeatureEnabled, String expectedErrorMessage) {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
@@ -89,7 +103,12 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             )
         );
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
-        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
+        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(
+            threadContext,
+            licenseState,
+            auditTrailService,
+            dlsFlsFeatureEnabled
+        );
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         if (randomBoolean()) {
@@ -112,10 +131,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
             plainActionFuture.actionGet();
         });
-        assertEquals(
-            "Alias requests are not allowed for users who have field or document level security enabled on one of the indices",
-            securityException.getMessage()
-        );
+        assertEquals(expectedErrorMessage, securityException.getMessage());
     }
 
     @SuppressWarnings("unchecked")
@@ -136,7 +152,12 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         final String action = TransportIndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
-        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
+        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(
+            threadContext,
+            licenseState,
+            auditTrailService,
+            false
+        );
 
         final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         if (randomBoolean()) {

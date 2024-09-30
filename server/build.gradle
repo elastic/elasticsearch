@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.internal.info.BuildParams
@@ -37,10 +38,7 @@ dependencies {
   api project(":libs:elasticsearch-plugin-analysis-api")
   api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-tdigest")
-
-  implementation project(':libs:elasticsearch-plugin-classloader')
-  // no compile dependency by server, but server defines security policy for this codebase so it i>
-  runtimeOnly project(":libs:elasticsearch-preallocate")
+  implementation project(":libs:elasticsearch-simdvec")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -69,7 +67,6 @@ dependencies {
 
   // access to native functions
   implementation project(':libs:elasticsearch-native')
-  api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -81,7 +78,8 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
-
+  internalClusterTestImplementation(project(':modules:reindex'))
+  internalClusterTestImplementation(project(':modules:mapper-extras'))
 }
 
 spotless {
@@ -96,13 +94,6 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.dic'
     exclude '**/*.binary'
     exclude '**/*.st'
-}
-
-tasks.named('forbiddenApisMain').configure {
-  addSignatureFiles 'hppc-signatures'
-}
-tasks.named('forbiddenApisTest').configure {
-  addSignatureFiles 'hppc-signatures'
 }
 
 tasks.named('internalClusterTestTestingConventions').configure {
@@ -153,6 +144,18 @@ if (BuildParams.isSnapshotBuild() == false) {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
+  excludes << '**/IndexSettingsOverrideTests.class'
+}
+
+TaskProvider<Test> indexSettingsOverrideTest = tasks.register("indexSettingsOverrideTest", Test) {
+  include '**/IndexSettingsOverrideTests.class'
+  systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
+}
+
+tasks.named("check").configure {
+  dependsOn(indexSettingsOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -253,17 +256,17 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
     mapping from: /log4j-.*/, to: 'log4j'
-    dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.elasticsearch') == false ||
-                // keep the following org.elasticsearch jars in
-                (it.name == 'jna' ||
-                        it.name == 'securesm')
-    }
+
+    configureDependencies(
+      project.configurations.runtimeClasspath, project.configurations.resolveableCompileOnly, identifier -> {
+      return identifier instanceof ModuleComponentIdentifier
+        (identifier.moduleIdentifier.name == 'jna' || identifier.moduleIdentifier.name == 'securesm')
+    })
 }
 
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice
-    excludes << 'org/elasticsearch/common/inject/**/*'
+    excludes << 'org/elasticsearch/injection/guice/**/*'
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'

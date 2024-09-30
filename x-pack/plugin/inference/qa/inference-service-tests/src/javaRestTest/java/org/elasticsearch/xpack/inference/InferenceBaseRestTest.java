@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -19,11 +21,15 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,6 +69,23 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               "service_settings": {
                 "model": "my_model",
                 "hidden_field": "my_hidden_value",
+                "api_key": "abc64"
+              },
+              "task_settings": {
+                "temperature": 3
+              }
+            }
+            """, taskType);
+    }
+
+    static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service": "streaming_completion_test_service",
+              "service_settings": {
+                "model": "my_model",
                 "api_key": "abc64"
               },
               "task_settings": {
@@ -113,8 +136,34 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         assertOkOrCreated(response);
     }
 
+    protected Response deleteModel(String modelId, String queryParams) throws IOException {
+        var request = new Request("DELETE", "_inference/" + modelId + "?" + queryParams);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return response;
+    }
+
     protected void deleteModel(String modelId, TaskType taskType) throws IOException {
         var request = new Request("DELETE", Strings.format("_inference/%s/%s", taskType, modelId));
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+    }
+
+    protected void putSemanticText(String endpointId, String indexName) throws IOException {
+        var request = new Request("PUT", Strings.format("%s", indexName));
+        String body = Strings.format("""
+            {
+                "mappings": {
+                "properties": {
+                    "inference_field": {
+                        "type": "semantic_text",
+                            "inference_id": "%s"
+                    }
+                }
+                }
+            }
+            """, endpointId);
+        request.setJsonEntity(body);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
     }
@@ -122,6 +171,29 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         return putRequest(endpoint, modelConfig);
+    }
+
+    protected Map<String, Object> putPipeline(String pipelineId, String modelId) throws IOException {
+        String endpoint = Strings.format("_ingest/pipeline/%s", pipelineId);
+        String body = """
+            {
+              "description": "Test pipeline",
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }
+            """.formatted(modelId);
+        return putRequest(endpoint, body);
+    }
+
+    protected void deletePipeline(String pipelineId) throws IOException {
+        var request = new Request("DELETE", Strings.format("_ingest/pipeline/%s", pipelineId));
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
     }
 
     /**
@@ -173,22 +245,25 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    @SuppressWarnings("unchecked")
     protected Map<String, Object> getModel(String modelId) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
-        return getAllModelInternal(endpoint);
+        return ((List<Map<String, Object>>) getInternal(endpoint).get("endpoints")).get(0);
     }
 
-    protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
+    @SuppressWarnings("unchecked")
+    protected List<Map<String, Object>> getModels(String modelId, TaskType taskType) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        return getAllModelInternal(endpoint);
+        return (List<Map<String, Object>>) getInternal(endpoint).get("endpoints");
     }
 
-    protected Map<String, Object> getAllModels() throws IOException {
+    @SuppressWarnings("unchecked")
+    protected List<Map<String, Object>> getAllModels() throws IOException {
         var endpoint = Strings.format("_inference/_all");
-        return getAllModelInternal("_inference/_all");
+        return (List<Map<String, Object>>) getInternal("_inference/_all").get("endpoints");
     }
 
-    private Map<String, Object> getAllModelInternal(String endpoint) throws IOException {
+    private Map<String, Object> getInternal(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
@@ -200,6 +275,32 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return inferOnMockServiceInternal(endpoint, input);
     }
 
+    protected Deque<ServerSentEvent> streamInferOnMockService(String modelId, TaskType taskType, List<String> input) throws Exception {
+        var endpoint = Strings.format("_inference/%s/%s/_stream", taskType, modelId);
+        return callAsync(endpoint, input);
+    }
+
+    private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input) throws Exception {
+        var responseConsumer = new AsyncInferenceResponseConsumer();
+        var request = new Request("POST", endpoint);
+        request.setJsonEntity(jsonBody(input));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setHttpAsyncResponseConsumerFactory(() -> responseConsumer).build());
+        var latch = new CountDownLatch(1);
+        client().performRequestAsync(request, new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                latch.countDown();
+            }
+        });
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
+        return responseConsumer.events();
+    }
+
     protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         return inferOnMockServiceInternal(endpoint, input);
@@ -207,7 +308,13 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     private Map<String, Object> inferOnMockServiceInternal(String endpoint, List<String> input) throws IOException {
         var request = new Request("POST", endpoint);
+        request.setJsonEntity(jsonBody(input));
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
 
+    private String jsonBody(List<String> input) {
         var bodyBuilder = new StringBuilder("{\"input\": [");
         for (var in : input) {
             bodyBuilder.append('"').append(in).append('"').append(',');
@@ -215,11 +322,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         // remove last comma
         bodyBuilder.deleteCharAt(bodyBuilder.length() - 1);
         bodyBuilder.append("]}");
-
-        request.setJsonEntity(bodyBuilder.toString());
-        var response = client().performRequest(request);
-        assertOkOrCreated(response);
-        return entityAsMap(response);
+        return bodyBuilder.toString();
     }
 
     @SuppressWarnings("unchecked")

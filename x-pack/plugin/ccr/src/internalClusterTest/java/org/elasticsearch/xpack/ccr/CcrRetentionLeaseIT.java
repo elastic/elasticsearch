@@ -118,7 +118,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String followerIndex,
         final int numberOfDocuments
     ) throws IOException {
-        final ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
+        final ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         final String chunkSize = new ByteSizeValue(randomFrom(4, 128, 1024), ByteSizeUnit.KB).getStringRep();
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), chunkSize));
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
@@ -151,7 +152,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        return new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indexSettings(settingsBuilder)
+        return new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, leaderClusterRepoName, CcrRepository.LATEST).indexSettings(settingsBuilder)
             .indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
@@ -227,7 +228,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
 
         // block the recovery from completing; this ensures the background sync is still running
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
         for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
             final MockTransportService senderTransportService = (MockTransportService) getFollowerCluster().getInstance(
                 TransportService.class,
@@ -303,7 +309,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(leaderIndex)
@@ -335,7 +341,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                         .cluster()
-                        .prepareState()
+                        .prepareState(TEST_REQUEST_TIMEOUT)
                         .clear()
                         .setMetadata(true)
                         .setIndices(followerIndex)
@@ -378,7 +384,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                     .cluster()
-                    .prepareState()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
                     .clear()
                     .setMetadata(true)
                     .setIndices(followerIndex)
@@ -430,7 +436,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             randomSubsetOf(randomIntBetween(0, numberOfShards), IntStream.range(0, numberOfShards).boxed().collect(Collectors.toSet()))
         );
 
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
         try {
             for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
                 final MockTransportService senderTransportService = (MockTransportService) getFollowerCluster().getInstance(
@@ -472,7 +483,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             pauseFollow(followerIndex);
             assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
+            );
 
             final IndicesStatsResponse afterUnfollowStats = leaderClient().admin()
                 .indices()
@@ -518,7 +534,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             randomSubsetOf(randomIntBetween(1, numberOfShards), IntStream.range(0, numberOfShards).boxed().collect(Collectors.toSet()))
         );
 
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
         try {
             for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
                 final MockTransportService senderTransportService = (MockTransportService) getFollowerCluster().getInstance(
@@ -541,12 +562,15 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             final ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet()
+                () -> followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
             );
 
             final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices(followerIndex)
@@ -555,7 +579,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices(leaderIndex)
@@ -704,7 +728,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(leaderIndex)
@@ -735,7 +759,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                         .cluster()
-                        .prepareState()
+                        .prepareState(TEST_REQUEST_TIMEOUT)
                         .clear()
                         .setMetadata(true)
                         .setIndices(followerIndex)
@@ -778,7 +802,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                     .cluster()
-                    .prepareState()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
                     .clear()
                     .setMetadata(true)
                     .setIndices(followerIndex)
@@ -839,7 +863,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
 
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
         try {
             for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
                 final MockTransportService senderTransportService = (MockTransportService) getFollowerCluster().getInstance(
@@ -948,7 +977,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final CountDownLatch unfollowLatch = new CountDownLatch(1);
         final CountDownLatch responseLatch = new CountDownLatch(1);
 
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
 
         try {
             for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
@@ -993,7 +1027,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             pauseFollow(followerIndex);
             assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
+            );
 
             unfollowLatch.countDown();
 
@@ -1041,7 +1080,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final ClusterStateResponse followerIndexClusterState = followerClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(followerIndex)
@@ -1153,7 +1192,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     private String getRetentionLeaseId(final String followerIndex, final String leaderIndex) {
         final ClusterStateResponse followerIndexClusterState = followerClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(followerIndex)
@@ -1162,7 +1201,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(leaderIndex)

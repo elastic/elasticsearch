@@ -76,6 +76,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
         }
 
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName,
             repositoryName,
             snapshotName,

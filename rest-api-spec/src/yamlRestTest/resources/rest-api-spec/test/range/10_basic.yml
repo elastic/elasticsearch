@@ -392,8 +392,8 @@ setup:
 
 ---
 "Date range rounding":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason:  "This part tests rounding behaviour changed in 7.7"
 
   - do:
@@ -445,3 +445,78 @@ setup:
         body: { "size" : 0, "query" : { "range" : { "date_range" : { "lte": "2019-12-15||/d", "relation": "within" } } } }
 
   - match: { hits.total: 2 }
+
+---
+"Null bounds":
+
+  - requires:
+      cluster_features: ["mapper.range.null_values_off_by_one_fix"]
+      reason: fixed in 8.15.0
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "long_range" : { "gt": null, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body: { "long_range" : { "gte": null, "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { "long_range" : { "lte": 5 } }
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body: { "long_range" : { "gte": 10, "lt": null } }
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body: { "long_range" : { "gte": 10, "lte": null } }
+
+  - do:
+      index:
+        index: test
+        id: "6"
+        body: { "long_range" : { "gte": 10 } }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "term" : { "long_range" : { "value": -9223372036854775808 } } } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "term" : { "long_range" : { "value": -9223372036854775807 } } } }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "term" : { "long_range" : { "value": 9223372036854775807 } } } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "term" : { "long_range" : { "value": 9223372036854775806 } } } }
+
+  - match: { hits.total: 3 }

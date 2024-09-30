@@ -8,6 +8,9 @@ preview::[]
 
 Updates the `last_seen` field of a connector with current timestamp.
 
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
+
 [[check-in-connector-api-request]]
 ==== {api-request-title}
 
@@ -16,7 +19,7 @@ Updates the `last_seen` field of a connector with current timestamp.
 [[check-in-connector-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[check-in-connector-api-path-params]]

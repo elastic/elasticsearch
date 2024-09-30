@@ -1,7 +1,7 @@
 ---
 "Test cat indices output for hidden index":
   - requires:
-      cluster_features: ["cat_indices_dataset_size"]
+      cluster_features: ["gte_v8.11.0"]
       reason: "dataset size was added in 8.11.0"
   - do:
       indices.create:
@@ -42,9 +42,11 @@
 ---
 "Test cat indices output for dot-hidden index and dot-prefixed pattern":
   - requires:
-      cluster_features: ["cat_indices_dataset_size"]
+      cluster_features: ["gte_v8.11.0"]
       reason: "dataset size was added in 8.11.0"
+      test_runner_features: ["headers"]
   - do:
+      headers: { X-elastic-product-origin: elastic }
       indices.create:
         index: .index1
         body:
@@ -81,7 +83,7 @@
 ---
 "Test cat indices output with a hidden index with a visible alias":
   - requires:
-      cluster_features: ["cat_indices_dataset_size"]
+      cluster_features: ["gte_v8.11.0"]
       reason: "dataset size was added in 8.11.0"
 
   - do:
@@ -146,7 +148,7 @@
 ---
 "Test cat indices output with a hidden index with a hidden alias":
   - requires:
-      cluster_features: ["cat_indices_dataset_size"]
+      cluster_features: ["gte_v8.11.0"]
       reason: "dataset size was added in 8.11.0"
 
   - do:
@@ -210,7 +212,7 @@
 ---
 "Test cat indices output with a hidden index, dot-hidden alias and dot pattern":
   - requires:
-      cluster_features: ["cat_indices_dataset_size"]
+      cluster_features: ["gte_v8.11.0"]
       reason: "dataset size was added in 8.11.0"
 
   - do:

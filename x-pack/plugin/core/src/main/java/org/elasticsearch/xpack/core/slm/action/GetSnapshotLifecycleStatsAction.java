@@ -46,6 +46,10 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
             this.slmStats = new SnapshotLifecycleStats(in);
         }
 
+        public SnapshotLifecycleStats getSlmStats() {
+            return slmStats;
+        }
+
         @Override
         public String toString() {
             return Strings.toString(this);

@@ -1,9 +1,9 @@
 ---
 "Copy settings during clone index":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: ["gte_v7.4.0"]
       reason: index cloning was added in 7.4.0
-      features: [arbitrary_key]
+      test_runner_features: [arbitrary_key]
 
   - do:
       nodes.info:

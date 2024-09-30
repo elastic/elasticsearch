@@ -20,7 +20,7 @@ public class DeleteAutoscalingPolicyActionRequestWireSerializingTests extends Ab
 
     @Override
     protected DeleteAutoscalingPolicyAction.Request createTestInstance() {
-        return new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8));
+        return new DeleteAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8));
     }
 
     @Override

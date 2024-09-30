@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
@@ -280,8 +281,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
-    // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
-    libs project(':libs:elasticsearch-preallocate')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
@@ -346,9 +345,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           if (it.relativePath.segments[-2] == 'bin' || (os == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
-            it.mode = 0755
+            it.permissions.unix(0755)
           } else {
-            it.mode = 0644
+            it.permissions.unix(0644)
           }
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
@@ -404,7 +403,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from '../src/bin'
           exclude '*.exe'
           exclude '*.bat'
-          eachFile { it.setMode(0755) }
+          eachFile {
+            it.permissions{
+              unix(0755)
+            }
+          }
           filter("tokens" : expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
         }
         // windows files, only for zip
@@ -422,7 +425,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         // module provided bin files
         with copySpec {
-          eachFile { it.setMode(0755) }
+          eachFile { it.permissions.unix(0755) }
           from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
@@ -437,7 +440,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from buildServerNoticeTaskProvider
         } else {
           from (buildDefaultNoticeTaskProvider) {
-            fileMode = 0644
+            filePermissions {
+              unix(0644)
+            }
           }
         }
       }
@@ -456,7 +461,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
-            details.mode = 0755
+            details.permissions {
+              unix(0755)
+            }
+          } else {
+            details.permissions {
+              unix(0644)
+            }
           }
           if (details.name == 'src.zip') {
             details.exclude()
@@ -500,7 +511,7 @@ subprojects {
 
     String licenseText
     if (isTestDistro) {
-      licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     } else {
       licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     }

@@ -28,7 +28,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -39,13 +38,9 @@ import java.util.stream.Collectors;
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
-    public static final class Factory implements LuceneOperator.Factory {
-        private final int taskConcurrency;
+    public static final class Factory extends LuceneOperator.Factory {
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
-        private final int limit;
-        private final DataPartitioning dataPartitioning;
-        private final LuceneSliceQueue sliceQueue;
 
         public Factory(
             List<? extends ShardContext> contexts,
@@ -56,13 +51,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             int limit,
             List<SortBuilder<?>> sorts
         ) {
+            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, ScoreMode.TOP_DOCS);
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
-            this.limit = limit;
-            this.dataPartitioning = dataPartitioning;
-            var weightFunction = weightFunction(queryFunction, ScoreMode.TOP_DOCS);
-            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
-            this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
 
         @Override
@@ -70,17 +61,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return new LuceneTopNSourceOperator(driverContext.blockFactory(), maxPageSize, sorts, limit, sliceQueue);
         }
 
-        @Override
-        public int taskConcurrency() {
-            return taskConcurrency;
-        }
-
         public int maxPageSize() {
             return maxPageSize;
-        }
-
-        public int limit() {
-            return limit;
         }
 
         @Override
@@ -136,7 +118,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public Page getOutput() {
+    public Page getCheckedOutput() throws IOException {
         if (isFinished()) {
             return null;
         }
@@ -152,7 +134,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private Page collect() {
+    private Page collect() throws IOException {
         assert doneCollecting == false;
         var scorer = getCurrentOrLoadNextScorer();
         if (scorer == null) {
@@ -169,8 +151,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         } catch (CollectionTerminatedException cte) {
             // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
             scorer.markAsDone();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
         if (scorer.isDone()) {
             var nextScorer = getCurrentOrLoadNextScorer();
@@ -232,8 +212,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     @Override
     protected void describe(StringBuilder sb) {
-        sb.append(", limit=").append(limit);
-        sb.append(", sorts=").append(sorts);
+        sb.append(", limit = ").append(limit);
+        String notPrettySorts = sorts.stream().map(Strings::toString).collect(Collectors.joining(","));
+        sb.append(", sorts = [").append(notPrettySorts).append("]");
     }
 
     static final class PerShardCollector {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport.netty4;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.InboundPipeline;
@@ -30,9 +32,16 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
 
     private final InboundPipeline pipeline;
 
-    public Netty4MessageInboundHandler(Netty4Transport transport, InboundPipeline inboundPipeline) {
+    private final ThreadWatchdog.ActivityTracker activityTracker;
+
+    public Netty4MessageInboundHandler(
+        Netty4Transport transport,
+        InboundPipeline inboundPipeline,
+        ThreadWatchdog.ActivityTracker activityTracker
+    ) {
         this.transport = transport;
         this.pipeline = inboundPipeline;
+        this.activityTracker = activityTracker;
     }
 
     @Override
@@ -44,8 +53,11 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
         final ByteBuf buffer = (ByteBuf) msg;
         Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
         final BytesReference wrapped = Netty4Utils.toBytesReference(buffer);
+        activityTracker.startActivity();
         try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, new ByteBufRefCounted(buffer))) {
             pipeline.handleBytes(channel, reference);
+        } finally {
+            activityTracker.stopActivity();
         }
     }
 

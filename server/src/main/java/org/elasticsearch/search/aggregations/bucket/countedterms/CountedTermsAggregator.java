@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.countedterms;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
@@ -63,25 +66,45 @@ class CountedTermsAggregator extends TermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        SortedSetDocValues ords = valuesSource.ordinalsValues(aggCtx.getLeafReaderContext());
+        final SortedSetDocValues ords = valuesSource.ordinalsValues(aggCtx.getLeafReaderContext());
+        final SortedDocValues singleton = DocValues.unwrapSingleton(ords);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(ords, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedSetDocValues ords, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, ords) {
 
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                if (ords.advanceExact(doc) == false) {
-                    return;
-                }
-                for (long ord = ords.nextOrd(); ord != NO_MORE_ORDS; ord = ords.nextOrd()) {
-                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, ords.lookupOrd(ord));
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = -1 - bucketOrdinal;
-                        collectExistingBucket(sub, doc, bucketOrdinal);
-                    } else {
-                        collectBucket(sub, doc, bucketOrdinal);
+                if (ords.advanceExact(doc)) {
+                    for (long ord = ords.nextOrd(); ord != NO_MORE_ORDS; ord = ords.nextOrd()) {
+                        collectOrdinal(bucketOrds.add(owningBucketOrd, ords.lookupOrd(ord)), doc, sub);
                     }
                 }
             }
         };
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedDocValues ords, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, ords) {
+
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (ords.advanceExact(doc)) {
+                    collectOrdinal(bucketOrds.add(owningBucketOrd, ords.lookupOrd(ords.ordValue())), doc, sub);
+                }
+
+            }
+        };
+    }
+
+    private void collectOrdinal(long bucketOrdinal, int doc, LeafBucketCollector sub) throws IOException {
+        if (bucketOrdinal < 0) { // already seen
+            bucketOrdinal = -1 - bucketOrdinal;
+            collectExistingBucket(sub, doc, bucketOrdinal);
+        } else {
+            collectBucket(sub, doc, bucketOrdinal);
+        }
     }
 
     @Override

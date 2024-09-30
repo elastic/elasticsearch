@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
@@ -19,6 +20,7 @@ import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -33,14 +35,13 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public final class CsvAssert {
@@ -109,6 +110,9 @@ public final class CsvAssert {
             if (actualType == Type.INTEGER && expectedType == Type.LONG) {
                 actualType = Type.LONG;
             }
+            if (actualType == null) {
+                actualType = Type.NULL;
+            }
 
             assertEquals(
                 "Different column type for column [" + expectedName + "] (" + expectedType + " != " + actualType + ")",
@@ -124,6 +128,7 @@ public final class CsvAssert {
 
                 if (blockType == Type.LONG
                     && (expectedType == Type.DATETIME
+                        || expectedType == Type.DATE_NANOS
                         || expectedType == Type.GEO_POINT
                         || expectedType == Type.CARTESIAN_POINT
                         || expectedType == UNSIGNED_LONG)) {
@@ -187,7 +192,13 @@ public final class CsvAssert {
 
         for (int row = 0; row < expectedValues.size(); row++) {
             try {
-                assertTrue("Expected more data but no more entries found after [" + row + "]", row < actualValues.size());
+                if (row >= actualValues.size()) {
+                    if (dataFailures.isEmpty()) {
+                        fail("Expected more data but no more entries found after [" + row + "]");
+                    } else {
+                        dataFailure(dataFailures, "Expected more data but no more entries found after [" + row + "]\n");
+                    }
+                }
 
                 if (logger != null) {
                     logger.info(row(actualValues, row));
@@ -205,6 +216,12 @@ public final class CsvAssert {
                         // convert the long from CSV back to its STRING form
                         if (expectedType == Type.DATETIME) {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
+                        } else if (expectedType == Type.DATE_NANOS) {
+                            expectedValue = rebuildExpected(
+                                expectedValue,
+                                Long.class,
+                                x -> DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos((long) x)
+                            );
                         } else if (expectedType == Type.GEO_POINT) {
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
                         } else if (expectedType == Type.CARTESIAN_POINT) {
@@ -256,7 +273,11 @@ public final class CsvAssert {
     }
 
     private static void dataFailure(List<DataFailure> dataFailures) {
-        fail("Data mismatch:\n" + dataFailures.stream().map(f -> {
+        dataFailure(dataFailures, "");
+    }
+
+    private static void dataFailure(List<DataFailure> dataFailures, String prefixError) {
+        fail(prefixError + "Data mismatch:\n" + dataFailures.stream().map(f -> {
             Description description = new StringDescription();
             ListMatcher expected;
             if (f.expected instanceof List<?> e) {
@@ -268,7 +289,8 @@ public final class CsvAssert {
             if (f.actual instanceof List<?> a) {
                 actualList = a;
             } else {
-                actualList = List.of(f.actual);
+                // Do not use List::of - actual can be null.
+                actualList = Collections.singletonList(f.actual);
             }
             expected.describeMismatch(actualList, description);
             String prefix = "row " + f.row + " column " + f.column + ":";

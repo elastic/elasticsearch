@@ -73,7 +73,7 @@ public class EmptyStateIndexRemover implements MlDataRemover {
                         indicesStatsResponse.getIndices()
                             .values()
                             .stream()
-                            .filter(stats -> stats.getTotal().getDocs().getCount() == 0)
+                            .filter(stats -> stats.getTotal().getDocs() == null || stats.getTotal().getDocs().getCount() == 0)
                             .map(IndexStats::getIndex)
                             .collect(toSet())
                     )

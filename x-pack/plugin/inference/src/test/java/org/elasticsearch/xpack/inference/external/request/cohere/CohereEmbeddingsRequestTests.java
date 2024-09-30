@@ -12,7 +12,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
@@ -178,7 +177,6 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
     }
 
     public static CohereEmbeddingsRequest createRequest(List<String> input, CohereEmbeddingsModel model) {
-        var account = new CohereAccount(model.getServiceSettings().getCommonSettings().uri(), model.getSecretSettings().apiKey());
-        return new CohereEmbeddingsRequest(account, input, model);
+        return new CohereEmbeddingsRequest(input, model);
     }
 }

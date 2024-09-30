@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -17,6 +20,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,19 +30,20 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -52,6 +58,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -59,8 +66,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     ClusterStatsRequest,
     ClusterStatsResponse,
     TransportClusterStatsAction.ClusterStatsNodeRequest,
-    ClusterStatsNodeResponse> {
+    ClusterStatsNodeResponse,
+    SubscribableListener<TransportClusterStatsAction.AdditionalStats>> {
 
+    public static final ActionType<ClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats");
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
         CommonStatsFlags.Flag.Docs,
         CommonStatsFlags.Flag.Store,
@@ -68,13 +77,17 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         CommonStatsFlags.Flag.QueryCache,
         CommonStatsFlags.Flag.Completion,
         CommonStatsFlags.Flag.Segments,
-        CommonStatsFlags.Flag.DenseVector
+        CommonStatsFlags.Flag.DenseVector,
+        CommonStatsFlags.Flag.SparseVector
     );
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
+    private final RepositoriesService repositoriesService;
     private final SearchUsageHolder searchUsageHolder;
+    private final CCSUsageTelemetry ccsUsageHolder;
 
+    private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
 
@@ -85,11 +98,12 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         TransportService transportService,
         NodeService nodeService,
         IndicesService indicesService,
+        RepositoriesService repositoriesService,
         UsageService usageService,
         ActionFilters actionFilters
     ) {
         super(
-            ClusterStatsAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -98,15 +112,35 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
+        this.repositoriesService = repositoriesService;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
+        this.ccsUsageHolder = usageService.getCcsUsageHolder();
+        this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
+    }
+
+    @Override
+    protected SubscribableListener<AdditionalStats> createActionContext(Task task, ClusterStatsRequest request) {
+        assert task instanceof CancellableTask;
+        final var cancellableTask = (CancellableTask) task;
+        final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
+        AdditionalStats.compute(
+            cancellableTask,
+            clusterStateStatsExecutor,
+            clusterService,
+            mappingStatsCache,
+            analysisStatsCache,
+            additionalStatsListener
+        );
+        return additionalStatsListener;
     }
 
     @Override
     protected void newResponseAsync(
         final Task task,
         final ClusterStatsRequest request,
+        final SubscribableListener<AdditionalStats> additionalStatsListener,
         final List<ClusterStatsNodeResponse> responses,
         final List<FailedNodeException> failures,
         final ActionListener<ClusterStatsResponse> listener
@@ -116,41 +150,19 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                 + "the cluster state that are too slow for a transport thread"
         );
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
-        assert task instanceof CancellableTask;
-        final CancellableTask cancellableTask = (CancellableTask) task;
-        final ClusterState state = clusterService.state();
-        final Metadata metadata = state.metadata();
-        final ClusterSnapshotStats clusterSnapshotStats = ClusterSnapshotStats.of(
-            state,
-            clusterService.threadPool().absoluteTimeInMillis()
-        );
-
-        final ListenableFuture<MappingStats> mappingStatsStep = new ListenableFuture<>();
-        final ListenableFuture<AnalysisStats> analysisStatsStep = new ListenableFuture<>();
-        mappingStatsCache.get(metadata, cancellableTask::isCancelled, mappingStatsStep);
-        analysisStatsCache.get(metadata, cancellableTask::isCancelled, analysisStatsStep);
-        mappingStatsStep.addListener(
-            listener.delegateFailureAndWrap(
-                (l, mappingStats) -> analysisStatsStep.addListener(
-                    l.delegateFailureAndWrap(
-                        (ll, analysisStats) -> ActionListener.completeWith(
-                            ll,
-                            () -> new ClusterStatsResponse(
-                                System.currentTimeMillis(),
-                                metadata.clusterUUID(),
-                                clusterService.getClusterName(),
-                                responses,
-                                failures,
-                                mappingStats,
-                                analysisStats,
-                                VersionStats.of(metadata, responses),
-                                clusterSnapshotStats
-                            )
-                        )
-                    )
-                )
+        additionalStatsListener.andThenApply(
+            additionalStats -> new ClusterStatsResponse(
+                System.currentTimeMillis(),
+                additionalStats.clusterUUID(),
+                clusterService.getClusterName(),
+                responses,
+                failures,
+                additionalStats.mappingStats(),
+                additionalStats.analysisStats(),
+                VersionStats.of(clusterService.state().metadata(), responses),
+                additionalStats.clusterSnapshotStats()
             )
-        );
+        ).addListener(listener);
     }
 
     @Override
@@ -165,7 +177,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     @Override
     protected ClusterStatsNodeRequest newNodeRequest(ClusterStatsRequest request) {
-        return new ClusterStatsNodeRequest(request);
+        return new ClusterStatsNodeRequest();
     }
 
     @Override
@@ -232,12 +244,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             }
         }
 
-        ClusterHealthStatus clusterStatus = null;
-        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
-        }
+        final ClusterState clusterState = clusterService.state();
+        final ClusterHealthStatus clusterStatus = clusterState.nodes().isLocalNodeElectedMaster()
+            ? new ClusterStateHealth(clusterState).getStatus()
+            : null;
 
-        SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+
+        final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
+        final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -245,22 +260,19 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             nodeInfo,
             nodeStats,
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
-            searchUsageStats
+            searchUsageStats,
+            repositoryUsageStats,
+            ccsTelemetry
         );
     }
 
+    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
-        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
-        ClusterStatsRequest request;
+        ClusterStatsNodeRequest() {}
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new ClusterStatsRequest(in);
-        }
-
-        ClusterStatsNodeRequest(ClusterStatsRequest request) {
-            this.request = request;
         }
 
         @Override
@@ -271,7 +283,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
         }
     }
 
@@ -301,6 +312,69 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         protected boolean isFresh(Long currentKey, Long newKey) {
             return newKey <= currentKey;
+        }
+    }
+
+    public static final class AdditionalStats {
+
+        private String clusterUUID;
+        private MappingStats mappingStats;
+        private AnalysisStats analysisStats;
+        private ClusterSnapshotStats clusterSnapshotStats;
+
+        static void compute(
+            CancellableTask task,
+            Executor executor,
+            ClusterService clusterService,
+            MetadataStatsCache<MappingStats> mappingStatsCache,
+            MetadataStatsCache<AnalysisStats> analysisStatsCache,
+            ActionListener<AdditionalStats> listener
+        ) {
+            executor.execute(ActionRunnable.wrap(listener, l -> {
+                task.ensureNotCancelled();
+                final var result = new AdditionalStats();
+                result.compute(
+                    clusterService.state(),
+                    mappingStatsCache,
+                    analysisStatsCache,
+                    task::isCancelled,
+                    clusterService.threadPool().absoluteTimeInMillis(),
+                    l.map(ignored -> result)
+                );
+            }));
+        }
+
+        private void compute(
+            ClusterState clusterState,
+            MetadataStatsCache<MappingStats> mappingStatsCache,
+            MetadataStatsCache<AnalysisStats> analysisStatsCache,
+            BooleanSupplier isCancelledSupplier,
+            long absoluteTimeInMillis,
+            ActionListener<Void> listener
+        ) {
+            try (var listeners = new RefCountingListener(listener)) {
+                final var metadata = clusterState.metadata();
+                clusterUUID = metadata.clusterUUID();
+                mappingStatsCache.get(metadata, isCancelledSupplier, listeners.acquire(s -> mappingStats = s));
+                analysisStatsCache.get(metadata, isCancelledSupplier, listeners.acquire(s -> analysisStats = s));
+                clusterSnapshotStats = ClusterSnapshotStats.of(clusterState, absoluteTimeInMillis);
+            }
+        }
+
+        String clusterUUID() {
+            return clusterUUID;
+        }
+
+        MappingStats mappingStats() {
+            return mappingStats;
+        }
+
+        AnalysisStats analysisStats() {
+            return analysisStats;
+        }
+
+        ClusterSnapshotStats clusterSnapshotStats() {
+            return clusterSnapshotStats;
         }
     }
 }

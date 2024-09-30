@@ -4,9 +4,7 @@
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview::[]
-
-Gets the lifecycle of a set of data streams.
+Gets the <<data-stream-lifecycle,lifecycle>> of a set of <<data-streams,data streams>>.
 
 [[get-lifecycle-api-prereqs]]
 ==== {api-prereq-title}
@@ -39,7 +37,7 @@ To target all data streams use `*` or `_all`.
 [[get-data-lifecycle-api-query-parms]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.
 
@@ -69,8 +67,18 @@ Name of the data stream.
 =====
 `data_retention`::
 (Optional, string)
+If defined, it represents the retention requested by the data stream owner for this data stream.
+
+`effective_retention`::
+(Optional, string)
 If defined, every document added to this data stream will be stored at least for this time frame. Any time after this
-duration the document could be deleted. When undefined, every document in this data stream will be stored indefinitely.
+duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely.
+duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely. The
+effective retention is calculated as described in the <<effective-retention-calculation, tutorial>>.
+
+`retention_determined_by`::
+(Optional, string)
+The source of the retention, it can be one of three values, `data_stream_configuration`, `default_retention` or `max_retention`.
 
 `rollover`::
 (Optional, object)
@@ -78,6 +86,21 @@ The conditions which will trigger the rollover of a backing index as configured 
 `cluster.lifecycle.default.rollover`. This property is an implementation detail and it will only be retrieved
 when the query param `include_defaults` is set to `true`. The contents of this field are subject to change.
 =====
+====
+
+`global_retention`::
+(object)
+Contains the global max and default retention. When no global retention is configured, this will be an empty object.
++
+.Properties of `global_retention`
+[%collapsible%open]
+====
+`max_retention`::
+(Optional, string)
+The effective retention of data streams managed by the data stream lifecycle cannot exceed this value.
+`default_retention`::
+(Optional, string)
+This will be the effective retention of data streams managed by the data stream lifecycle that do not specify `data_retention`.
 ====
 
 [[data-streams-get-lifecycle-example]]
@@ -144,6 +167,7 @@ The response will look like the following:
         "retention_determined_by": "data_stream_configuration"
       }
     }
-  ]
+  ],
+  "global_retention": {}
 }
 --------------------------------------------------

@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -45,6 +48,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class TransportServiceLifecycleTests extends ESTestCase {
@@ -72,13 +77,13 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                         while (keepGoing.get() && requestPermits.tryAcquire()) {
                             nodeB.transportService.sendRequest(
                                 randomFrom(random, nodeA, nodeB).transportService.getLocalNode(),
-                                TestNode.ACTION_NAME_PREFIX + randomFrom(random, TestNode.EXECUTOR_NAMES),
-                                TransportRequest.Empty.INSTANCE,
+                                TestNode.randomActionName(random),
+                                new EmptyRequest(),
                                 new TransportResponseHandler<TransportResponse.Empty>() {
 
                                     final AtomicBoolean completed = new AtomicBoolean();
 
-                                    final String executor = randomFrom(random, TestNode.EXECUTOR_NAMES);
+                                    final Executor executor = nodeB.randomExecutor();
 
                                     @Override
                                     public void handleResponse(TransportResponse.Empty response) {
@@ -99,7 +104,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
 
                                     @Override
                                     public Executor executor() {
-                                        return nodeB.transportService.getThreadPool().executor(executor);
+                                        return executor;
                                     }
                                 }
                             );
@@ -116,7 +121,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             // every handler is completed even if the request or response are being handled concurrently with shutdown
 
             keepGoing.set(false);
-            assertTrue(requestPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+            safeAcquire(Integer.MAX_VALUE, requestPermits);
             for (final var thread : threads) {
                 thread.join();
             }
@@ -130,8 +135,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             final var future = new PlainActionFuture<TransportResponse.Empty>();
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
-                TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
-                new TransportRequest.Empty(),
+                TestNode.randomActionName(random()),
+                new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(future, unusedReader(), deterministicTaskQueue::scheduleNow)
             );
@@ -149,8 +154,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             final var future = new PlainActionFuture<TransportResponse.Empty>();
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
-                TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
-                new TransportRequest.Empty(),
+                TestNode.randomActionName(random()),
+                new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
                     assertThat(Thread.currentThread().getName(), containsString("[" + ThreadPool.Names.GENERIC + "]"));
@@ -178,8 +183,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             try {
                 nodeA.transportService.sendRequest(
                     nodeA.getThrowingConnection(),
-                    TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
-                    new TransportRequest.Empty(),
+                    TestNode.randomActionName(random()),
+                    new EmptyRequest(),
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
                         assertThat(Thread.currentThread().getName(), containsString("[" + Executors.FIXED_BOUNDED_QUEUE + "]"));
@@ -197,15 +202,15 @@ public class TransportServiceLifecycleTests extends ESTestCase {
 
     public void testInternalSendExceptionCompletesHandlerOnCallingThreadIfTransportServiceClosed() {
         final var nodeA = new TestNode("node-A");
-        final var executor = nodeA.threadPool.executor(randomFrom(TestNode.EXECUTOR_NAMES));
+        final var executor = nodeA.randomExecutor();
         nodeA.close();
 
         final var testThread = Thread.currentThread();
         final var future = new PlainActionFuture<TransportResponse.Empty>();
         nodeA.transportService.sendRequest(
             nodeA.getThrowingConnection(),
-            TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
-            new TransportRequest.Empty(),
+            TestNode.randomActionName(random()),
+            new EmptyRequest(),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
                 assertSame(testThread, Thread.currentThread());
@@ -215,6 +220,60 @@ public class TransportServiceLifecycleTests extends ESTestCase {
 
         assertTrue(future.isDone());
         assertThat(getSendRequestException(future, NodeClosedException.class).getMessage(), startsWith("node closed"));
+    }
+
+    public void testOnConnectionClosedUsesHandlerExecutor() {
+        String executorName = randomFrom(TestNode.EXECUTOR_NAMES);
+        String expectedExecutor = (executorName.equals(Executors.DIRECT) ? null : executorName);
+        boolean withSetting = randomBoolean();
+        Settings settings = withSetting
+            ? Settings.builder().put(TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE.getKey(), false).build()
+            : Settings.EMPTY;
+        onConnectionClosedUsesHandlerExecutor(settings, executorName, expectedExecutor);
+        if (withSetting) {
+            assertWarnings(
+                "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release."
+            );
+        }
+    }
+
+    public void testOnConnectionCloseStackOverflowAvoidance() {
+        onConnectionClosedUsesHandlerExecutor(
+            Settings.builder().put(TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE.getKey(), true).build(),
+            Executors.DIRECT,
+            ThreadPool.Names.GENERIC
+        );
+        assertWarnings(
+            "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
+    }
+
+    private void onConnectionClosedUsesHandlerExecutor(Settings settings, String executorName, String expectedExecutor) {
+        try (var nodeA = new TestNode("node-A", settings)) {
+            final var testThread = Thread.currentThread();
+            final var future = new PlainActionFuture<Exception>();
+            Executor executor = nodeA.getExecutor(executorName);
+            Transport.Connection connection = nodeA.getDevNullConnection();
+            nodeA.transportService.sendRequest(
+                connection,
+                TestNode.randomActionName(random()),
+                new EmptyRequest(),
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(
+                    ActionListener.assertOnce(ActionTestUtils.assertNoSuccessListener(future::onResponse).delegateResponse((l, e) -> {
+                        assertThat(EsExecutors.executorName(Thread.currentThread()), equalTo(expectedExecutor));
+                        if (expectedExecutor == null) {
+                            assertSame(testThread, Thread.currentThread());
+                        }
+                        l.onFailure(e);
+                    })),
+                    unusedReader(),
+                    executor
+                )
+            );
+            nodeA.transportService.onConnectionClosed(connection);
+            assertThat(safeGet(future), instanceOf(NodeDisconnectedException.class));
+        }
     }
 
     private static <T> Writeable.Reader<T> unusedReader() {
@@ -229,6 +288,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
     }
 
     private static class Executors {
+        static final String DIRECT = "direct";
         static final String SCALING_DROP_ON_SHUTDOWN = "scaling-drop-on-shutdown";
         static final String SCALING_REJECT_ON_SHUTDOWN = "scaling-reject-on-shutdown";
         static final String FIXED_BOUNDED_QUEUE = "fixed-bounded-queue";
@@ -238,8 +298,9 @@ public class TransportServiceLifecycleTests extends ESTestCase {
     private static class TestNode implements Releasable {
 
         static final String ACTION_NAME_PREFIX = "internal:test/";
+
         static final String[] EXECUTOR_NAMES = new String[] {
-            ThreadPool.Names.SAME,
+            Executors.DIRECT,
             Executors.SCALING_DROP_ON_SHUTDOWN,
             Executors.SCALING_REJECT_ON_SHUTDOWN,
             Executors.FIXED_BOUNDED_QUEUE,
@@ -249,6 +310,10 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         final TransportService transportService;
 
         TestNode(String nodeName) {
+            this(nodeName, Settings.EMPTY);
+        }
+
+        TestNode(String nodeName, Settings settings) {
             threadPool = new TestThreadPool(
                 nodeName,
                 new ScalingExecutorBuilder(Executors.SCALING_DROP_ON_SHUTDOWN, 3, 3, TimeValue.timeValueSeconds(60), false),
@@ -279,7 +344,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             };
             final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
             transportService = new TransportService(
-                Settings.EMPTY,
+                settings,
                 tcpTransport,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
@@ -293,11 +358,11 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 null,
                 emptySet()
             );
-            for (final var executor : EXECUTOR_NAMES) {
+            for (final var executorName : EXECUTOR_NAMES) {
                 transportService.registerRequestHandler(
-                    ACTION_NAME_PREFIX + executor,
-                    threadPool.executor(executor),
-                    TransportRequest.Empty::new,
+                    ACTION_NAME_PREFIX + executorName,
+                    getExecutor(executorName),
+                    EmptyRequest::new,
                     (request, channel, task) -> {
                         if (randomBoolean()) {
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -309,6 +374,18 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             }
             transportService.start();
             transportService.acceptIncomingRequests();
+        }
+
+        Executor getExecutor(String executorName) {
+            return executorName.equals(Executors.DIRECT) ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.executor(executorName);
+        }
+
+        Executor randomExecutor() {
+            return getExecutor(randomFrom(TestNode.EXECUTOR_NAMES));
+        }
+
+        static String randomActionName(Random random) {
+            return ACTION_NAME_PREFIX + randomFrom(random, EXECUTOR_NAMES);
         }
 
         @Override
@@ -329,6 +406,25 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                     throws IOException, TransportException {
                     throw new IOException("simulated exception in sendRequest");
+                }
+
+                @Override
+                public TransportVersion getTransportVersion() {
+                    return TransportVersion.current();
+                }
+            };
+        }
+
+        Transport.Connection getDevNullConnection() {
+            return new CloseableConnection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return transportService.getLocalNode();
+                }
+
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+                    // going nowhere
                 }
 
                 @Override

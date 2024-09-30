@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
@@ -47,19 +48,6 @@ public class PersistentTasksService {
         this.client = new OriginSettingClient(client, PERSISTENT_TASK_ORIGIN);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-    }
-
-    /**
-     * Notifies the master node to create new persistent task and to assign it to a node.
-     */
-    @Deprecated(forRemoval = true)
-    public <Params extends PersistentTaskParams> void sendStartRequest(
-        final String taskId,
-        final String taskName,
-        final Params taskParams,
-        final ActionListener<PersistentTask<Params>> listener
-    ) {
-        sendStartRequest(taskId, taskName, taskParams, null, listener);
     }
 
     /**
@@ -154,11 +142,6 @@ public class PersistentTasksService {
             request.masterNodeTimeout(timeout);
         }
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
-    }
-
-    @Deprecated(forRemoval = true)
-    public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {
-        sendRemoveRequest(taskId, null, listener);
     }
 
     /**

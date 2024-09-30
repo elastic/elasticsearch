@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -65,15 +65,7 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         ApiKeyService apiKeyService,
         ApiKeyUserRoleDescriptorResolver resolver
     ) {
-        super(
-            GrantApiKeyAction.NAME,
-            transportService,
-            actionFilters,
-            GrantApiKeyRequest::new,
-            authenticationService,
-            authorizationService,
-            threadContext
-        );
+        super(GrantApiKeyAction.NAME, transportService, actionFilters, authenticationService, authorizationService, threadContext);
         this.apiKeyService = apiKeyService;
         this.resolver = resolver;
     }

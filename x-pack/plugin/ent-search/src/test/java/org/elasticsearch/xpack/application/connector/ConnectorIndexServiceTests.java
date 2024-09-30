@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
@@ -23,12 +24,9 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
-import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.ConnectorCreateActionResponse;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
-import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
-import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
@@ -38,6 +36,10 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipel
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringAdvancedSnippet;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRule;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -54,9 +56,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomConnectorFeatures;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.randomConnectorFeatureEnabled;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.not;
 
 public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
@@ -66,6 +72,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
+        registerSimplifiedConnectorIndexTemplates(indicesAdmin());
         this.connectorIndexService = new ConnectorIndexService(client());
     }
 
@@ -79,7 +86,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     public void testPutConnector() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         Connector indexedConnector = awaitGetConnector(connectorId);
@@ -88,7 +95,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testPostConnector() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
-        PostConnectorAction.Response resp = buildRequestAndAwaitPostConnector(connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
 
         Connector indexedConnector = awaitGetConnector(resp.getId());
         assertThat(resp.getId(), equalTo(indexedConnector.getConnectorId()));
@@ -99,22 +106,22 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         List<String> connectorIds = new ArrayList<>();
         for (int i = 0; i < numConnectors; i++) {
             Connector connector = ConnectorTestUtils.getRandomConnector();
-            PostConnectorAction.Response resp = buildRequestAndAwaitPostConnector(connector);
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
             connectorIds.add(resp.getId());
         }
 
         String connectorIdToDelete = connectorIds.get(0);
-        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete);
+        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
 
-        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false));
     }
 
     public void testUpdateConnectorConfiguration_FullConfiguration() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
@@ -134,7 +141,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     public void testUpdateConnectorConfiguration_PartialValuesUpdate() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         Map<String, Object> connectorNewConfiguration = connector.getConfiguration()
@@ -169,7 +176,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     public void testUpdateConnectorConfiguration_PartialValuesUpdate_SelectedKeys() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         Set<String> configKeys = connector.getConfiguration().keySet();
@@ -215,7 +222,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     public void testUpdateConnectorPipeline() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         ConnectorIngestPipeline updatedPipeline = new ConnectorIngestPipeline.Builder().setName("test-pipeline")
@@ -235,33 +242,247 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updatedPipeline, equalTo(indexedConnector.getPipeline()));
     }
 
+    public void testUpdateConnectorFeatures() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorFeatures newFeatures = getRandomConnectorFeatures();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFeatures(connectorId, newFeatures);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(newFeatures, equalTo(indexedConnector.getFeatures()));
+
+    }
+
+    public void testUpdateConnectorFeatures_partialUpdate() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorFeatures features = getRandomConnectorFeatures();
+
+        awaitUpdateConnectorFeatures(connectorId, features);
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(features, equalTo(indexedConnector.getFeatures()));
+
+        // Partial update of DLS feature
+        ConnectorFeatures dlsFeature = new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomConnectorFeatureEnabled())
+            .build();
+        awaitUpdateConnectorFeatures(connectorId, dlsFeature);
+        indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that partial update was applied
+        assertThat(dlsFeature.getDocumentLevelSecurityEnabled(), equalTo(indexedConnector.getFeatures().getDocumentLevelSecurityEnabled()));
+
+        // Assert other features are unchanged
+        assertThat(features.getSyncRulesFeatures(), equalTo(indexedConnector.getFeatures().getSyncRulesFeatures()));
+        assertThat(features.getNativeConnectorAPIKeysEnabled(), equalTo(indexedConnector.getFeatures().getNativeConnectorAPIKeysEnabled()));
+        assertThat(features.getIncrementalSyncEnabled(), equalTo(indexedConnector.getFeatures().getIncrementalSyncEnabled()));
+    }
+
     public void testUpdateConnectorFiltering() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         List<ConnectorFiltering> filteringList = IntStream.range(0, 10)
             .mapToObj((i) -> ConnectorTestUtils.getRandomConnectorFiltering())
             .collect(Collectors.toList());
 
-        UpdateConnectorFilteringAction.Request updateFilteringRequest = new UpdateConnectorFilteringAction.Request(
-            connectorId,
-            filteringList
-        );
-
-        DocWriteResponse updateResponse = awaitUpdateConnectorFiltering(updateFilteringRequest);
+        DocWriteResponse updateResponse = awaitUpdateConnectorFiltering(connectorId, filteringList);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
         Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(filteringList, equalTo(indexedConnector.getFiltering()));
+    }
+
+    public void testUpdateConnectorFiltering_updateDraft() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringAdvancedSnippet advancedSnippet = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getAdvancedSnippet();
+        List<FilteringRule> rules = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getRules();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, rules);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that draft got updated
+        assertThat(advancedSnippet, equalTo(indexedConnector.getFiltering().get(0).getDraft().getAdvancedSnippet()));
+        assertThat(rules, equalTo(indexedConnector.getFiltering().get(0).getDraft().getRules()));
+        // Assert that draft is marked as EDITED
+        assertThat(
+            FilteringValidationInfo.getInitialDraftValidationInfo(),
+            equalTo(indexedConnector.getFiltering().get(0).getDraft().getFilteringValidationInfo())
+        );
+        // Assert that default active rules are unchanged, avoid comparing timestamps
+        assertThat(
+            ConnectorFiltering.getDefaultConnectorFilteringConfig().getActive().getAdvancedSnippet().getAdvancedSnippetValue(),
+            equalTo(indexedConnector.getFiltering().get(0).getActive().getAdvancedSnippet().getAdvancedSnippetValue())
+        );
+        // Assert that domain is unchanged
+        assertThat(
+            ConnectorFiltering.getDefaultConnectorFilteringConfig().getDomain(),
+            equalTo(indexedConnector.getFiltering().get(0).getDomain())
+        );
+    }
+
+    public void testUpdateConnectorFiltering_updateDraftWithDefaultRuleOnly() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringAdvancedSnippet advancedSnippet = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getAdvancedSnippet();
+        List<FilteringRule> rules = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getRules();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, rules);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        List<FilteringRule> defaultRules = List.of(ConnectorFiltering.getDefaultFilteringRuleWithOrder(0));
+
+        DocWriteResponse defaultUpdateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, defaultRules);
+        assertThat(defaultUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that draft has correct rules
+        assertTrue(
+            indexedConnector.getFiltering()
+                .get(0)
+                .getDraft()
+                .getRules()
+                .get(0)
+                .equalsExceptForTimestampsAndOrder(ConnectorFiltering.getDefaultFilteringRuleWithOrder(0))
+        );
+
+        // Assert that draft is marked as EDITED
+        assertThat(
+            FilteringValidationInfo.getInitialDraftValidationInfo(),
+            equalTo(indexedConnector.getFiltering().get(0).getDraft().getFilteringValidationInfo())
+        );
+    }
+
+    public void testUpdateConnectorFiltering_updateDraftWithEmptyRules() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringAdvancedSnippet advancedSnippet = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getAdvancedSnippet();
+        List<FilteringRule> rules = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getRules();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, rules);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        List<FilteringRule> emptyRules = Collections.emptyList();
+
+        DocWriteResponse emptyUpdateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, emptyRules);
+        assertThat(emptyUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that draft got updated
+        assertThat(emptyRules, not(equalTo(indexedConnector.getFiltering().get(0).getDraft().getRules())));
+        assertTrue(
+            indexedConnector.getFiltering()
+                .get(0)
+                .getDraft()
+                .getRules()
+                .get(0)
+                .equalsExceptForTimestampsAndOrder(ConnectorFiltering.getDefaultFilteringRuleWithOrder(0))
+        );
+
+        // Assert that draft is marked as EDITED
+        assertThat(
+            FilteringValidationInfo.getInitialDraftValidationInfo(),
+            equalTo(indexedConnector.getFiltering().get(0).getDraft().getFilteringValidationInfo())
+        );
+    }
+
+    public void testUpdateConnectorFilteringValidation() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringValidationInfo validationInfo = ConnectorTestUtils.getRandomFilteringValidationInfo();
+
+        DocWriteResponse validationInfoUpdateResponse = awaitUpdateConnectorDraftFilteringValidation(connectorId, validationInfo);
+        assertThat(validationInfoUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        assertThat(validationInfo, equalTo(indexedConnector.getFiltering().get(0).getDraft().getFilteringValidationInfo()));
+    }
+
+    public void testActivateConnectorDraftFiltering_draftValid_shouldActivate() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        // Populate draft filtering
+        FilteringAdvancedSnippet advancedSnippet = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getAdvancedSnippet();
+        List<FilteringRule> rules = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getRules();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, rules);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        FilteringValidationInfo validationSuccess = new FilteringValidationInfo.Builder().setValidationState(FilteringValidationState.VALID)
+            .setValidationErrors(Collections.emptyList())
+            .build();
+
+        DocWriteResponse validationInfoUpdateResponse = awaitUpdateConnectorDraftFilteringValidation(connectorId, validationSuccess);
+        assertThat(validationInfoUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        DocWriteResponse activateFilteringResponse = awaitActivateConnectorDraftFiltering(connectorId);
+        assertThat(activateFilteringResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that draft is activated
+        assertThat(advancedSnippet, equalTo(indexedConnector.getFiltering().get(0).getActive().getAdvancedSnippet()));
+        assertThat(rules, equalTo(indexedConnector.getFiltering().get(0).getActive().getRules()));
+    }
+
+    public void testActivateConnectorDraftFiltering_draftNotValid_expectFailure() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringValidationInfo validationFailure = new FilteringValidationInfo.Builder().setValidationState(
+            FilteringValidationState.INVALID
+        ).setValidationErrors(Collections.emptyList()).build();
+
+        DocWriteResponse validationInfoUpdateResponse = awaitUpdateConnectorDraftFilteringValidation(connectorId, validationFailure);
+        assertThat(validationInfoUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        expectThrows(ElasticsearchStatusException.class, () -> awaitActivateConnectorDraftFiltering(connectorId));
     }
 
     public void testUpdateConnectorLastSeen() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         UpdateConnectorLastSeenAction.Request checkInRequest = new UpdateConnectorLastSeenAction.Request(connectorId);
@@ -285,12 +506,14 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         ConnectorSyncInfo syncStats = ConnectorTestUtils.getRandomConnectorSyncInfo();
 
-        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, syncStats);
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(syncStats).build();
 
         DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
@@ -300,11 +523,78 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(syncStats, equalTo(indexedConnector.getSyncInfo()));
     }
 
+    public void testUpdateConnectorLastSyncStats_withPartialUpdate() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorSyncInfo syncStats = new ConnectorSyncInfo.Builder().setLastSyncError(randomAlphaOfLengthBetween(5, 10))
+            .setLastIndexedDocumentCount(randomLong())
+            .setLastDeletedDocumentCount(randomLong())
+            .build();
+
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(syncStats).build();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Check fields from the partial update of last sync stats
+        assertThat(syncStats.getLastSyncError(), equalTo(indexedConnector.getSyncInfo().getLastSyncError()));
+        assertThat(syncStats.getLastDeletedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastDeletedDocumentCount()));
+        assertThat(syncStats.getLastIndexedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastIndexedDocumentCount()));
+
+        ConnectorSyncInfo nextSyncStats = new ConnectorSyncInfo.Builder().setLastIndexedDocumentCount(randomLong()).build();
+
+        lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(connectorId)
+            .setSyncInfo(nextSyncStats)
+            .build();
+
+        updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        indexedConnector = awaitGetConnector(connectorId);
+
+        // Check fields from the partial update of last sync stats
+        assertThat(nextSyncStats.getLastIndexedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastIndexedDocumentCount()));
+
+        // Check that other fields remained unchanged
+        assertThat(syncStats.getLastSyncError(), equalTo(indexedConnector.getSyncInfo().getLastSyncError()));
+        assertThat(syncStats.getLastDeletedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastDeletedDocumentCount()));
+
+    }
+
+    public void testUpdateConnectorLastSyncStats_syncCursor() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        Map<String, String> syncCursor = randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(new ConnectorSyncInfo.Builder().build()).setSyncCursor(syncCursor).build();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        // Check sync_cursor got updated
+        assertThat(syncCursor, equalTo(indexedConnector.getSyncCursor()));
+    }
+
     public void testUpdateConnectorScheduling() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         ConnectorScheduling updatedScheduling = ConnectorTestUtils.getRandomConnectorScheduling();
@@ -325,7 +615,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         // Update scheduling for full, incremental and access_control
@@ -362,7 +652,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         String newIndexName = randomAlphaOfLengthBetween(3, 10);
@@ -383,7 +673,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         UpdateConnectorIndexNameAction.Request updateIndexNameRequest = new UpdateConnectorIndexNameAction.Request(
@@ -399,7 +689,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         String newServiceType = randomAlphaOfLengthBetween(3, 10);
@@ -419,25 +709,36 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     public void testUpdateConnectorError() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+        String error = randomAlphaOfLengthBetween(5, 15);
 
-        UpdateConnectorErrorAction.Request updateErrorRequest = new UpdateConnectorErrorAction.Request(
-            connectorId,
-            randomAlphaOfLengthBetween(5, 15)
-        );
-
-        DocWriteResponse updateResponse = awaitUpdateConnectorError(updateErrorRequest);
+        DocWriteResponse updateResponse = awaitUpdateConnectorError(connectorId, error);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
         Connector indexedConnector = awaitGetConnector(connectorId);
-        assertThat(updateErrorRequest.getError(), equalTo(indexedConnector.getError()));
+        assertThat(indexedConnector.getError(), equalTo(error));
+        assertThat(indexedConnector.getStatus(), equalTo(ConnectorStatus.ERROR));
+    }
+
+    public void testUpdateConnectorError_resetWithNull() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorError(connectorId, null);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertNull(indexedConnector.getError());
+        assertThat(indexedConnector.getStatus(), equalTo(ConnectorStatus.CONNECTED));
     }
 
     public void testUpdateConnectorNameOrDescription() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         UpdateConnectorNameAction.Request updateNameDescriptionRequest = new UpdateConnectorNameAction.Request(
@@ -458,7 +759,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         boolean isNative = randomBoolean();
@@ -476,7 +777,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         Connector indexedConnector = awaitGetConnector(connectorId);
@@ -496,7 +797,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        awaitCreateConnector(connectorId, connector);
         Connector indexedConnector = awaitGetConnector(connectorId);
 
         ConnectorStatus newInvalidStatus = ConnectorTestUtils.getRandomInvalidConnectorNextStatus(indexedConnector.getStatus());
@@ -509,7 +810,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     public void testUpdateConnectorApiKeyIdOrApiKeySecretId() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
-        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         UpdateConnectorApiKeyIdAction.Request updateApiKeyIdRequest = new UpdateConnectorApiKeyIdAction.Request(
@@ -526,11 +827,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateApiKeyIdRequest.getApiKeySecretId(), equalTo(indexedConnector.getApiKeySecretId()));
     }
 
-    private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
+    private DeleteResponse awaitDeleteConnector(String connectorId, boolean deleteConnectorSyncJobs) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.deleteConnector(connectorId, new ActionListener<>() {
+        connectorIndexService.deleteConnector(connectorId, deleteConnectorSyncJobs, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
                 resp.set(deleteResponse);
@@ -551,78 +852,37 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private DocWriteResponse buildRequestAndAwaitPutConnector(String docId, Connector connector) throws Exception {
-        PutConnectorAction.Request putConnectorRequest = new PutConnectorAction.Request(
-            docId,
+    private ConnectorCreateActionResponse awaitCreateConnector(String connectorId, Connector connector) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<ConnectorCreateActionResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.createConnector(
+            connectorId,
             connector.getDescription(),
             connector.getIndexName(),
             connector.isNative(),
             connector.getLanguage(),
             connector.getName(),
-            connector.getServiceType()
+            connector.getServiceType(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ConnectorCreateActionResponse createResponse) {
+                    resp.set(createResponse);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    exc.set(e);
+                    latch.countDown();
+                }
+            }
         );
-        return awaitPutConnector(putConnectorRequest);
-    }
-
-    private DocWriteResponse awaitPutConnector(PutConnectorAction.Request request) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
-        final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.createConnectorWithDocId(request, new ActionListener<>() {
-            @Override
-            public void onResponse(DocWriteResponse indexResponse) {
-                resp.set(indexResponse);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exc.set(e);
-                latch.countDown();
-            }
-        });
-        assertTrue("Timeout waiting for put request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for create connector request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
-        assertNotNull("Received null response from put request", resp.get());
-        return resp.get();
-    }
-
-    private PostConnectorAction.Response buildRequestAndAwaitPostConnector(Connector connector) throws Exception {
-        PostConnectorAction.Request postConnectorRequest = new PostConnectorAction.Request(
-            connector.getDescription(),
-            connector.getIndexName(),
-            connector.isNative(),
-            connector.getLanguage(),
-            connector.getName(),
-            connector.getServiceType()
-        );
-        return awaitPostConnector(postConnectorRequest);
-    }
-
-    private PostConnectorAction.Response awaitPostConnector(PostConnectorAction.Request request) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<PostConnectorAction.Response> resp = new AtomicReference<>(null);
-        final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.createConnectorWithAutoGeneratedId(request, new ActionListener<>() {
-            @Override
-            public void onResponse(PostConnectorAction.Response indexResponse) {
-                resp.set(indexResponse);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exc.set(e);
-                latch.countDown();
-            }
-        });
-        assertTrue("Timeout waiting for post connector request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        if (exc.get() != null) {
-            throw exc.get();
-        }
-        assertNotNull("Received null response from post connector request", resp.get());
+        assertNotNull("Received null response from create connector request", resp.get());
         return resp.get();
     }
 
@@ -715,12 +975,121 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private UpdateResponse awaitUpdateConnectorFiltering(UpdateConnectorFilteringAction.Request updateFiltering) throws Exception {
+    private UpdateResponse awaitUpdateConnectorFeatures(String connectorId, ConnectorFeatures features) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.updateConnectorFiltering(updateFiltering, new ActionListener<>() {
+        connectorIndexService.updateConnectorFeatures(connectorId, features, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
 
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for update features request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update features request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorFiltering(String connectorId, List<ConnectorFiltering> filtering) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorFiltering(connectorId, filtering, new ActionListener<>() {
+
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for update filtering request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update filtering request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorDraftFilteringValidation(String connectorId, FilteringValidationInfo validationInfo)
+        throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorDraftFilteringValidation(connectorId, validationInfo, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for update filtering validation request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update filtering validation request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitActivateConnectorDraftFiltering(String connectorId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.activateConnectorDraftFiltering(connectorId, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for activate draft filtering request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from activate draft filtering request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorFilteringDraft(
+        String connectorId,
+        FilteringAdvancedSnippet advancedSnippet,
+        List<FilteringRule> rules
+    ) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorFilteringDraft(connectorId, advancedSnippet, rules, new ActionListener<>() {
             @Override
             public void onResponse(UpdateResponse indexResponse) {
                 resp.set(indexResponse);
@@ -973,11 +1342,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private UpdateResponse awaitUpdateConnectorError(UpdateConnectorErrorAction.Request updatedError) throws Exception {
+    private UpdateResponse awaitUpdateConnectorError(String connectorId, String error) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.updateConnectorError(updatedError, new ActionListener<>() {
+        connectorIndexService.updateConnectorError(connectorId, error, new ActionListener<>() {
             @Override
             public void onResponse(UpdateResponse indexResponse) {
                 resp.set(indexResponse);

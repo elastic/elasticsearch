@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 
 /**
  * Sink for exchanging data
@@ -33,5 +33,5 @@ public interface ExchangeSink {
     /**
      * Whether the sink is blocked on adding more pages
      */
-    SubscribableListener<Void> waitForWriting();
+    IsBlockedResult waitForWriting();
 }

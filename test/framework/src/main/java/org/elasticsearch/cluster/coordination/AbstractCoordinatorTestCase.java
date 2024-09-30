@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -217,13 +218,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     // 1. submit the task to the master service
     // 2. state publisher task on master
     // 3. master sends out PublishRequests to nodes
-    // 4. master receives PublishResponses from nodes
-    // 5. master sends ApplyCommitRequests to nodes
-    // 6. nodes apply committed cluster state
-    // 7. master receives ApplyCommitResponses
-    // 8. apply committed state on master (last one to apply cluster state)
-    // 9. complete the publication listener back on the master service thread
-    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 9;
+    // 4. nodes deserialize received cluster state
+    // 5. master receives PublishResponses from nodes
+    // 6. master sends ApplyCommitRequests to nodes
+    // 7. nodes apply committed cluster state
+    // 8. master receives ApplyCommitResponses
+    // 9. apply committed state on master (last one to apply cluster state)
+    // 10. complete the publication listener back on the master service thread
+    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 10;
     public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;
@@ -288,7 +290,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         @Nullable // null means construct a list from all the current nodes
         private List<TransportAddress> seedHostsList;
 
-        Cluster(int initialNodeCount) {
+        public Cluster(int initialNodeCount) {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
@@ -364,7 +366,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return addedNodes;
         }
 
-        int size() {
+        public static void becomeCandidate(ClusterNode node, String reason) {
+            synchronized (node.coordinator.mutex) {
+                node.coordinator.becomeCandidate(reason);
+            }
+        }
+
+        public int size() {
             return clusterNodes.size();
         }
 
@@ -760,7 +768,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void bootstrapIfNecessary() {
+        public void bootstrapIfNecessary() {
             if (clusterNodes.stream().allMatch(ClusterNode::isNotUsefullyBootstrapped)) {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
@@ -773,7 +781,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void runFor(long runDurationMillis, String description) {
+        public void runFor(long runDurationMillis, String description) {
             final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + runDurationMillis;
             logger.info("--> runFor({}ms) running until [{}ms]: {}", runDurationMillis, endTime, description);
 
@@ -856,7 +864,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return getAnyNodeExcept();
         }
 
-        ClusterNode getAnyNodeExcept(ClusterNode... clusterNodesToExclude) {
+        public ClusterNode getAnyNodeExcept(ClusterNode... clusterNodesToExclude) {
             List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodesToExclude);
             assert filteredNodes.isEmpty() == false;
             return randomFrom(filteredNodes);
@@ -956,7 +964,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private static final Logger logger = LogManager.getLogger(ClusterNode.class);
 
             private final int nodeIndex;
-            Coordinator coordinator;
+            public Coordinator coordinator;
             private final DiscoveryNode localNode;
             final CoordinationState.PersistedState persistedState;
             final Settings nodeSettings;
@@ -1388,7 +1396,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 });
             }
 
-            AckCollector submitUpdateTask(
+            public AckCollector submitUpdateTask(
                 String source,
                 UnaryOperator<ClusterState> clusterStateUpdate,
                 CoordinatorTestClusterStateUpdateTask taskListener
@@ -1460,7 +1468,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 transportService.disconnectFromNode(clusterNode.localNode);
             }
 
-            ClusterState getLastAppliedClusterState() {
+            public ClusterState getLastAppliedClusterState() {
                 return clusterApplierService.state();
             }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -11,18 +12,21 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -39,22 +43,41 @@ import java.util.stream.Collectors;
 public class Netty4HttpRequest implements HttpRequest {
 
     private final FullHttpRequest request;
-    private final BytesReference content;
+    private final HttpBody content;
     private final Map<String, List<String>> headers;
     private final AtomicBoolean released;
     private final Exception inboundException;
     private final boolean pooled;
     private final int sequence;
+    private final QueryStringDecoder queryStringDecoder;
+
+    Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
+        this(
+            sequence,
+            new DefaultFullHttpRequest(
+                request.protocolVersion(),
+                request.method(),
+                request.uri(),
+                Unpooled.EMPTY_BUFFER,
+                request.headers(),
+                EmptyHttpHeaders.INSTANCE
+            ),
+            new AtomicBoolean(false),
+            true,
+            contentStream,
+            null
+        );
+    }
 
     Netty4HttpRequest(int sequence, FullHttpRequest request) {
-        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.toBytesReference(request.content()));
+        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.fullHttpBodyFrom(request.content()));
     }
 
     Netty4HttpRequest(int sequence, FullHttpRequest request, Exception inboundException) {
-        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.toBytesReference(request.content()), inboundException);
+        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.fullHttpBodyFrom(request.content()), inboundException);
     }
 
-    private Netty4HttpRequest(int sequence, FullHttpRequest request, AtomicBoolean released, boolean pooled, BytesReference content) {
+    private Netty4HttpRequest(int sequence, FullHttpRequest request, AtomicBoolean released, boolean pooled, HttpBody content) {
         this(sequence, request, released, pooled, content, null);
     }
 
@@ -63,7 +86,7 @@ public class Netty4HttpRequest implements HttpRequest {
         FullHttpRequest request,
         AtomicBoolean released,
         boolean pooled,
-        BytesReference content,
+        HttpBody content,
         Exception inboundException
     ) {
         this.sequence = sequence;
@@ -73,6 +96,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this.pooled = pooled;
         this.released = released;
         this.inboundException = inboundException;
+        this.queryStringDecoder = new QueryStringDecoder(request.uri());
     }
 
     @Override
@@ -86,7 +110,12 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
-    public BytesReference content() {
+    public String rawPath() {
+        return queryStringDecoder.rawPath();
+    }
+
+    @Override
+    public HttpBody body() {
         assert released.get() == false;
         return content;
     }
@@ -95,6 +124,7 @@ public class Netty4HttpRequest implements HttpRequest {
     public void release() {
         if (pooled && released.compareAndSet(false, true)) {
             request.release();
+            content.close();
         }
     }
 
@@ -106,6 +136,12 @@ public class Netty4HttpRequest implements HttpRequest {
         }
         try {
             final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
+            HttpBody newContent;
+            if (content.isStream()) {
+                newContent = content;
+            } else {
+                newContent = Netty4Utils.fullHttpBodyFrom(copiedContent);
+            }
             return new Netty4HttpRequest(
                 sequence,
                 new DefaultFullHttpRequest(
@@ -118,7 +154,7 @@ public class Netty4HttpRequest implements HttpRequest {
                 ),
                 new AtomicBoolean(false),
                 false,
-                Netty4Utils.toBytesReference(copiedContent)
+                newContent
             );
         } finally {
             release();
@@ -176,8 +212,8 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
-    public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
-        return new Netty4ChunkedHttpResponse(sequence, request.protocolVersion(), status, content);
+    public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBodyPart firstBodyPart) {
+        return new Netty4ChunkedHttpResponse(sequence, request.protocolVersion(), status, firstBodyPart);
     }
 
     @Override

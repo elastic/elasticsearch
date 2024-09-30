@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
@@ -193,11 +193,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
-    }
-
-    @Override
-    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
-        return List.of(new YamlTestLegacyFeatures());
     }
 
     /**
@@ -469,8 +464,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         SortedSet<String> osPrettyNames = new TreeSet<>();
 
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
+        final Map<String, Object> nodes = restTestResponse.evaluate("nodes");
 
         for (Entry<String, Object> node : nodes.entrySet()) {
             @SuppressWarnings("unchecked")

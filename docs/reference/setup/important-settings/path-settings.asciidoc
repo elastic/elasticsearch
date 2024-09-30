@@ -18,9 +18,9 @@ data and log to locations outside of `$ES_HOME` by default.
 
 Supported `path.data` and `path.logs` values vary by platform:
 
-include::{es-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
 
-include::{es-repo-dir}/modules/node.asciidoc[tag=modules-node-data-path-warning-tag]
+include::{es-ref-dir}/modules/node.asciidoc[tag=modules-node-data-path-warning-tag]
 
 [discrete]
 ==== Multiple data paths
@@ -36,7 +36,7 @@ the node, even if the node’s other paths have available disk space. If you nee
 additional disk space, we recommend you add a new node rather than additional
 data paths.
 
-include::{es-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/multi-data-path-widget.asciidoc[]
 
 [discrete]
 [[mdp-migrate]]

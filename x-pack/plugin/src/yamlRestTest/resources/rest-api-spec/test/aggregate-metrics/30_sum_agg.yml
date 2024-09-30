@@ -27,8 +27,8 @@ setup:
           - '{"metric": {"sum": -100, "value_count": 40} }'
 ---
 "Test sum agg":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
@@ -46,8 +46,8 @@ setup:
 
 ---
 "Test sum agg with query":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "Aggregate metric fields have been added in 7.11"
 
   - do:

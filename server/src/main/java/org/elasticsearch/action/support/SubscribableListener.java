@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -31,8 +32,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
- * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
- * fans-out its result to the subscribed listeners.
+ * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is
+ * completed it fans-out its result to the subscribed listeners.
+ * <p>
+ * If this listener is complete, {@link #addListener} completes the subscribing listener immediately
+ * with the result with which this listener was completed. Otherwise, the subscribing listener is retained
+ * and completed when this listener is completed.
  * <p>
  * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are child
  * classes that provide additional exception handling.
@@ -191,6 +196,10 @@ public class SubscribableListener<T> implements ActionListener<T> {
      *                      <li>Pass the desired executor in as {@code executor}, and</li>
      *                      <li>Invoke {@link #addListener} using that executor.</li>
      *                      </ul>
+     *                      <p>
+     *                      If {@code executor} rejects the execution of the completion of the subscribing listener then the result is
+     *                      discarded and the subscribing listener is completed with a rejection exception on the thread which completes
+     *                      this listener.
      * @param threadContext If not {@code null}, and the subscribing listener is not completed immediately, then it will be completed in
      *                      the given thread context. If {@code null}, and the subscribing listener is not completed immediately, then it
      *                      will be completed in the {@link ThreadContext} of the completing thread. If the subscribing listener is
@@ -404,6 +413,32 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     /**
      * Creates and returns a new {@link SubscribableListener} {@code L} and subscribes {@code nextStep} to this listener such that if this
+     * listener is completed successfully then the result is discarded and {@code nextStep} is invoked with argument {@code L}. If this
+     * listener is completed with exception {@code E} then so is {@code L}.
+     * <p>
+     * This can be used to construct a sequence of async actions, each ignoring the result of the previous ones:
+     * <pre>
+     * l.andThen(l1 -> forkAction1(args1, l1)).andThen(l2 -> forkAction2(args2, l2)).addListener(finalListener);
+     * </pre>
+     * After creating this chain, completing {@code l} with a successful response will call {@code forkAction1}, which will on completion
+     * call {@code forkAction2}, which will in turn pass its response to {@code finalListener}. A failure of any step will bypass the
+     * remaining steps and ultimately fail {@code finalListener}.
+     * <p>
+     * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
+     * listener is incomplete then {@code nextStep} is invoked on the completing thread and in its thread context. In other words, if you
+     * want to ensure that {@code nextStep} is invoked using a particular executor, then you must do both of:
+     * <ul>
+     * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
+     * <li>Invoke {@link #andThen} using that executor.</li>
+     * </ul>
+     */
+    public <U> SubscribableListener<U> andThen(CheckedConsumer<ActionListener<U>, ? extends Exception> nextStep) {
+        return newForked(l -> addListener(l.delegateFailureIgnoreResponseAndWrap(nextStep)));
+    }
+
+    /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} and subscribes {@code nextStep} to this listener such that if this
      * listener is completed successfully with result {@code R} then {@code nextStep} is invoked with arguments {@code L} and {@code R}. If
      * this listener is completed with exception {@code E} then so is {@code L}.
      * <p>
@@ -451,6 +486,11 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * <li>Pass the desired executor in as {@code executor}, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
      * </ul>
+     * <p>
+     * If {@code executor} rejects the execution of {@code nextStep} then the result is discarded and the returned listener is completed
+     * with a rejection exception on the thread which completes this listener. Likewise if this listener is completed exceptionally but
+     * {@code executor} rejects the execution of the completion of the returned listener then the returned listener is completed with a
+     * rejection exception on the thread which completes this listener.
      */
     public <U> SubscribableListener<U> andThen(
         Executor executor,

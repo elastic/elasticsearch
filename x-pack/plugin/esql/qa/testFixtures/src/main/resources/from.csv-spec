@@ -128,23 +128,3 @@ c:l | name:k
 1   | ddddd
 1   | eeeee
 ;
-
-convertFromDatetimeWithOptions
-required_feature: esql.from_options
-
-// tag::convertFromDatetimeWithOptions[]
-  FROM employees OPTIONS "allow_no_indices"="false","preference"="_shards:0"
-| SORT emp_no
-| EVAL hire_double = to_double(hire_date)
-| KEEP emp_no, hire_date, hire_double
-| LIMIT 3
-// end::convertFromDatetimeWithOptions[]
-;
-
-// tag::convertFromDatetimeWithOptions-result[]
-emp_no:integer |hire_date:date          |hire_double:double
-10001          |1986-06-26T00:00:00.000Z|5.20128E11
-10002          |1985-11-21T00:00:00.000Z|5.013792E11
-10003          |1986-08-28T00:00:00.000Z|5.255712E11
-// end::convertFromDatetimeWithOptions-result[]
-;

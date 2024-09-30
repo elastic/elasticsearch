@@ -10,9 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -85,7 +84,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+                () -> performActionAndWait(createSnapshotStep, indexMetadata, clusterState, null)
             );
             assertThat(e.getMessage(), is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
@@ -104,7 +103,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+                () -> performActionAndWait(createSnapshotStep, indexMetadata, clusterState, null)
             );
             assertThat(
                 e.getMessage(),
@@ -231,7 +230,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(CreateSnapshotAction.NAME));
+                assertThat(action.name(), is(TransportCreateSnapshotAction.TYPE.name()));
                 assertTrue(request instanceof CreateSnapshotRequest);
                 CreateSnapshotRequest createSnapshotRequest = (CreateSnapshotRequest) request;
                 assertThat(createSnapshotRequest.indices().length, is(1));

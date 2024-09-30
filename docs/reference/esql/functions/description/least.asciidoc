@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the minimum value from many columns.
+Returns the minimum value from multiple columns. This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.

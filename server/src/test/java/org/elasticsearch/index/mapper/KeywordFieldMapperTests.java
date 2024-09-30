@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -25,7 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -45,14 +46,12 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -61,6 +60,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
@@ -238,8 +239,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.size());
 
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.size());
-        assertEquals("field", fields.get(0).stringValue());
+        assertEquals(2, fields.size());
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
     public void testNullValue() throws IOException {
@@ -324,15 +325,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertDimension(false, KeywordFieldMapper.KeywordFieldType::isDimension);
     }
 
-    public void testDimensionAndIgnoreAbove() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+    public void testDimensionAndIgnoreAbove() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true).field("ignore_above", 2048);
-        })));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Field [ignore_above] cannot be set in conjunction with field [time_series_dimension]")
-        );
+        }));
+        KeywordFieldMapper field = (KeywordFieldMapper) documentMapper.mappers().getMapper("field");
+        assertEquals(2048, field.fieldType().ignoreAbove());
     }
 
     public void testDimensionAndNormalizer() {
@@ -379,15 +378,30 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
-        XContentBuilder mapping = fieldMapping(b -> {
+    public void testDimensionMultiValuedFieldTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        });
-        DocumentMapper mapper = randomBoolean() ? createDocumentMapper(mapping) : createTimeSeriesModeDocumentMapper(mapping);
+        }), IndexMode.TIME_SERIES);
 
-        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        ParsedDocument doc = mapper.parse(source(null, b -> {
+            b.array("field", "1234", "45678");
+            b.field("@timestamp", Instant.now());
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
+    }
+
+    public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.array("field", "1234", "45678");
+            b.field("@timestamp", Instant.now());
+        }));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDimensionExtraLongKeyword() throws IOException {
@@ -645,9 +659,28 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         mapper.parse(source(b -> b.field("field", stringBuilder.toString())));
     }
 
+    /**
+     * Test that we track the synthetic source if field is neither indexed nor has doc values nor stored
+     */
+    public void testSyntheticSourceForDisabledField() throws Exception {
+        MapperService mapper = createMapperService(
+            syntheticSourceFieldMapping(
+                b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", false)
+            )
+        );
+        String value = randomAlphaOfLengthBetween(1, 20);
+        assertEquals("{\"field\":\"" + value + "\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", value)));
+    }
+
     @Override
     protected boolean supportsIgnoreMalformed() {
         return false;
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), ft.hasDocValues() || ft.isStored(), mapper, loaderFieldName);
     }
 
     @Override
@@ -658,116 +691,12 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("keyword doesn't support ignore_malformed", ignoreMalformed);
-        return new KeywordSyntheticSourceSupport(
+        return new KeywordFieldSyntheticSourceSupport(
             randomBoolean() ? null : between(10, 100),
             randomBoolean(),
             usually() ? null : randomAlphaOfLength(2),
             true
         );
-    }
-
-    static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final Integer ignoreAbove;
-        private final boolean allIgnored;
-        private final boolean store;
-        private final boolean docValues;
-        private final String nullValue;
-        private final boolean exampleSortsUsingIgnoreAbove;
-
-        KeywordSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean exampleSortsUsingIgnoreAbove) {
-            this.ignoreAbove = ignoreAbove;
-            this.allIgnored = ignoreAbove != null && rarely();
-            this.store = store;
-            this.nullValue = nullValue;
-            this.exampleSortsUsingIgnoreAbove = exampleSortsUsingIgnoreAbove;
-            this.docValues = store ? randomBoolean() : true;
-        }
-
-        @Override
-        public SyntheticSourceExample example(int maxValues) {
-            return example(maxValues, false);
-        }
-
-        public SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource) {
-            if (randomBoolean()) {
-                Tuple<String, String> v = generateValue();
-                Object loadBlock = v.v2();
-                if (loadBlockFromSource == false && ignoreAbove != null && v.v2().length() > ignoreAbove) {
-                    loadBlock = null;
-                }
-                return new SyntheticSourceExample(v.v1(), v.v2(), loadBlock, this::mapping);
-            }
-            List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
-            List<String> in = values.stream().map(Tuple::v1).toList();
-            List<String> outPrimary = new ArrayList<>();
-            List<String> outExtraValues = new ArrayList<>();
-            values.stream().map(Tuple::v2).forEach(v -> {
-                if (exampleSortsUsingIgnoreAbove && ignoreAbove != null && v.length() > ignoreAbove) {
-                    outExtraValues.add(v);
-                } else {
-                    outPrimary.add(v);
-                }
-            });
-            List<String> outList = store ? outPrimary : new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
-            List<String> loadBlock;
-            if (loadBlockFromSource) {
-                // The block loader infrastructure will never return nulls. Just zap them all.
-                loadBlock = in.stream().filter(m -> m != null).toList();
-            } else if (docValues) {
-                loadBlock = new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
-            } else {
-                loadBlock = List.copyOf(outList);
-            }
-            Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
-            outList.addAll(outExtraValues);
-            Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, loadBlockResult, this::mapping);
-        }
-
-        private Tuple<String, String> generateValue() {
-            if (nullValue != null && randomBoolean()) {
-                return Tuple.tuple(null, nullValue);
-            }
-            int length = 5;
-            if (ignoreAbove != null && (allIgnored || randomBoolean())) {
-                length = ignoreAbove + 5;
-            }
-            String v = randomAlphaOfLength(length);
-            return Tuple.tuple(v, v);
-        }
-
-        private void mapping(XContentBuilder b) throws IOException {
-            b.field("type", "keyword");
-            if (nullValue != null) {
-                b.field("null_value", nullValue);
-            }
-            if (ignoreAbove != null) {
-                b.field("ignore_above", ignoreAbove);
-            }
-            if (store) {
-                b.field("store", true);
-            }
-            if (docValues == false) {
-                b.field("doc_values", false);
-            }
-        }
-
-        @Override
-        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    equalTo(
-                        "field [field] of type [keyword] doesn't support synthetic source because "
-                            + "it doesn't have doc values and isn't stored"
-                    ),
-                    b -> b.field("type", "keyword").field("doc_values", false)
-                ),
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),
-                    b -> b.field("type", "keyword").field("normalizer", "lowercase")
-                )
-            );
-        }
     }
 
     @Override

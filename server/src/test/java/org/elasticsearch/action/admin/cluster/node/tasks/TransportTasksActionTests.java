@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -109,20 +110,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private final String requestName;
 
-        NodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-        }
-
         public NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(requestName);
         }
 
         @Override
@@ -142,7 +132,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     abstract class TestNodesAction extends AbstractTestNodesAction<NodesRequest, NodeRequest> {
 
         TestNodesAction(String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-            super(actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, NodeRequest::new);
         }
 
         @Override
@@ -261,7 +251,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
@@ -563,7 +552,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         responseLatch.await(10, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107043")
     public void testFailedTasksCount() throws Exception {
         Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
@@ -605,14 +593,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Make sure that actions are still registered in the task manager on all nodes
         // Twice on the coordinating node and once on all other nodes.
-        assertEquals(4, listeners[0].getEvents().size());
-        assertEquals(2, listeners[0].getRegistrationEvents().size());
-        assertEquals(2, listeners[0].getUnregistrationEvents().size());
-        for (int i = 1; i < listeners.length; i++) {
-            assertEquals(2, listeners[i].getEvents().size());
-            assertEquals(1, listeners[i].getRegistrationEvents().size());
-            assertEquals(1, listeners[i].getUnregistrationEvents().size());
-        }
+        assertBusy(() -> {
+            assertEquals(2, listeners[0].getRegistrationEvents().size());
+            assertEquals(2, listeners[0].getUnregistrationEvents().size());
+            for (int i = 1; i < listeners.length; i++) {
+                assertEquals(1, listeners[i].getRegistrationEvents().size());
+                assertEquals(1, listeners[i].getUnregistrationEvents().size());
+            }
+        });
     }
 
     private List<String> getAllTaskDescriptions() {
@@ -754,10 +742,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         reachabilityChecker.checkReachable();
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();
@@ -830,10 +816,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.checkReachable();
         }
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();

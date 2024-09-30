@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.settings;
 
@@ -922,6 +923,26 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(diff.getAsList("foo.bar.quux", null), Arrays.asList("a", "b", "c"));
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
         assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+    }
+
+    public void testDiffWithFallbackDefaultSetting() {
+        final String fallbackSettingName = "fallback";
+        final Setting<Integer> fallbackSetting = Setting.intSetting(fallbackSettingName, 1, Property.Dynamic, Property.NodeScope);
+
+        final String settingName = "setting.with.fallback";
+        final Setting<Integer> dependentSetting = new Setting<>(
+            settingName,
+            fallbackSetting,
+            (s) -> Setting.parseInt(s, 1, settingName),
+            value -> {},
+            Property.Dynamic,
+            Property.NodeScope
+        );
+
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fallbackSetting, dependentSetting)));
+
+        final Settings diff = settings.diff(Settings.EMPTY, Settings.builder().put(fallbackSettingName, 2).build());
+        assertThat(diff.getAsInt(settingName, null), equalTo(2));
     }
 
     public void testDiffWithDependentSettings() {

@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.prefix;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -97,56 +100,62 @@ public final class IpPrefixAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        return new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(aggCtx.getLeafReaderContext()), ipPrefix);
+        final SortedBinaryDocValues values = config.getValuesSource().bytesValues(aggCtx.getLeafReaderContext());
+        final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
-    private class IpPrefixLeafCollector extends LeafBucketCollectorBase {
-        private final IpPrefix ipPrefix;
-        private final LeafBucketCollector sub;
-        private final SortedBinaryDocValues values;
+    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues values, LeafBucketCollector sub) {
 
-        IpPrefixLeafCollector(final LeafBucketCollector sub, final SortedBinaryDocValues values, final IpPrefix ipPrefix) {
-            super(sub, values);
-            this.sub = sub;
-            this.values = values;
-            this.ipPrefix = ipPrefix;
-        }
-
-        @Override
-        public void collect(int doc, long owningBucketOrd) throws IOException {
-            BytesRef previousSubnet = null;
-            BytesRef subnet = new BytesRef(new byte[ipPrefix.netmask.length]);
-            BytesRef ipAddress;
-            if (values.advanceExact(doc)) {
-                int valuesCount = values.docValueCount();
-
-                for (int i = 0; i < valuesCount; ++i) {
-                    ipAddress = values.nextValue();
-                    maskIpAddress(ipAddress, ipPrefix.netmask, subnet);
-                    if (previousSubnet != null && subnet.bytesEquals(previousSubnet)) {
-                        continue;
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    BytesRef previousSubnet = null;
+                    for (int i = 0; i < values.docValueCount(); ++i) {
+                        final BytesRef subnet = new BytesRef(new byte[ipPrefix.netmask.length]);
+                        maskIpAddress(values.nextValue(), ipPrefix.netmask, subnet);
+                        if (previousSubnet != null && subnet.bytesEquals(previousSubnet)) {
+                            continue;
+                        }
+                        addBucketOrd(bucketOrds.add(owningBucketOrd, subnet), doc, sub);
+                        previousSubnet = subnet;
                     }
-                    long bucketOrd = bucketOrds.add(owningBucketOrd, subnet);
-                    if (bucketOrd < 0) {
-                        bucketOrd = -1 - bucketOrd;
-                        collectExistingBucket(sub, doc, bucketOrd);
-                    } else {
-                        collectBucket(sub, doc, bucketOrd);
-                    }
-                    previousSubnet = subnet;
                 }
             }
-        }
+        };
+    }
 
-        private static void maskIpAddress(final BytesRef ipAddress, final BytesRef subnetMask, final BytesRef subnet) {
-            assert ipAddress.length == 16 : "Invalid length for ip address [" + ipAddress.length + "] expected 16 bytes";
-            // NOTE: IPv4 addresses are encoded as 16-bytes. As a result, we use an
-            // offset (12) to apply the subnet to the last 4 bytes (byes 12, 13, 14, 15)
-            // if the subnet mask is just a 4-bytes subnet mask.
-            int offset = subnetMask.length == 4 ? 12 : 0;
-            for (int i = 0; i < subnetMask.length; ++i) {
-                subnet.bytes[i] = (byte) (ipAddress.bytes[i + offset] & subnetMask.bytes[i]);
+    private LeafBucketCollector getLeafCollector(BinaryDocValues values, LeafBucketCollector sub) {
+        final BytesRef subnet = new BytesRef(new byte[ipPrefix.netmask.length]);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    maskIpAddress(values.binaryValue(), ipPrefix.netmask, subnet);
+                    addBucketOrd(bucketOrds.add(owningBucketOrd, subnet), doc, sub);
+                }
             }
+        };
+    }
+
+    private void addBucketOrd(long bucketOrd, int doc, LeafBucketCollector sub) throws IOException {
+        if (bucketOrd < 0) {
+            bucketOrd = -1 - bucketOrd;
+            collectExistingBucket(sub, doc, bucketOrd);
+        } else {
+            collectBucket(sub, doc, bucketOrd);
+        }
+    }
+
+    private static void maskIpAddress(final BytesRef ipAddress, final BytesRef subnetMask, final BytesRef subnet) {
+        assert ipAddress.length == 16 : "Invalid length for ip address [" + ipAddress.length + "] expected 16 bytes";
+        // NOTE: IPv4 addresses are encoded as 16-bytes. As a result, we use an
+        // offset (12) to apply the subnet to the last 4 bytes (byes 12, 13, 14, 15)
+        // if the subnet mask is just a 4-bytes subnet mask.
+        int offset = subnetMask.length == 4 ? 12 : 0;
+        for (int i = 0; i < subnetMask.length; ++i) {
+            subnet.bytes[i] = (byte) (ipAddress.bytes[i + offset] & subnetMask.bytes[i]);
         }
     }
 

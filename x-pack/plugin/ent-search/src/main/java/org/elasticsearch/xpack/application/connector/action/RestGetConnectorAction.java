@@ -22,6 +22,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetConnectorAction extends BaseRestHandler {
 
+    private static final String CONNECTOR_ID_PARAM = "connector_id";
+
     @Override
     public String getName() {
         return "connector_get_action";
@@ -29,12 +31,12 @@ public class RestGetConnectorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}"));
+        return List.of(new Route(GET, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{" + CONNECTOR_ID_PARAM + "}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        GetConnectorAction.Request request = new GetConnectorAction.Request(restRequest.param("connector_id"));
+        GetConnectorAction.Request request = new GetConnectorAction.Request(restRequest.param(CONNECTOR_ID_PARAM));
         return channel -> client.execute(GetConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

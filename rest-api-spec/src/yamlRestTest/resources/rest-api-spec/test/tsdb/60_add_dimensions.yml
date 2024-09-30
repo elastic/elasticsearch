@@ -1,7 +1,7 @@
 ---
 add dimensions with put_mapping:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -53,8 +53,8 @@ add dimensions with put_mapping:
 
 ---
 add dimensions to no dims with dynamic_template over index:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -101,8 +101,8 @@ add dimensions to no dims with dynamic_template over index:
 
 ---
 add dimensions to no dims with dynamic_template over bulk:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -149,8 +149,8 @@ add dimensions to no dims with dynamic_template over bulk:
 
 ---
 add dimensions to some dims with dynamic_template over index:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -201,8 +201,8 @@ add dimensions to some dims with dynamic_template over index:
 
 ---
 add dimensions to some dims with dynamic_template over bulk:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:

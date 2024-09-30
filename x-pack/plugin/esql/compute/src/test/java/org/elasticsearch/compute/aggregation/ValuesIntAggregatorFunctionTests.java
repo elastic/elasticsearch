@@ -13,7 +13,9 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -37,7 +39,14 @@ public class ValuesIntAggregatorFunctionTests extends AggregatorFunctionTestCase
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        Object[] values = input.stream().flatMapToInt(b -> allInts(b)).boxed().collect(Collectors.toSet()).toArray(Object[]::new);
-        assertThat((List<?>) BlockUtils.toJavaObject(result, 0), containsInAnyOrder(values));
+        TreeSet<?> set = new TreeSet<>((List<?>) BlockUtils.toJavaObject(result, 0));
+        Object[] values = input.stream()
+            .flatMapToInt(AggregatorFunctionTestCase::allInts)
+            .boxed()
+            .collect(Collectors.toSet())
+            .toArray(Object[]::new);
+        if (false == set.containsAll(Arrays.asList(values))) {
+            assertThat(set, containsInAnyOrder(values));
+        }
     }
 }

@@ -23,7 +23,9 @@ For more information about creating and updating the {es} keystore, see
 ==== General security settings
 `xpack.security.enabled`::
 (<<static-cluster-setting,Static>>)
-Defaults to `true`, which enables {es} {security-features} on the node. +
+Defaults to `true`, which enables {es} {security-features} on the node. 
+This setting must be enabled to use Elasticsearch's authentication, 
+authorization and audit features. +
 +
 --
 If set to `false`, {security-features} are disabled, which is not recommended.
@@ -613,90 +615,90 @@ Defaults to `5s` (5 seconds ).
 
 `ssl.key`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 +
 If the LDAP server requires client authentication, it uses this file. You cannot
 use this setting and `ssl.keystore.path` at the same time.
 
 `ssl.key_passphrase`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
 `ssl.secure_key_passphrase`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 `ssl.certificate`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 +
 This certificate is presented to clients when they connect.
 
 `ssl.certificate_authorities`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 +
 You cannot use this setting and `ssl.truststore.path` at the same time.
 
 `ssl.keystore.path`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 +
 You cannot use this setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.keystore.password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 `ssl.keystore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 `ssl.keystore.key_password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 `ssl.keystore.secure_key_password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 `ssl.truststore.path`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 +
 You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 `ssl.truststore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
 Indicates the type of verification when using `ldaps` to protect against man
 in the middle attacks and certificate forgery.
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`::
 (<<static-cluster-setting,Static>>)
 Specifies the cipher suites that should be supported when
 communicating with the LDAP server.
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 //TBD: Can this be updated to using the Java 11 URL instead or does it have to stay java8?
 
 `cache.ttl`::
@@ -915,91 +917,91 @@ Defaults to `5s` (5 seconds ).
 
 `ssl.certificate`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 +
 This certificate is presented to clients when they connect.
 
 `ssl.certificate_authorities`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 +
 You cannot use this setting and `ssl.truststore.path` at the same time.
 
 `ssl.key`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 +
 If the Active Directory server requires client authentication, it uses this file.
 You cannot use this setting and `ssl.keystore.path` at the same time.
 
 `ssl.key_passphrase`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
 `ssl.secure_key_passphrase`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 `ssl.keystore.key_password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 `ssl.keystore.secure_key_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 `ssl.keystore.password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 `ssl.secure_keystore.password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 //TBD: Why/how is this different than `ssl.keystore.secure_password`?
 
 `ssl.keystore.path`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 +
 You cannot use this setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.truststore.password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 `ssl.truststore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `ssl.truststore.path`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 +
 You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
 Indicates the type of verification when using `ldaps` to protect against man
 in the middle attacks and certificate forgery.
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`::
 (<<static-cluster-setting,Static>>)
 Specifies the cipher suites that should be supported when
 communicating with the Active Directory server.
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 //TBD: Can this be updated to using the Java 11 URL instead or does it have to stay java8?
 
 `cache.ttl`::
@@ -1060,12 +1062,12 @@ Algorithm for the truststore. Defaults to `SunX509`.
 
 `truststore.password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 If `truststore.path` is set, this setting is required.
 
 `truststore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `truststore.path`::
 (<<static-cluster-setting,Static>>)
@@ -1522,91 +1524,91 @@ over https.
 // tag::saml-ssl-key-tag[]
 `ssl.key` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 // end::saml-ssl-key-tag[]
 
 // tag::saml-ssl-key-passphrase-tag[]
 `ssl.key_passphrase` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 // end::saml-ssl-key-passphrase-tag[]
 
 `ssl.secure_key_passphrase`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 +
 You cannot use this setting and `ssl.key_passphrase` at the same time.
 
 // tag::saml-ssl-certificate-tag[]
 `ssl.certificate` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 // end::saml-ssl-certificate-tag[]
 
 // tag::saml-ssl-certificate-authorities-tag[]
 `ssl.certificate_authorities` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 // end::saml-ssl-certificate-authorities-tag[]
 
 // tag::saml-ssl-keystore-path-tag[]
 `ssl.keystore.path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 // end::saml-ssl-keystore-path-tag[]
 
 // tag::saml-ssl-keystore-type[]
 `ssl.keystore.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 // end::saml-ssl-keystore-type[]
 
 // tag::saml-ssl-keystore-password-tag[]
 `ssl.keystore.password` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 // end::saml-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 +
 You cannot use this setting and `ssl.keystore.password` at the same time.
 //TBD: Why is this different name than `ssl.secure_keystore.password` elsewhere in this file?
 
 `ssl.keystore.key_password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 +
 You cannot use this setting and `ssl.keystore.secure_key_password` at the same
 time.
 
 `ssl.keystore.secure_key_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 You cannot use this setting and `ssl.keystore.key_password` at the same time.
 
 // tag::saml-ssl-truststore-path-tag[]
 `ssl.truststore.path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 // end::saml-ssl-truststore-path-tag[]
 
 // tag::saml-ssl-truststore-type-tag[]
 `ssl.truststore.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 // end::saml-ssl-truststore-type-tag[]
 
 // tag::saml-ssl-truststore-password-tag[]
 `ssl.truststore.password` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 // end::saml-ssl-truststore-password-tag[]
 
 `ssl.truststore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 +
 This setting cannot be used with `ssl.truststore.password`.
 
@@ -1614,19 +1616,19 @@ This setting cannot be used with `ssl.truststore.password`.
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Controls the verification of certificates.
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::saml-ssl-verification-mode-tag[]
 
 // tag::saml-ssl-supported-prototols-tag[]
 `ssl.supported_protocols` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 // end::saml-ssl-supported-prototols-tag[]
 
 // tag::saml-ssl-cipher-suites-tag[]
 `ssl.cipher_suites` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 // end::saml-ssl-cipher-suites-tag[]
 
 [discrete]
@@ -1988,7 +1990,7 @@ idle for more than the specified timeout.
 
 The server can also set the `Keep-Alive` HTTP response header. The effective
 time-to-live value is the smaller value between this setting and the `Keep-Alive`
-reponse header. Configure this setting to `-1` to let the server dictate the value.
+response header. Configure this setting to `-1` to let the server dictate the value.
 If the header is not set by the server and the setting has value of `-1`,
 the time-to-live is infinite and connections never expire.
 // end::oidc-http-connection-pool-ttl-tag[]
@@ -2008,91 +2010,91 @@ NOTE: These settings are _only_ used for the back-channel communication between
 // tag::oidc-ssl-key-tag[]
 `ssl.key` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 // end::oidc-ssl-key-tag[]
 
 // tag::oidc-ssl-key-passphrase-tag[]
 `ssl.key_passphrase` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 // end::oidc-ssl-key-passphrase-tag[]
 
 `ssl.secure_key_passphrase`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 +
 You cannot use this setting and `ssl.key_passphrase` at the same time.
 
 // tag::oidc-ssl-certificate-tag[]
 `ssl.certificate` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 // end::oidc-ssl-certificate-tag[]
 
 // tag::oidc-ssl-certificate-authorities-tag[]
 `ssl.certificate_authorities` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 // end::oidc-ssl-certificate-authorities-tag[]
 
 // tag::oidc-ssl-keystore-path-tag[]
 `ssl.keystore.path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 // end::oidc-ssl-keystore-path-tag[]
 
 // tag::oidc-ssl-keystore-type-tag[]
 `ssl.keystore.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 // end::oidc-ssl-keystore-type-tag[]
 
 // tag::oidc-ssl-keystore-password-tag[]
 `ssl.keystore.password` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 // end::oidc-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 +
 You cannot use this setting and `ssl.keystore.password` at the same time.
 
 `ssl.keystore.key_password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 +
 You cannot use this setting and `ssl.keystore.secure_key_password` at the same
 time.
 
 `ssl.keystore.secure_key_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 +
 You cannot use this setting and `ssl.keystore.key_password` at the same time.
 
 // tag::oidc-ssl-truststore-path-tag[]
 `ssl.truststore.path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 // end::oidc-ssl-truststore-path-tag[]
 
 // tag::oidc-ssl-truststore-type-tag[]
 `ssl.truststore.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 // end::oidc-ssl-truststore-type-tag[]
 
 // tag::oidc-ssl-truststore-password-tag[]
 `ssl.truststore.password` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 // end::oidc-ssl-truststore-password-tag[]
 
 `ssl.truststore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 +
 You cannot use this setting and `ssl.truststore.password` at the same time.
 
@@ -2100,19 +2102,19 @@ You cannot use this setting and `ssl.truststore.password` at the same time.
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Controls the verification of certificates.
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::oidc-ssl-verification-mode-tag[]
 
 // tag::oidc-ssl-supported-protocols-tag[]
 `ssl.supported_protocols` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 // end::oidc-ssl-supported-protocols-tag[]
 
 // tag::oidc-ssl-cipher-suites-tag[]
 `ssl.cipher_suites` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 // end::oidc-ssl-cipher-suites-tag[]
 
 [[ref-jwt-settings]]
@@ -2443,91 +2445,91 @@ NOTE: These settings are _only_ used for the back-channel communication between
 // tag::jwt-ssl-key-tag[]
 `ssl.key` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 // end::jwt-ssl-key-tag[]
 
 // tag::jwt-ssl-key-passphrase-tag[]
 `ssl.key_passphrase` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 // end::jwt-ssl-key-passphrase-tag[]
 
 `ssl.secure_key_passphrase`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 +
 You cannot use this setting and `ssl.key_passphrase` at the same time.
 
 // tag::jwt-ssl-certificate-tag[]
 `ssl.certificate` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 // end::jwt-ssl-certificate-tag[]
 
 // tag::jwt-ssl-certificate-authorities-tag[]
 `ssl.certificate_authorities` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 // end::jwt-ssl-certificate-authorities-tag[]
 
 // tag::jwt-ssl-keystore-path-tag[]
 `ssl.keystore.path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 // end::jwt-ssl-keystore-path-tag[]
 
 // tag::jwt-ssl-keystore-type-tag[]
 `ssl.keystore.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 // end::jwt-ssl-keystore-type-tag[]
 
 // tag::jwt-ssl-keystore-password-tag[]
 `ssl.keystore.password` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 // end::jwt-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 +
 You cannot use this setting and `ssl.keystore.password` at the same time.
 
 `ssl.keystore.key_password`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 +
 You cannot use this setting and `ssl.keystore.secure_key_password` at the same
 time.
 
 `ssl.keystore.secure_key_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 +
 You cannot use this setting and `ssl.keystore.key_password` at the same time.
 
 // tag::jwt-ssl-truststore-path-tag[]
 `ssl.truststore.path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 // end::jwt-ssl-truststore-path-tag[]
 
 // tag::jwt-ssl-truststore-type-tag[]
 `ssl.truststore.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 // end::jwt-ssl-truststore-type-tag[]
 
 // tag::jwt-ssl-truststore-password-tag[]
 `ssl.truststore.password` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 // end::jwt-ssl-truststore-password-tag[]
 
 `ssl.truststore.secure_password`::
 (<<secure-settings,Secure>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 +
 You cannot use this setting and `ssl.truststore.password` at the same time.
 
@@ -2535,19 +2537,19 @@ You cannot use this setting and `ssl.truststore.password` at the same time.
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Controls the verification of certificates.
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::jwt-ssl-verification-mode-tag[]
 
 // tag::jwt-ssl-supported-protocols-tag[]
 `ssl.supported_protocols` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 // end::jwt-ssl-supported-protocols-tag[]
 
 // tag::jwt-ssl-cipher-suites-tag[]
 `ssl.cipher_suites` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+include::{es-ref-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 // end::jwt-ssl-cipher-suites-tag[]
 
 [discrete]
@@ -2639,8 +2641,6 @@ include::ssl-settings.asciidoc[]
 
 [[remote-cluster-server-tls-ssl-settings]]
 
-beta::[]
-
 :ssl-prefix:             xpack.security.remote_cluster_server
 :component:              Remote cluster server (API key based model)
 :enabled-by-default:
@@ -2654,8 +2654,6 @@ beta::[]
 include::ssl-settings.asciidoc[]
 
 [[remote-cluster-client-tls-ssl-settings]]
-
-beta::[]
 
 :ssl-prefix:             xpack.security.remote_cluster_client
 :component:              Remote cluster client (API key based model)
@@ -2714,12 +2712,12 @@ List of IP addresses to deny for this profile.
 
 `xpack.security.remote_cluster.filter.allow`::
 (<<dynamic-cluster-setting,Dynamic>>)
-beta:[] List of IP addresses to allow just for the
+List of IP addresses to allow just for the
 <<remote-clusters-api-key,remote cluster server configured with the API key based model>>.
 
 `xpack.security.remote_cluster.filter.deny`::
 (<<dynamic-cluster-setting,Dynamic>>)
-beta:[] List of IP addresses to deny just for the remote cluster server configured with
+List of IP addresses to deny just for the remote cluster server configured with
 the <<remote-clusters-api-key,API key based model>>.
 
 include::security-hash-settings.asciidoc[]

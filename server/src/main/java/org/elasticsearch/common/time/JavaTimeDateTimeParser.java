@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -14,7 +15,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
@@ -65,9 +65,9 @@ class JavaTimeDateTimeParser implements DateTimeParser {
     }
 
     @Override
-    public Optional<TemporalAccessor> tryParse(CharSequence str) {
+    public ParseResult tryParse(CharSequence str) {
         ParsePosition pos = new ParsePosition(0);
-        return Optional.ofNullable((TemporalAccessor) formatter.toFormat().parseObject(str.toString(), pos))
-            .filter(ta -> pos.getIndex() == str.length());
+        var result = (TemporalAccessor) formatter.toFormat().parseObject(str.toString(), pos);
+        return pos.getIndex() == str.length() ? new ParseResult(result) : ParseResult.error(Math.max(pos.getErrorIndex(), pos.getIndex()));
     }
 }

@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStrin
 
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringFunctionProcessorTests.maxResultLengthTest;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.MAX_RESULT_LENGTH;
 
 public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTestCase<BinaryStringNumericProcessor> {
 
@@ -150,6 +152,10 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
         assertNull(new Repeat(EMPTY, l("foo"), l(-1)).makePipe().asProcessor().process(null));
         assertNull(new Repeat(EMPTY, l("foo"), l(0)).makePipe().asProcessor().process(null));
         assertNull(new Repeat(EMPTY, l('f'), l(Integer.MIN_VALUE)).makePipe().asProcessor().process(null));
+        assertEquals(
+            MAX_RESULT_LENGTH,
+            new Repeat(EMPTY, l('f'), l(MAX_RESULT_LENGTH)).makePipe().asProcessor().process(null).toString().length()
+        );
     }
 
     public void testRepeatFunctionInputsValidation() {
@@ -179,5 +185,14 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
 
         e = expectThrows(InvalidArgumentException.class, () -> new Repeat(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null));
         assertEquals("A fixed point number is required for [count]; received [java.lang.Double]", e.getMessage());
+
+        maxResultLengthTest(
+            MAX_RESULT_LENGTH + 1,
+            () -> new Repeat(EMPTY, l("f"), l(MAX_RESULT_LENGTH + 1)).makePipe().asProcessor().process(null)
+        );
+
+        String str = "foo";
+        long count = (MAX_RESULT_LENGTH / str.length()) + 1;
+        maxResultLengthTest(count * str.length(), () -> new Repeat(EMPTY, l(str), l(count)).makePipe().asProcessor().process(null));
     }
 }

@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.Strings;
@@ -192,7 +195,11 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             client.prepareIndex(indexName).setSource("number", i, "foo", "bar").get();
         }
         client.admin().indices().prepareRefresh("index-*").get();
-        ClusterSearchShardsResponse resp = client.admin().cluster().prepareSearchShards("index-*").get();
+        ClusterSearchShardsResponse resp = safeExecute(
+            client,
+            TransportClusterSearchShardsAction.TYPE,
+            new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "index-*")
+        );
         return Arrays.stream(resp.getGroups()).map(e -> new SearchShard(null, e.getShardId())).sorted().toList();
     }
 }

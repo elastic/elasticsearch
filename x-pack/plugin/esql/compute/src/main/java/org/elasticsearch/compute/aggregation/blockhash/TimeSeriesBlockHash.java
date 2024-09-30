@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -17,11 +18,13 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Objects;
@@ -82,19 +85,24 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
     public Block[] getKeys() {
         int positions = (int) intervalHash.size();
         BytesRefVector tsidHashes = null;
         LongVector timestampIntervals = null;
         try (
             BytesRefVector.Builder tsidHashesBuilder = blockFactory.newBytesRefVectorBuilder(positions);
-            LongVector.Builder timestampIntervalsBuilder = blockFactory.newLongVectorFixedBuilder(positions)
+            LongVector.FixedBuilder timestampIntervalsBuilder = blockFactory.newLongVectorFixedBuilder(positions)
         ) {
             BytesRef scratch = new BytesRef();
             for (long i = 0; i < positions; i++) {
                 BytesRef key1 = this.tsidHashes.get(intervalHash.getKey1(i), scratch);
                 tsidHashesBuilder.appendBytesRef(key1);
-                timestampIntervalsBuilder.appendLong(intervalHash.getKey2(i));
+                timestampIntervalsBuilder.appendLong((int) i, intervalHash.getKey2(i));
             }
             tsidHashes = tsidHashesBuilder.build();
             timestampIntervals = timestampIntervalsBuilder.build();

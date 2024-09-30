@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
@@ -164,6 +165,16 @@ class IndicesAndAliasesResolver {
         final ResolvedIndices split;
         if (indicesRequest instanceof IndicesRequest.SingleIndexNoWildcards single && single.allowsRemoteIndices()) {
             split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+            // all indices can come back empty when the remote index expression included a cluster alias with a wildcard
+            // and no remote clusters are configured that match it
+            if (split.getLocal().isEmpty() && split.getRemote().isEmpty()) {
+                for (String indexExpression : indices) {
+                    String[] clusterAndIndex = RemoteClusterAware.splitIndexName(indexExpression);
+                    if (clusterAndIndex[0] != null && clusterAndIndex[0].contains("*")) {
+                        throw new NoSuchRemoteClusterException(clusterAndIndex[0]);
+                    }
+                }
+            }
         } else {
             split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), List.of());
         }
@@ -473,5 +484,4 @@ class IndicesAndAliasesResolver {
             return new ResolvedIndices(local == null ? List.of() : local, remote);
         }
     }
-
 }

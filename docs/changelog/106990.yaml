@@ -1,5 +1,0 @@
-pr: 106990
-summary: Address concurrency issue in top hits aggregation
-area: Aggregations
-type: bug
-issues: []

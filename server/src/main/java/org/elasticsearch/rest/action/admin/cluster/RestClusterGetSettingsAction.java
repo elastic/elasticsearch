@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterGetSettingsAction extends BaseRestHandler {
@@ -64,7 +66,6 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private static void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
         clusterRequest.local(request.paramAsBoolean("local", clusterRequest.local()));
-        clusterRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRequest.masterNodeTimeout()));
     }
 
     @Override
@@ -75,7 +76,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
             return prepareLegacyRequest(request, client, renderDefaults);
         }
 
-        ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request();
+        ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request(getMasterNodeTimeout(request));
 
         setUpRequestParams(clusterSettingsRequest, request);
 
@@ -89,7 +90,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client, final boolean renderDefaults) {
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(false).nodes(false);
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request)).routingTable(false).nodes(false);
         setUpRequestParams(clusterStateRequest, request);
         return channel -> client.admin()
             .cluster()

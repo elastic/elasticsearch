@@ -1,17 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.Network;
+import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse.ConnectionType;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.DomainResponse;
+import com.maxmind.geoip2.model.EnterpriseResponse;
+import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.City;
 import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Country;
@@ -22,8 +29,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -31,7 +36,6 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.Database.Property;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,7 +59,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final String field;
     private final Supplier<Boolean> isValid;
     private final String targetField;
-    private final CheckedSupplier<GeoIpDatabase, IOException> supplier;
+    private final CheckedSupplier<IpDatabase, IOException> supplier;
     private final Set<Property> properties;
     private final boolean ignoreMissing;
     private final boolean firstOnly;
@@ -78,7 +82,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final String tag,
         final String description,
         final String field,
-        final CheckedSupplier<GeoIpDatabase, IOException> supplier,
+        final CheckedSupplier<IpDatabase, IOException> supplier,
         final Supplier<Boolean> isValid,
         final String targetField,
         final Set<Property> properties,
@@ -102,76 +106,78 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws IOException {
-        Object ip = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
+    public IngestDocument execute(IngestDocument document) throws IOException {
+        Object ip = document.getFieldValue(field, Object.class, ignoreMissing);
 
         if (isValid.get() == false) {
-            ingestDocument.appendFieldValue("tags", "_geoip_expired_database", false);
-            return ingestDocument;
+            document.appendFieldValue("tags", "_geoip_expired_database", false);
+            return document;
         } else if (ip == null && ignoreMissing) {
-            return ingestDocument;
+            return document;
         } else if (ip == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
         }
 
-        GeoIpDatabase geoIpDatabase = this.supplier.get();
-        if (geoIpDatabase == null) {
-            if (ignoreMissing == false) {
-                tag(ingestDocument, databaseFile);
+        try (IpDatabase ipDatabase = this.supplier.get()) {
+            if (ipDatabase == null) {
+                if (ignoreMissing == false) {
+                    tag(document, databaseFile);
+                }
+                return document;
             }
-            return ingestDocument;
-        }
 
-        try {
             if (ip instanceof String ipString) {
-                Map<String, Object> geoData = getGeoData(geoIpDatabase, ipString);
-                if (geoData.isEmpty() == false) {
-                    ingestDocument.setFieldValue(targetField, geoData);
+                Map<String, Object> data = getGeoData(ipDatabase, ipString);
+                if (data.isEmpty() == false) {
+                    document.setFieldValue(targetField, data);
                 }
             } else if (ip instanceof List<?> ipList) {
                 boolean match = false;
-                List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
+                List<Map<String, Object>> dataList = new ArrayList<>(ipList.size());
                 for (Object ipAddr : ipList) {
                     if (ipAddr instanceof String == false) {
                         throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                     }
-                    Map<String, Object> geoData = getGeoData(geoIpDatabase, (String) ipAddr);
-                    if (geoData.isEmpty()) {
-                        geoDataList.add(null);
+                    Map<String, Object> data = getGeoData(ipDatabase, (String) ipAddr);
+                    if (data.isEmpty()) {
+                        dataList.add(null);
                         continue;
                     }
                     if (firstOnly) {
-                        ingestDocument.setFieldValue(targetField, geoData);
-                        return ingestDocument;
+                        document.setFieldValue(targetField, data);
+                        return document;
                     }
                     match = true;
-                    geoDataList.add(geoData);
+                    dataList.add(data);
                 }
                 if (match) {
-                    ingestDocument.setFieldValue(targetField, geoDataList);
+                    document.setFieldValue(targetField, dataList);
                 }
             } else {
                 throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
             }
-        } finally {
-            geoIpDatabase.release();
         }
-        return ingestDocument;
+
+        return document;
     }
 
-    private Map<String, Object> getGeoData(GeoIpDatabase geoIpDatabase, String ip) throws IOException {
-        final String databaseType = geoIpDatabase.getDatabaseType();
+    private Map<String, Object> getGeoData(IpDatabase ipDatabase, String ipAddress) throws IOException {
+        final String databaseType = ipDatabase.getDatabaseType();
         final Database database;
         try {
             database = Database.getDatabase(databaseType, databaseFile);
         } catch (IllegalArgumentException e) {
             throw new ElasticsearchParseException(e.getMessage(), e);
         }
-        final InetAddress ipAddress = InetAddresses.forString(ip);
         return switch (database) {
-            case City -> retrieveCityGeoData(geoIpDatabase, ipAddress);
-            case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
-            case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
+            case City -> retrieveCityGeoData(ipDatabase, ipAddress);
+            case Country -> retrieveCountryGeoData(ipDatabase, ipAddress);
+            case Asn -> retrieveAsnGeoData(ipDatabase, ipAddress);
+            case AnonymousIp -> retrieveAnonymousIpGeoData(ipDatabase, ipAddress);
+            case ConnectionType -> retrieveConnectionTypeGeoData(ipDatabase, ipAddress);
+            case Domain -> retrieveDomainGeoData(ipDatabase, ipAddress);
+            case Enterprise -> retrieveEnterpriseGeoData(ipDatabase, ipAddress);
+            case Isp -> retrieveIspGeoData(ipDatabase, ipAddress);
         };
     }
 
@@ -196,8 +202,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return properties;
     }
 
-    private Map<String, Object> retrieveCityGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        CityResponse response = geoIpDatabase.getCity(ipAddress);
+    private Map<String, Object> retrieveCityGeoData(IpDatabase ipDatabase, String ipAddress) {
+        CityResponse response = ipDatabase.getCity(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -210,7 +216,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                 case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
@@ -221,6 +227,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
+                    }
+                }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
                     }
                 }
                 case CONTINENT_NAME -> {
@@ -272,8 +284,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveCountryGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        CountryResponse response = geoIpDatabase.getCountry(ipAddress);
+    private Map<String, Object> retrieveCountryGeoData(IpDatabase ipDatabase, String ipAddress) {
+        CountryResponse response = ipDatabase.getCountry(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -283,7 +295,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                 case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
@@ -294,6 +306,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
+                    }
+                }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
                     }
                 }
                 case CONTINENT_NAME -> {
@@ -307,27 +325,27 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveAsnGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        AsnResponse response = geoIpDatabase.getAsn(ipAddress);
+    private Map<String, Object> retrieveAsnGeoData(IpDatabase ipDatabase, String ipAddress) {
+        AsnResponse response = ipDatabase.getAsn(ipAddress);
         if (response == null) {
             return Map.of();
         }
         Long asn = response.getAutonomousSystemNumber();
-        String organization_name = response.getAutonomousSystemOrganization();
+        String organizationName = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
 
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);
                     }
                 }
                 case ORGANIZATION_NAME -> {
-                    if (organization_name != null) {
-                        geoData.put("organization_name", organization_name);
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
                     }
                 }
                 case NETWORK -> {
@@ -340,24 +358,339 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    private Map<String, Object> retrieveAnonymousIpGeoData(IpDatabase ipDatabase, String ipAddress) {
+        AnonymousIpResponse response = ipDatabase.getAnonymousIp(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        boolean isHostingProvider = response.isHostingProvider();
+        boolean isTorExitNode = response.isTorExitNode();
+        boolean isAnonymousVpn = response.isAnonymousVpn();
+        boolean isAnonymous = response.isAnonymous();
+        boolean isPublicProxy = response.isPublicProxy();
+        boolean isResidentialProxy = response.isResidentialProxy();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", response.getIpAddress());
+                case HOSTING_PROVIDER -> {
+                    geoData.put("hosting_provider", isHostingProvider);
+                }
+                case TOR_EXIT_NODE -> {
+                    geoData.put("tor_exit_node", isTorExitNode);
+                }
+                case ANONYMOUS_VPN -> {
+                    geoData.put("anonymous_vpn", isAnonymousVpn);
+                }
+                case ANONYMOUS -> {
+                    geoData.put("anonymous", isAnonymous);
+                }
+                case PUBLIC_PROXY -> {
+                    geoData.put("public_proxy", isPublicProxy);
+                }
+                case RESIDENTIAL_PROXY -> {
+                    geoData.put("residential_proxy", isResidentialProxy);
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveConnectionTypeGeoData(IpDatabase ipDatabase, String ipAddress) {
+        ConnectionTypeResponse response = ipDatabase.getConnectionType(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        ConnectionType connectionType = response.getConnectionType();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", response.getIpAddress());
+                case CONNECTION_TYPE -> {
+                    if (connectionType != null) {
+                        geoData.put("connection_type", connectionType.toString());
+                    }
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveDomainGeoData(IpDatabase ipDatabase, String ipAddress) {
+        DomainResponse response = ipDatabase.getDomain(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        String domain = response.getDomain();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", response.getIpAddress());
+                case DOMAIN -> {
+                    if (domain != null) {
+                        geoData.put("domain", domain);
+                    }
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveEnterpriseGeoData(IpDatabase ipDatabase, String ipAddress) {
+        EnterpriseResponse response = ipDatabase.getEnterprise(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        Country country = response.getCountry();
+        City city = response.getCity();
+        Location location = response.getLocation();
+        Continent continent = response.getContinent();
+        Subdivision subdivision = response.getMostSpecificSubdivision();
+
+        Long asn = response.getTraits().getAutonomousSystemNumber();
+        String organizationName = response.getTraits().getAutonomousSystemOrganization();
+        Network network = response.getTraits().getNetwork();
+
+        String isp = response.getTraits().getIsp();
+        String ispOrganization = response.getTraits().getOrganization();
+        String mobileCountryCode = response.getTraits().getMobileCountryCode();
+        String mobileNetworkCode = response.getTraits().getMobileNetworkCode();
+
+        boolean isHostingProvider = response.getTraits().isHostingProvider();
+        boolean isTorExitNode = response.getTraits().isTorExitNode();
+        boolean isAnonymousVpn = response.getTraits().isAnonymousVpn();
+        boolean isAnonymous = response.getTraits().isAnonymous();
+        boolean isPublicProxy = response.getTraits().isPublicProxy();
+        boolean isResidentialProxy = response.getTraits().isResidentialProxy();
+
+        String userType = response.getTraits().getUserType();
+
+        String domain = response.getTraits().getDomain();
+
+        ConnectionType connectionType = response.getTraits().getConnectionType();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
+                case COUNTRY_ISO_CODE -> {
+                    String countryIsoCode = country.getIsoCode();
+                    if (countryIsoCode != null) {
+                        geoData.put("country_iso_code", countryIsoCode);
+                    }
+                }
+                case COUNTRY_NAME -> {
+                    String countryName = country.getName();
+                    if (countryName != null) {
+                        geoData.put("country_name", countryName);
+                    }
+                }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
+                    }
+                }
+                case CONTINENT_NAME -> {
+                    String continentName = continent.getName();
+                    if (continentName != null) {
+                        geoData.put("continent_name", continentName);
+                    }
+                }
+                case REGION_ISO_CODE -> {
+                    // ISO 3166-2 code for country subdivisions.
+                    // See iso.org/iso-3166-country-codes.html
+                    String countryIso = country.getIsoCode();
+                    String subdivisionIso = subdivision.getIsoCode();
+                    if (countryIso != null && subdivisionIso != null) {
+                        String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        geoData.put("region_iso_code", regionIsoCode);
+                    }
+                }
+                case REGION_NAME -> {
+                    String subdivisionName = subdivision.getName();
+                    if (subdivisionName != null) {
+                        geoData.put("region_name", subdivisionName);
+                    }
+                }
+                case CITY_NAME -> {
+                    String cityName = city.getName();
+                    if (cityName != null) {
+                        geoData.put("city_name", cityName);
+                    }
+                }
+                case TIMEZONE -> {
+                    String locationTimeZone = location.getTimeZone();
+                    if (locationTimeZone != null) {
+                        geoData.put("timezone", locationTimeZone);
+                    }
+                }
+                case LOCATION -> {
+                    Double latitude = location.getLatitude();
+                    Double longitude = location.getLongitude();
+                    if (latitude != null && longitude != null) {
+                        Map<String, Object> locationObject = new HashMap<>();
+                        locationObject.put("lat", latitude);
+                        locationObject.put("lon", longitude);
+                        geoData.put("location", locationObject);
+                    }
+                }
+                case ASN -> {
+                    if (asn != null) {
+                        geoData.put("asn", asn);
+                    }
+                }
+                case ORGANIZATION_NAME -> {
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
+                    }
+                }
+                case NETWORK -> {
+                    if (network != null) {
+                        geoData.put("network", network.toString());
+                    }
+                }
+                case HOSTING_PROVIDER -> {
+                    geoData.put("hosting_provider", isHostingProvider);
+                }
+                case TOR_EXIT_NODE -> {
+                    geoData.put("tor_exit_node", isTorExitNode);
+                }
+                case ANONYMOUS_VPN -> {
+                    geoData.put("anonymous_vpn", isAnonymousVpn);
+                }
+                case ANONYMOUS -> {
+                    geoData.put("anonymous", isAnonymous);
+                }
+                case PUBLIC_PROXY -> {
+                    geoData.put("public_proxy", isPublicProxy);
+                }
+                case RESIDENTIAL_PROXY -> {
+                    geoData.put("residential_proxy", isResidentialProxy);
+                }
+                case DOMAIN -> {
+                    if (domain != null) {
+                        geoData.put("domain", domain);
+                    }
+                }
+                case ISP -> {
+                    if (isp != null) {
+                        geoData.put("isp", isp);
+                    }
+                }
+                case ISP_ORGANIZATION_NAME -> {
+                    if (ispOrganization != null) {
+                        geoData.put("isp_organization_name", ispOrganization);
+                    }
+                }
+                case MOBILE_COUNTRY_CODE -> {
+                    if (mobileCountryCode != null) {
+                        geoData.put("mobile_country_code", mobileCountryCode);
+                    }
+                }
+                case MOBILE_NETWORK_CODE -> {
+                    if (mobileNetworkCode != null) {
+                        geoData.put("mobile_network_code", mobileNetworkCode);
+                    }
+                }
+                case USER_TYPE -> {
+                    if (userType != null) {
+                        geoData.put("user_type", userType);
+                    }
+                }
+                case CONNECTION_TYPE -> {
+                    if (connectionType != null) {
+                        geoData.put("connection_type", connectionType.toString());
+                    }
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveIspGeoData(IpDatabase ipDatabase, String ipAddress) {
+        IspResponse response = ipDatabase.getIsp(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        String isp = response.getIsp();
+        String ispOrganization = response.getOrganization();
+        String mobileNetworkCode = response.getMobileNetworkCode();
+        String mobileCountryCode = response.getMobileCountryCode();
+        Long asn = response.getAutonomousSystemNumber();
+        String organizationName = response.getAutonomousSystemOrganization();
+        Network network = response.getNetwork();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", response.getIpAddress());
+                case ASN -> {
+                    if (asn != null) {
+                        geoData.put("asn", asn);
+                    }
+                }
+                case ORGANIZATION_NAME -> {
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
+                    }
+                }
+                case NETWORK -> {
+                    if (network != null) {
+                        geoData.put("network", network.toString());
+                    }
+                }
+                case ISP -> {
+                    if (isp != null) {
+                        geoData.put("isp", isp);
+                    }
+                }
+                case ISP_ORGANIZATION_NAME -> {
+                    if (ispOrganization != null) {
+                        geoData.put("isp_organization_name", ispOrganization);
+                    }
+                }
+                case MOBILE_COUNTRY_CODE -> {
+                    if (mobileCountryCode != null) {
+                        geoData.put("mobile_country_code", mobileCountryCode);
+                    }
+                }
+                case MOBILE_NETWORK_CODE -> {
+                    if (mobileNetworkCode != null) {
+                        geoData.put("mobile_network_code", mobileNetworkCode);
+                    }
+                }
+            }
+        }
+        return geoData;
+    }
+
     /**
-     * Retrieves and verifies a {@link GeoIpDatabase} instance for each execution of the {@link GeoIpProcessor}. Guards against missing
+     * Retrieves and verifies a {@link IpDatabase} instance for each execution of the {@link GeoIpProcessor}. Guards against missing
      * custom databases, and ensures that database instances are of the proper type before use.
      */
-    public static final class DatabaseVerifyingSupplier implements CheckedSupplier<GeoIpDatabase, IOException> {
-        private final GeoIpDatabaseProvider geoIpDatabaseProvider;
+    public static final class DatabaseVerifyingSupplier implements CheckedSupplier<IpDatabase, IOException> {
+        private final IpDatabaseProvider ipDatabaseProvider;
         private final String databaseFile;
         private final String databaseType;
 
-        public DatabaseVerifyingSupplier(GeoIpDatabaseProvider geoIpDatabaseProvider, String databaseFile, String databaseType) {
-            this.geoIpDatabaseProvider = geoIpDatabaseProvider;
+        public DatabaseVerifyingSupplier(IpDatabaseProvider ipDatabaseProvider, String databaseFile, String databaseType) {
+            this.ipDatabaseProvider = ipDatabaseProvider;
             this.databaseFile = databaseFile;
             this.databaseType = databaseType;
         }
 
         @Override
-        public GeoIpDatabase get() throws IOException {
-            GeoIpDatabase loader = geoIpDatabaseProvider.getDatabase(databaseFile);
+        public IpDatabase get() throws IOException {
+            IpDatabase loader = ipDatabaseProvider.getDatabase(databaseFile);
             if (loader == null) {
                 return null;
             }
@@ -377,10 +710,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final GeoIpDatabaseProvider geoIpDatabaseProvider;
+        private final IpDatabaseProvider ipDatabaseProvider;
 
-        public Factory(GeoIpDatabaseProvider geoIpDatabaseProvider) {
-            this.geoIpDatabaseProvider = geoIpDatabaseProvider;
+        public Factory(IpDatabaseProvider ipDatabaseProvider) {
+            this.ipDatabaseProvider = ipDatabaseProvider;
         }
 
         @Override
@@ -407,20 +740,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 deprecationLogger.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
-            GeoIpDatabase geoIpDatabase = geoIpDatabaseProvider.getDatabase(databaseFile);
-            if (geoIpDatabase == null) {
-                // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
-                // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced then the
-                // processor will continue to tag documents with a warning until it is remediated by providing a database or changing the
-                // pipeline.
-                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
-            }
-
             final String databaseType;
-            try {
-                databaseType = geoIpDatabase.getDatabaseType();
-            } finally {
-                geoIpDatabase.release();
+            try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile)) {
+                if (ipDatabase == null) {
+                    // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
+                    // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
+                    // then the processor will continue to tag documents with a warning until it is remediated by providing a database
+                    // or changing the pipeline.
+                    return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
+                }
+                databaseType = ipDatabase.getDatabaseType();
             }
 
             final Database database;
@@ -440,8 +769,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 processorTag,
                 description,
                 ipField,
-                new DatabaseVerifyingSupplier(geoIpDatabaseProvider, databaseFile, databaseType),
-                () -> geoIpDatabaseProvider.isValid(databaseFile),
+                new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType),
+                () -> ipDatabaseProvider.isValid(databaseFile),
                 targetField,
                 properties,
                 ignoreMissing,

@@ -190,6 +190,19 @@ s:double
 25976.0
 ;
 
+exp#[skip:-8.15.99,reason:new scalar function added in 8.16]
+// tag::exp[]
+ROW d = 5.0
+| EVAL s = EXP(d)
+// end::exp[]
+;
+
+// tag::exp-result[]
+d: double | s:double
+5.0   | 148.413159102576603
+// end::exp-result[]
+;
+
 powHeightSquared
 from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | keep height, s | sort s desc | limit 4;
 
@@ -201,7 +214,7 @@ height:double | s:double
 ;
 
 powSalarySquared
-required_feature: esql.pow_double
+required_capability: pow_double
 
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
@@ -443,8 +456,8 @@ from employees
 | keep emp_no, languages, salary, avg_worked_seconds, l1, l2, l3
 | limit 5;
 
-warning:Line 2:13: evaluation of [LOG(languages, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(languages, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l1:double          | l2:double          | l3:double
 10001          | 2                 | 57305          | 268728049               | 15.806373402659007 | 19.409210455930772 | 35.21558385858978
@@ -481,8 +494,8 @@ from employees
 | keep l1, l2, emp_no, languages, salary, avg_worked_seconds, l3
 | limit 5;
 
-warning:Line 2:13: evaluation of [LOG(languages, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(languages, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 l1:double         | l2:double          | emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l3:double
 6.300030441266983 | 19.782340222815456 | 10015          | 5                 | 25324          | 390266432               | 26.08237066408244
@@ -502,8 +515,8 @@ from employees
 | keep l1, l2, emp_no, base1, salary, avg_worked_seconds, l3
 | limit 5;
 
-warning:Line 3:13: evaluation of [LOG(base1, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(base1, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 l1:double | l2:double          | emp_no:integer | base1:integer | salary:integer | avg_worked_seconds:long | l3:double
 null      | 19.774989878141827 | 10044          | 1             | 39728          | 387408356               | null
@@ -618,7 +631,7 @@ base:double | exponent:integer | result:double
 ;
 
 powIntInt
-required_feature: esql.pow_double
+required_capability: pow_double
 
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
@@ -629,7 +642,7 @@ base:integer | exponent:integer | s:double
 ;
 
 powIntIntPlusInt
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row s = 1 + pow(2, 2);
 
@@ -645,7 +658,7 @@ s:double
 ;
 
 powIntUL
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = pow(1, 9223372036854775808);
 
@@ -654,7 +667,7 @@ x:double
 ;
 
 powLongUL
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
@@ -663,7 +676,7 @@ x:double
 ;
 
 powUnsignedLongUL
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
@@ -688,7 +701,7 @@ null
 ;
 
 powULInt
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
@@ -697,7 +710,7 @@ x:double
 ;
 
 powULIntOverrun
-required_feature: esql.pow_double
+required_capability: pow_double
 
 ROW x = POW(9223372036854775808, 2)
 ;
@@ -719,7 +732,7 @@ x:double
 ;
 
 powULLong
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
@@ -728,7 +741,7 @@ x:double
 ;
 
 powULLongOverrun
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
 
@@ -1213,21 +1226,6 @@ a:double
 // end::floor-result[]
 ;
 
-ceilFloorOfInfinite
-row i = 1.0/0.0 | eval c = ceil(i), f = floor(i);
-
-i:double | c:double | f:double
-Infinity | Infinity | Infinity
-;
-
-ceilFloorOfNegativeInfinite
-row i = -1.0/0.0 | eval c = ceil(i), f = floor(i);
-
-i:double  | c:double  | f:double
--Infinity | -Infinity | -Infinity
-;
-
-
 ceilFloorOfInteger
 row i = 1 | eval c = ceil(i), f = floor(i);
 
@@ -1316,6 +1314,68 @@ sqrtOfNegativeZero
 row d = -0.0 |eval s = sqrt(d);
 
 d:double | s:double
+-0.0     | -0.0
+;
+
+cbrt
+required_capability: fn_cbrt
+// tag::cbrt[]
+ROW d = 1000.0
+| EVAL c = cbrt(d)
+// end::cbrt[]
+;
+
+// tag::cbrt-result[]
+d: double | c:double
+1000.0    | 10.0
+// end::cbrt-result[]
+;
+
+cbrtOfInteger
+required_capability: fn_cbrt
+row i = 27 | eval c = cbrt(i);
+
+i:integer | c:double
+27        | 3
+;
+
+cbrtOfLong
+required_capability: fn_cbrt
+row l = to_long(1000000000000) | eval c = cbrt(l);
+
+l:long            | c:double
+1000000000000     | 10000
+;
+
+cbrtOfUnsignedLong
+required_capability: fn_cbrt
+row l = to_ul(1000000000000000000) | eval c = cbrt(l);
+
+l:ul                  | c:double
+1000000000000000000   | 1000000
+;
+
+cbrtOfNegative
+required_capability: fn_cbrt
+row d = -1.0 | eval c = cbrt(d);
+
+d:double | c:double
+-1.0     | -1.0
+;
+
+cbrtOfZero
+required_capability: fn_cbrt
+row d = 0.0 | eval c = cbrt(d);
+
+d:double | c:double
+0.0      | 0.0
+;
+
+cbrtOfNegativeZero
+required_capability: fn_cbrt
+row d = -0.0 | eval c = cbrt(d);
+
+d:double | c:double
 -0.0     | -0.0
 ;
 
@@ -1426,4 +1486,41 @@ Alejandro      |McAlpine       |1.48           |1.48
 Amabile        |Gomatam        |2.09           |2.09           
 Anneke         |Preusig        |1.56           |1.56     
 //end::abs-employees-result[]
+;
+
+evalAbsString
+required_capability: string_literal_auto_casting
+
+ROW number = -1.0
+| EVAL abs_number = ABS("10.0")
+;
+
+number:double  | abs_number:double
+-1.0           | 10.0
+;
+
+functionUnderArithmeticOperationAggString
+required_capability: string_literal_auto_casting
+
+ROW a = 1
+| eval x = date_trunc(1 month, "2024-11-22") + 2 days, y = x + 3 days
+| stats count() by y
+;
+
+count():long | y:date
+1            | 2024-11-06T00:00:00.000Z
+;
+
+functionUnderArithmeticOperationString
+required_capability: string_literal_auto_casting
+
+from employees
+| eval x = date_trunc(1 month, "2024-11-22") + 2 days, y = x + 3 days
+| sort emp_no
+| keep emp_no, x, y
+| limit 2;
+
+emp_no: integer | x:date     | y:date
+10001           | 2024-11-03 | 2024-11-06
+10002           | 2024-11-03 | 2024-11-06
 ;

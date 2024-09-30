@@ -1,27 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -33,14 +36,9 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-
-        try {
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+        try (var mockLog = MockLog.capture(SnapshotsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "[does-not-exist]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -48,8 +46,8 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 )
             );
 
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "[deleting test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -57,8 +55,8 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 )
             );
 
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "[test-snapshot deleted]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -74,10 +72,8 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(startDeleteSnapshot("test-repo", "test-snapshot").actionGet().isAcknowledged(), is(true));
 
             awaitNoMoreRunningOperations(); // ensure background file deletion is completed
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);
-            mockLogAppender.stop();
             deleteRepository("test-repo");
         }
     }
@@ -87,14 +83,9 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-
-        try {
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(SnapshotsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "[test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.WARN,
@@ -119,12 +110,80 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 assertThat(e.getCause().getMessage(), containsString("exception after block"));
             }
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);
-            mockLogAppender.stop();
             deleteRepository("test-repo");
         }
+    }
+
+    public void testDeleteSnapshotWhenNotWaitingForCompletion() throws Exception {
+        createIndexWithRandomDocs("test-index", randomIntBetween(1, 5));
+        createRepository("test-repo", "mock");
+        createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
+        MockRepository repository = getRepositoryOnMaster("test-repo");
+        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
+        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
+        repository.blockOnDataFiles();
+        try {
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
+                .setWaitForCompletion(false)
+                .execute(listener);
+            // The request will complete as soon as the deletion is scheduled
+            safeGet(listener);
+            // The deletion won't complete until the block is removed
+            assertFalse(snapshotDeletionListener.isDone());
+        } finally {
+            repository.unblock();
+        }
+        safeAwait(snapshotDeletionListener);
+    }
+
+    public void testDeleteSnapshotWhenWaitingForCompletion() throws Exception {
+        createIndexWithRandomDocs("test-index", randomIntBetween(1, 5));
+        createRepository("test-repo", "mock");
+        createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
+        MockRepository repository = getRepositoryOnMaster("test-repo");
+        PlainActionFuture<AcknowledgedResponse> requestCompleteListener = new PlainActionFuture<>();
+        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
+        repository.blockOnDataFiles();
+        try {
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
+                .setWaitForCompletion(true)
+                .execute(requestCompleteListener);
+            // Neither the request nor the deletion will complete until we remove the block
+            assertFalse(requestCompleteListener.isDone());
+            assertFalse(snapshotDeletionListener.isDone());
+        } finally {
+            repository.unblock();
+        }
+        safeGet(requestCompleteListener);
+        safeAwait(snapshotDeletionListener);
+    }
+
+    /**
+     * Create a listener that completes once it has observed a snapshot delete begin and end for a specific repository
+     *
+     * @param repositoryName The repository to monitor for deletions
+     * @return the listener
+     */
+    private SubscribableListener<Void> createSnapshotDeletionListener(String repositoryName) {
+        AtomicBoolean deleteHasStarted = new AtomicBoolean(false);
+        return ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            state -> {
+                SnapshotDeletionsInProgress deletionsInProgress = (SnapshotDeletionsInProgress) state.getCustoms()
+                    .get(SnapshotDeletionsInProgress.TYPE);
+                if (deletionsInProgress == null) {
+                    return false;
+                }
+                if (deleteHasStarted.get() == false) {
+                    deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
+                    return false;
+                } else {
+                    return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
+                }
+            }
+        );
     }
 
     public void testRerouteWhenShardSnapshotsCompleted() throws Exception {

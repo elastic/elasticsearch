@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -56,7 +57,20 @@ public class WaitForHttpResource {
     private String password;
 
     public WaitForHttpResource(String protocol, String host, int numberOfNodes) throws MalformedURLException {
-        this(new URL(protocol + "://" + host + "/_cluster/health?wait_for_nodes=>=" + numberOfNodes + "&wait_for_status=yellow"));
+        this(
+            new URL(
+                protocol
+                    + "://"
+                    + host
+                    + "/_cluster/health"
+                    + "?wait_for_nodes=>="
+                    + numberOfNodes
+                    + "&wait_for_status=yellow"
+                    + "&wait_for_events=LANGUID"
+                    + "&wait_for_no_initializing_shards"
+                    + "&wait_for_no_relocating_shards"
+            )
+        );
     }
 
     public WaitForHttpResource(URL url) {

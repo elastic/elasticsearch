@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,11 +32,6 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
         this.ids = Objects.requireNonNull(ids, "API key IDs must not be null");
     }
 
-    public BaseBulkUpdateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.ids = in.readStringCollectionAsList();
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
@@ -47,12 +39,6 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
             validationException = addValidationError("Field [ids] cannot be empty", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringCollection(ids);
     }
 
     public List<String> getIds() {

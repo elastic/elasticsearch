@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -14,19 +15,16 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest', 'cat'
+      'eql', 'data_stream', 'ingest', 'cat', 'capabilities'
   }
 }
 
 dependencies {
   testImplementation project(path: ':test:test-clusters')
+  internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
-tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
-}
-
-tasks.named('javaRestTest') {
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
   usesDefaultDistribution()
 }
 
@@ -36,3 +34,13 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
 }
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.withType(Test).configureEach {
+    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
+  }
+}
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("data_stream/10_basic/Create hidden data stream", "warning does not exist for compatibility")
+})

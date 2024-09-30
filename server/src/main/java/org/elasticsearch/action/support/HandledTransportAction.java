@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support;
 
@@ -40,14 +41,14 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         Writeable.Reader<Request> requestReader,
         Executor executor
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getTaskManager(), executor);
         transportService.registerRequestHandler(
             actionName,
             executor,
             false,
             canTripCircuitBreaker,
             requestReader,
-            (request, channel, task) -> execute(task, request, new ChannelActionListener<>(channel))
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
         );
     }
 }

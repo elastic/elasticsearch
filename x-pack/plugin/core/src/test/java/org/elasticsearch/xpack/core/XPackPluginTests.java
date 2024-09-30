@@ -18,6 +18,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -211,7 +212,11 @@ public class XPackPluginTests extends ESTestCase {
         public void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener) {}
 
         @Override
-        public void removeLicense(ActionListener<? extends AcknowledgedResponse> listener) {}
+        public void removeLicense(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            ActionListener<? extends AcknowledgedResponse> listener
+        ) {}
 
         @Override
         public void startBasicLicense(PostStartBasicRequest request, ActionListener<PostStartBasicResponse> listener) {}

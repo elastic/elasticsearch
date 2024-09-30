@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.cluster;
@@ -11,6 +12,7 @@ package org.elasticsearch.indices.cluster;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -22,13 +24,11 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class ShardLockFailureIT extends ESIntegTestCase {
 
@@ -61,21 +61,20 @@ public class ShardLockFailureIT extends ESIntegTestCase {
                         .routingTable()
                         .shardRoutingTable(shardId)
                         .allShards()
-                        .noneMatch(sr -> sr.unassigned() && sr.unassignedInfo().getNumFailedAllocations() > 0)
+                        .noneMatch(sr -> sr.unassigned() && sr.unassignedInfo().failedAllocations() > 0)
                 );
             } catch (IndexNotFoundException e) {
                 // ok
             }
         });
 
-        var mockLogAppender = new MockLogAppender();
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var ignored2 = mockLogAppender.capturing(IndicesClusterStateService.class);
+            var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-            mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                private final CountDownLatch countDownLatch = new CountDownLatch(1);
                 int debugMessagesSeen = 0;
                 int warnMessagesSeen = 0;
 
@@ -102,14 +101,20 @@ public class ShardLockFailureIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void assertMatched() {}
+                public void assertMatched() {
+                    fail("unused");
+                }
+
+                @Override
+                public void awaitMatched(long millis) throws InterruptedException {
+                    assertTrue(countDownLatch.await(millis, TimeUnit.MILLISECONDS));
+                }
             });
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
             ensureYellow(indexName);
-            assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-            assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(indexName).get().getStatus());
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.awaitAllExpectationsMatched();
+            assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus());
         }
 
         ensureGreen(indexName);
@@ -138,13 +143,12 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
         final var shardId = new ShardId(resolveIndex(indexName), 0);
 
-        var mockLogAppender = new MockLogAppender();
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var ignored2 = mockLogAppender.capturing(IndicesClusterStateService.class);
+            var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "timeout message",
                     "org.elasticsearch.indices.cluster.IndicesClusterStateService",
                     Level.WARN,
@@ -155,8 +159,8 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             );
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
-            final var clusterHealthResponse = clusterAdmin().prepareHealth(indexName)
+            mockLog.awaitAllExpectationsMatched();
+            final var clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .setWaitForNoInitializingShards(true)
@@ -167,7 +171,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             assertEquals(1, clusterHealthResponse.getUnassignedShards());
         }
 
-        assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true));
+        ClusterRerouteUtils.rerouteRetryFailed(client());
         ensureGreen(indexName);
     }
 }

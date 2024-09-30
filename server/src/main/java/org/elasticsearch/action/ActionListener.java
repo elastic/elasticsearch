@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,17 +33,94 @@ import static org.elasticsearch.action.ActionListenerImplementations.safeAcceptE
 import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailure;
 
 /**
- * A listener for action responses or failures.
+ * <p>
+ * Callbacks are used extensively throughout Elasticsearch because they enable us to write asynchronous and nonblocking code, i.e. code
+ * which doesn't necessarily compute a result straight away but also doesn't block the calling thread waiting for the result to become
+ * available. They support several useful control flows:
+ * </p>
+ * <ul>
+ * <li>They can be completed immediately on the calling thread.</li>
+ * <li>They can be completed concurrently on a different thread.</li>
+ * <li>They can be stored in a data structure and completed later on when the system reaches a particular state.</li>
+ * <li>Most commonly, they can be passed on to other methods that themselves require a callback.</li>
+ * <li>They can be wrapped in another callback which modifies the behaviour of the original callback, perhaps adding some extra code to run
+ * before or after completion, before passing them on.</li>
+ * </ul>
+ * <p>
+ * {@link ActionListener} is a general-purpose callback interface that is used extensively across the Elasticsearch codebase. {@link
+ * ActionListener} is used pretty much everywhere that needs to perform some asynchronous and nonblocking computation. The uniformity makes
+ * it easier to compose parts of the system together without needing to build adapters to convert back and forth between different kinds of
+ * callback. It also makes it easier to develop the skills needed to read and understand all the asynchronous code, although this definitely
+ * takes practice and is certainly not easy in an absolute sense. Finally, it has allowed us to build a rich library for working with {@link
+ * ActionListener} instances themselves, creating new instances out of existing ones and completing them in interesting ways. See for
+ * instance:
+ * </p>
+ * <ul>
+ * <li>All the static methods on {@link ActionListener} itself.</li>
+ * <li>{@link org.elasticsearch.action.support.ThreadedActionListener} for forking work elsewhere.</li>
+ * <li>{@link org.elasticsearch.action.support.RefCountingListener} for running work in parallel.</li>
+ * <li>{@link org.elasticsearch.action.support.SubscribableListener} for constructing flexible workflows.</li>
+ * </ul>
+ * <p>
+ * Callback-based asynchronous code can easily call regular synchronous code, but synchronous code cannot run callback-based asynchronous
+ * code without blocking the calling thread until the callback is called back. This blocking is at best undesirable (threads are too
+ * expensive to waste with unnecessary blocking) and at worst outright broken (the blocking can lead to deadlock). Unfortunately this means
+ * that most of our code ends up having to be written with callbacks, simply because it's ultimately calling into some other code that takes
+ * a callback. The entry points for all Elasticsearch APIs are callback-based (e.g. REST APIs all start at {@link
+ * org.elasticsearch.rest.BaseRestHandler}{@code #prepareRequest} and transport APIs all start at {@link
+ * org.elasticsearch.action.support.TransportAction}{@code #doExecute} and the whole system fundamentally works in terms of an event loop
+ * (an {@code io.netty.channel.EventLoop}) which processes network events via callbacks.
+ * </p>
+ * <p>
+ * {@link ActionListener} is not an <i>ad-hoc</i> invention. Formally speaking, it is our implementation of the general concept of a
+ * continuation in the sense of <a href="https://en.wikipedia.org/wiki/Continuation-passing_style"><i>continuation-passing style</i></a>
+ * (CPS): an extra argument to a function which defines how to continue the computation when the result is available. This is in contrast to
+ * <i>direct style</i> which is the more usual style of calling methods that return values directly back to the caller so they can continue
+ * executing as normal. There's essentially two ways that computation can continue in Java (it can return a value or it can throw an
+ * exception) which is why {@link ActionListener} has both an {@link #onResponse} and an {@link #onFailure} method.
+ * </p>
+ * <p>
+ * CPS is strictly more expressive than direct style: direct code can be mechanically translated into continuation-passing style, but CPS
+ * also enables all sorts of other useful control structures such as forking work onto separate threads, possibly to be executed in
+ * parallel, perhaps even across multiple nodes, or possibly collecting a list of continuations all waiting for the same condition to be
+ * satisfied before proceeding (e.g. {@link org.elasticsearch.action.support.SubscribableListener} amongst many others). Some languages have
+ * first-class support for continuations (e.g. the {@code async} and {@code await} primitives in C#) allowing the programmer to write code
+ * in direct style away from those exotic control structures, but Java does not. That's why we have to manipulate all the callbacks
+ * ourselves.
+ * </p>
+ * <p>
+ * Strictly speaking, CPS requires that a computation <i>only</i> continues by calling the continuation. In Elasticsearch, this means that
+ * asynchronous methods must have {@code void} return type and may not throw any exceptions. This is mostly the case in our code as written
+ * today, and is a good guiding principle, but we don't enforce void exceptionless methods and there are some deviations from this rule. In
+ * particular, it's not uncommon to permit some methods to throw an exception, using things like {@link ActionListener#run} (or an
+ * equivalent {@code try ... catch ...} block) further up the stack to handle it. Some methods also take (and may complete) an {@link
+ * ActionListener} parameter, but still return a value separately for other local synchronous work.
+ * </p>
+ * <p>
+ * This pattern is often used in the transport action layer with the use of the {@link
+ * org.elasticsearch.action.support.ChannelActionListener} class, which wraps a {@link org.elasticsearch.transport.TransportChannel}
+ * produced by the transport layer.{@link org.elasticsearch.transport.TransportChannel} implementations can hold a reference to a Netty
+ * channel with which to pass the response back to the network caller. Netty has a many-to-one association of network callers to channels,
+ * so a call taking a long time generally won't hog resources: it's cheap. A transport action can take hours to respond and that's alright,
+ * barring caller timeouts.
+ * </p>
+ * <p>
+ * Note that we explicitly avoid {@link java.util.concurrent.CompletableFuture} and other similar mechanisms as much as possible. They
+ * can achieve the same goals as {@link ActionListener}, but can also easily be misused in various ways that lead to severe bugs. In
+ * particular, futures support blocking while waiting for a result, but this is almost never appropriate in Elasticsearch's production code
+ * where threads are such a precious resource. Moreover if something throws an {@link Error} then the JVM should exit pretty much straight
+ * away, but {@link java.util.concurrent.CompletableFuture} can catch an {@link Error} which delays the JVM exit until its result is
+ * observed. This may be much later, or possibly even never. It's not possible to introduce such bugs when using {@link ActionListener}.
+ * </p>
  */
 public interface ActionListener<Response> {
     /**
-     * Handle action response. This response may constitute a failure or a
-     * success but it is up to the listener to make that decision.
+     * Complete this listener with a successful (or at least, non-exceptional) response.
      */
     void onResponse(Response response);
 
     /**
-     * A failure caused by an exception at some phase of the task.
+     * Complete this listener with an exceptional response.
      */
     void onFailure(Exception e);
 
@@ -107,6 +186,13 @@ public interface ActionListener<Response> {
      */
     default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
         return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);
+    }
+
+    /**
+     * Same as {@link #delegateFailureAndWrap(CheckedBiConsumer)} except that the response is ignored and not passed to the delegate.
+     */
+    default <T> ActionListener<T> delegateFailureIgnoreResponseAndWrap(CheckedConsumer<ActionListener<Response>, ? extends Exception> c) {
+        return new ActionListenerImplementations.ResponseDroppingActionListener<>(this, c);
     }
 
     /**
@@ -303,8 +389,8 @@ public interface ActionListener<Response> {
                 private final AtomicReference<ElasticsearchException> firstCompletion = new AtomicReference<>();
 
                 private void assertFirstRun() {
-                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException(delegate.toString()));
-                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException("executed already"));
+                    assert previousRun == null : "[" + delegate + "] " + previousRun; // reports the stack traces of both completions
                 }
 
                 @Override
@@ -346,6 +432,16 @@ public interface ActionListener<Response> {
         } else {
             return delegate;
         }
+    }
+
+    /**
+     * @return A listener which (if assertions are enabled) wraps around the given delegate and asserts that it is called at least once.
+     */
+    static <Response> ActionListener<Response> assertAtLeastOnce(ActionListener<Response> delegate) {
+        if (Assertions.ENABLED) {
+            return new ActionListenerImplementations.RunBeforeActionListener<>(delegate, LeakTracker.INSTANCE.track(delegate)::close);
+        }
+        return delegate;
     }
 
     /**

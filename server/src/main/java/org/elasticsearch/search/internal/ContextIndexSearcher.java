@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -49,7 +50,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
@@ -202,6 +202,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (TimeExceededException e) {
             timeExceeded = true;
             return new MatchNoDocsQuery("rewrite timed out");
+        } catch (TooManyClauses e) {
+            throw new IllegalArgumentException("Query rewrite failed: too many clauses", e);
         } finally {
             if (profiler != null) {
                 profiler.stopAndAddRewriteTime(rewriteTimer);
@@ -255,13 +257,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // Make a copy so we can sort:
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
         // Sort by maxDoc, descending:
-        final Comparator<LeafReaderContext> leafComparator = Comparator.comparingInt(l -> l.reader().maxDoc());
-        sortedLeaves.sort(leafComparator.reversed());
+        sortedLeaves.sort((c1, c2) -> Integer.compare(c2.reader().maxDoc(), c1.reader().maxDoc()));
         // we add the groups on a priority queue, so we can add orphan leafs to the smallest group
-        final Comparator<List<LeafReaderContext>> groupComparator = Comparator.comparingInt(
-            l -> l.stream().mapToInt(lr -> lr.reader().maxDoc()).sum()
+        final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(
+            (c1, c2) -> Integer.compare(sumMaxDocValues(c1), sumMaxDocValues(c2))
         );
-        final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(groupComparator);
         long docSum = 0;
         List<LeafReaderContext> group = new ArrayList<>();
         for (LeafReaderContext ctx : sortedLeaves) {
@@ -295,6 +295,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
 
         return slices;
+    }
+
+    private static int sumMaxDocValues(List<LeafReaderContext> l) {
+        int sum = 0;
+        for (LeafReaderContext lr : l) {
+            sum += lr.reader().maxDoc();
+        }
+        return sum;
     }
 
     @Override
@@ -337,7 +345,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
                 }
             }
-            final List<Callable<C>> listTasks = new ArrayList<>();
+            final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
             for (int i = 0; i < leafSlices.length; ++i) {
                 final LeafReaderContext[] leaves = leafSlices[i].leaves;
                 final C collector = collectors.get(i);
@@ -490,13 +498,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
-        if (aggregatedDfs == null) {
-            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
-            return super.termStatistics(term, docFreq, totalTermFreq);
-        }
-        TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
         if (termStatistics == null) {
-            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+            // we don't have stats for this - dfs might be disabled pr this might be a must_not clauses etc.
+            // that doesn't allow extract terms on the query
             return super.termStatistics(term, docFreq, totalTermFreq);
         }
         return termStatistics;
@@ -514,6 +520,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.collectionStatistics(field);
         }
         return collectionStatistics;
+    }
+
+    public long docFreq(Term term, long docFreq) throws IOException {
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
+        if (termStatistics == null) {
+            return docFreq;
+        }
+        return termStatistics.docFreq();
+    }
+
+    public long totalTermFreq(Term term, long totalTermFreq) throws IOException {
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
+        if (termStatistics == null) {
+            return totalTermFreq;
+        }
+        return termStatistics.docFreq();
+    }
+
+    private TermStatistics termStatisticsFromDfs(Term term) {
+        if (aggregatedDfs == null) {
+            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
+            return null;
+        }
+
+        return aggregatedDfs.termStatistics().get(term);
     }
 
     public DirectoryReader getDirectoryReader() {

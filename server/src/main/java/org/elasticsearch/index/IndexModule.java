@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -102,18 +104,14 @@ public final class IndexModule {
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
 
-    public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_STORE_TYPE_SETTING = Setting.simpleString(
         "index.store.type",
-        "",
-        Function.identity(),
         Property.IndexScope,
         Property.NodeScope
     );
 
-    public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = Setting.simpleString(
         "index.recovery.type",
-        "",
-        Function.identity(),
         Property.IndexScope,
         Property.NodeScope
     );
@@ -177,6 +175,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
+    private final MapperMetrics mapperMetrics;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -195,7 +194,8 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final SlowLogFieldProvider slowLogFieldProvider
+        final SlowLogFieldProvider slowLogFieldProvider,
+        final MapperMetrics mapperMetrics
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -206,6 +206,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -536,7 +537,8 @@ public final class IndexModule {
                 recoveryStateFactory,
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
-                indexCommitListener.get()
+                indexCommitListener.get(),
+                mapperMetrics
             );
             success = true;
             return indexService;
@@ -646,7 +648,11 @@ public final class IndexModule {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            scriptService
+            scriptService,
+            query -> {
+                throw new UnsupportedOperationException("no index query shard context available");
+            },
+            mapperMetrics
         );
     }
 

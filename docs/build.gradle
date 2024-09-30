@@ -1,14 +1,15 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
-
+import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 apply plugin: 'elasticsearch.docs-test'
@@ -16,6 +17,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 ext.docsFileTree = fileTree(projectDir) {
   include '**/*.asciidoc'
+  include '**/*.mdx'
   // That is where the snippets go, not where they come from!
   exclude 'build/**'
   exclude 'build-idea/**'
@@ -35,9 +37,18 @@ ext.docsFileTree = fileTree(projectDir) {
   }
 }
 
+tasks.named("yamlRestTest") {
+  if (BuildParams.isSnapshotBuild() == false) {
+    // LOOKUP is not available in snapshots
+    systemProperty 'tests.rest.blacklist', [
+      "reference/esql/processing-commands/lookup/esql-lookup-example"
+    ].join(',')
+  }
+}
+
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
-  expectedUnconvertedCandidates = [
+  getExpectedUnconvertedCandidates().addAll(
           'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
           'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
           'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
@@ -58,7 +69,7 @@ tasks.named("buildRestTests").configure {
           'reference/rest-api/watcher/put-watch.asciidoc',
           'reference/rest-api/watcher/stats.asciidoc',
           'reference/watcher/example-watches/watching-time-series-data.asciidoc'
-  ]
+  )
 }
 
 restResources {
@@ -112,6 +123,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
+  requiresFeature 'es.ccs_telemetry_feature_flag_enabled', Version.fromString("8.16.0")
 
   // TODO Rene: clean up this kind of cross project file references
   extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
@@ -176,16 +188,8 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
 
-tasks.named("buildRestTests").configure {
-  docs = docsFileTree
-}
-
-tasks.named("listSnippets").configure {
-  docs = docsFileTree
-}
-
-tasks.named("listConsoleCandidates").configure {
-  docs = docsFileTree
+tasks.withType(DocSnippetTask).configureEach {
+    docs = docsFileTree
 }
 
 Closure setupMyIndex = { String name, int count ->
@@ -852,6 +856,18 @@ buildRestTests.setups['library'] = '''
 buildRestTests.setups['sensor_rollup_job'] = '''
   - do:
       indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
+  - do:
+      indices.create:
         index: sensor-1
         body:
           settings:
@@ -900,6 +916,18 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             }
 '''
 buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
   - do:
       indices.create:
         index: sensor-1
@@ -974,6 +1002,28 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
 '''
 
 buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id:
+                  id: my-id
+                  index_pattern: "dummy-index-*"
+                  rollup_index: "dummy-rollup-index"
+                  cron: "*/30 * * * * ?"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: timestamp
+                      fixed_interval: 1h
+                      delay: 7d
+
   - do:
       indices.create:
         index: sensor-1
@@ -1759,6 +1809,7 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
         name: "my_admin_role"
         body: >
           {
+            "description": "Grants full access to all management features within the cluster.",
             "cluster": ["all"],
             "indices": [
               {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
@@ -1766,6 +1817,20 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
             "run_as": [ "other_user" ],
             "metadata" : {"version": 1}
           }
+'''
+  setups['user_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_user_role"
+        body: >
+          {
+            "description": "Grants user access to some indicies.",
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "metadata" : {"version": 1}
+          }
+
 '''
   setups['jacknich_user'] = '''
   - do:

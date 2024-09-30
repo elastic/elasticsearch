@@ -128,7 +128,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     void waitForNoInitializingShards(Client client, TimeValue timeout, String... indices) {
         ClusterHealthResponse resp = client.admin()
             .cluster()
-            .prepareHealth(indices)
+            .prepareHealth(TEST_REQUEST_TIMEOUT, indices)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
@@ -156,7 +156,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         waitForNoInitializingShards(client(REMOTE_CLUSTER), TimeValue.timeValueSeconds(30), "logs-2");
         final int localOnlyProfiles;
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             request.query("FROM logs* | stats sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
@@ -171,7 +171,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
         final int remoteOnlyProfiles;
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             request.query("FROM *:logs* | stats sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
@@ -186,7 +186,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
         final int allProfiles;
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             request.query("FROM logs*,*:logs* | stats total = sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
@@ -203,7 +203,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testWarnings() throws Exception {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query("FROM logs*,*:logs* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10");
         PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
         InternalTestCluster cluster = cluster(LOCAL_CLUSTER);
@@ -229,7 +229,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     protected EsqlQueryResponse runQuery(String query) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         return runQuery(request);

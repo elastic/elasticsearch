@@ -2,7 +2,7 @@
 [[geospatial-analysis]]
 = Geospatial analysis
 
-Did you know that {es} has geospatial capabilities? https://www.elastic.co/blog/geo-location-and-search[{es} and geo] go way back, to 2010. A lot has happened since then and today {es} provides robust geospatial capabilities with speed, all with a stack that scales automatically. 
+Did you know that {es} has geospatial capabilities? https://www.elastic.co/blog/geo-location-and-search[{es} and geo] go way back, to 2010. A lot has happened since then and today {es} provides robust geospatial capabilities with speed, all with a stack that scales automatically.
 
 Not sure where to get started with {es} and geo? Then, you have come to the right place.
 
@@ -18,8 +18,10 @@ Have an index with lat/lon pairs but no geo_point mapping? Use <<runtime-mapping
 [[geospatial-ingest]]
 === Ingest
 
-Data is often messy and incomplete. <<ingest,Ingest pipelines>> lets you clean, transform, and augment your data before indexing. 
+Data is often messy and incomplete. <<ingest,Ingest pipelines>> lets you clean, transform, and augment your data before indexing.
 
+* Use <<csv-processor>> together with <<explicit-mapping,explicit mapping>> to index CSV files with geo data.
+  Kibana's {kibana-ref}/import-geospatial-data.html[Import CSV] feature can help with this.
 * Use <<geoip-processor>> to add geographical location of an IPv4 or IPv6 address.
 * Use <<ingest-geo-grid-processor,geo-grid processor>> to convert grid tiles or hexagonal cell ids to bounding boxes or polygons which describe their shape.
 * Use <<geo-match-enrich-policy-type,geo_match enrich policy>> for reverse geocoding. For example, use {kibana-ref}/reverse-geocoding-tutorial.html[reverse geocoding] to visualize metropolitan areas by web traffic.
@@ -29,6 +31,18 @@ Data is often messy and incomplete. <<ingest,Ingest pipelines>> lets you clean, 
 === Query
 
 <<geo-queries,Geo queries>> answer location-driven questions. Find documents that intersect with, are within, are contained by, or do not intersect your query geometry. Combine geospatial queries with full text search queries for unparalleled searching experience. For example, "Show me all subscribers that live within 5 miles of our new gym location, that joined in the last year and have running mentioned in their profile".
+
+[discrete]
+[[esql-query]]
+=== ES|QL
+
+<<esql,ES|QL>> has support for <<esql-spatial-functions, Geospatial Search>> functions, enabling efficient index searching for documents that intersect with, are within, are contained by, or are disjoint from a query geometry. In addition, the `ST_DISTANCE` function calculates the distance between two points.
+
+* experimental:[] <<esql-st_intersects>>
+* experimental:[] <<esql-st_disjoint>>
+* experimental:[] <<esql-st_contains>>
+* experimental:[] <<esql-st_within>>
+* experimental:[] <<esql-st_distance>>
 
 [discrete]
 [[geospatial-aggregate]]
@@ -42,12 +56,12 @@ Geospatial bucket aggregations:
 * <<search-aggregations-bucket-geohashgrid-aggregation,Geohash grid aggregation>> groups geo_point and geo_shape values into buckets that represent a grid.
 * <<search-aggregations-bucket-geohexgrid-aggregation,Geohex grid aggregation>> groups geo_point and geo_shape values into buckets that represent an H3 hexagonal cell.
 * <<search-aggregations-bucket-geotilegrid-aggregation,Geotile grid aggregation>> groups geo_point and geo_shape values into buckets that represent a grid. Each cell corresponds to a {wikipedia}/Tiled_web_map[map tile] as used by many online map sites.
- 
+
 Geospatial metric aggregations:
 
 * <<search-aggregations-metrics-geobounds-aggregation, Geo-bounds aggregation>> computes the geographic bounding box containing all values for a Geopoint or Geoshape field.
 * <<search-aggregations-metrics-geocentroid-aggregation, Geo-centroid aggregation>> computes the weighted centroid from all coordinate values for geo fields.
-* <<search-aggregations-metrics-geo-line,Geo-line aggregation>> aggregates all geo_point values within a bucket into a LineString ordered by the chosen sort field. Use geo_line aggregation to create {kibana-ref}/asset-tracking-tutorial.html[vehicle tracks]. 
+* <<search-aggregations-metrics-geo-line,Geo-line aggregation>> aggregates all geo_point values within a bucket into a LineString ordered by the chosen sort field. Use geo_line aggregation to create {kibana-ref}/asset-tracking-tutorial.html[vehicle tracks].
 
 Combine aggregations to perform complex geospatial analysis. For example, to calculate the most recent GPS tracks per flight, use a <<search-aggregations-bucket-terms-aggregation,terms aggregation>> to group documents into buckets per aircraft. Then use geo-line aggregation to compute a track for each aircraft. In another example, use geotile grid aggregation to group documents into a grid. Then use geo-centroid aggregation to find the weighted centroid of each grid cell.
 

@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,6 +39,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     @Override
     public void onFailure(Exception e) {
+        assert assertCompleteAllowed();
         if (sync.setException(Objects.requireNonNull(e))) {
             done(false);
         }
@@ -113,6 +116,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
+        assert assertCompleteAllowed();
         if (sync.cancel() == false) {
             return false;
         }
@@ -130,6 +134,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
      * @return true if the state was successfully changed.
      */
     protected final boolean set(@Nullable T value) {
+        assert assertCompleteAllowed();
         boolean result = sync.set(value);
         if (result) {
             done(true);
@@ -173,30 +178,17 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
      * Return the result of this future, similarly to {@link FutureUtils#get} with a zero timeout except that this method ignores the
      * interrupted status of the calling thread.
      * <p>
-     * As with {@link FutureUtils#get}, if the future completed exceptionally with a {@link RuntimeException} then this method throws that
-     * exception, but if the future completed exceptionally with an exception that is not a {@link RuntimeException} then this method throws
-     * an {@link UncategorizedExecutionException} whose cause is an {@link ExecutionException} whose cause is the completing exception.
+     * If the future completed exceptionally then this method throws an {@link ExecutionException} whose cause is the completing exception.
      * <p>
      * It is not valid to call this method if the future is incomplete.
      *
      * @return the result of this future, if it has been completed successfully.
-     * @throws RuntimeException if this future was completed exceptionally, wrapping checked exceptions as described above.
+     * @throws ExecutionException if this future was completed exceptionally.
      * @throws CancellationException if this future was cancelled.
+     * @throws IllegalStateException if this future is incomplete.
      */
-    public T result() {
+    public T result() throws ExecutionException {
         return sync.result();
-    }
-
-    /**
-     * Return the result of this future, if it has been completed successfully, or unwrap and throw the exception with which it was
-     * completed exceptionally. It is not valid to call this method if the future is incomplete.
-     */
-    public T actionResult() {
-        try {
-            return result();
-        } catch (ElasticsearchException e) {
-            throw unwrapEsException(e);
-        }
     }
 
     /**
@@ -212,7 +204,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
      * RUNNING to COMPLETING, that thread will then set the result of the
      * computation, and only then transition to COMPLETED or CANCELLED.
      * <p>
-     * We don't use the integer argument passed between acquire methods so we
+     * We don't use the integer argument passed between acquire methods, so we
      * pass around a -1 everywhere.
      */
     static final class Sync<V> extends AbstractQueuedSynchronizer {
@@ -297,24 +289,9 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
             }
         }
 
-        V result() {
-            final int state = getState();
-            switch (state) {
-                case COMPLETED:
-                    if (exception instanceof RuntimeException runtimeException) {
-                        throw runtimeException;
-                    } else if (exception != null) {
-                        throw new UncategorizedExecutionException("Failed execution", new ExecutionException(exception));
-                    } else {
-                        return value;
-                    }
-                case CANCELLED:
-                    throw new CancellationException("Task was cancelled.");
-                default:
-                    final var message = "Error, synchronizer in invalid state: " + state;
-                    assert false : message;
-                    throw new IllegalStateException(message);
-            }
+        V result() throws CancellationException, ExecutionException {
+            assert isDone() : "Error, synchronizer in invalid state: " + getState();
+            return getValue();
         }
 
         /**
@@ -353,7 +330,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         }
 
         /**
-         * Implementation of completing a task.  Either {@code v} or {@code t} will
+         * Implementation of completing a task.  Either {@code v} or {@code e} will
          * be set but not both.  The {@code finalState} is the state to change to
          * from {@link #RUNNING}.  If the state is not in the RUNNING state we
          * return {@code false} after waiting for the state to be set to a valid
@@ -374,7 +351,11 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
             } else if (getState() == COMPLETING) {
                 // If some other thread is currently completing the future, block until
                 // they are done so we can guarantee completion.
-                acquireShared(-1);
+                // Don't use acquire here, to prevent false-positive deadlock detection
+                // when multiple threads from the same pool are completing the future
+                while (isDone() == false) {
+                    Thread.onSpinWait();
+                }
             }
             return doCompletion;
         }
@@ -388,15 +369,25 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         return new UncategorizedExecutionException("Failed execution", root);
     }
 
-    public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e) throws E {
-        PlainActionFuture<T> fut = new PlainActionFuture<>();
-        e.accept(fut);
-        return fut.actionGet();
+    private boolean assertCompleteAllowed() {
+        Thread waiter = sync.getFirstQueuedThread();
+        assert waiter == null || allowedExecutors(waiter, Thread.currentThread())
+            : "cannot complete future on thread "
+                + Thread.currentThread()
+                + " with waiter on thread "
+                + waiter
+                + ", could deadlock if pool was full\n"
+                + ExceptionsHelper.formatStackTrace(waiter.getStackTrace());
+        return true;
     }
 
-    public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e, long timeout, TimeUnit unit) throws E {
-        PlainActionFuture<T> fut = new PlainActionFuture<>();
-        e.accept(fut);
-        return fut.actionGet(timeout, unit);
+    // only used in assertions
+    boolean allowedExecutors(Thread blockedThread, Thread completingThread) {
+        // this should only be used to validate thread interactions, like not waiting for a future completed on the same
+        // executor, hence calling it with the same thread indicates a bug in the assertion using this.
+        assert blockedThread != completingThread : "only call this for different threads";
+        String blockedThreadName = EsExecutors.executorName(blockedThread);
+        String completingThreadName = EsExecutors.executorName(completingThread);
+        return blockedThreadName == null || completingThreadName == null || blockedThreadName.equals(completingThreadName) == false;
     }
 }

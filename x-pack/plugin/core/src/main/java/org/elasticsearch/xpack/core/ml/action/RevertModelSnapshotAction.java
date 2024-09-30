@@ -63,7 +63,9 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         private boolean deleteInterveningResults;
         private boolean force;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -74,6 +76,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         }
 
         public Request(String jobId, String snapshotId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, SNAPSHOT_ID.getPreferredName());
         }

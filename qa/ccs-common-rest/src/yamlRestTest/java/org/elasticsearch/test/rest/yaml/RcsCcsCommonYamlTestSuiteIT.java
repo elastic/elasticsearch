@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -24,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
@@ -247,6 +247,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static void configureRemoteCluster() throws IOException {
         final Settings.Builder builder = Settings.builder();
+        builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", "false");
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
@@ -294,20 +295,12 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getClusterStateFeatures(adminSearchClient),
                 semanticNodeVersions
             );
-            final TestFeatureService combinedTestFeatureService = new TestFeatureService() {
-                @Override
-                public boolean clusterHasFeature(String featureId) {
-                    return testFeatureService.clusterHasFeature(featureId) && searchTestFeatureService.clusterHasFeature(featureId);
-                }
-
-                @Override
-                public Set<String> getAllSupportedFeatures() {
-                    return Sets.intersection(
-                        testFeatureService.getAllSupportedFeatures(),
-                        searchTestFeatureService.getAllSupportedFeatures()
-                    );
-                }
+            final TestFeatureService combinedTestFeatureService = (featureId, any) -> {
+                boolean adminFeature = testFeatureService.clusterHasFeature(featureId, any);
+                boolean searchFeature = searchTestFeatureService.clusterHasFeature(featureId, any);
+                return any ? adminFeature || searchFeature : adminFeature && searchFeature;
             };
+
             final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
             final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
                 .collect(Collectors.toSet());

@@ -141,6 +141,9 @@ public class PyTorchResultProcessor {
     }
 
     private void notifyAndClearPendingResults(ErrorResult errorResult) {
+        if (pendingResults.size() > 0) {
+            logger.warn(format("[%s] clearing [%d] requests pending results", modelId, pendingResults.size()));
+        }
         pendingResults.forEach(
             (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
         );
@@ -150,14 +153,8 @@ public class PyTorchResultProcessor {
     void processInferenceResult(PyTorchResult result) {
         PyTorchInferenceResult inferenceResult = result.inferenceResult();
         assert inferenceResult != null;
-        Long timeMs = result.timeMs();
-        if (timeMs == null) {
-            assert false : "time_ms should be set for an inference result";
-            timeMs = 0L;
-        }
 
         logger.debug(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
-        updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for inference [%s]", modelId, result.requestId()));
@@ -270,7 +267,13 @@ public class PyTorchResultProcessor {
         return new LongSummaryStatistics(stats.getCount(), stats.getMin(), stats.getMax(), stats.getSum());
     }
 
-    private synchronized void updateStats(long timeMs, boolean isCacheHit) {
+    public synchronized void updateStats(PyTorchResult result) {
+        Long timeMs = result.timeMs();
+        if (timeMs == null) {
+            assert false : "time_ms should be set for an inference result";
+            timeMs = 0L;
+        }
+        boolean isCacheHit = Boolean.TRUE.equals(result.isCacheHit());
         timingStats.accept(timeMs);
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();

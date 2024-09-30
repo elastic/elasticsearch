@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.metrics;
@@ -12,21 +13,26 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them as metrics through
@@ -529,23 +535,16 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerDoubleGauge(
-                "es.indexing.coordinating_operations.rejections.ratio",
-                "Ratio of rejected coordinating operations",
-                "ratio",
-                () -> {
-                    var totalCoordinatingOperations = Optional.ofNullable(stats.getOrRefresh())
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating_operations.requests.total",
+                "Total number of coordinating requests",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getTotalCoordinatingOps)
-                        .orElse(0L);
-                    var totalCoordinatingRejections = Optional.ofNullable(stats.getOrRefresh())
-                        .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getCoordinatingRejections)
-                        .orElse(0L);
-                    // rejections do not count towards `totalCoordinatingOperations`
-                    var totalOps = totalCoordinatingOperations + totalCoordinatingRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalCoordinatingRejections / totalOps : 0.0);
-                }
+                        .map(IndexingPressureStats::getTotalCoordinatingRequests)
+                        .orElse(0L)
+                )
             )
         );
 
@@ -620,23 +619,16 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerDoubleGauge(
-                "es.indexing.primary_operations.rejections.ratio",
-                "Ratio of rejected primary operations",
-                "ratio",
-                () -> {
-                    var totalPrimaryOperations = Optional.ofNullable(stats.getOrRefresh())
+            registry.registerLongAsyncCounter(
+                "es.indexing.primary_operations.document.rejections.total",
+                "Total number of rejected indexing documents",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getTotalPrimaryOps)
-                        .orElse(0L);
-                    var totalPrimaryRejections = Optional.ofNullable(stats.getOrRefresh())
-                        .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getPrimaryRejections)
-                        .orElse(0L);
-                    // rejections do not count towards `totalPrimaryOperations`
-                    var totalOps = totalPrimaryOperations + totalPrimaryRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryRejections / totalOps : 0.0);
-                }
+                        .map(IndexingPressureStats::getPrimaryDocumentRejections)
+                        .orElse(0L)
+                )
             )
         );
 
@@ -651,6 +643,29 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             )
         );
 
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total.time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeInMillis() : 0L
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total_excluding_lock_waiting.time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null
+                        ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeExcludingWaitingOnLockMillis()
+                        : 0L
+                )
+            )
+        );
     }
 
     /**
@@ -680,6 +695,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private NodeStats getNodeStats() {
         CommonStatsFlags flags = new CommonStatsFlags(
             CommonStatsFlags.Flag.Indexing,
+            CommonStatsFlags.Flag.Flush,
             CommonStatsFlags.Flag.Get,
             CommonStatsFlags.Flag.Search,
             CommonStatsFlags.Flag.Merge,
@@ -734,16 +750,49 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * refresh() is called, cache is updated and the new instance returned.
      */
     private class NodeStatsCache extends SingleObjectCache<NodeStats> {
+        private static final NodeStats MISSING_NODE_STATS = new NodeStats(
+            new DiscoveryNode(
+                "_na",
+                "_na",
+                new TransportAddress(InetAddress.getLoopbackAddress(), 0),
+                Map.of(),
+                Set.of(),
+                VersionInformation.CURRENT
+            ),
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         private boolean refresh;
 
         NodeStatsCache(TimeValue interval) {
-            super(interval, getNodeStats());
+            super(interval, MISSING_NODE_STATS);
             this.refresh = true;
         }
 
         @Override
         protected NodeStats refresh() {
             return refresh ? getNodeStats() : getNoRefresh();
+        }
+
+        @Override
+        protected boolean needsRefresh() {
+            return getNoRefresh() == MISSING_NODE_STATS || super.needsRefresh();
         }
 
         public void stopRefreshing() {

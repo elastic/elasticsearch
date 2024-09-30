@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.action.profile;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,7 +39,6 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
             ActivateProfileAction.NAME,
             transportService,
             actionFilters,
-            ActivateProfileRequest::new,
             authenticationService,
             authorizationService,
             threadPool.getThreadContext()

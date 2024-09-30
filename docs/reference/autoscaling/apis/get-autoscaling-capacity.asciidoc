@@ -7,7 +7,7 @@
 
 NOTE: {cloud-only}
 
-Get autoscaling capacity.
+Get {cloud}/ec-autoscaling.html[autoscaling] capacity.
 
 [[autoscaling-get-autoscaling-capacity-request]]
 ==== {api-request-title}
@@ -43,6 +43,11 @@ The response contains decider-specific information you can use to diagnose how
 and why autoscaling determined a certain capacity was required. This information
 is provided for diagnosis only. Do not use this information to make autoscaling
 decisions.
+
+[[autoscaling-get-autoscaling-capacity-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [role="child_attributes"]
 [[autoscaling-get-autoscaling-capacity-api-response-body]]

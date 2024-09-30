@@ -3351,9 +3351,9 @@ SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 35 YEARS ORDER B
 ------------
 Alejandro
 Amabile
-Anneke
 Anoosh
 Basil
+Bojan
 // end::filterToday
 ;
 

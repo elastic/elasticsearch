@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -56,6 +57,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     protected final double max;
     protected final double sum;
 
+    @SuppressWarnings("this-escape")
     public InternalStats(
         String name,
         long count,
@@ -70,6 +72,24 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         this.sum = sum;
         this.min = min;
         this.max = max;
+        verifyFormattingStats();
+    }
+
+    private void verifyFormattingStats() {
+        if (format != DocValueFormat.RAW) {
+            verifyFormattingStat(Fields.MIN, format, min);
+            verifyFormattingStat(Fields.MAX, format, max);
+            verifyFormattingStat(Fields.AVG, format, getAvg());
+            verifyFormattingStat(Fields.SUM, format, sum);
+        }
+    }
+
+    private static void verifyFormattingStat(String stat, DocValueFormat format, double value) {
+        try {
+            format.format(value);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Cannot format stat [" + stat + "] with format [" + format.toString() + "]", e);
+        }
     }
 
     /**

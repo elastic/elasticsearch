@@ -110,18 +110,14 @@ public class UserBoolQueryBuilderTests extends ESTestCase {
     public void testTermsLookupIsNotAllowed() {
         final TermsQueryBuilder q1 = QueryBuilders.termsLookupQuery("roles", new TermsLookup("lookup", "1", "id"));
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> UserBoolQueryBuilder.build(q1));
-        assertThat(e1.getMessage(), containsString("Terms query with terms lookup is not supported for User query"));
+        assertThat(e1.getMessage(), containsString("terms query with terms lookup is not currently supported in this context"));
     }
 
     public void testDisallowedQueryTypes() {
         final AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> q1 = randomFrom(
-            QueryBuilders.idsQuery(),
-            QueryBuilders.rangeQuery(randomAlphaOfLength(5)),
-            QueryBuilders.matchQuery(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             QueryBuilders.constantScoreQuery(mock(QueryBuilder.class)),
             QueryBuilders.boostingQuery(mock(QueryBuilder.class), mock(QueryBuilder.class)),
             QueryBuilders.queryStringQuery("q=a:42"),
-            QueryBuilders.simpleQueryStringQuery(randomAlphaOfLength(5)),
             QueryBuilders.combinedFieldsQuery(randomAlphaOfLength(5)),
             QueryBuilders.disMaxQuery(),
             QueryBuilders.distanceFeatureQuery(
@@ -155,7 +151,7 @@ public class UserBoolQueryBuilderTests extends ESTestCase {
         );
 
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> UserBoolQueryBuilder.build(q1));
-        assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for User query"));
+        assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not currently supported in this context"));
     }
 
     public void testWillSetAllowedFields() {

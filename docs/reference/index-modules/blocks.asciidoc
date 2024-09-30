@@ -49,6 +49,7 @@ for help with resolving watermark issues.
 
     Set to `true` to disable read operations against the index.
 
+[[index-blocks-write]]
 `index.blocks.write`::
 
     Set to `true` to disable data write operations against the index. Unlike
@@ -85,7 +86,7 @@ PUT /my-index-000001/_block/write
 [[add-index-block-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 By default, you must explicitly name the indices you are adding blocks to.
 To allow the adding of blocks to indices with `_all`, `*`, or other wildcard
@@ -115,17 +116,17 @@ Disable write operations. However, metadata changes are still allowed.
 [[add-index-block-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [discrete]
 [[add-index-block-api-example]]

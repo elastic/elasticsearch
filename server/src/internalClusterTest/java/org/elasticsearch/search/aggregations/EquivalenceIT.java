@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -462,7 +463,7 @@ public class EquivalenceIT extends ESIntegTestCase {
 
     private void assertEquals(Terms t1, Terms t2) {
         List<? extends Terms.Bucket> t1Buckets = t1.getBuckets();
-        List<? extends Terms.Bucket> t2Buckets = t1.getBuckets();
+        List<? extends Terms.Bucket> t2Buckets = t2.getBuckets();
         assertEquals(t1Buckets.size(), t2Buckets.size());
         for (Iterator<? extends Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext();) {
             final Terms.Bucket b1 = it1.next();

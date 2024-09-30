@@ -51,8 +51,8 @@ setup:
 
 ---
 "Test pinned query with ID and index":
-  - skip:
-      version: " - 7.14.99"
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
       reason: "the 'docs' option was added in 7.15"
   - do:
       search:
@@ -80,8 +80,8 @@ setup:
 
 ---
 "Test pinned query with docs":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "'_index' was made optional in 8.11"
   - do:
       search:
@@ -108,7 +108,7 @@ setup:
 ---
 "Test pinned query with docs and no index fail in previous versions":
   - skip:
-      version: "8.10.99 - "
+      cluster_features: ["gte_v8.10.99"]
       reason: "'_index' was made optional in 8.11, this test is for explicit failure tests"
   - do:
       catch: bad_request
@@ -127,8 +127,8 @@ setup:
 
 ---
 "Test pinned query with knn query":
-  - skip:
-      version: ' - 8.11.99'
+  - requires:
+      cluster_features: "gte_v8.12.0"
       reason: 'knn as query added in 8.12'
 
   - do:

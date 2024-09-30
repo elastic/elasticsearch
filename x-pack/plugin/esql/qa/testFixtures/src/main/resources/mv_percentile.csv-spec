@@ -1,0 +1,163 @@
+default
+required_capability: fn_mv_percentile
+
+// tag::example[]
+ROW values = [5, 5, 10, 12, 5000]
+| EVAL p50 = MV_PERCENTILE(values, 50), median = MV_MEDIAN(values)
+// end::example[]
+;
+
+// tag::example-result[]
+values:integer       | p50:integer | median:integer
+[5, 5, 10, 12, 5000] | 10          | 10
+// end::example-result[]
+;
+
+p0
+required_capability: fn_mv_percentile
+
+ROW a = [5, 5, 10, 12, 5000]
+| EVAL pInt = MV_PERCENTILE(a, 0), pLong = MV_PERCENTILE(a, 0::long), pDouble = MV_PERCENTILE(a, 0.0)
+| KEEP pInt, pLong, pDouble
+;
+
+pInt:integer | pLong:integer | pDouble:integer
+5            | 5             | 5
+;
+
+p100
+required_capability: fn_mv_percentile
+
+ROW a = [5, 5, 10, 12, 5000]
+| EVAL pInt = MV_PERCENTILE(a, 100), pLong = MV_PERCENTILE(a, 100::long), pDouble = MV_PERCENTILE(a, 100.0)
+| KEEP pInt, pLong, pDouble
+;
+
+pInt:integer | pLong:integer | pDouble:integer
+5000         | 5000          | 5000
+;
+
+fractionInt
+required_capability: fn_mv_percentile
+
+ROW a = [0, 10]
+| EVAL pInt = MV_PERCENTILE(a, 75), pLong = MV_PERCENTILE(a, 75::long), pDouble = MV_PERCENTILE(a, 75.0)
+| KEEP pInt, pLong, pDouble
+;
+
+pInt:integer | pLong:integer | pDouble:integer
+7            | 7             | 7
+;
+
+fractionLong
+required_capability: fn_mv_percentile
+
+ROW a = to_long([0, 10])
+| EVAL pInt = MV_PERCENTILE(a, 75), pLong = MV_PERCENTILE(a, 75::long), pDouble = MV_PERCENTILE(a, 75.0)
+| KEEP pInt, pLong, pDouble
+;
+
+pInt:long | pLong:long | pDouble:long
+7         | 7          | 7
+;
+
+fractionDouble
+required_capability: fn_mv_percentile
+
+ROW a = [0., 10.]
+| EVAL pInt = MV_PERCENTILE(a, 75), pLong = MV_PERCENTILE(a, 75::long), pDouble = MV_PERCENTILE(a, 75.0)
+| KEEP pInt, pLong, pDouble
+;
+
+pInt:double | pLong:double | pDouble:double
+7.5         | 7.5          | 7.5
+;
+
+singleValue
+required_capability: fn_mv_percentile
+
+ROW integer = 5, long = 5::long, double = 5.0
+| EVAL
+    integer = MV_PERCENTILE(integer, 75),
+    long = MV_PERCENTILE(long, 75),
+    double = MV_PERCENTILE(double, 75)
+;
+
+integer:integer | long:long | double:double
+5               | 5         | 5
+;
+
+fromIndex
+required_capability: fn_mv_percentile
+
+FROM employees
+| EVAL
+    integer = MV_PERCENTILE(salary_change.int, 75),
+    long = MV_PERCENTILE(salary_change.long, 75),
+    double = MV_PERCENTILE(salary_change, 75)
+| KEEP emp_no, integer, long, double
+| SORT double
+| LIMIT 3
+;
+
+emp_no:integer | integer:integer | long:long | double:double
+10034          | -8              | -8        | -8.46
+10037          | -7              | -7        | -7.08
+10039          | -6              | -6        | -6.9
+;
+
+fromIndexPercentile
+required_capability: fn_mv_percentile
+
+FROM employees
+| SORT emp_no
+| LIMIT 1
+| EVAL
+    integer = MV_PERCENTILE(salary_change.int, languages),
+    long = MV_PERCENTILE(salary_change.long, languages.long),
+    double = MV_PERCENTILE(salary_change, height),
+    null_value = MV_PERCENTILE(salary_change, emp_no)
+| KEEP integer, long, double, null_value
+;
+warning:Line 8:14: evaluation of [MV_PERCENTILE(salary_change, emp_no)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 8:14: java.lang.IllegalArgumentException: Percentile parameter must be a number between 0 and 100, found [10001.0]
+
+integer:integer | long:long | double:double | null_value:double
+1               | 1         | 1.19          | null
+;
+
+multipleExpressions
+required_capability: fn_mv_percentile
+
+ROW x = [0, 5, 10]
+| EVAL
+    MV_PERCENTILE(x, 75),
+    a = MV_PERCENTILE(x, 75),
+    b = MV_PERCENTILE(TO_DOUBLE([0, 5, 10]), 75),
+    c = MV_PERCENTILE(CASE(true, x, [0, 1]), 75)
+;
+
+x:integer  | MV_PERCENTILE(x, 75):integer | a:integer | b:double | c:integer
+[0, 5, 10] | 7                            | 7         | 7.5      | 7
+;
+
+nullsAndFolds
+required_capability: fn_mv_percentile
+
+ROW x = [5, 5, 10, 12, 5000], n = null, y = 50
+| EVAL evalNull = null / 2, evalValue = 31 + 1
+| LIMIT 1
+| EVAL
+    a = mv_percentile(y, 90),
+    b = mv_percentile(x, y),
+    c = mv_percentile(null, null),
+    d = mv_percentile(null, y),
+    e = mv_percentile(evalNull, y),
+    f = mv_percentile(evalValue, y),
+    g = mv_percentile(n, y)
+| KEEP a, b, c, d, e, f, g
+;
+
+a:integer | b:integer | c:null | d:null | e:integer | f:integer | g:null
+50        | 10        | null   | null   | null      | 32        | null
+;

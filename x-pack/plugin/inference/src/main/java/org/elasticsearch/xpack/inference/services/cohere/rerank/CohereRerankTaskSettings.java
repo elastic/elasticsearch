@@ -49,7 +49,7 @@ public class CohereRerankTaskSettings implements TaskSettings {
             return EMPTY_SETTINGS;
         }
 
-        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, ModelConfigurations.TASK_SETTINGS, validationException);
+        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
         Integer topNDocumentsOnly = extractOptionalPositiveInteger(
             map,
             TOP_N_DOCS_ONLY,
@@ -136,7 +136,7 @@ public class CohereRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_RERANK;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override

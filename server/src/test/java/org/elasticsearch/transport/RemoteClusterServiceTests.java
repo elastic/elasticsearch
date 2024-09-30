@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -27,7 +28,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
@@ -1282,7 +1283,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                assertFalse(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
+                assertTrue(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
 
                 if (randomBoolean()) {
                     updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", false);
@@ -1638,7 +1639,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     Settings.builder().putList("cluster.remote.remote_1.seeds", remote.getLocalDiscoNode().getAddress().toString()).build()
                 ),
                 RemoteClusterService.class,
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "Should log when connecting to remote",
                     RemoteClusterService.class.getCanonicalName(),
                     Level.INFO,
@@ -1649,7 +1650,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             assertThatLogger(
                 () -> clusterSettings.applySettings(Settings.EMPTY),
                 RemoteClusterService.class,
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "Should log when disconnecting from remote",
                     RemoteClusterService.class.getCanonicalName(),
                     Level.INFO,
@@ -1660,7 +1661,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             assertThatLogger(
                 () -> clusterSettings.applySettings(Settings.builder().put(randomIdentifier(), randomIdentifier()).build()),
                 RemoteClusterService.class,
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "Should not log when changing unrelated setting",
                     RemoteClusterService.class.getCanonicalName(),
                     Level.INFO,

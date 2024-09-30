@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -79,20 +81,25 @@ public final class MappingParser {
     }
 
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+        return parse(type, MergeReason.MAPPING_UPDATE, source);
+    }
+
+    Mapping parse(@Nullable String type, MergeReason reason, CompressedXContent source) throws MapperParsingException {
         Map<String, Object> mapping = convertToMap(source);
-        return parse(type, mapping);
+        return parse(type, reason, mapping);
     }
 
     /**
      * A method to parse mapping from a source in a map form.
      *
      * @param type          the mapping type
+     * @param reason        the merge reason to use when merging mappers while building the mapper
      * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
      * @return a parsed mapping
      * @throws MapperParsingException in case of parsing error
      */
     @SuppressWarnings("unchecked")
-    Mapping parse(@Nullable String type, Map<String, Object> mappingSource) throws MapperParsingException {
+    Mapping parse(@Nullable String type, MergeReason reason, Map<String, Object> mappingSource) throws MapperParsingException {
         if (mappingSource.isEmpty()) {
             if (type == null) {
                 throw new MapperParsingException("malformed mapping, no type name found");
@@ -178,7 +185,7 @@ public final class MappingParser {
         }
 
         return new Mapping(
-            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic, isDataStream)),
+            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic, isDataStream, reason)),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
             meta
         );

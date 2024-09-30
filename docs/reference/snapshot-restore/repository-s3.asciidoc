@@ -56,7 +56,7 @@ For more information about creating and updating the {es} keystore, see
 {ref}/secure-settings.html[Secure settings].
 
 For example, if you want to use specific credentials to access S3 then run the
-following commands to add these credentials to the keystore:
+following commands to add these credentials to the keystore.
 
 [source,sh]
 ----
@@ -80,8 +80,12 @@ bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this repository type are
-{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
-reload the settings, the internal `s3` clients, used to transfer the snapshot
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+You can define these settings before the node is started,
+or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>>
+after the settings are defined to apply them to a running node.
+
+After you reload the settings, the internal `s3` clients, used to transfer the snapshot
 contents, will utilize the latest settings from the keystore. Any existing `s3`
 repositories, as well as any newly created ones, will pick up the new values
 stored in the keystore.
@@ -154,6 +158,10 @@ settings belong in the `elasticsearch.yml` file.
     (<<time-units,time value>>) The maximum time {es} will wait to receive the next byte
     of data over an established, open connection to the repository before it closes the
     connection. The default value is 50 seconds.
+
+`max_connections`::
+
+    The maximum number of concurrent connections to S3. The default value is `50`.
 
 `max_retries`::
 
@@ -301,6 +309,23 @@ include::repository-shared-settings.asciidoc[]
     `intelligent_tiering`. Defaults to `standard`. See
     <<repository-s3-storage-classes>> for more information.
 
+`delete_objects_max_size`::
+
+    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
+    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
+    supported by the
+    https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
+    DeleteObjects API].
+
+`max_multipart_upload_cleanup_size`::
+
+    (<<number,numeric>>) Sets the maximum number of possibly-dangling multipart
+    uploads to clean up in each batch of snapshot deletions. Defaults to `1000`
+    which is the maximum number supported by the
+    https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[AWS
+    ListMultipartUploads API]. If set to `0`, {es} will not attempt to clean up
+    dangling multipart uploads.
+
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
 version.
@@ -353,7 +378,7 @@ If you use a Glacier storage class, or another unsupported storage class, or
 object expiry, then you may permanently lose access to your repository
 contents.
 
-You may use the `intellligent_tiering` storage class to automatically manage
+You may use the `intelligent_tiering` storage class to automatically manage
 the class of objects, but you must not enable the optional Archive Access or
 Deep Archive Access tiers. If you use these tiers then you may permanently lose
 access to your repository contents.
@@ -476,33 +501,6 @@ by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using
 
 If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.
 
-==== Cleaning up multi-part uploads
-
-{es} uses S3's multi-part upload process to upload larger blobs to the
-repository. The multi-part upload process works by dividing each blob into
-smaller parts, uploading each part independently, and then completing the
-upload in a separate step. This reduces the amount of data that {es} must
-re-send if an upload fails: {es} only needs to re-send the part that failed
-rather than starting from the beginning of the whole blob. The storage for each
-part is charged independently starting from the time at which the part was
-uploaded.
-
-If a multi-part upload cannot be completed then it must be aborted in order to
-delete any parts that were successfully uploaded, preventing further storage
-charges from accumulating. {es} will automatically abort a multi-part upload on
-failure, but sometimes the abort request itself fails. For example, if the
-repository becomes inaccessible or the instance on which {es} is running is
-terminated abruptly then {es} cannot complete or abort any ongoing uploads.
-
-You must make sure that failed uploads are eventually aborted to avoid
-unnecessary storage costs. You can use the
-https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[List
-multipart uploads API] to list the ongoing uploads and look for any which are
-unusually long-running, or you can
-https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html[configure
-a bucket lifecycle policy] to automatically abort incomplete uploads once they
-reach a certain age.
-
 [[repository-s3-aws-vpc]]
 ==== AWS VPC bandwidth settings
 
@@ -523,7 +521,7 @@ VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
 ==== S3-compatible services
 
 There are a number of storage systems that provide an S3-compatible API, and
-the `repository-s3` type allows you to use these systems in place of AWS S3.
+the `s3` repository type allows you to use these systems in place of AWS S3.
 To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
 system's endpoint. This setting accepts IP addresses and hostnames and may
 include a port. For example, the endpoint may be `172.17.0.2` or
@@ -536,18 +534,22 @@ you wish to use unsecured HTTP communication instead of HTTPS, set
 `s3.client.CLIENT_NAME.protocol` to `http`.
 
 https://minio.io[MinIO] is an example of a storage system that provides an
-S3-compatible API. The `repository-s3` type allows {es} to work with
+S3-compatible API. The `s3` repository type allows {es} to work with
 MinIO-backed repositories as well as repositories stored on AWS S3. Other
 S3-compatible storage systems may also work with {es}, but these are not
 covered by the {es} test suite.
 
-Note that some storage systems claim to be S3-compatible but do not faithfully
-emulate S3's behaviour in full. The `repository-s3` type requires full
-compatibility with S3. In particular it must support the same set of API
-endpoints, return the same errors in case of failures, and offer consistency and
-performance at least as good as S3 even when accessed concurrently by multiple
-nodes. You will need to work with the supplier of your storage system to address
-any incompatibilities you encounter. Please do not report {es} issues involving
+There are many systems, including some from very well-known storage vendors,
+which claim to offer an S3-compatible API despite failing to emulate S3's
+behaviour in full. If you are using such a system for your snapshots, consider
+using a <<snapshots-filesystem-repository,shared filesystem repository>> based
+on a standardized protocol such as NFS to access your storage system instead.
+The `s3` repository type requires full compatibility with S3. In particular it
+must support the same set of API endpoints, with the same parameters, return
+the same errors in case of failures, and offer consistency and performance at
+least as good as S3 even when accessed concurrently by multiple nodes. You will
+need to work with the supplier of your storage system to address any
+incompatibilities you encounter. Please do not report {es} issues involving
 storage systems which claim to be S3-compatible unless you can demonstrate that
 the same issue exists when using a genuine AWS S3 repository.
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.recovery;
@@ -13,7 +14,10 @@ import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
@@ -137,16 +141,16 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
-        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("2")
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node_1, node_2));
 
-        clusterHealthResponse = clusterAdmin().prepareHealth()
+        clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
@@ -181,7 +185,7 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> starting [node{}] ...", i);
             nodes[i - 1] = internalCluster().startNode();
             if (i != numberOfNodes) {
-                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth()
+                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNodes(Integer.toString(i))
                     .setWaitForGreenStatus()
@@ -207,12 +211,12 @@ public class RelocationIT extends ESIntegTestCase {
                 logger.debug("--> Allow indexer to index [{}] documents", numDocs);
                 indexer.continueIndexing(numDocs);
                 logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
-                clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode])).get();
+                ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]));
                 if (rarely()) {
                     logger.debug("--> flushing");
                     indicesAdmin().prepareFlush().get();
                 }
-                ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
+                ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNoRelocatingShards(true)
                     .setTimeout(ACCEPTABLE_RELOCATION_TIME)
@@ -285,7 +289,7 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> starting [node_{}] ...", i);
             nodes[i] = internalCluster().startNode();
             if (i != numberOfNodes - 1) {
-                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth()
+                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNodes(Integer.toString(i + 1))
                     .setWaitForGreenStatus()
@@ -334,7 +338,7 @@ public class RelocationIT extends ESIntegTestCase {
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
 
-            clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode])).get();
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]));
 
             logger.debug("--> index [{}] documents", builders1.size());
             indexRandom(false, true, builders1);
@@ -346,10 +350,10 @@ public class RelocationIT extends ESIntegTestCase {
 
             // verify cluster was finished.
             assertFalse(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForNoRelocatingShards(true)
                     .setWaitForEvents(Priority.LANGUID)
-                    .setTimeout("30s")
+                    .setTimeout(TimeValue.timeValueSeconds(30))
                     .get()
                     .isTimedOut()
             );
@@ -387,7 +391,7 @@ public class RelocationIT extends ESIntegTestCase {
             requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
-        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
         flush();
 
         int allowedFailures = randomIntBetween(3, 5); // the default of the `index.allocation.max_retries` is 5.
@@ -415,7 +419,7 @@ public class RelocationIT extends ESIntegTestCase {
                 if (node.equals(p_node)) {
                     continue;
                 }
-                ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
                 assertThat(
                     node + " indicates assigned replicas",
                     state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size(),
@@ -548,16 +552,16 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> start another node");
         final String node2 = internalCluster().startNode();
-        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("2")
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node1, node2));
 
-        clusterHealthResponse = clusterAdmin().prepareHealth()
+        clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
@@ -599,16 +603,17 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> start another node");
         final String node2 = internalCluster().startNode();
-        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("2")
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        ActionFuture<ClusterRerouteResponse> relocationListener = clusterAdmin().prepareReroute()
-            .add(new MoveAllocationCommand("test", 0, node1, node2))
-            .execute();
+        ActionFuture<ClusterRerouteResponse> relocationListener = client().execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(new MoveAllocationCommand("test", 0, node1, node2))
+        );
         logger.info("--> index 100 docs while relocating");
         for (int i = 20; i < 120; i++) {
             pendingIndexResponses.add(
@@ -618,8 +623,8 @@ public class RelocationIT extends ESIntegTestCase {
                     .execute()
             );
         }
-        relocationListener.actionGet();
-        clusterHealthResponse = clusterAdmin().prepareHealth()
+        safeGet(relocationListener);
+        clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
@@ -666,7 +671,7 @@ public class RelocationIT extends ESIntegTestCase {
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
-            for (String index : clusterAdmin().prepareState().get().getState().metadata().indices().keySet()) {
+            for (String index : clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indices().keySet()) {
                 Map<ShardId, List<ShardStats>> byShardId = Stream.of(indicesAdmin().prepareStats(index).get().getShards())
                     .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
                 for (List<ShardStats> shardStats : byShardId.values()) {

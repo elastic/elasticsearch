@@ -1,9 +1,9 @@
 ---
 "Runtime fields accessing metric fields in downsample target index":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:
@@ -162,8 +162,8 @@
 
 ---
 "Runtime field accessing dimension fields in downsample target index":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -283,8 +283,8 @@
 
 ---
 "Runtime field accessing label fields in downsample target index":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:

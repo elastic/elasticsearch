@@ -5,7 +5,7 @@
 <titleabbrev>Unfollow</titleabbrev>
 ++++
 
-Converts a follower index to a regular index.
+Converts a <<xpack-ccr,{ccr}>> follower index to a regular index.
 
 [[ccr-post-unfollow-request]]
 ==== {api-request-title}
@@ -63,10 +63,7 @@ irreversible operation.
 [[ccr-post-unfollow-query-params]]
 ==== {api-query-parms-title}
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-post-unfollow-examples]]
 ==== {api-examples-title}

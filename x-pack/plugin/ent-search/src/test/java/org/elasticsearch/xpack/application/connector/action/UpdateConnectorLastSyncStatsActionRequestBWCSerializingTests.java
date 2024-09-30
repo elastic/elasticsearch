@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -28,7 +29,10 @@ public class UpdateConnectorLastSyncStatsActionRequestBWCSerializingTests extend
     @Override
     protected UpdateConnectorLastSyncStatsAction.Request createTestInstance() {
         this.connectorId = randomUUID();
-        return new UpdateConnectorLastSyncStatsAction.Request(connectorId, ConnectorTestUtils.getRandomConnectorSyncInfo());
+        return new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(connectorId)
+            .setSyncInfo(ConnectorTestUtils.getRandomConnectorSyncInfo())
+            .setSyncCursor(randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))))
+            .build();
     }
 
     @Override

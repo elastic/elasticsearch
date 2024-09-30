@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -13,15 +14,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -42,12 +42,14 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ClientScrollableHitSourceTests extends ESTestCase {
 
@@ -73,12 +75,11 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         dotestBasicsWithRetry(retries, 0, retries, e -> fail());
     }
 
-    public void testRetryFail() {
-        int retries = randomInt(10);
-        expectThrows(
-            EsRejectedExecutionException.class,
-            () -> PlainActionFuture.get(f -> dotestBasicsWithRetry(retries, retries + 1, retries + 1, f::onFailure), 0, TimeUnit.SECONDS)
-        );
+    public void testRetryFail() throws InterruptedException {
+        final int retries = randomInt(10);
+        final var exceptionRef = new AtomicReference<Exception>();
+        dotestBasicsWithRetry(retries, retries + 1, retries + 1, exceptionRef::set);
+        assertThat(exceptionRef.get(), instanceOf(EsRejectedExecutionException.class));
     }
 
     private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
@@ -96,7 +97,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             responses::add,
             failureHandler,
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll("1m")
+            new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
         );
 
         hitSource.start();

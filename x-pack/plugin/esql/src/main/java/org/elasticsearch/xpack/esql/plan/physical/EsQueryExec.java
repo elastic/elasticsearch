@@ -8,34 +8,43 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.querydsl.container.Sort;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.NodeUtils;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
-    public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "EsQueryExec",
+        EsQueryExec::new
+    );
 
-    static final EsField DOC_ID_FIELD = new EsField("_doc", DOC_DATA_TYPE, Map.of(), false);
-
-    public static boolean isSourceAttribute(Attribute attr) {
-        return "_doc".equals(attr.name());
-    }
+    public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
 
     private final EsIndex index;
+    private final IndexMode indexMode;
     private final QueryBuilder query;
     private final Expression limit;
     private final List<FieldSort> sorts;
@@ -47,23 +56,39 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
-    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) {
+    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Writeable {
         public FieldSortBuilder fieldSortBuilder() {
             FieldSortBuilder builder = new FieldSortBuilder(field.name());
-            builder.order(Sort.Direction.from(direction).asOrder());
-            builder.missing(Sort.Missing.from(nulls).searchOrder());
+            builder.order(Direction.from(direction).asOrder());
+            builder.missing(Missing.from(nulls).searchOrder());
             builder.unmappedType(field.dataType().esType());
             return builder;
         }
+
+        private static FieldSort readFrom(StreamInput in) throws IOException {
+            return new EsQueryExec.FieldSort(
+                FieldAttribute.readFrom(in),
+                in.readEnum(Order.OrderDirection.class),
+                in.readEnum(Order.NullsPosition.class)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            field().writeTo(out);
+            out.writeEnum(direction());
+            out.writeEnum(nulls());
+        }
     }
 
-    public EsQueryExec(Source source, EsIndex index, QueryBuilder query) {
-        this(source, index, List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD)), query, null, null, null);
+    public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
+        this(source, index, indexMode, attributes, query, null, null, null);
     }
 
     public EsQueryExec(
         Source source,
         EsIndex index,
+        IndexMode indexMode,
         List<Attribute> attrs,
         QueryBuilder query,
         Expression limit,
@@ -72,6 +97,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     ) {
         super(source);
         this.index = index;
+        this.indexMode = indexMode;
         this.query = query;
         this.attrs = attrs;
         this.limit = limit;
@@ -79,13 +105,51 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
     }
 
+    private EsQueryExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            new EsIndex(in),
+            EsRelation.readIndexMode(in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readOptionalNamedWriteable(QueryBuilder.class),
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalCollectionAsList(FieldSort::readFrom),
+            in.readOptionalVInt()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        index().writeTo(out);
+        EsRelation.writeIndexMode(out, indexMode());
+        out.writeNamedWriteableCollection(output());
+        out.writeOptionalNamedWriteable(query());
+        out.writeOptionalNamedWriteable(limit());
+        out.writeOptionalCollection(sorts());
+        out.writeOptionalVInt(estimatedRowSize());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    public static boolean isSourceAttribute(Attribute attr) {
+        return DOC_ID_FIELD.getName().equals(attr.name());
+    }
+
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, index, attrs, query, limit, sorts, estimatedRowSize);
+        return NodeInfo.create(this, EsQueryExec::new, index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
     }
 
     public EsIndex index() {
         return index;
+    }
+
+    public IndexMode indexMode() {
+        return indexMode;
     }
 
     public QueryBuilder query() {
@@ -129,20 +193,34 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             state.add(false, Integer.BYTES * 2);
             size = state.consumeAllFields(true);
         }
-        return Objects.equals(this.estimatedRowSize, size) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, size);
+        return Objects.equals(this.estimatedRowSize, size)
+            ? this
+            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, size);
     }
 
     public EsQueryExec withLimit(Expression limit) {
-        return Objects.equals(this.limit, limit) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize);
+        return Objects.equals(this.limit, limit)
+            ? this
+            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
+    }
+
+    public boolean canPushSorts() {
+        return indexMode != IndexMode.TIME_SERIES;
     }
 
     public EsQueryExec withSorts(List<FieldSort> sorts) {
-        return Objects.equals(this.sorts, sorts) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize);
+        if (indexMode == IndexMode.TIME_SERIES) {
+            assert false : "time-series index mode doesn't support sorts";
+            throw new UnsupportedOperationException("time-series index mode doesn't support sorts");
+        }
+        return Objects.equals(this.sorts, sorts)
+            ? this
+            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, attrs, query, limit, sorts);
+        return Objects.hash(index, indexMode, attrs, query, limit, sorts);
     }
 
     @Override
@@ -157,6 +235,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
         EsQueryExec other = (EsQueryExec) obj;
         return Objects.equals(index, other.index)
+            && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
@@ -169,7 +248,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return nodeName()
             + "["
             + index
-            + "], query["
+            + "], "
+            + "indexMode["
+            + indexMode
+            + "], "
+            + "query["
             + (query != null ? Strings.toString(query, false, true) : "")
             + "]"
             + NodeUtils.limitedToString(attrs)
@@ -180,5 +263,48 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + "] estimatedRowSize["
             + estimatedRowSize
             + "]";
+    }
+
+    public enum Direction {
+        ASC,
+        DESC;
+
+        public static Direction from(Order.OrderDirection dir) {
+            return dir == null || dir == Order.OrderDirection.ASC ? ASC : DESC;
+        }
+
+        public SortOrder asOrder() {
+            return this == Direction.ASC ? SortOrder.ASC : SortOrder.DESC;
+        }
+    }
+
+    public enum Missing {
+        FIRST("_first"),
+        LAST("_last"),
+        /**
+         * Nulls position has not been specified by the user and an appropriate default will be used.
+         *
+         * The default values are chosen such that it stays compatible with previous behavior. Unfortunately, this results in
+         * inconsistencies across different types of queries (see https://github.com/elastic/elasticsearch/issues/77068).
+         */
+        ANY(null);
+
+        private final String searchOrder;
+
+        Missing(String searchOrder) {
+            this.searchOrder = searchOrder;
+        }
+
+        public static Missing from(Order.NullsPosition pos) {
+            return switch (pos) {
+                case FIRST -> FIRST;
+                case LAST -> LAST;
+                default -> ANY;
+            };
+        }
+
+        public String searchOrder() {
+            return searchOrder;
+        }
     }
 }

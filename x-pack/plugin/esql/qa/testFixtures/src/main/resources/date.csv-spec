@@ -45,7 +45,7 @@ emp_no:integer | x:date
 
 
 evalDateFormat
-from employees | sort hire_date | eval x = date_format(hire_date), y = date_format("YYYY-MM-dd", hire_date) | keep emp_no, x, y | limit 5;
+from employees | sort hire_date | eval x = date_format(hire_date), y = date_format("yyyy-MM-dd", hire_date) | keep emp_no, x, y | limit 5;
 
 emp_no:integer | x:keyword                     | y:keyword
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18            
@@ -216,11 +216,11 @@ string:keyword                                          |datetime:date
 ;
 
 convertFromUnsignedLong
-required_feature:esql.convert_warn
+required_capability: convert_warn
 
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
-warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:58: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
+warningRegex:Line 1:58: evaluation of \[to_datetime\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:58: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: \[9223372036854775808\] out of \[long\] range
 
                 ul:ul              |           dt:date
 [9223372036854775808, 520128000000]|1986-06-26T00:00:00.000Z
@@ -261,74 +261,6 @@ int:integer |dt:date
 // end::to_datetime-int-result[]
 ;
 
-autoBucketSimpleMonth
-// tag::auto_bucket_month[]
-ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
-| EVAL bucket=AUTO_BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-// end::auto_bucket_month[]
-;
-
-// tag::auto_bucket_month-result[]
-           date:datetime | bucket:datetime
-1985-07-09T00:00:00.000Z | 1985-07-01T00:00:00.000Z
-// end::auto_bucket_month-result[]
-;
-
-autoBucketSimpleWeek
-// tag::auto_bucket_week[]
-ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
-| EVAL bucket=AUTO_BUCKET(date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-// end::auto_bucket_week[]
-;
-
-// tag::auto_bucket_week-result[]
-           date:datetime | bucket:datetime
-1985-07-09T00:00:00.000Z | 1985-07-08T00:00:00.000Z
-// end::auto_bucket_week-result[]
-;
-
-autoBucketMonth
-from employees
-| where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-| eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| sort hire_date
-| keep hire_date, hd;
-
-hire_date:date           | hd:date
-1985-02-18T00:00:00.000Z | 1985-02-01T00:00:00.000Z
-1985-02-24T00:00:00.000Z | 1985-02-01T00:00:00.000Z
-1985-05-13T00:00:00.000Z | 1985-05-01T00:00:00.000Z
-1985-07-09T00:00:00.000Z | 1985-07-01T00:00:00.000Z
-1985-09-17T00:00:00.000Z | 1985-09-01T00:00:00.000Z
-1985-10-14T00:00:00.000Z | 1985-10-01T00:00:00.000Z
-1985-10-20T00:00:00.000Z | 1985-10-01T00:00:00.000Z
-1985-11-19T00:00:00.000Z | 1985-11-01T00:00:00.000Z
-1985-11-20T00:00:00.000Z | 1985-11-01T00:00:00.000Z
-1985-11-20T00:00:00.000Z | 1985-11-01T00:00:00.000Z
-1985-11-21T00:00:00.000Z | 1985-11-01T00:00:00.000Z
-;
-
-autoBucketWeek
-from employees
-| where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-| eval hd = auto_bucket(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| sort hire_date
-| keep hire_date, hd;
-
-hire_date:date           | hd:date
-1985-02-18T00:00:00.000Z | 1985-02-18T00:00:00.000Z
-1985-02-24T00:00:00.000Z | 1985-02-18T00:00:00.000Z
-1985-05-13T00:00:00.000Z | 1985-05-13T00:00:00.000Z
-1985-07-09T00:00:00.000Z | 1985-07-08T00:00:00.000Z
-1985-09-17T00:00:00.000Z | 1985-09-16T00:00:00.000Z
-1985-10-14T00:00:00.000Z | 1985-10-14T00:00:00.000Z
-1985-10-20T00:00:00.000Z | 1985-10-14T00:00:00.000Z
-1985-11-19T00:00:00.000Z | 1985-11-18T00:00:00.000Z
-1985-11-20T00:00:00.000Z | 1985-11-18T00:00:00.000Z
-1985-11-20T00:00:00.000Z | 1985-11-18T00:00:00.000Z
-1985-11-21T00:00:00.000Z | 1985-11-18T00:00:00.000Z
-;
-
 now
 row a = now() | eval x = a == now(), y = substring(date_format("yyyy", a), 0, 2) | keep x, y;
 
@@ -348,92 +280,6 @@ born_after_today
 from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth_date| limit 1;
 
 emp_no:integer  | birth_date:date
-;
-
-autoBucketYearInAgg#[skip:-8.12.99, reason:date type is supported in 8.13]
-FROM employees
-| WHERE hire_date >= "1999-01-01T00:00:00Z"
-| EVAL bucket = AUTO_BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
-| STATS COUNT(*) by bucket
-| sort bucket;
-
-COUNT(*):long            | bucket:date
-1                        | 1999-01-01T00:00:00.000Z
-;
-
-autoBucketYearInAggConstRefsString#[skip:-8.12.99, reason:date type is supported in 8.13]
-FROM employees
-| WHERE hire_date >= "1999-01-01T00:00:00Z"
-| EVAL bucket_start = "1999-01-01T00:00:00Z"
-| EVAL bucket_end = NOW()
-| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
-| STATS COUNT(*) by bucket
-| sort bucket;
-
-COUNT(*):long            | bucket:date
-1                        | 1999-01-01T00:00:00.000Z
-;
-
-autoBucketYearInAggConstRefsConcat#[skip:-8.12.99, reason:date type is supported in 8.13]
-FROM employees
-| WHERE hire_date >= "1999-01-01T00:00:00Z"
-| EVAL bucket_start = CONCAT("1999-01-01", "T", "00:00:00Z")
-| EVAL bucket_end = NOW()
-| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
-| STATS COUNT(*) by bucket
-| sort bucket;
-
-COUNT(*):long            | bucket:date
-1                        | 1999-01-01T00:00:00.000Z
-;
-
-autoBucketYearInAggConstRefsDate#[skip:-8.12.99, reason:date type is supported in 8.13]
-FROM employees
-| WHERE hire_date >= "1999-01-01T00:00:00Z"
-| EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
-| EVAL bucket_end = NOW()
-| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
-| keep bucket_start, bucket_end, bucket
-| STATS COUNT(*) by bucket
-| sort bucket;
-
-COUNT(*):long            | bucket:date
-1                        | 1999-01-01T00:00:00.000Z
-;
-
-autoBucketYearInAggConstRefsRename#[skip:-8.12.99, reason:date type is supported in 8.13]
-FROM employees
-| WHERE hire_date >= "1999-01-01T00:00:00Z"
-| EVAL bucket_start = "1999-01-01T00:00:00Z"
-| EVAL bucket_end = NOW()
-| RENAME bucket_end as be, bucket_start as bs
-| STATS c = COUNT(*) by AUTO_BUCKET(hire_date, 5, bs, be)
-| SORT c
-;
-
-c:long            | AUTO_BUCKET(hire_date, 5, bs, be):date
-1                 | 1999-01-01T00:00:00.000Z
-;
-
-autoBucketMonthInAgg
-// tag::auto_bucket_in_agg[]
-FROM employees
-| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bucket = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| STATS AVG(salary) BY bucket
-| SORT bucket
-// end::auto_bucket_in_agg[]
-;
-
-// tag::auto_bucket_in_agg-result[]
-AVG(salary):double | bucket:date
-          46305.0  | 1985-02-01T00:00:00.000Z
-          44817.0  | 1985-05-01T00:00:00.000Z
-          62405.0  | 1985-07-01T00:00:00.000Z
-          49095.0  | 1985-09-01T00:00:00.000Z
-          51532.0  | 1985-10-01T00:00:00.000Z
-          54539.75 | 1985-11-01T00:00:00.000Z
-// end::auto_bucket_in_agg-result[]
 ;
 
 evalDateDiffInNanoAndMicroAndMilliSeconds#[skip:-8.12.99, reason:date_diff added in 8.13]
@@ -490,8 +336,8 @@ ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-23
 | EVAL dd_oo=date_diff("nanoseconds", date1, date2)
 | keep dd_oo
 ;
-warning: Line 2:14: evaluation of [date_diff(\"nanoseconds\", date1, date2)] failed, treating result as null. Only first 20 failures recorded.
-warning: Line 2:14: org.elasticsearch.xpack.ql.InvalidArgumentException: [1814400000000000] out of [integer] range
+warningRegex: Line 2:14: evaluation of \[date_diff\(\\\"nanoseconds\\\", date1, date2\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: Line 2:14: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: \[1814400000000000\] out of \[integer\] range
 
 dd_oo:integer
 null
@@ -508,6 +354,91 @@ ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"), date2 = TO_DATETIME("2023-1
 date1:date          |         date2:date          |    dd_ms:integer
 2023-12-02T11:00:00.000Z | 2023-12-02T11:00:00.001Z | 1000  
 // end::docsDateDiff-result[]
+;
+
+evalDateDiffString
+required_capability: string_literal_auto_casting
+
+ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z")
+| EVAL dd_ms = DATE_DIFF("microseconds", date1, "2023-12-02T11:00:00.001Z")
+;
+
+date1:date               | dd_ms:integer
+2023-12-02T11:00:00.000Z | 1000
+;
+
+evalDateDiffMonthAsWhole0Months
+
+ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIME
+| EVAL msecs=DATE_DIFF("milliseconds", from, to), months=DATE_DIFF("month", from, to)
+;
+
+          from:date     |           to:date      |     msecs:integer|    months:integer
+2023-12-31T23:59:59.999Z|2024-01-01T00:00:00.000Z|1                 |0
+
+;
+
+evalDateDiffMonthAsWhole1Month
+
+ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-02-01T00:00:00"::DATETIME
+| EVAL secs=DATE_DIFF("seconds", from, to), months=DATE_DIFF("month", from, to)
+;
+
+          from:date     |           to:date      |     secs:integer|    months:integer
+2023-12-31T23:59:59.999Z|2024-02-01T00:00:00.000Z|2678400          |1
+
+;
+
+evalDateDiffYearAsWhole0Years
+required_capability: date_diff_year_calendarial
+
+ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIME
+| EVAL msecs=DATE_DIFF("milliseconds", from, to), years=DATE_DIFF("year", from, to)
+;
+
+          from:date     |           to:date      |     msecs:integer |     years:integer
+2023-12-31T23:59:59.999Z|2024-01-01T00:00:00.000Z|1                  |0
+;
+
+evalDateDiffYearAsWhole1Year
+required_capability: date_diff_year_calendarial
+
+ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIME
+| EVAL secs=DATE_DIFF("seconds", from, to), years=DATE_DIFF("year", from, to)
+;
+
+          from:date     |           to:date      |     secs:integer|     years:integer
+2023-12-31T23:59:59.999Z|2025-01-01T00:00:00.000Z|31622400         |1
+;
+
+evalDateDiffYearAsWhole1Year
+required_capability: date_diff_year_calendarial
+
+ROW from="2024-01-01T00:00:00Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIME
+| EVAL secs=DATE_DIFF("seconds", from, to), years=DATE_DIFF("year", from, to)
+;
+
+          from:date     |           to:date      |     secs:integer|     years:integer
+2024-01-01T00:00:00.000Z|2025-01-01T00:00:00.000Z|31622400         |1
+;
+
+evalDateDiffYearForDocs
+required_capability: date_diff_year_calendarial
+
+// tag::evalDateDiffYearForDocs[]
+ROW end_23="2023-12-31T23:59:59.999Z"::DATETIME,
+  start_24="2024-01-01T00:00:00.000Z"::DATETIME,
+    end_24="2024-12-31T23:59:59.999"::DATETIME
+| EVAL end23_to_start24=DATE_DIFF("year", end_23, start_24)
+| EVAL end23_to_end24=DATE_DIFF("year", end_23, end_24)
+| EVAL start_to_end_24=DATE_DIFF("year", start_24, end_24)
+// end::evalDateDiffYearForDocs[]
+;
+
+// tag::evalDateDiffYearForDocs-result[]
+         end_23:date    |        start_24:date   |         end_24:date    |end23_to_start24:integer|end23_to_end24:integer|start_to_end_24:integer
+2023-12-31T23:59:59.999Z|2024-01-01T00:00:00.000Z|2024-12-31T23:59:59.999Z|0                       |1                     |0
+// end::evalDateDiffYearForDocs-result[]
 ;
 
 evalDateParseWithSimpleDate
@@ -623,6 +554,7 @@ emp_no:integer | year:long    | month:long    | day:long
 dateFormatLocale
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
 | eval birth_month = date_format("MMMM", birth_date) | keep emp_no, birth_date, birth_month;
+warningRegex:Date format \[MMMM\] contains textual field specifiers that could change in JDK 23.*
 ignoreOrder:true
 
 emp_no:integer  |  birth_date:datetime       | birth_month:keyword
@@ -763,6 +695,40 @@ row dt = to_dt("2100-01-01T01:01:01.001Z")
 dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
+
+datePlusQuarter
+# "quarter" introduced in 8.15
+required_capability: timespan_abbreviations
+row dt = to_dt("2100-01-01T01:01:01.000Z")
+| eval plusQuarter = dt + 2 quarters
+;
+
+dt:datetime              | plusQuarter:datetime
+2100-01-01T01:01:01.000Z | 2100-07-01T01:01:01.000Z
+;
+
+datePlusAbbreviatedDurations
+# abbreviations introduced in 8.15
+required_capability: timespan_abbreviations
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plusDurations = dt + 1 h + 2 min + 2 sec + 1 s + 4 ms
+;
+
+dt:datetime              | plusDurations:datetime
+2100-01-01T00:00:00.000Z | 2100-01-01T01:02:03.004Z
+;
+
+datePlusAbbreviatedPeriods
+# abbreviations introduced in 8.15
+required_capability: timespan_abbreviations
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plusDurations = dt + 0 yr + 1y + 2 q + 3 mo + 4 w + 3 d
+;
+
+dt:datetime              | plusDurations:datetime
+2100-01-01T00:00:00.000Z | 2101-11-01T00:00:00.000Z
+;
+
 
 dateMinusDuration
 row dt = to_dt("2100-01-01T01:01:01.001Z")
@@ -950,128 +916,6 @@ birth_date:datetime
 1953-04-21T00:00:00.000Z
 ;
 
-docsAutoBucketMonth
-//tag::docsAutoBucketMonth[]
-FROM employees
-| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL month = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| KEEP hire_date, month
-| SORT hire_date
-//end::docsAutoBucketMonth[]
-;
-
-//tag::docsAutoBucketMonth-result[]
-   hire_date:date    |    month:date
-1985-02-18T00:00:00.000Z|1985-02-01T00:00:00.000Z
-1985-02-24T00:00:00.000Z|1985-02-01T00:00:00.000Z
-1985-05-13T00:00:00.000Z|1985-05-01T00:00:00.000Z
-1985-07-09T00:00:00.000Z|1985-07-01T00:00:00.000Z
-1985-09-17T00:00:00.000Z|1985-09-01T00:00:00.000Z
-1985-10-14T00:00:00.000Z|1985-10-01T00:00:00.000Z
-1985-10-20T00:00:00.000Z|1985-10-01T00:00:00.000Z
-1985-11-19T00:00:00.000Z|1985-11-01T00:00:00.000Z
-1985-11-20T00:00:00.000Z|1985-11-01T00:00:00.000Z
-1985-11-20T00:00:00.000Z|1985-11-01T00:00:00.000Z
-1985-11-21T00:00:00.000Z|1985-11-01T00:00:00.000Z
-//end::docsAutoBucketMonth-result[]
-;
-
-docsAutoBucketMonthlyHistogram
-//tag::docsAutoBucketMonthlyHistogram[]
-FROM employees
-| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL month = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| STATS hires_per_month = COUNT(*) BY month
-| SORT month
-//end::docsAutoBucketMonthlyHistogram[]
-;
-
-//tag::docsAutoBucketMonthlyHistogram-result[]
-  hires_per_month:long    |    month:date
-2              |1985-02-01T00:00:00.000Z
-1              |1985-05-01T00:00:00.000Z
-1              |1985-07-01T00:00:00.000Z
-1              |1985-09-01T00:00:00.000Z
-2              |1985-10-01T00:00:00.000Z
-4              |1985-11-01T00:00:00.000Z
-//end::docsAutoBucketMonthlyHistogram-result[]
-;
-
-docsAutoBucketWeeklyHistogram
-//tag::docsAutoBucketWeeklyHistogram[]
-FROM employees
-| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL week = AUTO_BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| STATS hires_per_week = COUNT(*) BY week
-| SORT week
-//end::docsAutoBucketWeeklyHistogram[]
-;
-
-//tag::docsAutoBucketWeeklyHistogram-result[]
-  hires_per_week:long    |    week:date
-2              |1985-02-18T00:00:00.000Z
-1              |1985-05-13T00:00:00.000Z
-1              |1985-07-08T00:00:00.000Z
-1              |1985-09-16T00:00:00.000Z
-2              |1985-10-14T00:00:00.000Z
-4              |1985-11-18T00:00:00.000Z
-//end::docsAutoBucketWeeklyHistogram-result[]
-;
-
-docsAutoBucketLast24hr#[skip:-8.12.99, reason:date type is supported in 8.13]
-//tag::docsAutoBucketLast24hr[]
-FROM sample_data 
-| WHERE @timestamp >= NOW() - 1 day and @timestamp < NOW()
-| EVAL bucket = AUTO_BUCKET(@timestamp, 25, NOW() - 1 day, NOW())
-| STATS COUNT(*) BY bucket
-//end::docsAutoBucketLast24hr[]
-;
-
-   COUNT(*):long    |    bucket:date
-;
-
-docsGettingStartedAutoBucket#[skip:-8.12.99, reason:date type is supported in 8.13]
-// tag::gs-auto_bucket[]
-FROM sample_data
-| KEEP @timestamp
-| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
-// end::gs-auto_bucket[]
-| LIMIT 0
-;
-
-@timestamp:date | bucket:date
-;
-
-docsGettingStartedAutoBucketStatsBy
-// tag::gs-auto_bucket-stats-by[]
-FROM sample_data
-| KEEP @timestamp, event_duration
-| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS COUNT(*) BY bucket
-// end::gs-auto_bucket-stats-by[]
-| SORT bucket
-;
-
-COUNT(*):long | bucket:date
-2              |2023-10-23T12:00:00.000Z
-5              |2023-10-23T13:00:00.000Z
-;
-
-docsGettingStartedAutoBucketStatsByMedian
-// tag::gs-auto_bucket-stats-by-median[]
-FROM sample_data
-| KEEP @timestamp, event_duration
-| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS median_duration = MEDIAN(event_duration) BY bucket
-// end::gs-auto_bucket-stats-by-median[]
-| SORT bucket
-;
-
-median_duration:double | bucket:date
-3107561.0              |2023-10-23T12:00:00.000Z
-1756467.0              |2023-10-23T13:00:00.000Z
-;
-
 dateExtract
 // tag::dateExtract[]
 ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
@@ -1083,6 +927,17 @@ ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
 date:date                 | year:long
 2022-05-06T00:00:00.000Z  | 2022
 // end::dateExtract-result[]
+;
+
+dateExtractString
+required_capability: string_literal_auto_casting
+
+ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
+| EVAL year = DATE_EXTRACT("year", "2022-05-06")
+;
+
+date:date                 | year:long
+2022-05-06T00:00:00.000Z  | 2022
 ;
 
 docsDateExtractBusinessHours
@@ -1101,7 +956,7 @@ docsDateFormat
 // tag::docsDateFormat[]
 FROM employees
 | KEEP first_name, last_name, hire_date
-| EVAL hired = DATE_FORMAT("YYYY-MM-dd", hire_date)
+| EVAL hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
 // end::docsDateFormat[]
 | SORT first_name
 | LIMIT 3
@@ -1113,6 +968,17 @@ Alejandro      |McAlpine       |1991-06-26T00:00:00.000Z|1991-06-26
 Amabile        |Gomatam        |1992-11-18T00:00:00.000Z|1992-11-18     
 Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-06-02     
 // end::docsDateFormat-result[]
+;
+
+evalDateFormatString
+required_capability: string_literal_auto_casting
+
+ROW a = 1
+| EVAL df = DATE_FORMAT("yyyy-MM-dd", "1989-06-02T00:00:00.000Z")
+;
+
+a:integer | df:keyword
+1         | 1989-06-02
 ;
 
 docsDateTrunc
@@ -1131,6 +997,17 @@ Alejandro      |McAlpine       |1991-06-26T00:00:00.000Z|1991-01-01T00:00:00.000
 Amabile        |Gomatam        |1992-11-18T00:00:00.000Z|1992-01-01T00:00:00.000Z
 Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-01-01T00:00:00.000Z
 // end::docsDateTrunc-result[]
+;
+
+evalDateTruncString
+required_capability: string_literal_auto_casting
+
+ROW a = 1
+| EVAL year_hired = DATE_TRUNC(1 year, "1991-06-26T00:00:00.000Z")
+;
+
+a:integer | year_hired:date
+1         | 1991-01-01T00:00:00.000Z
 ;
 
 docsDateTruncHistogram
@@ -1188,7 +1065,7 @@ FROM sample_data
 ;
 
 mvSort
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 row a = ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"]
 | eval datetime = TO_DATETIME(a)
@@ -1217,7 +1094,7 @@ count:long | age:long
 ;
 
 values
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM employees
 | WHERE emp_no <= 10003
@@ -1229,7 +1106,7 @@ required_feature: esql.agg_values
 ;
 
 valuesGrouped
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM employees
 | WHERE emp_no <= 10009
@@ -1250,7 +1127,7 @@ required_feature: esql.agg_values
 ;
 
 valuesGroupedByOrdinals
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM employees
 | WHERE emp_no <= 10009
@@ -1272,4 +1149,124 @@ required_feature: esql.agg_values
                                               1954-05-01T00:00:00Z | Support Engineer
                       [1953-04-20T00:00:00Z, 1954-05-01T00:00:00Z] | Tech Lead
 [1955-01-21T00:00:00Z, 1957-05-23T00:00:00Z, 1959-12-03T00:00:00Z] | null
+;
+
+
+mvAppendDates
+required_capability: fn_mv_append
+
+FROM employees
+| WHERE emp_no == 10039 OR emp_no == 10040
+| SORT emp_no
+| EVAL dates = mv_append(birth_date, hire_date)
+| KEEP emp_no, birth_date, hire_date, dates
+;
+
+emp_no:integer | birth_date:date      | hire_date:date       | dates:date
+10039          | 1959-10-01T00:00:00Z | 1988-01-19T00:00:00Z | [1959-10-01T00:00:00Z, 1988-01-19T00:00:00Z]
+10040          | null                 | 1993-02-14T00:00:00Z | null 
+;
+
+
+implicitCastingNotEqual
+required_capability: string_literal_auto_casting
+from employees | where birth_date != "1957-05-23T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10001          | 1953-09-02T00:00:00Z
+10002          | 1964-06-02T00:00:00Z
+10003          | 1959-12-03T00:00:00Z
+;
+
+implicitCastingLessThanOrEqual
+required_capability: string_literal_auto_casting
+from employees | where birth_date <= "1957-05-20T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10001          | 1953-09-02T00:00:00Z
+10004          | 1954-05-01T00:00:00Z
+10005          | 1955-01-21T00:00:00Z
+;
+
+implicitCastingGreaterThan
+required_capability: string_literal_auto_casting
+from employees | where birth_date > "1957-05-24T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10002          | 1964-06-02T00:00:00Z
+10003          | 1959-12-03T00:00:00Z
+10008          | 1958-02-19T00:00:00Z
+;
+
+implicitCastingArithmeticOperationAdd
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a =  1 day + "2024-01-01", b = 1 year + "2024-04-01" + 1 month, c = "2024-01-01" + 3600 seconds,
+       d = "2024-04-01" + (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime               | d:datetime
+2024-01-02 | 2025-05-01 | 2024-01-01T01:00:00.000Z | 2025-04-02
+;
+
+implicitCastingArithmeticOperationSub
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a =  "2024-01-01" - 1 day, b = "2024-04-01" - 1 month, c = "2024-01-01" - 3600 seconds,
+       d = "2024-04-01" - (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime               | d:datetime
+2023-12-31 | 2024-03-01 | 2023-12-31T23:00:00.000Z | 2023-03-31
+;
+
+implicitCastingArithmeticOperationAddSub
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a = 1 month + "2024-01-01" - 1 day, b = - 1 year + "2024-04-01" + 1 month,
+       c = 1 hour + "2024-01-01" - 3600 seconds, d = "2024-04-01" - (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime | d:datetime
+2024-01-31 | 2023-05-01 | 2024-01-01 | 2023-03-31
+;
+
+temporalAmountWithNulls
+from employees
+| eval a = to_dt(null) - 1 day
+| keep a
+| limit 1;
+
+a:datetime
+null
+;
+
+ImplicitCastingEqual
+required_capability: rangequery_for_datetime
+from employees
+| where birth_date == "1957-05-23T00:00:00Z"
+| keep emp_no, birth_date
+;
+
+emp_no:integer | birth_date:datetime
+10007          | 1957-05-23T00:00:00Z
+;
+
+ImplicitCastingIn
+required_capability: rangequery_for_datetime
+from employees
+| where birth_date IN ("1957-05-23T00:00:00Z", "1958-02-19T00:00:00Z")
+| keep emp_no, birth_date
+| sort emp_no
+;
+
+emp_no:integer | birth_date:datetime
+10007          | 1957-05-23T00:00:00Z
+10008          | 1958-02-19T00:00:00Z
 ;

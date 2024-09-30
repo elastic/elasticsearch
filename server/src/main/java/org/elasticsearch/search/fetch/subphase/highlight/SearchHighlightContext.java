@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -86,7 +87,7 @@ public class SearchHighlightContext {
 
         private int boundaryMaxScan = -1;
 
-        private Character[] boundaryChars = null;
+        private char[] boundaryChars = null;
 
         private Locale boundaryScannerLocale;
 
@@ -156,7 +157,7 @@ public class SearchHighlightContext {
             return boundaryMaxScan;
         }
 
-        public Character[] boundaryChars() {
+        public char[] boundaryChars() {
             return boundaryChars;
         }
 
@@ -258,7 +259,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder boundaryChars(Character[] boundaryChars) {
+            Builder boundaryChars(char[] boundaryChars) {
                 fieldOptions.boundaryChars = boundaryChars;
                 return this;
             }

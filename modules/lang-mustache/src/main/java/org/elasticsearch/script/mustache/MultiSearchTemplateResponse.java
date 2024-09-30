@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -14,7 +15,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -37,16 +37,6 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public static class Item implements Writeable {
         private final SearchTemplateResponse response;
         private final Exception exception;
-
-        private Item(StreamInput in) throws IOException {
-            if (in.readBoolean()) {
-                this.response = new SearchTemplateResponse(in);
-                this.exception = null;
-            } else {
-                exception = in.readException();
-                this.response = null;
-            }
-        }
 
         public Item(SearchTemplateResponse response, Exception exception) {
             this.response = response;
@@ -113,16 +103,6 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
             }
         }
     });
-
-    MultiSearchTemplateResponse(StreamInput in) throws IOException {
-        super(in);
-        items = in.readArray(Item::new, Item[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_0_0)) {
-            tookInMillis = in.readVLong();
-        } else {
-            tookInMillis = -1L;
-        }
-    }
 
     MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
         this.items = items;

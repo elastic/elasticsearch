@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -30,8 +31,6 @@ import java.util.Arrays;
 import java.util.Random;
 
 public class DocValuesForUtilTests extends LuceneTestCase {
-    private final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
-    private static final ForUtil forUtil = new ForUtil();
 
     public void testEncodeDecode() throws IOException {
         final int iterations = RandomNumbers.randomIntBetween(random(), 50, 1000);
@@ -105,14 +104,14 @@ public class DocValuesForUtilTests extends LuceneTestCase {
             // Encode
             DataOutput dataOutput = new ByteArrayDataOutput(dataOutputBuffer);
             long[] encodeBuffer = Arrays.copyOf(values, values.length);
-            forUtil.encode(encodeBuffer, bitsPerValue, dataOutput);
+            ForUtil.encode(encodeBuffer, bitsPerValue, dataOutput);
 
             // Prepare for decoding
             DataInput dataInput = new ByteArrayDataInput(dataInputBuffer);
             System.arraycopy(dataOutputBuffer, 0, dataInputBuffer, 0, dataOutputBuffer.length);
 
             // Decode
-            forUtil.decode(bitsPerValue, dataInput, decodeBuffer);
+            ForUtil.decode(bitsPerValue, dataInput, decodeBuffer);
 
             assertArrayEquals(decodeBuffer, values);
         }

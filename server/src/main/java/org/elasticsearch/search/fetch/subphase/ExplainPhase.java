@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Explains the scoring calculations for the top hits.
@@ -27,6 +29,9 @@ public final class ExplainPhase implements FetchSubPhase {
             return null;
         }
         return new FetchSubPhaseProcessor() {
+
+            private final List<String> queryNames = context.queryNames();
+
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
 
@@ -39,6 +44,9 @@ public final class ExplainPhase implements FetchSubPhase {
 
                 for (RescoreContext rescore : context.rescore()) {
                     explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
+                }
+                if (context.rankBuilder() != null) {
+                    explanation = context.rankBuilder().explainHit(explanation, hitContext.rankDoc(), queryNames);
                 }
                 // we use the top level doc id, since we work with the top level searcher
                 hitContext.hit().explanation(explanation);

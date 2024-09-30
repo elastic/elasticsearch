@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.document;
@@ -13,7 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -26,16 +27,20 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.action.document.RestBulkAction.FAILURE_STORE_STATUS_CAPABILITY;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndexAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
+    private final Set<String> capabilities = DataStream.isFailureStoreFeatureFlagEnabled()
+        ? Set.of(FAILURE_STORE_STATUS_CAPABILITY)
+        : Set.of();
 
     @Override
     public List<Route> routes() {
@@ -87,11 +92,7 @@ public class RestIndexAction extends BaseRestHandler {
     @ServerlessScope(Scope.PUBLIC)
     public static final class AutoIdHandler extends RestIndexAction {
 
-        private final Supplier<DiscoveryNodes> nodesInCluster;
-
-        public AutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
-            this.nodesInCluster = nodesInCluster;
-        }
+        public AutoIdHandler() {}
 
         @Override
         public String getName() {
@@ -149,4 +150,8 @@ public class RestIndexAction extends BaseRestHandler {
         );
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return capabilities;
+    }
 }

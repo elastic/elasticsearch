@@ -7,22 +7,65 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
+ * <p>
+ *     We have a guide for writing these in the javadoc for
+ *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
+ * </p>
  */
 public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            MvAppend.ENTRY,
+            MvAvg.ENTRY,
+            MvConcat.ENTRY,
+            MvCount.ENTRY,
+            MvDedupe.ENTRY,
+            MvFirst.ENTRY,
+            MvLast.ENTRY,
+            MvMax.ENTRY,
+            MvMedian.ENTRY,
+            MvMedianAbsoluteDeviation.ENTRY,
+            MvMin.ENTRY,
+            MvPercentile.ENTRY,
+            MvPSeriesWeightedSum.ENTRY,
+            MvSlice.ENTRY,
+            MvSort.ENTRY,
+            MvSum.ENTRY,
+            MvZip.ENTRY
+        );
+    }
+
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
+    }
+
+    protected AbstractMultivalueFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(field);
     }
 
     /**

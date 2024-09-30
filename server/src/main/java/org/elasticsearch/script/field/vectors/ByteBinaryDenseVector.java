@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
@@ -21,7 +22,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     private final BytesRef docVector;
     private final byte[] vectorValue;
-    private final int dims;
+    protected final int dims;
 
     private float[] floatDocVector;
     private boolean magnitudeDecoded;
@@ -98,6 +99,20 @@ public class ByteBinaryDenseVector implements DenseVector {
             result += abs(vectorValue[i] - queryVector.get(i).intValue());
         }
         return result;
+    }
+
+    @Override
+    public int hamming(byte[] queryVector) {
+        return ESVectorUtil.xorBitCount(queryVector, vectorValue);
+    }
+
+    @Override
+    public int hamming(List<Number> queryVector) {
+        int distance = 0;
+        for (int i = 0; i < queryVector.size(); i++) {
+            distance += Integer.bitCount((queryVector.get(i).intValue() ^ vectorValue[i]) & 0xFF);
+        }
+        return distance;
     }
 
     @Override

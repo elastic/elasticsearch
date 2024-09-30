@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,8 +30,16 @@ public record ResolvedEnrichPolicy(
             in.readString(),
             in.readStringCollectionAsList(),
             in.readMap(StreamInput::readString),
-            in.readMap(StreamInput::readString, ResolvedEnrichPolicy::readEsField)
+            in.readMap(getEsFieldReader(in))
         );
+    }
+
+    private static Reader<EsField> getEsFieldReader(StreamInput in) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            return EsField::readFrom;
+        }
+        return EsField::new;
     }
 
     @Override
@@ -40,25 +48,21 @@ public record ResolvedEnrichPolicy(
         out.writeString(matchType);
         out.writeStringCollection(enrichFields);
         out.writeMap(concreteIndices, StreamOutput::writeString);
-        out.writeMap(mapping, ResolvedEnrichPolicy::writeEsField);
-    }
-
-    // TODO: we should have made EsField and DataType Writable, but write it as NamedWritable in PlanStreamInput
-    private static void writeEsField(StreamOutput out, EsField field) throws IOException {
-        out.writeString(field.getName());
-        out.writeString(field.getDataType().typeName());
-        out.writeMap(field.getProperties(), ResolvedEnrichPolicy::writeEsField);
-        out.writeBoolean(field.isAggregatable());
-        out.writeBoolean(field.isAlias());
-    }
-
-    private static EsField readEsField(StreamInput in) throws IOException {
-        return new EsField(
-            in.readString(),
-            EsqlDataTypes.fromTypeName(in.readString()),
-            in.readMap(ResolvedEnrichPolicy::readEsField),
-            in.readBoolean(),
-            in.readBoolean()
+        out.writeMap(
+            mapping,
+            /*
+             * There are lots of subtypes of ESField, but we always write the field
+             * as though it were the base class.
+             */
+            (o, v) -> {
+                var field = new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias());
+                if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+                    || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+                    field.writeTo(o);
+                } else {
+                    field.writeContent(o);
+                }
+            }
         );
     }
 }

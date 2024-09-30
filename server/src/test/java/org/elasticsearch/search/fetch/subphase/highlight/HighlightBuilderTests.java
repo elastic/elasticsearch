@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -313,7 +315,8 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -332,8 +335,6 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockContext);
             SearchHighlightContext highlight = highlightBuilder.build(mockContext);
             for (SearchHighlightContext.Field field : highlight.fields()) {
-                String encoder = highlightBuilder.encoder() != null ? highlightBuilder.encoder() : HighlightBuilder.DEFAULT_ENCODER;
-                assertEquals(encoder, field.fieldOptions().encoder());
                 final Field fieldBuilder = getFieldBuilderByName(highlightBuilder, field.field());
                 assertNotNull("expected a highlight builder for field " + field.field(), fieldBuilder);
                 FieldOptions fieldOptions = field.fieldOptions();
@@ -344,6 +345,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     fieldOptions
                 );
 
+                checkSame.accept(AbstractHighlighterBuilder::encoder, FieldOptions::encoder);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryChars, FieldOptions::boundaryChars);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryScannerType, FieldOptions::boundaryScannerType);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryMaxScan, FieldOptions::boundaryMaxScan);
@@ -411,12 +413,8 @@ public class HighlightBuilderTests extends ESTestCase {
             Object actualValue = fieldOptionsParameterAccessor.apply(options);
             if (actualValue instanceof String[]) {
                 assertArrayEquals((String[]) expectedValue, (String[]) actualValue);
-            } else if (actualValue instanceof Character[]) {
-                if (expectedValue instanceof char[]) {
-                    assertArrayEquals(HighlightBuilder.convertCharArray((char[]) expectedValue), (Character[]) actualValue);
-                } else {
-                    assertArrayEquals((Character[]) expectedValue, (Character[]) actualValue);
-                }
+            } else if (actualValue instanceof char[]) {
+                assertArrayEquals((char[]) expectedValue, (char[]) actualValue);
             } else {
                 assertEquals(expectedValue, actualValue);
             }
@@ -475,6 +473,49 @@ public class HighlightBuilderTests extends ESTestCase {
                 "setting tags_schema 'default' should alter post_tags",
                 HighlightBuilder.DEFAULT_POST_TAGS,
                 highlightBuilder.postTags()
+            );
+
+        }
+
+        highlightElement = """
+            {
+                "fields": {
+                    "default_string": {
+                        "tags_schema": "default"
+                    },
+                    "styled_string": {
+                        "tags_schema": "styled"
+                    }
+                }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            Field defaultStringField = getFieldBuilderByName(highlightBuilder, "default_string");
+            assertNotNull(defaultStringField);
+            assertArrayEquals(
+                "setting tags_schema 'default' at the field level should alter pre_tags for that field",
+                HighlightBuilder.DEFAULT_PRE_TAGS,
+                defaultStringField.preTags()
+            );
+            assertArrayEquals(
+                "setting tags_schema 'default' at the field level should alter post_tags for that that field",
+                HighlightBuilder.DEFAULT_POST_TAGS,
+                defaultStringField.postTags()
+            );
+
+            Field styledStringField = getFieldBuilderByName(highlightBuilder, "styled_string");
+            assertNotNull(styledStringField);
+            assertArrayEquals(
+                "setting tags_schema 'styled' at the field level should alter pre_tags for that that field",
+                HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
+                styledStringField.preTags()
+            );
+            assertArrayEquals(
+                "setting tags_schema 'styled' at the field level should alter post_tags for that that field",
+                HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
+                styledStringField.postTags()
             );
 
             XContentParseException e = expectParseThrows(XContentParseException.class, """
@@ -592,9 +633,6 @@ public class HighlightBuilderTests extends ESTestCase {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         setRandomCommonOptions(testHighlighter);
         testHighlighter.useExplicitFieldOrder(randomBoolean());
-        if (randomBoolean()) {
-            testHighlighter.encoder(randomFrom(Arrays.asList(new String[] { "default", "html" })));
-        }
         int numberOfFields = randomIntBetween(1, 5);
         for (int i = 0; i < numberOfFields; i++) {
             Field field = new Field(i + "_" + randomAlphaOfLengthBetween(1, 10));
@@ -616,6 +654,9 @@ public class HighlightBuilderTests extends ESTestCase {
             // need to set this together, otherwise parsing will complain
             highlightBuilder.preTags(randomStringArray(1, 3));
             highlightBuilder.postTags(randomStringArray(1, 3));
+        }
+        if (randomBoolean()) {
+            highlightBuilder.encoder(randomFrom(Arrays.asList("default", "html")));
         }
         if (randomBoolean()) {
             highlightBuilder.fragmentSize(randomIntBetween(0, 100));

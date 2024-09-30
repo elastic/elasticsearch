@@ -1,6 +1,8 @@
 [[rpm]]
 === Install Elasticsearch with RPM
 
+:include-xpack: true
+
 The RPM for Elasticsearch can be <<install-rpm,downloaded from our website>>
 or from our  <<rpm-repo,RPM repository>>. It can be used to install
 Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
@@ -99,7 +101,7 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of Elasticsearch has not yet been released. The RPM might not be available.
 
 endif::[]
 
@@ -130,6 +132,8 @@ ifdef::include-xpack[]
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
+
+:include-xpack!: true
 
 [id="{distro}-running-systemd"]
 include::systemd.asciidoc[]

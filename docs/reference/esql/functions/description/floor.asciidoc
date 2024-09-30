@@ -3,3 +3,7 @@
 *Description*
 
 Round a number down to the nearest integer.
+
+NOTE: This is a noop for `long` (including unsigned) and `integer`.
+For `double` this picks the closest `double` value to the integer
+similar to {javadoc}/java.base/java/lang/Math.html#floor(double)[Math.floor].

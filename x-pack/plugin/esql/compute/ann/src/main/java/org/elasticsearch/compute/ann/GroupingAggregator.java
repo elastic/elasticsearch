@@ -12,11 +12,21 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * Annotates a class that implements an aggregation function with grouping.
+ * See {@link Aggregator} for more information.
+ */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.SOURCE)
 public @interface GroupingAggregator {
 
     IntermediateState[] value() default {};
+
+    /**
+     * Exceptions thrown by the `combine*(...)` methods to catch and convert
+     * into a warning and turn into a null value.
+     */
+    Class<? extends Exception>[] warnExceptions() default {};
 
     /**
      * If {@code true} then the @timestamp LongVector will be appended to the input blocks of the aggregation function.

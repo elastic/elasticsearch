@@ -30,11 +30,9 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     private static final ParseField EXPIRES_IN_FIELD = new ParseField("expires_in");
     private static final ParseField AUTHENTICATION = new ParseField("authentication");
 
-    private String accessToken;
-    private TimeValue expiresIn;
+    private final String accessToken;
+    private final TimeValue expiresIn;
     private Authentication authentication;
-
-    DelegatePkiAuthenticationResponse() {}
 
     public DelegatePkiAuthenticationResponse(String accessToken, TimeValue expiresIn, Authentication authentication) {
         this.accessToken = Objects.requireNonNull(accessToken);

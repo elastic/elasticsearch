@@ -20,17 +20,17 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -107,7 +108,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         if (serviceName == null) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Model configuration is missing [" + ModelConfigurations.SERVICE + "]",
+                    "Inference endpoint configuration is missing the [" + ModelConfigurations.SERVICE + "] setting",
                     RestStatus.BAD_REQUEST
                 )
             );
@@ -198,7 +199,19 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
             (delegate, verifiedModel) -> modelRegistry.storeModel(
                 verifiedModel,
-                delegate.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))
+                ActionListener.wrap(r -> putAndStartModel(service, verifiedModel, delegate), e -> {
+                    if (e.getCause() instanceof StrictDynamicMappingException && e.getCause().getMessage().contains("chunking_settings")) {
+                        delegate.onFailure(
+                            new ElasticsearchStatusException(
+                                "One or more nodes in your cluster does not support chunking_settings. "
+                                    + "Please update all nodes in your cluster to the latest version to use chunking_settings.",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        delegate.onFailure(e);
+                    }
+                })
             )
         );
 

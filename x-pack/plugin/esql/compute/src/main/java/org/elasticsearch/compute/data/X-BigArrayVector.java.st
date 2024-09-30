@@ -10,8 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -26,12 +28,27 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     private final $Array$ values;
 
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    private Integer min;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer max;
+$endif$
+
     public $Type$BigArrayVector($Array$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
     }
 
     static $Type$BigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+$if(float)$
+        throw new UnsupportedOperationException();
+$else$
 $if(boolean)$
         $Array$ values = new BitArray(blockFactory.bigArrays(), true, in);
 $else$
@@ -51,10 +68,15 @@ $endif$
                 values.close();
             }
         }
+$endif$
     }
 
     void writeArrayVector(int positions, StreamOutput out) throws IOException {
+$if(float)$
+        throw new UnsupportedOperationException();
+$else$
         values.writeTo(out);
+$endif$
     }
 
     @Override
@@ -66,6 +88,38 @@ $endif$
     public $type$ get$Type$(int position) {
         return values.get(position);
     }
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        if (min == null) {
+            int v = values.get(0);
+            for (int i = 1; i < getPositionCount(); i++) {
+                v = Math.min(v, values.get(i));
+            }
+            min = v;
+        }
+        return min;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        if (max == null) {
+            int v = values.get(0);
+            for (int i = 1; i < getPositionCount(); i++) {
+                v = Math.max(v, values.get(i));
+            }
+            max = v;
+        }
+        return max;
+    }
+$endif$
 
     @Override
     public ElementType elementType() {
@@ -102,6 +156,37 @@ $endif$
         }
     $endif$
         return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new $Type$VectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new $Type$VectorBlock(this);
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.append$Type$(get$Type$(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new $Type$Lookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

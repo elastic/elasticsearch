@@ -16,12 +16,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -92,6 +92,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 searchRequest
             );
             searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
+
+            ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
+                threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
+                if (response.getId() != null) {
+                    threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+                }
+                return response;
+            });
             searchTask.addCompletionListener(new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse searchResponse) {
@@ -119,14 +127,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                                         finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {})
                                                     );
                                                 } finally {
-                                                    submitListener.onResponse(searchResponse);
+                                                    submitListenerWithHeaders.onResponse(searchResponse);
                                                 }
                                             } else {
                                                 searchResponse.mustIncRef();
                                                 onFinalResponse(
                                                     searchTask,
                                                     searchResponse,
-                                                    () -> ActionListener.respondAndRelease(submitListener, searchResponse)
+                                                    () -> ActionListener.respondAndRelease(submitListenerWithHeaders, searchResponse)
                                                 );
                                             }
                                         }
@@ -138,7 +146,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                                 exc,
                                                 searchResponse.isRunning(),
                                                 "fatal failure: unable to store initial response",
-                                                submitListener
+                                                submitListenerWithHeaders
                                             );
                                         }
                                     }, searchResponse::decRef)
@@ -147,14 +155,20 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                 initialResp.decRef();
                             }
                         } catch (Exception exc) {
-                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), "fatal failure: generic error", submitListener);
+                            onFatalFailure(
+                                searchTask,
+                                exc,
+                                searchResponse.isRunning(),
+                                "fatal failure: generic error",
+                                submitListenerWithHeaders
+                            );
                         }
                     } else {
                         try (searchTask) {
                             // the task completed within the timeout so the response is sent back to the user
                             // with a null id since nothing was stored on the cluster.
                             taskManager.unregister(searchTask);
-                            ActionListener.respondAndRelease(submitListener, searchResponse.clone(null));
+                            ActionListener.respondAndRelease(submitListenerWithHeaders, searchResponse.clone(null));
                         }
                     }
                 }
@@ -163,7 +177,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     // this will only ever be called if there is an issue scheduling the thread that executes
                     // the completion listener once the wait for completion timeout expires.
-                    onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListener);
+                    onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListenerWithHeaders);
                 }
             }, request.getWaitForCompletionTimeout());
         }

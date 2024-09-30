@@ -102,7 +102,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsContentStream() {
+    public boolean supportsBulkContent() {
         return true;
     }
 

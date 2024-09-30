@@ -30,7 +30,7 @@ threads.
 [[cluster-nodes-hot-threads-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-hot-threads-api-query-params]]
@@ -56,7 +56,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
                 troubleshooting, set this parameter to a large number (e.g.
                 `9999`) to get information about all the threads in the system.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+`timeout`::
+		(Optional, <<time-units, time units>>) Specifies how long to wait for a
+                response from each node. If omitted, waits forever.
 
 `type`::
 		(Optional, string) The type to sample. Available options are `block`, `cpu`, and 

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -95,7 +95,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         ClusterService clusterService,
         IndexNameExpressionResolver resolver
     ) {
-        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
+        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
@@ -128,7 +128,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         bigArrays,
                         scriptService,
                         ((CancellableTask) task)::isCancelled,
-                        request.source().aggregations()
+                        request.source().aggregations(),
+                        b -> {}
                     );
                 }
 

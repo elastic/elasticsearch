@@ -4,9 +4,7 @@
 <titleabbrev>Delete Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview::[]
-
-Deletes the lifecycle from a set of data streams.
+Deletes the <<data-stream-lifecycle,lifecycle>> from a set of data streams.
 
 [[delete-lifecycle-api-prereqs]]
 ==== {api-prereq-title}
@@ -37,7 +35,7 @@ To target all data streams use `*` or `_all`.
 [[delete-data-lifecycle-api-query-parms]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.
 

@@ -46,6 +46,7 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN = ".elastic-connectors-sync-jobs-v1";
     public static final String CONNECTOR_SYNC_JOBS_TEMPLATE_NAME = "elastic-connectors-sync-jobs";
 
+    public static final String ACCESS_CONTROL_INDEX_PREFIX = ".search-acl-filter-";
     public static final String ACCESS_CONTROL_INDEX_NAME_PATTERN = ".search-acl-filter-*";
     public static final String ACCESS_CONTROL_TEMPLATE_NAME = "search-acl-filter";
 
@@ -53,6 +54,9 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String ENT_SEARCH_GENERIC_PIPELINE_NAME = "ent-search-generic-ingestion";
     public static final String ENT_SEARCH_GENERIC_PIPELINE_FILE = "generic_ingestion_pipeline";
+
+    public static final String SEARCH_DEFAULT_PIPELINE_NAME = "search-default-ingestion";
+    public static final String SEARCH_DEFAULT_PIPELINE_FILE = "search_default_pipeline";
 
     // Resource config
     public static final String ROOT_RESOURCE_PATH = "/entsearch/";
@@ -113,6 +117,12 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
             new JsonIngestPipelineConfig(
                 ENT_SEARCH_GENERIC_PIPELINE_NAME,
                 ROOT_RESOURCE_PATH + ENT_SEARCH_GENERIC_PIPELINE_FILE + ".json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new JsonIngestPipelineConfig(
+                SEARCH_DEFAULT_PIPELINE_NAME,
+                ROOT_RESOURCE_PATH + SEARCH_DEFAULT_PIPELINE_FILE + ".json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             )

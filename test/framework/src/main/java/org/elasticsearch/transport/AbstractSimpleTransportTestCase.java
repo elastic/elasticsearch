@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
@@ -19,8 +19,10 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -29,10 +31,11 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +44,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
@@ -54,7 +58,7 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -153,6 +157,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
     }
 
+    protected static final NetworkService networkService = new NetworkService(List.of());
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -224,6 +230,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     ) {
         Settings updatedSettings = Settings.builder()
             .put(TransportSettings.PORT.getKey(), getPortRange())
+            .put(ThreadWatchdog.NETWORK_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO) // suppress watchdog running concurrently
             .put(settings)
             .put(Node.NODE_NAME_SETTING.getKey(), name)
             .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
@@ -508,7 +515,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testMessageListeners() throws Exception {
-        final TransportRequestHandler<TransportRequest.Empty> requestHandler = (request, channel, task) -> {
+        final TransportRequestHandler<EmptyRequest> requestHandler = (request, channel, task) -> {
             try {
                 if (randomBoolean()) {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -521,8 +528,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         };
         final String ACTION = "internal:action";
-        serviceA.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), TransportRequest.Empty::new, requestHandler);
-        serviceB.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), TransportRequest.Empty::new, requestHandler);
+        serviceA.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), EmptyRequest::new, requestHandler);
+        serviceB.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), EmptyRequest::new, requestHandler);
 
         class CountingListener implements TransportMessageListener {
             AtomicInteger requestsReceived = new AtomicInteger();
@@ -579,7 +586,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.addMessageListener(tracerB);
 
         try {
-            submitRequest(serviceA, nodeB, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
+            submitRequest(serviceA, nodeB, ACTION, new EmptyRequest(), NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -598,7 +605,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
 
         try {
-            submitRequest(serviceB, nodeA, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
+            submitRequest(serviceB, nodeA, ACTION, new EmptyRequest(), NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -618,7 +625,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         // use assert busy as callbacks are called on a different thread
         try {
-            submitRequest(serviceA, nodeA, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
+            submitRequest(serviceA, nodeA, ACTION, new EmptyRequest(), NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -642,7 +649,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceA.registerRequestHandler(
                 "internal:sayHello",
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                TransportRequest.Empty::new,
+                EmptyRequest::new,
                 (request, channel, task) -> {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -667,7 +674,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 serviceC,
                 nodeA,
                 "internal:sayHello",
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 new TransportResponseHandler<>() {
                     @Override
                     public TransportResponse.Empty read(StreamInput in) {
@@ -962,7 +969,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 protected void doRun() throws Exception {
                     safeAwait(go);
                     for (int iter = 0; iter < 10; iter++) {
-                        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+                        PlainActionFuture<TestResponse> listener = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
                         final String info = sender + "_B_" + iter;
                         serviceB.sendRequest(
                             nodeA,
@@ -998,7 +1005,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 protected void doRun() throws Exception {
                     go.await();
                     for (int iter = 0; iter < 10; iter++) {
-                        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+                        PlainActionFuture<TestResponse> listener = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
                         final String info = sender + "_" + iter;
                         final DiscoveryNode node = nodeB; // capture now
                         try {
@@ -1251,7 +1258,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
         waitForever.countDown();
         doneWaitingForever.await();
-        assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(Integer.MAX_VALUE, inFlight);
     }
 
     @TestLogging(
@@ -1321,18 +1328,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .build()
         );
 
-        MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+        try (var mockLog = MockLog.capture("org.elasticsearch.transport.TransportService.tracer")) {
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:test"
             //
 
             // serviceA logs the request was sent
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "sent request",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1340,8 +1344,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB logs the request was received
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "received request",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1349,8 +1353,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB logs the response was sent
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "sent response",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1358,8 +1362,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceA logs the response was received
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "received response",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1369,7 +1373,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:test", new StringMessageRequest("", 10), noopResponseHandler);
 
-            assertBusy(appender::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:testError" which returns an error
@@ -1378,8 +1382,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // appender down. The logging happens after messages are sent so might happen out of order.
 
             // serviceA logs the request was sent
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "sent request",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1387,8 +1391,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB logs the request was received
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "received request",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1396,8 +1400,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB logs the error response was sent
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "sent error response",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1405,8 +1409,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceA logs the error response was sent
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "received error response",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1416,7 +1420,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
 
-            assertBusy(appender::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             ////////////////////////////////////////////////////////////////////////
             // tests for excluded action type "internal:testNotSeen"
@@ -1425,8 +1429,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // The logging happens after messages are sent so might happen after the response future is completed.
 
             // serviceA does not log that it sent the message
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "not seen request sent",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1434,8 +1438,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB does log that it received the request
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "not seen request received",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1443,8 +1447,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB does log that it sent the response
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "not seen request received",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1452,8 +1456,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceA does not log that it received the response
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "not seen request sent",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1463,10 +1467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             submitRequest(serviceA, nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler).get();
 
-            assertBusy(appender::assertAllExpectationsMatched);
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
-            appender.stop();
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
@@ -1868,8 +1869,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));
 
         // now try to connect again and see that it fails
-        expectThrows(ConnectTransportException.class, () -> connectToNode(serviceB, nodeA));
-        expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
+        assertNotNull(connectToNodeExpectFailure(serviceB, nodeA, null));
+        assertNotNull(openConnectionExpectFailure(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
     public void testMockUnresponsiveRule() throws InterruptedException {
@@ -1916,11 +1917,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         );
 
         assertThat(expectThrows(ExecutionException.class, res::get).getCause(), instanceOf(ReceiveTimeoutTransportException.class));
-        expectThrows(ConnectTransportException.class, () -> {
-            serviceB.disconnectFromNode(nodeA);
-            connectToNode(serviceB, nodeA);
-        });
-        expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
+        serviceB.disconnectFromNode(nodeA);
+        assertNotNull(connectToNodeExpectFailure(serviceB, nodeA, null));
+        assertNotNull(openConnectionExpectFailure(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
     public void testHostOnMessages() throws InterruptedException {
@@ -2342,7 +2341,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            expectThrows(ConnectTransportException.class, () -> openConnection(serviceA, node, builder.build()));
+            assertNotNull(openConnectionExpectFailure(serviceA, node, builder.build()));
         }
     }
 
@@ -2448,10 +2447,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
-            ConnectTransportException ex = expectThrows(
-                ConnectTransportException.class,
-                () -> connectToNode(serviceA, dummy, builder.build())
-            );
+            ConnectTransportException ex = connectToNodeExpectFailure(serviceA, dummy, builder.build());
             assertEquals("[][" + dummy.getAddress() + "] handshake_timeout[1ms]", ex.getMessage());
         }
     }
@@ -2488,10 +2484,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
-            ConnectTransportException ex = expectThrows(
-                ConnectTransportException.class,
-                () -> connectToNode(serviceA, dummy, builder.build())
-            );
+            ConnectTransportException ex = connectToNodeExpectFailure(serviceA, dummy, builder.build());
             assertEquals("[][" + dummy.getAddress() + "] general node connection failure", ex.getMessage());
             assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
@@ -3160,10 +3153,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            final ConnectTransportException e = expectThrows(
-                ConnectTransportException.class,
-                () -> openConnection(service, nodeA, builder.build())
-            );
+            final ConnectTransportException e = openConnectionExpectFailure(service, nodeA, builder.build());
             assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
             assertTrue(connectionClosedListenerCalled.get());
         }
@@ -3185,72 +3175,58 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testChannelToString() {
         final String ACTION = "internal:action";
-        serviceA.registerRequestHandler(
-            ACTION,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
-            (request, channel, task) -> {
-                assertThat(
-                    channel.toString(),
-                    allOf(
-                        containsString("DirectResponseChannel"),
-                        containsString('{' + ACTION + '}'),
-                        containsString("TaskTransportChannel{task=" + task.getId() + '}')
-                    )
-                );
-                assertThat(new ChannelActionListener<>(channel).toString(), containsString(channel.toString()));
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            }
-        );
-        serviceB.registerRequestHandler(
-            ACTION,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
-            (request, channel, task) -> {
-                assertThat(
-                    channel.toString(),
-                    allOf(
-                        containsString("TcpTransportChannel"),
-                        containsString('{' + ACTION + '}'),
-                        containsString("TaskTransportChannel{task=" + task.getId() + '}'),
-                        containsString("localAddress="),
-                        containsString(serviceB.getLocalNode().getAddress().toString())
-                    )
-                );
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            }
-        );
+        serviceA.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, EmptyRequest::new, (request, channel, task) -> {
+            assertThat(
+                channel.toString(),
+                allOf(
+                    containsString("DirectResponseChannel"),
+                    containsString('{' + ACTION + '}'),
+                    containsString("TaskTransportChannel{task=" + task.getId() + '}')
+                )
+            );
+            assertThat(new ChannelActionListener<>(channel).toString(), containsString(channel.toString()));
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
+        serviceB.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, EmptyRequest::new, (request, channel, task) -> {
+            assertThat(
+                channel.toString(),
+                allOf(
+                    containsString("TcpTransportChannel"),
+                    containsString('{' + ACTION + '}'),
+                    containsString("TaskTransportChannel{task=" + task.getId() + '}'),
+                    containsString("localAddress="),
+                    containsString(serviceB.getLocalNode().getAddress().toString())
+                )
+            );
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
 
-        PlainActionFuture.get(
-            f -> submitRequest(
+        safeAwait(
+            listener -> submitRequest(
                 serviceA,
                 serviceA.getLocalNode(),
                 ACTION,
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 new ActionListenerResponseHandler<>(
-                    f,
+                    listener,
                     ignored -> TransportResponse.Empty.INSTANCE,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
-            ),
-            10,
-            TimeUnit.SECONDS
+            )
         );
 
-        PlainActionFuture.get(
-            f -> submitRequest(
+        safeAwait(
+            listener -> submitRequest(
                 serviceA,
                 serviceB.getLocalNode(),
                 ACTION,
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 new ActionListenerResponseHandler<>(
-                    f,
+                    listener,
                     ignored -> TransportResponse.Empty.INSTANCE,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
-            ),
-            10,
-            TimeUnit.SECONDS
+            )
         );
     }
 
@@ -3319,16 +3295,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         for (int iteration = 1; iteration <= 5; iteration++) {
             assertEquals(
                 responseSize,
-                PlainActionFuture.<Response, Exception>get(
-                    f -> submitRequest(
+                safeAwait(
+                    (ActionListener<Response> listener) -> submitRequest(
                         serviceA,
                         serviceB.getLocalNode(),
                         ACTION,
                         new Request(requestSize),
-                        new ActionListenerResponseHandler<>(f, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
-                    ),
-                    10,
-                    TimeUnit.SECONDS
+                        new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+                    )
                 ).refSize
             );
 
@@ -3350,6 +3324,56 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertArrayEquals(getConstantMessageSizeHistogram(iteration, actualRequestSize), transportActionStats.requestSizeHistogram());
             assertArrayEquals(getConstantMessageSizeHistogram(iteration, actualResponseSize), transportActionStats.responseSizeHistogram());
         }
+    }
+
+    public void testWatchdogLogging() {
+        final var watchdog = networkService.getThreadWatchdog();
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        watchdog.run(Settings.EMPTY, deterministicTaskQueue.getThreadPool(), new Lifecycle());
+
+        final var barrier = new CyclicBarrier(2);
+        final var threadNameFuture = new PlainActionFuture<String>();
+        final var actionName = "internal:action";
+        serviceA.registerRequestHandler(actionName, EsExecutors.DIRECT_EXECUTOR_SERVICE, EmptyRequest::new, (request, channel, task) -> {
+            threadNameFuture.onResponse(Thread.currentThread().getName());
+            safeAwait(barrier);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
+
+        final var responseLatch = new CountDownLatch(1);
+        submitRequest(
+            serviceB,
+            nodeA,
+            actionName,
+            new EmptyRequest(),
+            new ActionListenerResponseHandler<TransportResponse>(
+                ActionTestUtils.assertNoFailureListener(t -> responseLatch.countDown()),
+                in -> TransportResponse.Empty.INSTANCE,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            )
+        );
+
+        final var threadName = safeGet(threadNameFuture);
+        assertFalse(deterministicTaskQueue.hasRunnableTasks());
+        deterministicTaskQueue.advanceTime();
+        MockLog.assertThatLogger(
+            deterministicTaskQueue::runAllRunnableTasks,
+            ThreadWatchdog.class,
+            new MockLog.UnseenEventExpectation("no logging", ThreadWatchdog.class.getCanonicalName(), Level.WARN, "*")
+        );
+        deterministicTaskQueue.advanceTime();
+        MockLog.assertThatLogger(
+            deterministicTaskQueue::runAllRunnableTasks,
+            ThreadWatchdog.class,
+            new MockLog.SeenEventExpectation(
+                "stuck threads logging",
+                ThreadWatchdog.class.getCanonicalName(),
+                Level.WARN,
+                "the following threads are active but did not make progress in the preceding [5s]: [" + threadName + "]"
+            )
+        );
+        safeAwait(barrier);
+        safeAwait(responseLatch);
     }
 
     private static long[] getConstantMessageSizeHistogram(int count, long size) {
@@ -3415,7 +3439,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.sendRequest(
                 connection,
                 "fail-to-send-action",
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler.Empty() {
                     @Override
@@ -3472,7 +3496,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public static void connectToNode(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        PlainActionFuture.get(fut -> service.connectToNode(node, connectionProfile, fut.map(x -> null)));
+        safeAwait(listener -> service.connectToNode(node, connectionProfile, listener.map(ignored -> null)));
+    }
+
+    /**
+     * Attempt to connect to the specified node, but assert that this fails and return the resulting exception.
+     */
+    public static ConnectTransportException connectToNodeExpectFailure(
+        TransportService service,
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile
+    ) {
+        return safeAwaitFailure(
+            ConnectTransportException.class,
+            Releasable.class,
+            listener -> service.connectToNode(node, connectionProfile, listener)
+        );
     }
 
     /**
@@ -3483,7 +3522,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use
      */
     public static Transport.Connection openConnection(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return PlainActionFuture.get(fut -> service.openConnection(node, connectionProfile, fut));
+        return safeAwait(listener -> service.openConnection(node, connectionProfile, listener));
+    }
+
+    /**
+     * Attempt to connect to the specified node, but assert that this fails and return the resulting exception.
+     */
+    public static ConnectTransportException openConnectionExpectFailure(
+        TransportService service,
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile
+    ) {
+        return safeAwaitFailure(
+            ConnectTransportException.class,
+            Transport.Connection.class,
+            listener -> service.openConnection(node, connectionProfile, listener)
+        );
     }
 
     public static <T extends TransportResponse> Future<T> submitRequest(

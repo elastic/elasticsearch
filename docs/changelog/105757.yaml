@@ -1,5 +1,0 @@
-pr: 105757
-summary: Add pluggable `BuildVersion` in `NodeMetadata`
-area: Infra/Core
-type: enhancement
-issues: []

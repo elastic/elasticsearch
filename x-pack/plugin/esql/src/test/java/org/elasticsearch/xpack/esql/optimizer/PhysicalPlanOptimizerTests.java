@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -30,26 +33,61 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -64,56 +102,40 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -121,21 +143,26 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
-import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
-import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.ql.expression.Expressions.name;
-import static org.elasticsearch.xpack.ql.expression.Expressions.names;
-import static org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC;
-import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
+import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
+import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
@@ -145,7 +172,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Estimated size of a keyword field in bytes.
      */
-    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataTypes.KEYWORD);
+    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
     private EsqlParser parser;
     private LogicalPlanOptimizer logicalOptimizer;
@@ -154,11 +181,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource testData;
     private int allFieldRowSize;    // TODO: Move this into testDataSource so tests that load other indexes can also assert on this
     private TestDataSource airports;
+    private TestDataSource airportsNoDocValues;
     private TestDataSource airportsWeb;
     private TestDataSource countriesBbox;
     private TestDataSource countriesBboxWeb;
 
-    private final EsqlConfiguration config;
+    private final Configuration config;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer) {}
 
@@ -174,7 +202,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return asList(new Tuple<>("default", Map.of()));
     }
 
-    public PhysicalPlanOptimizerTests(String name, EsqlConfiguration config) {
+    public PhysicalPlanOptimizerTests(String name, Configuration config) {
         this.config = config;
     }
 
@@ -183,7 +211,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         parser = new EsqlParser();
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
-        FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
         var enrichResolution = setupEnrichResolution();
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
@@ -191,17 +219,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         allFieldRowSize = testData.mapping.values()
             .stream()
             .mapToInt(
-                f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())) + f.getProperties()
+                f -> (EstimatesRowSize.estimateSize(f.getDataType().widenSmallNumeric()) + f.getProperties()
                     .values()
                     .stream()
                     // check one more level since the mapping contains TEXT fields with KEYWORD multi-fields
-                    .mapToInt(x -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(x.getDataType())))
+                    .mapToInt(x -> EstimatesRowSize.estimateSize(x.getDataType().widenSmallNumeric()))
                     .sum())
             )
             .sum();
 
         // Some tests use data from the airports and countries indexes, so we load that here, and use it in the plan(q, airports) function.
         this.airports = makeTestDataSource("airports", "mapping-airports.json", functionRegistry, enrichResolution);
+        this.airportsNoDocValues = makeTestDataSource(
+            "airports-no-doc-values",
+            "mapping-airports-no-doc-values.json",
+            functionRegistry,
+            enrichResolution
+        );
         this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", functionRegistry, enrichResolution);
         this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", functionRegistry, enrichResolution);
         this.countriesBboxWeb = makeTestDataSource(
@@ -215,11 +249,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     TestDataSource makeTestDataSource(
         String indexName,
         String mappingFileName,
-        FunctionRegistry functionRegistry,
+        EsqlFunctionRegistry functionRegistry,
         EnrichResolution enrichResolution
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
-        EsIndex index = new EsIndex(indexName, mapping, Set.of("test"));
+        EsIndex index = new EsIndex(indexName, mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
         Analyzer analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
         return new TestDataSource(mapping, index, analyzer);
@@ -236,8 +270,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
                 )
             )
         );
@@ -250,10 +284,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("city", "airport", "region", "city_boundary"),
                 Map.of("", "airport_city_boundaries"),
                 Map.ofEntries(
-                    Map.entry("city", new EsField("city", DataTypes.KEYWORD, Map.of(), true)),
-                    Map.entry("airport", new EsField("airport", DataTypes.TEXT, Map.of(), false)),
-                    Map.entry("region", new EsField("region", DataTypes.TEXT, Map.of(), false)),
-                    Map.entry("city_boundary", new EsField("city_boundary", EsqlDataTypes.GEO_SHAPE, Map.of(), false))
+                    Map.entry("city", new EsField("city", DataType.KEYWORD, Map.of(), true)),
+                    Map.entry("airport", new EsField("airport", DataType.TEXT, Map.of(), false)),
+                    Map.entry("region", new EsField("region", DataType.TEXT, Map.of(), false)),
+                    Map.entry("city_boundary", new EsField("city_boundary", DataType.GEO_SHAPE, Map.of(), false))
                 )
             )
         );
@@ -265,7 +299,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -276,7 +310,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-3"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -287,7 +321,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -298,7 +332,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-a", "cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -309,7 +343,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-c"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -320,7 +354,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         return enrichResolution;
@@ -500,7 +534,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit(), is(l(10)));
         assertThat(source.sorts().size(), is(1));
         FieldSort order = source.sorts().get(0);
-        assertThat(order.direction(), is(ASC));
+        assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("last_name"));
         // last name is keyword, salary, emp_no, doc id, segment, forwards and backwards doc id maps are all ints
         int estimatedSize = KEYWORD_EST + Integer.BYTES * 6;
@@ -533,7 +567,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+            containsInAnyOrder(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary"
+            )
         );
     }
 
@@ -563,7 +608,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+            containsInAnyOrder(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary"
+            )
         );
     }
 
@@ -1170,7 +1226,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit(), is(l(1)));
         assertThat(source.sorts().size(), is(1));
         FieldSort order = source.sorts().get(0);
-        assertThat(order.direction(), is(ASC));
+        assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("salary"));
         // ints for doc id, segment id, forwards and backwards mapping, languages, and salary
         assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 6));
@@ -2039,7 +2095,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         List<Attribute> emptyAttrList = List.of();
         var badPlan = verifiedPlan.transformDown(
             EsQueryExec.class,
-            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query())
+            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query(), IndexMode.STANDARD)
         );
 
         var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
@@ -2049,6 +2105,139 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "Need to add field extractor for [[emp_no]] but cannot detect source attributes from node [EsSourceExec[test][]]"
             )
         );
+    }
+
+    public void testProjectAwayColumns() {
+        var rule = new ProjectAwayColumns();
+
+        // FROM test | limit 10000
+        //
+        // as physical plan:
+        //
+        // LimitExec[10000[INTEGER]]
+        // \_ExchangeExec[[],false]
+        // \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+        // EsRelation[test][some_field1{f}#2, some_field2{f}#3]<>]]
+
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            new EsIndex(
+                "test",
+                Map.of(
+                    "some_field1",
+                    new EsField("some_field1", DataType.KEYWORD, Map.of(), true),
+                    "some_field2",
+                    new EsField("some_field2", DataType.KEYWORD, Map.of(), true)
+                )
+            ),
+            IndexMode.STANDARD,
+            false
+        );
+        Attribute some_field1 = relation.output().get(0);
+        Attribute some_field2 = relation.output().get(1);
+        FragmentExec fragment = new FragmentExec(relation);
+        ExchangeExec exchange = new ExchangeExec(Source.EMPTY, fragment);
+        LimitExec limitThenFragment = new LimitExec(Source.EMPTY, exchange, new Literal(Source.EMPTY, 10000, DataType.INTEGER));
+
+        // All the relation's fields are required.
+        PhysicalPlan plan = rule.apply(limitThenFragment);
+        Project project = as(
+            as(as(as(plan, LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class).fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), containsInAnyOrder(some_field1, some_field2));
+
+        // FROM test | limit 10000 | keep some_field1
+        ProjectExec projectLimitThenFragment = new ProjectExec(Source.EMPTY, limitThenFragment, List.of(some_field1));
+        plan = rule.apply(projectLimitThenFragment);
+        project = as(
+            as(as(as(as(plan, ProjectExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
+                .fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), contains(some_field1));
+
+        // FROM test | limit 10000 | eval x = to_lower(some_field1)
+        Alias x = new Alias(Source.EMPTY, "x", new ToLower(Source.EMPTY, some_field1, config));
+        EvalExec evalLimitThenFragment = new EvalExec(Source.EMPTY, limitThenFragment, List.of(x));
+        plan = rule.apply(evalLimitThenFragment);
+        project = as(
+            as(as(as(as(plan, EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
+                .fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), containsInAnyOrder(some_field1, some_field2));
+
+        // FROM test | limit 10000 | eval x = to_lower(some_field1) | keep x
+        ProjectExec projectEvalLimitThenFragment = new ProjectExec(Source.EMPTY, evalLimitThenFragment, List.of(x.toAttribute()));
+        plan = rule.apply(projectEvalLimitThenFragment);
+        project = as(
+            as(
+                as(as(as(as(plan, ProjectExec.class).child(), EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class)
+                    .child(),
+                FragmentExec.class
+            ).fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), contains(some_field1));
+
+        // FROM test | limit 10000 | rename some_field1 as some_field2
+        ProjectExec renameLimitThenFragment = new ProjectExec(
+            Source.EMPTY,
+            limitThenFragment,
+            List.of(new Alias(Source.EMPTY, some_field2.name(), some_field1))
+        );
+        plan = rule.apply(renameLimitThenFragment);
+        project = as(
+            as(as(as(as(plan, ProjectExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
+                .fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), contains(some_field1));
+
+        // FROM test | limit 10000 | eval x = to_lower(some_field1), y = to_upper(x) | keep y
+        Alias y = new Alias(Source.EMPTY, "y", new ToUpper(Source.EMPTY, x.toAttribute(), config));
+        EvalExec evalTwiceLimitThenFragment = new EvalExec(Source.EMPTY, limitThenFragment, List.of(x, y));
+        ProjectExec projectEvalTwiceLimitThenFragment = new ProjectExec(Source.EMPTY, evalTwiceLimitThenFragment, List.of(y.toAttribute()));
+        plan = rule.apply(projectEvalTwiceLimitThenFragment);
+        project = as(
+            as(
+                as(as(as(as(plan, ProjectExec.class).child(), EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class)
+                    .child(),
+                FragmentExec.class
+            ).fragment(),
+            Project.class
+        );
+        assertThat(project.projections(), contains(some_field1));
+    }
+
+    /**
+     * Expects
+     * ProjectExec[[avg(emp_no){r}#3]]
+     * \_EvalExec[[$$SUM$avg(emp_no)$0{r:s}#14 / $$COUNT$avg(emp_no)$1{r:s}#15 AS avg(emp_no)]]
+     *   \_LimitExec[1000[INTEGER]]
+     *     \_AggregateExec[[],[SUM(emp_no{f}#4) AS $$SUM$avg(emp_no)$0, COUNT(emp_no{f}#4) AS $$COUNT$avg(emp_no)$1],FINAL,[sum{r}#16, seen{
+     * r}#17, count{r}#18, seen{r}#19],24]
+     *       \_ExchangeExec[[sum{r}#16, seen{r}#17, count{r}#18, seen{r}#19],true]
+     *         \_AggregateExec[[],[SUM(emp_no{f}#4) AS $$SUM$avg(emp_no)$0, COUNT(emp_no{f}#4) AS $$COUNT$avg(emp_no)$1],INITIAL,[sum{r}#37,
+     *           seen{r}#38, count{r}#39, seen{r}#40],16]
+     *           \_FieldExtractExec[emp_no{f}#4]
+     *             \_EsQueryExec[test], indexMode[standard], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#41], limit[], sort[]
+     *               estimatedRowSize[8]
+     */
+    public void testProjectAwayColumnsDoesNothingForPipelineBreakingAggs() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | stats avg(emp_no)
+            """));
+
+        ProjectExec project = as(plan, ProjectExec.class);
+        EvalExec eval = as(project.child(), EvalExec.class);
+        LimitExec limit = as(eval.child(), LimitExec.class);
+        AggregateExec finalAgg = as(limit.child(), AggregateExec.class);
+        ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+        // No projection inserted here.
+        AggregateExec initialAgg = as(exchange.child(), AggregateExec.class);
     }
 
     /**
@@ -2062,7 +2251,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10,"boost":1.0}}}}}]
      *            [_doc{f}#13], limit[10000], sort[] estimatedRowSize[8]
      */
-    public void testProjectAllFieldsWhenOnlyTheCountMatters() {
+    public void testProjectAwayAllColumnsWhenOnlyTheCountMatters() {
         var plan = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 10
@@ -2080,6 +2269,42 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         eval = as(project.child(), EvalExec.class);
         assertThat(Expressions.names(eval.fields()), contains(nullField));
         var source = source(eval.child());
+        assertThat(Expressions.names(source.attrs()), contains("_doc"));
+    }
+
+    /**
+     * Expects
+     *
+     * LimitExec[10000[INTEGER]]
+     * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count(*)],FINAL,[count{r}#13, seen{r}#14],8]
+     *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count(*)],INITIAL,[count{r}#13, seen{r}#14],8]
+     *     \_LimitExec[10[INTEGER]]
+     *       \_ExchangeExec[[&lt;all-fields-projected&gt;{r:s}#28],false]
+     *         \_ProjectExec[[&lt;all-fields-projected&gt;{r:s}#28]]
+     *           \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;]]
+     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#29], limit[10], sort[] estimatedRowSize[4]
+     */
+    public void testProjectAwayAllColumnsWhenOnlyTheCountMattersInStats() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | limit 10
+            | stats count(*)
+            """));
+
+        var limit = as(plan, LimitExec.class);
+        var aggFinal = as(limit.child(), AggregateExec.class);
+        var aggInitial = as(aggFinal.child(), AggregateExec.class);
+        var limit10 = as(aggInitial.child(), LimitExec.class);
+
+        var exchange = as(limit10.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+        EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
+
+        var nullField = "<all-fields-projected>";
+        assertThat(Expressions.names(project.projections()), contains(nullField));
+        assertThat(Expressions.names(eval.fields()), contains(nullField));
+        assertThat(Expressions.names(esQuery.attrs()), contains("_doc"));
     }
 
     /**
@@ -2110,7 +2335,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         assertThat(aggFinal.getMode(), equalTo(FINAL));
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
-        assertThat(aggPartial.getMode(), equalTo(PARTIAL));
+        assertThat(aggPartial.getMode(), equalTo(INITIAL));
         limit = as(aggPartial.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(limit.limit().fold(), equalTo(10));
@@ -2159,6 +2384,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * intermediate plan
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
@@ -2166,12 +2392,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Aggregate[[],[COUNT(emp_no{f}#6) AS c]]
      * \_Filter[emp_no{f}#6 > 10[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]]]
-     *
+     * </code>
      * and final plan is
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,8]
      *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
      *     \_LocalSourceExec[[count{r}#16, seen{r}#17],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     * </code>
      */
     public void testPartialAggFoldingOutput() {
         var plan = physicalPlan("""
@@ -2194,7 +2422,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Checks that when the folding happens on the coordinator, the intermediate agg state
      * are not used anymore.
-     *
+     * <code>
      * Expects
      * LimitExec[10000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#5) AS c],FINAL,8]
@@ -2204,6 +2432,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_ProjectExec[[emp_no{r}#5]]
      *           \_EvalExec[[null[INTEGER] AS emp_no]]
      *             \_EsQueryExec[test], query[][_doc{f}#26], limit[10], sort[] estimatedRowSize[8]
+     * </code>
      */
     public void testGlobalAggFoldingOutput() {
         var plan = physicalPlan("""
@@ -2218,7 +2447,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var aggFinal = as(limit.child(), AggregateExec.class);
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
-        assertThat(Expressions.names(aggPartial.output()), contains("c"));
+        // The partial aggregation's output is determined via AbstractPhysicalOperationProviders.intermediateAttributes()
+        assertThat(Expressions.names(aggPartial.output()), contains("count", "seen"));
         limit = as(aggPartial.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -2226,7 +2456,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Checks the folded aggregation preserves the intermediate output.
-     *
+     * <code>
      * Expects
      * ProjectExec[[a{r}#5]]
      * \_EvalExec[[__a_SUM@734e2841{r}#16 / __a_COUNT@12536eab{r}#17 AS a]]
@@ -2238,6 +2468,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * 0]], BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]],
      *      LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
      *      BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]]]]
+     * </code>
      */
     public void testPartialAggFoldingOutputForSyntheticAgg() {
         var plan = physicalPlan("""
@@ -2262,16 +2493,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
      * \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,50]
      *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
@@ -2279,131 +2510,70 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_FilterExec[ISNOTNULL(location{f}#9)]
      *         \_FieldExtractExec[location{f}#9][location{f}#9]
      *           \_EsQueryExec[airports], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     * <p>
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
     public void testSpatialTypesAndStatsUseDocValues() {
-        var plan = this.physicalPlan("""
-            from airports
-            | stats centroid = st_centroid(location)
-            """, airports);
+        for (String query : new String[] {
+            "from airports | stats centroid = st_centroid_agg(location)",
+            "from airports | stats centroid = st_centroid_agg(to_geopoint(location))",
+            "from airports | eval location = to_geopoint(location) | stats centroid = st_centroid_agg(location)" }) {
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var plan = withDocValues ? physicalPlan(query, airports) : physicalPlan(query, airportsNoDocValues);
 
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        // Before optimization the aggregation does not use doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Before optimization the aggregation does not use doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var fAgg = as(fragment.fragment(), Aggregate.class);
-        as(fAgg.child(), EsRelation.class);
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                as(fAgg.child(), EsRelation.class);
 
-        // Now optimize the plan and assert the aggregation uses doc-values
-        var optimized = optimizedPlan(plan);
-        limit = as(optimized, LimitExec.class);
-        agg = as(limit.child(), AggregateExec.class);
-        // Above the exchange (in coordinator) the aggregation is not using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        exchange = as(agg.child(), ExchangeExec.class);
-        agg = as(exchange.child(), AggregateExec.class);
-        // below the exchange (in data node) the aggregation is using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-    }
-
-    /**
-     * Before local optimizations:
-     *
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid],FINAL,null]
-     *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
-     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
-     * Aggregate[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid]]
-     * \_Eval[[TOGEOPOINT(location{f}#9) AS __centroid_SPATIALCENTROID@b54a93a7]]
-     *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]]]
-     *
-     * After local optimizations:
-     *
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],FINAL,50]
-     *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
-     *     \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],PARTIAL,50]
-     *       \_EvalExec[[TOGEOPOINT(location{f}#9) AS __centroid_SPATIALCENTROID@ad2847b6]]
-     *         \_FieldExtractExec[location{f}#9][]
-     *           \_EsQueryExec[airports], query[][_doc{f}#28], limit[], sort[] estimatedRowSize[104]
-     *
-     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
-     */
-    public void testSpatialTypesAndStatsUseDocValuesNested() {
-        var plan = this.physicalPlan("""
-            from airports
-            | stats centroid = st_centroid(to_geopoint(location))
-            """, airports);
-
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        // Before optimization the aggregation does not use doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var fAgg = as(fragment.fragment(), Aggregate.class);
-        var eval = as(fAgg.child(), Eval.class);
-        var toGeoPoint = as(eval.fields().get(0).child(), ToGeoPoint.class);
-        assertThat("Expected point field", toGeoPoint.field().dataType(), equalTo(GEO_POINT));
-        as(eval.child(), EsRelation.class);
-
-        // Now optimize the plan and assert the aggregation uses doc-values
-        var optimized = optimizedPlan(plan);
-        limit = as(optimized, LimitExec.class);
-        agg = as(limit.child(), AggregateExec.class);
-        // Above the exchange (in coordinator) the aggregation is not using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        exchange = as(agg.child(), ExchangeExec.class);
-        agg = as(exchange.child(), AggregateExec.class);
-        // TODO: Change this to expect to useDocValues for correctly nested reference attributes that relate to functions on fields
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        var evalExec = as(agg.child(), EvalExec.class);
-        var extract = as(evalExec.child(), FieldExtractExec.class);
-        source(extract.child());
-        // TODO: update this test when we support nested fields in SpatialDocValuesExtraction
-        // assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr ->
-        // {
-        // MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
-        // return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        // }));
+                // Now optimize the plan and assert the aggregation uses doc-values
+                var optimized = optimizedPlan(plan);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, withDocValues);
+                assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
+            }
+        }
     }
 
     /**
      * This test does not have real index fields, and therefor asserts that doc-values field extraction does NOT occur.
-     *
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ec8dd77e{r}#7) AS centroid],FINAL,null]
      *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ec8dd77e{r}#7) AS centroid],PARTIAL,null]
      *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@ec8dd77e]]
      *       \_RowExec[[[50 4f 49 4e 54 28 34 32 2e 39 37 31 30 39 36 32 39 39 35 38 38 36 38 20 31 34 2e 37 35 35 32 35 33 34 30 30
      *       36 35 33 36 29][KEYWORD] AS wkt]]
-     *
+     * </code>
      * After local optimizations we expect no changes because field is extracted:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],FINAL,50]
      *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],PARTIAL,50]
      *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@7ff910a]]
      *       \_RowExec[[[50 4f 49 4e 54 28 34 32 2e 39 37 31 30 39 36 32 39 39 35 38 38 36 38 20 31 34 2e 37 35 35 32 35 33 34 30 30
      *       36 35 33 36 29][KEYWORD] AS wkt]]
+     * </code>
      */
     public void testSpatialTypesAndStatsUseDocValuesNestedLiteral() {
         var plan = this.physicalPlan("""
             row wkt = "POINT(42.97109629958868 14.7552534006536)"
-            | stats centroid = st_centroid(to_geopoint(wkt))
+            | stats centroid = st_centroid_agg(to_geopoint(wkt))
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2412,7 +2582,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         var eval = as(agg.child(), EvalExec.class);
@@ -2426,7 +2596,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         eval = as(agg.child(), EvalExec.class);
@@ -2435,29 +2605,29 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count]]
      * \_EsRelation[airports][abbrev{f}#7, location{f}#11, name{f}#8, scalerank{f..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
      *     \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#11) AS centroid],PARTIAL,58]
      *       \_FieldExtractExec[location{f}#11][location{f}#11]
      *         \_EsQueryExec[airports], query[][_doc{f}#33], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregations() {
         var plan = this.physicalPlan("""
             from airports
-            | stats centroid = st_centroid(location), count = COUNT()
+            | stats centroid = st_centroid_agg(location), count = COUNT()
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2481,21 +2651,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
+        assertChildIsGeoPointExtract(agg, true);
     }
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
      * WORD]) AS count],FINAL,null]
@@ -2505,9 +2670,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Aggregate[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
      * WORD]) AS count]]
      * \_EsRelation[airports][abbrev{f}#10, city{f}#16, city_location{f}#17, coun..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
      * WORD]) AS count],FINAL,108]
@@ -2517,13 +2682,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * WORD]) AS count],PARTIAL,108]
      *       \_FieldExtractExec[location{f}#14, city_location{f}#17][location{f}#14, city_location{f}#17]
      *         \_EsQueryExec[airports], query[][_doc{f}#53], limit[], sort[] estimatedRowSize[104]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiSpatialAggregations() {
         var plan = this.physicalPlan("""
             FROM airports
-            | STATS airports=ST_CENTROID(location), cities=ST_CENTROID(city_location), count=COUNT()
+            | STATS airports=ST_CENTROID_AGG(location), cities=ST_CENTROID_AGG(city_location), count=COUNT()
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2549,22 +2714,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "airports", SpatialCentroid.class, GEO_POINT, true);
         assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
+        assertChildIsGeoPointExtract(agg, true);
     }
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#13, xDel{r}#14, yVal{r}#15, yDel{r}#16, count{r}#17, count{r}#18, seen{r}#19],true]
@@ -2572,9 +2732,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Aggregate[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count]]
      * \_Filter[scalerank{f}#10 == 9[INTEGER]]
      *   \_EsRelation[airports][abbrev{f}#8, location{f}#12, name{f}#9, scalerank{f..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
@@ -2582,14 +2742,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_FieldExtractExec[location{f}#11][location{f}#11]
      *         \_EsQueryExec[airports], query[{"esql_single_value":{"field":"scalerank","next":{"term":{"scalerank":{"value":9}}},
      *                                         "source":"scalerank == 9@2:9"}}][_doc{f}#34], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsFiltered() {
         var plan = this.physicalPlan("""
             FROM airports
             | WHERE scalerank == 9
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2615,23 +2775,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-        var source = source(extract.child());
+        var source = assertChildIsGeoPointExtract(agg, true);
         var qb = as(source.query(), SingleValueQuery.Builder.class);
         assertThat("Expected predicate to be passed to Lucene query", qb.source().text(), equalTo("scalerank == 9"));
     }
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
      * FINAL,null]
@@ -2639,9 +2794,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10]]
      * \_EsRelation[airports][abbrev{f}#8, location{f}#12, name{f}#9, scalerank{f..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
      * FINAL,62]
@@ -2650,57 +2805,54 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * PARTIAL,62]
      *       \_FieldExtractExec[location{f}#12][location{f}#12]
      *         \_EsQueryExec[airports], query[][_doc{f}#34], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGrouped() {
-        var plan = this.physicalPlan("""
-            FROM airports
-            | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
-            """, airports);
+        for (boolean useDocValues : new boolean[] { true, false }) {
+            var plan = this.physicalPlan("""
+                FROM airports
+                | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+                """, useDocValues ? airports : airportsNoDocValues);
 
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
-        var att = as(agg.groupings().get(0), Attribute.class);
-        assertThat(att.name(), equalTo("scalerank"));
-        // Before optimization the aggregation does not use doc-values
-        assertAggregation(agg, "count", Count.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
+            var att = as(agg.groupings().get(0), Attribute.class);
+            assertThat(att.name(), equalTo("scalerank"));
+            // Before optimization the aggregation does not use doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var fAgg = as(fragment.fragment(), Aggregate.class);
-        as(fAgg.child(), EsRelation.class);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var fAgg = as(fragment.fragment(), Aggregate.class);
+            as(fAgg.child(), EsRelation.class);
 
-        // Now optimize the plan and assert the aggregation uses doc-values
-        var optimized = optimizedPlan(plan);
-        limit = as(optimized, LimitExec.class);
-        agg = as(limit.child(), AggregateExec.class);
-        att = as(agg.groupings().get(0), Attribute.class);
-        assertThat(att.name(), equalTo("scalerank"));
-        // Above the exchange (in coordinator) the aggregation is not using doc-values
-        assertAggregation(agg, "count", Count.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        exchange = as(agg.child(), ExchangeExec.class);
-        agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
-        att = as(agg.groupings().get(0), Attribute.class);
-        assertThat(att.name(), equalTo("scalerank"));
-        // below the exchange (in data node) the aggregation is using doc-values
-        assertAggregation(agg, "count", Count.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-        source(extract.child());
+            // Now optimize the plan and assert the aggregation uses doc-values
+            var optimized = optimizedPlan(plan);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            att = as(agg.groupings().get(0), Attribute.class);
+            assertThat(att.name(), equalTo("scalerank"));
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+            att = as(agg.groupings().get(0), Attribute.class);
+            assertThat(att.name(), equalTo("scalerank"));
+            // below the exchange (in data node) the aggregation is using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
+            assertChildIsGeoPointExtract(agg, useDocValues);
+        }
     }
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,null]
      *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,null]
@@ -2709,9 +2861,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count]]
      * \_EsRelation[airports][abbrev{f}#14, location{f}#18, name{f}#15, scalerank..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,58]
      *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,58]
@@ -2720,14 +2872,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],PARTIAL,58]
      *           \_FieldExtractExec[location{f}#18][location{f}#18]
      *             \_EsQueryExec[airports], query[][_doc{f}#42], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGroupedAggregated() {
         var plan = this.physicalPlan("""
             FROM airports
-            | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
-            | STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+            | STATS centroid=ST_CENTROID_AGG(centroid), count=SUM(count)
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2737,7 +2889,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
@@ -2763,7 +2915,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
@@ -2780,19 +2932,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         att = as(agg.groupings().get(0), Attribute.class);
         assertThat(att.name(), equalTo("scalerank"));
         // below the exchange (in data node) the aggregation is using doc-values
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-        source(extract.child());
+        assertChildIsGeoPointExtract(agg, true);
     }
 
     /**
      * Plan:
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#24, xDel{r}#25, yVal{r}#26, yDel{r}#27, count{r}#28],true]
@@ -2802,8 +2950,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * _field":"city_boundary","enrich_fields":["city","airport","region","city_boundary"]}},{=airport_city_boundaries
      * },[airport{r}#21, region{r}#22, city_boundary{r}#23]]
      *   \_EsRelation[airports][abbrev{f}#9, city{f}#15, city_location{f}#16, count..]]]
-     *
+     * </code>
      * Optimized:
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],FINAL,50]
      *   \_ExchangeExec[[xVal{r}#24, xDel{r}#25, yVal{r}#26, yDel{r}#27, count{r}#28],true]
@@ -2813,14 +2962,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_FieldExtractExec[city_location{f}#16][city_location{f}#16]
      *           \_EsQueryExec[airports], query[{"exists":{"field":"city_location","boost":1.0}}][_doc{f}#46], limit[], sort[]
      *                         estimatedRowSize[204]
-     *
+     * </code>
      * Note the FieldExtractExec has 'city_location' set for doc-values: FieldExtractExec[city_location{f}#16][city_location{f}#16]
      */
     public void testEnrichBeforeSpatialAggregationSupportsDocValues() {
         var plan = physicalPlan("""
             from airports
             | enrich city_boundaries ON city_location WITH airport, region, city_boundary
-            | stats centroid = st_centroid(city_location)
+            | stats centroid = st_centroid_agg(city_location)
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2851,24 +3000,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(enrichExec.mode(), equalTo(Enrich.Mode.ANY));
         assertThat(enrichExec.concreteIndices(), equalTo(Map.of("", "airport_city_boundaries")));
         assertThat(enrichExec.enrichFields().size(), equalTo(3));
-        var extract = as(enrichExec.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
+        assertChildIsGeoPointExtract(enrichExec, true);
     }
 
     /**
      * Plan:
+     * <code>
      * LimitExec[500[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Limit[500[INTEGER]]
      * \_Filter[SPATIALINTERSECTS(location{f}#7,[50 4f 4c 59 47 4f 4e 28 29][KEYWORD])]
      *   \_EsRelation[airports][abbrev{f}#3, city{f}#9, city_location{f}#10, countr..]]]
-     *
+     * </code>
      * Optimized:
+     * <code>
      * LimitExec[500[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[abbrev{f}#3, city{f}#9, city_location{f}#10, country{f}#8, location{f}#7, name{f}#4, scalerank{f}#5, type{f}#
@@ -2893,6 +3039,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *           "source":"ST_INTERSECTS(location, \"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\")@2:9"
      *         }
      *       }][_doc{f}#19], limit[500], sort[] estimatedRowSize[358]
+     * </code>
      */
     public void testPushSpatialIntersectsStringToSource() {
         for (String query : new String[] { """
@@ -2917,8 +3064,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -2933,6 +3078,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String function() {
             return switch (relation) {
                 case INTERSECTS -> "ST_INTERSECTS";
+                case DISJOINT -> "ST_DISJOINT";
                 case WITHIN -> "ST_WITHIN";
                 case CONTAINS -> "ST_CONTAINS";
                 default -> throw new IllegalArgumentException("Unsupported relation: " + relation);
@@ -2942,6 +3088,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Class<? extends SpatialRelatesFunction> functionClass() {
             return switch (relation) {
                 case INTERSECTS -> SpatialIntersects.class;
+                case DISJOINT -> SpatialDisjoint.class;
                 case WITHIN -> literalRight ? SpatialWithin.class : SpatialContains.class;
                 case CONTAINS -> literalRight ? SpatialContains.class : SpatialWithin.class;
                 default -> throw new IllegalArgumentException("Unsupported relation: " + relation);
@@ -2975,12 +3122,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TestSpatialRelation[] tests = new TestSpatialRelation[] {
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, true),
@@ -3001,8 +3152,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             if (test.canPushToSource) {
                 var source = source(fieldExtract.child());
-                // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-                // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
                 var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
                 assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
                 assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
@@ -3027,16 +3176,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TestSpatialRelation[] tests = new TestSpatialRelation[] {
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, false, true) };
         for (TestSpatialRelation test : tests) {
-            var centroidExpr = "centroid=ST_CENTROID(location), count=COUNT()";
+            var centroidExpr = "centroid=ST_CENTROID_AGG(location), count=COUNT()";
             var plan = this.physicalPlan(
                 "FROM " + test.index.index.name() + " | WHERE " + test.predicate() + " | STATS " + centroidExpr,
                 test.index
@@ -3062,21 +3217,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "centroid", SpatialCentroid.class, test.locationType(), false);
             exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, "centroid", SpatialCentroid.class, test.locationType(), true);
             if (test.canPushToSource) {
-                var extract = as(agg.child(), FieldExtractExec.class);
-                assertTrue(
-                    "Expect field attribute to be extracted as doc-values",
-                    extract.attributesToExtract()
-                        .stream()
-                        .allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == test.locationType())
-                );
-                var source = source(extract.child());
-                // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-                // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+                var source = assertChildIsExtractedAsDocValues(agg, true, test.locationType());
                 var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
                 assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
                 assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
@@ -3099,7 +3245,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Plan:
-     * Plan:
+     * <code>
      * LimitExec[500[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#16, xDel{r}#17, yVal{r}#18, yDel{r}#19, count{r}#20, count{r}#21, seen{r}#22],true]
@@ -3108,8 +3254,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_Filter[SPATIALINTERSECTS(location{f}#12,[50 4f 4c 59 47 4f 4e 28 28 34 32 20 31 34 2c 20 34 33 20 31 34 2c 20 34 33 2
      * 0 31 35 2c 20 34 32 20 31 35 2c 20 34 32 20 31 34 29 29][KEYWORD])]
      *   \_EsRelation[airports][abbrev{f}#8, city{f}#14, city_location{f}#15, count..]]]
-     *
+     * </code>
      * Optimized:
+     * <code>
      * LimitExec[500[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *   \_ExchangeExec[[xVal{r}#16, xDel{r}#17, yVal{r}#18, yDel{r}#19, count{r}#20, count{r}#21, seen{r}#22],true]
@@ -3134,60 +3281,59 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *             "source":"ST_INTERSECTS(location, \"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\")@2:9"
      *           }
      *         }][_doc{f}#140, limit[], sort[] estimatedRowSize[54]
+     * </code>
      */
     public void testPushSpatialIntersectsStringToSourceAndUseDocValuesForCentroid() {
         for (String query : new String[] { """
             FROM airports
             | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """, """
             FROM airports
             | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """ }) {
 
-            var plan = this.physicalPlan(query, airports);
-            var limit = as(plan, LimitExec.class);
-            var agg = as(limit.child(), AggregateExec.class);
-            assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
-            // Before optimization the aggregation does not use doc-values
-            assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            for (boolean useDocValues : new boolean[] { true, false }) {
+                var plan = this.physicalPlan(query, useDocValues ? airports : airportsNoDocValues);
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+                // Before optimization the aggregation does not use doc-values
+                assertAggregation(agg, "count", Count.class);
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-            var exchange = as(agg.child(), ExchangeExec.class);
-            var fragment = as(exchange.child(), FragmentExec.class);
-            var fAgg = as(fragment.fragment(), Aggregate.class);
-            var filter = as(fAgg.child(), Filter.class);
-            assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                var filter = as(fAgg.child(), Filter.class);
+                assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
 
-            // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
-            var optimized = optimizedPlan(plan);
-            limit = as(optimized, LimitExec.class);
-            agg = as(limit.child(), AggregateExec.class);
-            // Above the exchange (in coordinator) the aggregation is not using doc-values
-            assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-            exchange = as(agg.child(), ExchangeExec.class);
-            agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
-            // below the exchange (in data node) the aggregation is using doc-values
-            assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-            var extract = as(agg.child(), FieldExtractExec.class);
-            assertTrue(
-                "Expect field attribute to be extracted as doc-values",
-                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-            );
-            var source = source(extract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
-            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
-            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
-            var polygon = as(condition.shape(), Polygon.class);
-            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
-            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+                // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+                var optimized = optimizedPlan(plan);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "count", Count.class);
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+                // below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "count", Count.class);
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
+                var source = assertChildIsGeoPointExtract(useDocValues ? agg : as(agg.child(), FilterExec.class), useDocValues);
+                if (useDocValues) {
+                    // Query is only pushed to lucene if indexing/doc-values are enabled
+                    var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                    assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+                    assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+                    assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+                    var polygon = as(condition.shape(), Polygon.class);
+                    assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+                    assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+                }
+            }
         }
     }
 
@@ -3220,8 +3366,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var booleanQuery = as(source.query(), BoolQueryBuilder.class);
             assertThat("Expected boolean query of three predicates", booleanQuery.must().size(), equalTo(3));
             var condition = as(booleanQuery.must().get(1), SpatialRelatesQuery.ShapeQueryBuilder.class);
@@ -3240,13 +3384,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | WHERE scalerank == 9
               AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
               AND type == "mid"
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """, """
             FROM airports
             | WHERE scalerank == 9
               AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
               AND type == "mid"
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
@@ -3274,18 +3418,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
             exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-            var extract = as(agg.child(), FieldExtractExec.class);
-            assertTrue(
-                "Expect field attribute to be extracted as doc-values",
-                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-            );
-            var source = source(extract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var source = assertChildIsGeoPointExtract(agg, true);
             var booleanQuery = as(source.query(), BoolQueryBuilder.class);
             assertThat("Expected boolean query of three predicates", booleanQuery.must().size(), equalTo(3));
             var condition = as(booleanQuery.must().get(1), SpatialRelatesQuery.ShapeQueryBuilder.class);
@@ -3327,7 +3464,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String query = """
             FROM airports
             | WHERE ST_INTERSECTS(location, city_location)
-            | STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+            | STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
             """;
 
         var plan = this.physicalPlan(query, airports);
@@ -3355,7 +3492,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, true);
@@ -3370,11 +3507,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         for (String query : new String[] { """
             FROM airports
             | WHERE ST_INTERSECTS(location, city_location)
-            | STATS location=ST_CENTROID(location), count=COUNT()
+            | STATS location=ST_CENTROID_AGG(location), count=COUNT()
             """, """
             FROM airports
             | WHERE ST_INTERSECTS(location, city_location)
-            | STATS city_location=ST_CENTROID(city_location), count=COUNT()
+            | STATS city_location=ST_CENTROID_AGG(city_location), count=COUNT()
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
@@ -3401,7 +3538,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, aggFieldName, SpatialCentroid.class, GEO_POINT, false);
             exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, aggFieldName, SpatialCentroid.class, GEO_POINT, true);
@@ -3417,7 +3554,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             FROM airports
             | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
                 AND ST_INTERSECTS(city_location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
-            | STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+            | STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
             """;
 
         var plan = this.physicalPlan(query, airports);
@@ -3447,7 +3584,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, true);
@@ -3455,8 +3592,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(agg.child(), FieldExtractExec.class);
         assertFieldExtractionWithDocValues(extract, GEO_POINT, "location", "city_location");
         var source = source(extract.child());
-        // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-        // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
         var booleanQuery = as(source.query(), BoolQueryBuilder.class);
         assertThat("Expected boolean query of two predicates", booleanQuery.must().size(), equalTo(2));
         String[] fieldNames = new String[] { "location", "city_location" };
@@ -3494,8 +3629,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("shape"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -3503,6 +3636,234 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var polygon = as(condition.shape(), Polygon.class);
             assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
             assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+        }
+    }
+
+    public void testPushSpatialDistanceToSource() {
+        for (String distanceFunction : new String[] {
+            "ST_DISTANCE(location, TO_GEOPOINT(\"POINT(12.565 55.673)\"))",
+            "ST_DISTANCE(TO_GEOPOINT(\"POINT(12.565 55.673)\"), location)" }) {
+
+            for (boolean reverse : new Boolean[] { false, true }) {
+                for (String op : new String[] { "<", "<=", ">", ">=", "==" }) {
+                    var expected = ExpectedComparison.from(op, reverse, 600000.0);
+                    var predicate = reverse ? "600000 " + op + " " + distanceFunction : distanceFunction + " " + op + " 600000";
+                    var query = "FROM airports | WHERE " + predicate + " AND scalerank > 1";
+                    var plan = this.physicalPlan(query, airports);
+                    var limit = as(plan, LimitExec.class);
+                    var exchange = as(limit.child(), ExchangeExec.class);
+                    var fragment = as(exchange.child(), FragmentExec.class);
+                    var limit2 = as(fragment.fragment(), Limit.class);
+                    var filter = as(limit2.child(), Filter.class);
+                    var and = as(filter.condition(), And.class);
+                    var comp = as(and.left(), EsqlBinaryComparison.class);
+                    assertThat("filter contains expected binary comparison for " + predicate, comp, instanceOf(expected.comp));
+                    assertThat("filter contains ST_DISTANCE", comp.left(), instanceOf(StDistance.class));
+
+                    var optimized = optimizedPlan(plan);
+                    var topLimit = as(optimized, LimitExec.class);
+                    exchange = as(topLimit.child(), ExchangeExec.class);
+                    var project = as(exchange.child(), ProjectExec.class);
+                    var fieldExtract = as(project.child(), FieldExtractExec.class);
+                    var source = source(fieldExtract.child());
+                    var bool = as(source.query(), BoolQueryBuilder.class);
+                    var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+                    assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+                    assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+                    if (op.equals("==")) {
+                        var boolQueryBuilders = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+                        assertThat("Expected one sub-bool query builder", boolQueryBuilders.size(), equalTo(1));
+                        var bool2 = as(boolQueryBuilders.get(0), BoolQueryBuilder.class);
+                        var shapeQueryBuilders = bool2.must()
+                            .stream()
+                            .filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder)
+                            .toList();
+                        assertShapeQueryRange(shapeQueryBuilders, Math.nextDown(expected.value), expected.value);
+                    } else {
+                        var shapeQueryBuilders = bool.filter()
+                            .stream()
+                            .filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder)
+                            .toList();
+                        assertThat("Expected one shape query builder", shapeQueryBuilders.size(), equalTo(1));
+                        var condition = as(shapeQueryBuilders.get(0), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                        assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+                        assertThat("Spatial relationship", condition.relation(), equalTo(expected.shapeRelation()));
+                        assertThat("Geometry is Circle", condition.shape().type(), equalTo(ShapeType.CIRCLE));
+                        var circle = as(condition.shape(), Circle.class);
+                        assertThat("Circle center-x", circle.getX(), equalTo(12.565));
+                        assertThat("Circle center-y", circle.getY(), equalTo(55.673));
+                        assertThat("Circle radius for predicate " + predicate, circle.getRadiusMeters(), equalTo(expected.value));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testPushSpatialDistanceBandToSource() {
+        var query = """
+            FROM airports
+            | WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+                AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        for (Expression expression : and.arguments()) {
+            var comp = as(expression, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(and.left()) ? LessThanOrEqual.class : GreaterThanOrEqual.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            assertThat("filter contains ST_DISTANCE", comp.left(), instanceOf(StDistance.class));
+        }
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
+    }
+
+    public void testPushSpatialDistanceDisjointBandsToSource() {
+        var query = """
+            FROM airports
+            | WHERE (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+                 AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000)
+               OR
+                    (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 300000
+                 AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 200000)
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+        var or = as(filter.condition(), Or.class);
+        assertThat("OR has two predicates", or.arguments().size(), equalTo(2));
+        for (Expression expression : or.arguments()) {
+            var and = as(expression, And.class);
+            for (Expression exp : and.arguments()) {
+                var comp = as(exp, EsqlBinaryComparison.class);
+                var expectedComp = comp.equals(and.left()) ? LessThanOrEqual.class : GreaterThanOrEqual.class;
+                assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+                assertThat("filter contains ST_DISTANCE", comp.left(), instanceOf(StDistance.class));
+            }
+        }
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var disjuntiveQueryBuilders = bool.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
+        for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
+            var subRangeBool = as(disjuntiveQueryBuilders.get(i), BoolQueryBuilder.class);
+            var shapeQueryBuilders = subRangeBool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+            assertShapeQueryRange(shapeQueryBuilders, i == 0 ? 400000.0 : 200000.0, i == 0 ? 600000.0 : 300000.0);
+        }
+    }
+
+    public void testPushSpatialDistanceComplexPredicateToSource() {
+        var query = """
+            FROM airports
+            | WHERE ((ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+                  AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000
+                  AND NOT (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 500000
+                       AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 430000))
+                  OR (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 300000
+                           AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 200000))
+                AND NOT abbrev == "PLQ"
+                AND scalerank < 6
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+        var outerAnd = as(filter.condition(), And.class);
+        var outerLeft = as(outerAnd.left(), And.class);
+        as(outerLeft.right(), Not.class);
+        as(outerAnd.right(), LessThan.class);
+        var or = as(outerLeft.left(), Or.class);
+        var innerAnd1 = as(or.left(), And.class);
+        var innerAnd2 = as(or.right(), And.class);
+        for (Expression exp : innerAnd2.arguments()) {
+            var comp = as(exp, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(innerAnd2.left()) ? LessThanOrEqual.class : GreaterThanOrEqual.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            assertThat("filter contains ST_DISTANCE", comp.left(), instanceOf(StDistance.class));
+        }
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
+        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
+        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
+        for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
+            var subRangeBool = as(disjuntiveQueryBuilders.get(i), BoolQueryBuilder.class);
+            var shapeQueryBuilders = subRangeBool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+            assertShapeQueryRange(shapeQueryBuilders, i == 0 ? 400000.0 : 200000.0, i == 0 ? 600000.0 : 300000.0);
+        }
+    }
+
+    private void assertShapeQueryRange(List<QueryBuilder> shapeQueryBuilders, double min, double max) {
+        assertThat("Expected two shape query builders", shapeQueryBuilders.size(), equalTo(2));
+        var relationStats = new HashMap<ShapeRelation, Integer>();
+        for (var builder : shapeQueryBuilders) {
+            var condition = as(builder, SpatialRelatesQuery.ShapeQueryBuilder.class);
+            var expected = condition.relation() == ShapeRelation.INTERSECTS ? max : min;
+            relationStats.compute(condition.relation(), (r, c) -> c == null ? 1 : c + 1);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+            assertThat("Geometry is Circle", condition.shape().type(), equalTo(ShapeType.CIRCLE));
+            var circle = as(condition.shape(), Circle.class);
+            assertThat("Circle center-x", circle.getX(), equalTo(12.565));
+            assertThat("Circle center-y", circle.getY(), equalTo(55.673));
+            assertThat("Circle radius for shape relation " + condition.relation(), circle.getRadiusMeters(), equalTo(expected));
+        }
+        assertThat("Expected one INTERSECTS and one DISJOINT", relationStats.size(), equalTo(2));
+        assertThat("Expected one INTERSECTS", relationStats.get(ShapeRelation.INTERSECTS), equalTo(1));
+        assertThat("Expected one DISJOINT", relationStats.get(ShapeRelation.DISJOINT), equalTo(1));
+    }
+
+    private record ExpectedComparison(Class<? extends EsqlBinaryComparison> comp, double value) {
+        ShapeRelation shapeRelation() {
+            return comp.getSimpleName().startsWith("GreaterThan") ? ShapeRelation.DISJOINT : ShapeRelation.INTERSECTS;
+        }
+
+        static ExpectedComparison from(String op, boolean reverse, double value) {
+            double up = Math.nextUp(value);
+            double down = Math.nextDown(value);
+            return switch (op) {
+                case "<" -> reverse ? from(GreaterThan.class, up) : from(LessThan.class, down);
+                case "<=" -> reverse ? from(GreaterThanOrEqual.class, value) : from(LessThanOrEqual.class, value);
+                case ">" -> reverse ? from(LessThan.class, down) : from(GreaterThan.class, up);
+                case ">=" -> reverse ? from(LessThanOrEqual.class, value) : from(GreaterThanOrEqual.class, value);
+                default -> from(Equals.class, value);
+            };
+        }
+
+        static ExpectedComparison from(Class<? extends EsqlBinaryComparison> comp, double value) {
+            return new ExpectedComparison(comp, value);
         }
     }
 
@@ -3535,8 +3896,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -3581,8 +3940,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("shape"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -3622,7 +3979,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var finalAggs = as(limit.child(), AggregateExec.class);
             assertThat(finalAggs.getMode(), equalTo(FINAL));
             var partialAggs = as(finalAggs.child(), AggregateExec.class);
-            assertThat(partialAggs.getMode(), equalTo(PARTIAL));
+            assertThat(partialAggs.getMode(), equalTo(INITIAL));
             var enrich = as(partialAggs.child(), EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
@@ -4010,6 +4367,274 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testMaxExpressionDepth_cast() {
+        StringBuilder queryBuilder = new StringBuilder(randomBoolean() ? "row a = 1" : "row a = 1 | eval b = a");
+        queryBuilder.append("::long::int".repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        var query = queryBuilder.toString();
+
+        physicalPlan(query);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "::long"));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_math() {
+        StringBuilder queryBuilder = new StringBuilder(randomBoolean() ? "row a = 1" : "row a = 1 | eval b = a");
+        String expression = " " + randomFrom("+", "-", "*", "/") + " 1";
+        queryBuilder.append(expression.repeat(MAX_EXPRESSION_DEPTH - 2));
+        var query = queryBuilder.toString();
+
+        physicalPlan(query);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_boolean() {
+        StringBuilder queryBuilder = new StringBuilder(randomBoolean() ? "row a = true " : "row a = true | eval b = a");
+        String expression = " " + randomFrom("and", "or") + " true";
+        queryBuilder.append(expression.repeat(MAX_EXPRESSION_DEPTH - 2));
+        var query = queryBuilder.toString();
+
+        physicalPlan(query);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_parentheses() {
+        String query = "row a = true | eval b = ";
+        StringBuilder expression = new StringBuilder("(".repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        expression.append("a");
+        expression.append(")".repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+
+        physicalPlan(query + expression);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "(" + expression + ")"));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_mixed() {
+        String prefix = "abs(";
+        String suffix = " + 12)";
+
+        String from = "row a = 1 | eval b = ";
+
+        StringBuilder queryBuilder = new StringBuilder();
+        queryBuilder.append(prefix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        queryBuilder.append("a");
+        queryBuilder.append(suffix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        var expression = queryBuilder.toString();
+
+        physicalPlan(from + expression);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(from + prefix + expression + suffix));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxQueryDepth() {
+        StringBuilder from = new StringBuilder("row a = 1 ");
+        for (int i = 0; i < MAX_QUERY_DEPTH; i++) {
+            from.append(randomBoolean() ? "| where a > 0 " : " | eval b" + i + " = a + " + i);
+        }
+        physicalPlan(from.toString());
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(from + (randomBoolean() ? "| sort a" : " | eval c = 10")));
+        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+    }
+
+    public void testMaxQueryDepthPlusExpressionDepth() {
+        StringBuilder mainQuery = new StringBuilder("row a = 1 ");
+        for (int i = 0; i < MAX_QUERY_DEPTH; i++) {
+            mainQuery.append(" | eval b" + i + " = a + " + i);
+        }
+
+        physicalPlan(mainQuery.toString());
+
+        var cast = "::long::int".repeat(MAX_EXPRESSION_DEPTH / 2 - 2) + "::long";
+
+        physicalPlan(mainQuery + cast);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + "::int"));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+
+        e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + " | eval x = 10"));
+        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+    }
+
+    public void testLookupSimple() {
+        String query = """
+            FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int""";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            return;
+        }
+        PhysicalPlan plan = physicalPlan(query);
+        var join = as(plan, HashJoinExec.class);
+        assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                .item(startsWith("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                .item(startsWith("name{r}"))
+        );
+    }
+
+    /**
+     * Expected
+     * {@code
+     * ProjectExec[[emp_no{f}#17, int{r}#5 AS languages, name{f}#28 AS lang_name]]
+     * \_HashJoinExec[
+     *      LocalSourceExec[[int{f}#27, name{f}#28],[...]],
+     *      [int{r}#5],
+     *      [name{r}#28, _meta_field{f}#23, emp_no{f}#17, ...]]
+     *   \_ProjectExec[[_meta_field{f}#23, emp_no{f}#17, ...]]
+     *     \_TopNExec[[Order[emp_no{f}#17,ASC,LAST]],4[INTEGER],370]
+     *       \_ExchangeExec[[],false]
+     *         \_ProjectExec[[emp_no{f}#17, ..., languages{f}#20]]
+     *           \_FieldExtractExec[emp_no{f}#17, _meta_field{f}#23, first_name{f}#18, ..]<[]>
+     *             \_EsQueryExec[...]
+     * }
+     */
+    public void testLookupThenProject() {
+        String query = """
+            FROM employees
+            | SORT emp_no
+            | LIMIT 4
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | RENAME int AS languages, name AS lang_name
+            | KEEP emp_no, languages, lang_name""";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP' expecting {"));
+            return;
+        }
+        PhysicalPlan plan = optimizedPlan(physicalPlan(query));
+
+        var outerProject = as(plan, ProjectExec.class);
+        assertThat(outerProject.projections().toString(), containsString("AS lang_name"));
+        var join = as(outerProject.child(), HashJoinExec.class);
+        assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                .item(startsWith("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                .item(startsWith("name{r}"))
+        );
+
+        var middleProject = as(join.child(), ProjectExec.class);
+        assertThat(middleProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
+        /*
+         * At the moment we don't push projections past the HashJoin so we still include first_name here
+         */
+        assertThat(middleProject.projections().stream().map(Objects::toString).toList(), hasItem(startsWith("first_name{f}")));
+
+        var outerTopn = as(middleProject.child(), TopNExec.class);
+        var exchange = as(outerTopn.child(), ExchangeExec.class);
+        var innerProject = as(exchange.child(), ProjectExec.class);
+        assertThat(innerProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
+    }
+
+    /**
+     * Expects optimized data node plan of
+     * <pre>{@code
+     * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
+     * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
+     *   |_EsqlProject[[..., long_noidx{f}#23, salary{f}#19]]
+     *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
+     * }</pre>
+     */
+    public void testLookupThenTopN() {
+        String query = """
+            FROM employees
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | RENAME name AS languages
+            | KEEP languages, emp_no
+            | SORT languages ASC, emp_no ASC""";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            return;
+        }
+        var plan = physicalPlan(query);
+
+        ProjectExec outerProject = as(plan, ProjectExec.class);
+        TopNExec outerTopN = as(outerProject.child(), TopNExec.class);
+        ExchangeExec exchange = as(outerTopN.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        TopN innerTopN = as(opt, TopN.class);
+        assertMap(
+            innerTopN.order().stream().map(o -> o.child().toString()).toList(),
+            matchesList().item(startsWith("name{r}")).item(startsWith("emp_no{f}"))
+        );
+        Join join = as(innerTopN.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertMap(join.config().matchFields().stream().map(Objects::toString).toList(), matchesList().item(startsWith("int{r}")));
+
+        Project innerProject = as(join.left(), Project.class);
+        assertThat(innerProject.projections(), hasSize(10));
+        assertMap(
+            innerProject.projections().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                .item(matchesRegex("languages\\{f}#\\d+ AS int#\\d+"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+        );
+
+        LocalRelation lookup = as(join.right(), LocalRelation.class);
+        assertMap(
+            lookup.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
+        );
+    }
+
     @SuppressWarnings("SameParameterValue")
     private static void assertFilterCondition(
         Filter filter,
@@ -4022,6 +4647,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("Expected filter field", field.name(), equalTo(fieldName));
         var value = as(condition.right(), Literal.class);
         assertThat("Expected filter value", value.value(), equalTo(expected));
+    }
+
+    private EsQueryExec assertChildIsGeoPointExtract(UnaryExec parent, boolean useDocValues) {
+        return assertChildIsExtractedAsDocValues(parent, useDocValues, GEO_POINT);
+    }
+
+    private EsQueryExec assertChildIsExtractedAsDocValues(UnaryExec parent, boolean useDocValues, DataType dataType) {
+        var extract = as(parent.child(), FieldExtractExec.class);
+        assertTrue(
+            "Expect field attribute to be extracted as " + (useDocValues ? "doc-values" : "source"),
+            extract.attributesToExtract()
+                .stream()
+                .allMatch(attr -> extract.hasDocValuesAttribute(attr) == useDocValues && attr.dataType() == dataType)
+        );
+        return source(extract.child());
     }
 
     private static void assertAggregation(
@@ -4077,7 +4717,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private void assertFieldExtractionWithDocValues(FieldExtractExec extract, DataType dataType, String... fieldNames) {
         extract.attributesToExtract().forEach(attr -> {
-            String name = attr.qualifiedName();
+            String name = attr.name();
             if (asList(fieldNames).contains(name)) {
                 assertThat("Expected field '" + name + "' to use doc-values", extract.hasDocValuesAttribute(attr), equalTo(true));
                 assertThat("Expected field '" + name + "' to have data type " + dataType, attr.dataType(), equalTo(dataType));
@@ -4132,7 +4772,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // handle local reduction alignment
         return l.transformUp(ExchangeExec.class, exg -> {
             PhysicalPlan pl = exg;
-            if (exg.isInBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
+            if (exg.inBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
                 var output = exg.output();
                 if (lse.output().equals(output) == false) {
                     pl = exg.replaceChild(new LocalSourceExec(lse.source(), output, lse.supplier()));

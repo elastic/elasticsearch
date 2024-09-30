@@ -83,8 +83,8 @@ query:
           query:
             range:
               http.clientip:
-                from: 232.0.0.0
-                to: 253.0.0.0
+                gte: 232.0.0.0
+                lte: 253.0.0.0
   - match: { hits.total.value: 4 }
 
 ---
@@ -106,8 +106,8 @@ query:
 ---
 "Field caps with composite runtime mappings section. Issue 76742":
 
-  - skip:
-      version: " - 7.14.99"
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
       reason: Composite Runtime mappings support was added in 7.15
 
   - do:

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -300,6 +301,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         if (dataStreamDescriptors.isEmpty() == false) {
             try {
                 Request request = new Request(
+                    TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
                     dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toArray(String[]::new)
                 );
                 request.indicesOptions(
@@ -367,8 +369,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     ) {
         return List.of(
             new RestGetGlobalCheckpointsAction(),
-            new RestFleetSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
-            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
+            new RestFleetSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature),
+            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature),
             new RestGetSecretsAction(),
             new RestPostSecretsAction(),
             new RestDeleteSecretsAction()

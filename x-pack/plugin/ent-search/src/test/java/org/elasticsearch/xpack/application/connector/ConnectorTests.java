@@ -131,7 +131,6 @@ public class ConnectorTests extends ESTestCase {
                   "document_level_security":{
                      "enabled":true
                   },
-                  "filtering_advanced_config":true,
                   "sync_rules":{
                      "advanced":{
                         "enabled":false
@@ -276,7 +275,9 @@ public class ConnectorTests extends ESTestCase {
                "last_access_control_sync_error": null,
                "last_access_control_sync_scheduled_at": null,
                "last_access_control_sync_status": null,
+               "last_deleted_document_count":null,
                "last_incremental_sync_scheduled_at": null,
+               "last_indexed_document_count":null,
                "last_seen": null,
                "last_sync_error": null,
                "last_sync_scheduled_at": null,

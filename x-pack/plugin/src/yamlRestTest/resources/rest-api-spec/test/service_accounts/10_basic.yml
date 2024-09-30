@@ -31,7 +31,8 @@ teardown:
 "Test get service accounts":
   - do:
       security.get_service_accounts: {}
-  - length: { '': 4 }
+  - length: { '': 5 }
+  - is_true: "elastic/auto-ops"
   - is_true: "elastic/enterprise-search-server"
   - is_true: "elastic/fleet-server"
   - is_true: "elastic/fleet-server-remote"
@@ -40,7 +41,8 @@ teardown:
   - do:
       security.get_service_accounts:
         namespace: elastic
-  - length: { '': 4 }
+  - length: { '': 5 }
+  - is_true: "elastic/auto-ops"
   - is_true: "elastic/enterprise-search-server"
   - is_true: "elastic/fleet-server"
   - is_true: "elastic/fleet-server-remote"

@@ -205,18 +205,18 @@ on a remote cluster is currently not supported. For example, this will throw an 
 Multi-target APIs that can target indices support the following query
 string parameters:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
 Some multi-target APIs that can target indices also support the following query
 string parameter:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
 not support multi-target syntax.
@@ -334,6 +334,7 @@ All REST API parameters (both request parameters and JSON body) support
 providing boolean "false" as the value `false` and boolean "true" as the
 value `true`. All other values will raise an error.
 
+[[api-conventions-number-values]]
 [discrete]
 === Number Values
 

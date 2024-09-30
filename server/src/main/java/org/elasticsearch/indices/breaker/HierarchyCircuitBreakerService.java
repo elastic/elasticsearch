@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.breaker;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
@@ -65,7 +67,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
+    public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING = new Setting<>(
         "indices.breaker.total.limit",
         settings -> {
             if (USE_REAL_MEMORY_USAGE_SETTING.get(settings)) {
@@ -74,6 +76,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 return "70%";
             }
         },
+        (s) -> MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(s, "indices.breaker.total.limit", 50),
         Property.Dynamic,
         Property.NodeScope
     );

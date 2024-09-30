@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -16,6 +17,7 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
@@ -63,15 +65,39 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         BuildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-            configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion);
+            configureBwcProject(
+                project.project(unreleasedVersion.gradleProjectPath()),
+                unreleasedVersion,
+                providerFactory,
+                objectFactory,
+                toolChainService
+            );
         });
     }
 
-    private void configureBwcProject(Project project, BwcVersions.UnreleasedVersionInfo versionInfo) {
+    private static void configureBwcProject(
+        Project project,
+        BwcVersions.UnreleasedVersionInfo versionInfo,
+        ProviderFactory providerFactory,
+        ObjectFactory objectFactory,
+        JavaToolchainService toolChainService
+    ) {
+        ProjectLayout layout = project.getLayout();
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
-        Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch()));
+        Provider<File> checkoutDir = versionInfoProvider.map(
+            info -> new File(layout.getBuildDirectory().get().getAsFile(), "bwc/checkout-" + info.branch())
+        );
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
-            .create("bwcSetup", BwcSetupExtension.class, project, objectFactory, toolChainService, versionInfoProvider, checkoutDir);
+            .create(
+                "bwcSetup",
+                BwcSetupExtension.class,
+                project,
+                objectFactory,
+                providerFactory,
+                toolChainService,
+                versionInfoProvider,
+                checkoutDir
+            );
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version()));
@@ -157,7 +183,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }
     }
 
-    private void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
+    private static void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
         String projectName = distributionProject.name;
         String buildBwcTask = buildBwcTaskName(projectName);
 
@@ -174,7 +200,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }
     }
 
-    private void registerDistributionArchiveArtifact(Project bwcProject, DistributionProject distributionProject, String buildBwcTask) {
+    private static void registerDistributionArchiveArtifact(
+        Project bwcProject,
+        DistributionProject distributionProject,
+        String buildBwcTask
+    ) {
         File distFile = distributionProject.expectedBuildArtifact.distFile;
         String artifactFileName = distFile.getName();
         String artifactName = artifactFileName.contains("oss") ? "elasticsearch-oss" : "elasticsearch";
@@ -363,5 +393,4 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             this.expandedDistDir = expandedDistDir;
         }
     }
-
 }

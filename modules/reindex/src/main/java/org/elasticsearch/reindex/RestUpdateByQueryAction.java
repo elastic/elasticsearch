@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -32,12 +32,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
-    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestUpdateByQueryAction(NamedWriteableRegistry namedWriteableRegistry, Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestUpdateByQueryAction(Predicate<NodeFeature> clusterSupportsFeature) {
         super(UpdateByQueryAction.INSTANCE);
-        this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
@@ -58,11 +56,11 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return doPrepareRequest(request, namedWriteableRegistry, client, false, true);
+        return doPrepareRequest(request, client, false, true);
     }
 
     @Override
-    protected UpdateByQueryRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
+    protected UpdateByQueryRequest buildRequest(RestRequest request) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
         }
@@ -78,7 +76,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
         consumers.put("script", o -> internal.setScript(Script.parse(o)));
         consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
-        parseInternalRequest(internal, request, namedWriteableRegistry, clusterSupportsFeature, consumers);
+        parseInternalRequest(internal, request, clusterSupportsFeature, consumers);
 
         internal.setPipeline(request.param("pipeline"));
         return internal;

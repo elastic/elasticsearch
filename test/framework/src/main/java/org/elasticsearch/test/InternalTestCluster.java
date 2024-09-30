@@ -166,7 +166,6 @@ import static org.elasticsearch.test.NodeRoles.noRoles;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -2415,12 +2414,11 @@ public final class InternalTestCluster extends TestCluster {
             // there should be at least one master to update
             logger.debug("updating min_master_nodes to [{}]", minMasterNodes);
             try {
-                assertAcked(
-                    client().admin()
-                        .cluster()
-                        .prepareUpdateSettings()
-                        .setTransientSettings(Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes))
-                );
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes))
+                    .get(TimeValue.timeValueSeconds(30));
             } catch (Exception e) {
                 throw new ElasticsearchException(
                     "failed to update minimum master node to [{}] (current masters [{}])",

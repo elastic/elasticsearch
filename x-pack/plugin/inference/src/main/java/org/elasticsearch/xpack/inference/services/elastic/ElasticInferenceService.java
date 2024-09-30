@@ -30,6 +30,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -88,8 +90,13 @@ public class ElasticInferenceService extends SenderService {
             return;
         }
 
+        // We extract the trace context here as it's sufficient to propagate the trace information of the REST request,
+        // which handles the request to the inference API overall (including the outgoing request, which is started in a new thread
+        // generating a different "traceparent" as every task and every REST request creates a new span).
+        var currentTraceInfo = getCurrentTraceInfo();
+
         ElasticInferenceServiceModel elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
-        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents());
+        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), currentTraceInfo);
 
         var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
@@ -282,6 +289,7 @@ public class ElasticInferenceService extends SenderService {
     }
 
     public static class Configuration {
+
         public static InferenceServiceConfiguration get() {
             return configuration.getOrCompute();
         }
@@ -326,5 +334,14 @@ public class ElasticInferenceService extends SenderService {
                 }).toList()).setConfiguration(configurationMap).build();
             }
         );
+    }
+
+    private TraceContext getCurrentTraceInfo() {
+        var threadPool = getServiceComponents().threadPool();
+
+        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
+
+        return new TraceContext(traceParent, traceState);
     }
 }

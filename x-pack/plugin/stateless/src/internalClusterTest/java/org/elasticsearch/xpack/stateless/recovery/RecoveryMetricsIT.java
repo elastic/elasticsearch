@@ -310,25 +310,30 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
 
         ensureGreen(indexName);
 
-        boolean warmedBytes;
-        boolean readBytes;
-        {
-            var metric = getSingleRecordedMetric(
-                plugin::getLongCounterMeasurement,
-                RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC
-            );
-            warmedBytes = metric.getLong() > 0;
-            assertMetricAttributes(metric, indexName, 0, true);
-        }
-        {
-            var metric = getSingleRecordedMetric(
-                plugin::getLongCounterMeasurement,
-                RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC
-            );
-            readBytes = metric.getLong() > 0;
-            assertMetricAttributes(metric, indexName, 0, true);
-        }
-        assertThat("No bytes read or warmed from object store", warmedBytes || readBytes, equalTo(true));
+        var recoveriesMetric = getSingleRecordedMetric(
+            plugin::getLongCounterMeasurement,
+            RecoveryMetricsCollector.RECOVERY_TOTAL_COUNT_METRIC
+        );
+        assertThat(recoveriesMetric.getLong(), greaterThan(0L));
+
+        var warmedFromObjectStoreMetric = getSingleRecordedMetric(
+            plugin::getLongCounterMeasurement,
+            RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC
+        );
+        assertMetricAttributes(warmedFromObjectStoreMetric, indexName, 0, true);
+
+        var readFromObjectStoreMetric = getSingleRecordedMetric(
+            plugin::getLongCounterMeasurement,
+            RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC
+        );
+        assertMetricAttributes(readFromObjectStoreMetric, indexName, 0, true);
+
+        assertThat(
+            "No bytes read or warmed from object store",
+            warmedFromObjectStoreMetric.getLong() + readFromObjectStoreMetric.getLong(),
+            greaterThan(0L)
+        );
+
         {
             final List<Measurement> measurements = plugin.getLongCounterMeasurement(
                 SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC

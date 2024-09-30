@@ -330,6 +330,12 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.stats.ClusterStatsRemoteIT
   method: testRemoteClusterStats
   issue: https://github.com/elastic/elasticsearch/issues/113822
+- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
+  method: testNonGzippedDatabase
+  issue: https://github.com/elastic/elasticsearch/issues/113821
+- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
+  method: testGzippedDatabase
+  issue: https://github.com/elastic/elasticsearch/issues/113752
 
 # Examples:
 #

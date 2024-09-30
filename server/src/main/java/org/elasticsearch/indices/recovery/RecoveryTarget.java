@@ -597,6 +597,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         BlobStoreIndexShardSnapshot.FileInfo fileInfo,
         ActionListener<Void> listener
     ) {
+        assert hasReferences();
         assert hasPermitToDownloadSnapshotFiles();
 
         try (

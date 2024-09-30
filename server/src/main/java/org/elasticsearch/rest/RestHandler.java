@@ -228,7 +228,8 @@ public interface RestHandler {
                 assert this.replacedRoute == null;
                 this.restApiVersion = Objects.requireNonNull(lastFullySupportedVersion);
                 this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
-                this.deprecationLevel = DeprecationLogger.CRITICAL;
+                // if being deprecated for removal in the current version, then it's a warning, otherwise it's critical
+                this.deprecationLevel = lastFullySupportedVersion == RestApiVersion.current() ? Level.WARN : DeprecationLogger.CRITICAL;
                 return this;
             }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
@@ -200,7 +201,6 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         }
 
         if (model instanceof ElasticsearchInternalModel esModel) {
-
             var request = buildInferenceRequest(
                 model.getInferenceEntityId(),
                 TextExpansionConfigUpdate.EMPTY_UPDATE,
@@ -279,6 +279,11 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         InferModelAction.Request request,
         ActionListener<InferenceServiceResults> listener
     ) {
+        if (DefaultElserFeatureFlag.isEnabled() ==  false) {
+            listener.onFailure(e);
+            return;
+        }
+
         if (isDefaultId(model.getInferenceEntityId()) && ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             this.start(model, listener.delegateFailureAndWrap((l, started) -> {
                 client.execute(

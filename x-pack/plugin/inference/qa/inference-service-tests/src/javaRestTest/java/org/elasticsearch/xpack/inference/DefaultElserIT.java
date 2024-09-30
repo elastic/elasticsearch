@@ -32,12 +32,14 @@ public class DefaultElserIT extends InferenceBaseRestTest {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
         threadPool.close();
+        super.tearDown();
     }
 
     @SuppressWarnings("unchecked")
     public void testInferCreatesDefaultElser() throws IOException {
+        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
         var model = getModel(ElserInternalService.DEFAULT_ELSER_ID);
         assertDefaultElserConfig(model);
 
@@ -46,23 +48,17 @@ public class DefaultElserIT extends InferenceBaseRestTest {
         var results = infer(ElserInternalService.DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, inputs, queryParams);
         var embeddings = (List<Map<String, Object>>) results.get("sparse_embedding");
         assertThat(results.toString(), embeddings, hasSize(2));
+    }
 
-        var modelMap = getModel(ElserInternalService.DEFAULT_ELSER_ID);
-        assertEquals(ElserInternalService.DEFAULT_ELSER_ID, modelMap.get("inference_id"));
-        assertEquals("elser", modelMap.get("service"));
-        assertEquals(TaskType.SPARSE_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
-        var serviceSettings = (Map<String, Object>) modelMap.get("service_settings");
-        assertEquals(1, serviceSettings.get("num_threads"));
-        assertThat(
-            serviceSettings.toString(),
-            serviceSettings.get("adaptive_allocations"),
-            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 1))
-        );
+    public void testScaleFrom0() {
+        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
+        fail("how can we test this when we need to wait for the cooldown");
     }
 
     /*
     @SuppressWarnings("unchecked")
     public void testInferMultipleInferences() throws IOException {
+        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
         var model = getModel(ElserInternalService.DEFAULT_ELSER_ID);
         assertDefaultElserConfig(model);
 

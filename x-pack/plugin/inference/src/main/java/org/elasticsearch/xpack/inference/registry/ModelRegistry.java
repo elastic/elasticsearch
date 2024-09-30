@@ -41,6 +41,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -63,26 +64,33 @@ import static org.elasticsearch.core.Strings.format;
 public class ModelRegistry {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
 
-    private static final Map<String, Object> DEFAULT_ELSER_SETTINGS = Map.of(
-        ModelConfigurations.SERVICE_SETTINGS,
-        Map.of(
-            ElasticsearchInternalServiceSettings.MODEL_ID,
-            ElserModels.ELSER_V2_MODEL,  // TODO pick model depending on platform
-            ElasticsearchInternalServiceSettings.NUM_THREADS,
-            1,
-            ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS,
-            Map.of(
-                "enabled",
-                Boolean.TRUE,
-                "min_number_of_allocations",
-                0,
-                "max_number_of_allocations",
-                8   // no max?
-            )
-        )
-    );
+    private static final Map<String, Object> DEFAULT_ELSER_SETTINGS;
+    static {
+        if (DefaultElserFeatureFlag.isEnabled()) {
+            DEFAULT_ELSER_SETTINGS = Map.of(
+                ModelConfigurations.SERVICE_SETTINGS,
+                Map.of(
+                    ElasticsearchInternalServiceSettings.MODEL_ID,
+                    ElserModels.ELSER_V2_MODEL,  // TODO pick model depending on platform
+                    ElasticsearchInternalServiceSettings.NUM_THREADS,
+                    1,
+                    ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS,
+                    Map.of(
+                        "enabled",
+                        Boolean.TRUE,
+                        "min_number_of_allocations",
+                        0,
+                        "max_number_of_allocations",
+                        8   // no max?
+                    )
+                )
+            );
+        } else {
+            DEFAULT_ELSER_SETTINGS = Map.of();
+        }
+    }
 
-    private static Map<String, UnparsedModel> DEFAULT_CONFIGS;
+    private static final Map<String, UnparsedModel> DEFAULT_CONFIGS;
     static {
         DEFAULT_CONFIGS = Map.of(
             ElserInternalService.DEFAULT_ELSER_ID,

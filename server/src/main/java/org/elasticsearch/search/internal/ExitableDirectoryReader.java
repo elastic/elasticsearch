@@ -668,20 +668,20 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             this.in = in;
         }
 
-        /*@Override
-        public int docID() {
-            return in.docID();
+        @Override
+        public DocIndexIterator iterator() {
+            return in.iterator();
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            return in.nextDoc();
+        public float[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
         }
 
         @Override
-        public int advance(int target) throws IOException {
-            return in.advance(target);
-        }*/
+        public FloatVectorValues copy() throws IOException {
+            return in.copy();
+        }
 
         @Override
         public int dimension() {
@@ -693,9 +693,5 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             return in.size();
         }
 
-        /*@Override
-        public float[] vectorValue() throws IOException {
-            return in.vectorValue();
-        }*/
     }
 }

@@ -1461,6 +1461,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             if (randomBoolean()) {
                 logger.info("--> closing index [{}]", indexName);
                 safeGet(indicesAdmin().prepareClose(indexName).execute());
+                ensureGreen(indexName);
             } else {
                 logger.info("--> failing index [{}] to trigger recovery", indexName);
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, blockingNode)) {

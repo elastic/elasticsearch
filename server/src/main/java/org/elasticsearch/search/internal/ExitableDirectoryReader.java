@@ -515,8 +515,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public ByteVectorValues copy() {
-            throw new UnsupportedOperationException();
+        public ByteVectorValues copy() throws IOException {
+            return in.copy();
         }
     }
 
@@ -566,8 +566,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public FloatVectorValues copy() {
-            throw new UnsupportedOperationException();
+        public FloatVectorValues copy() throws IOException {
+            return in.copy();
         }
     }
 

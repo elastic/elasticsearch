@@ -4083,18 +4083,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * <code>
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[abbrev{f}#16, city{f}#22, city_location{f}#23, country{f}#21, location{f}#20, name{f}#17, scalerank{f}#18,
-     *     type{f}#19, poi{r}#3, distance{r}#7],false]
-     *   \_ProjectExec[[abbrev{f}#16, city{f}#22, city_location{f}#23, country{f}#21, location{f}#20, name{f}#17, scalerank{f}#18,
-     *       type{f}#19, poi{r}#3, distance{r}#7]]
-     *     \_FieldExtractExec[abbrev{f}#16, city{f}#22, city_location{f}#23, coun..][]
+     * \_ExchangeExec[[abbrev{f}#22, city{f}#28, city_location{f}#29, country{f}#27, location{f}#26, name{f}#23, scalerank{f}#24,
+     *     type{f}#25, poi_x{r}#3, distance_x{r}#7, poi{r}#10, distance{r}#13],false]
+     *   \_ProjectExec[[abbrev{f}#22, city{f}#28, city_location{f}#29, country{f}#27, location{f}#26, name{f}#23, scalerank{f}#24,
+     *       type{f}#25, poi_x{r}#3, distance_x{r}#7, poi{r}#10, distance{r}#13]]
+     *     \_FieldExtractExec[abbrev{f}#22, city{f}#28, city_location{f}#29, coun..][]
      *       \_LimitExec[1000[INTEGER]]
      *         \_EvalExec[[
+     *             [1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT] AS poi_x,
+     *             DISTANCE(location{f}#26,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance_x,
      *             [1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT] AS poi,
-     *             STDISTANCE(location{f}#20,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance]
-     *           ]
-     *           \_FieldExtractExec[location{f}#20][]
+     *             distance_x{r}#7 AS distance
+     *           ]]
+     *           \_FieldExtractExec[location{f}#26][]
      *             \_EsQueryExec[airports], indexMode[standard], query[{
      *               "bool":{
      *                 "must":[
@@ -4134,8 +4135,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testPushSpatialDistanceComplexPredicateWithEvalToSource() {
         var query = """
             FROM airports
-            | EVAL poi = TO_GEOPOINT("POINT(12.565 55.673)")
-            | EVAL distance = ST_DISTANCE(location, poi)
+            | EVAL poi_x = TO_GEOPOINT("POINT(12.565 55.673)")
+            | EVAL distance_x = ST_DISTANCE(location, poi_x)
+            | EVAL poi = poi_x
+            | EVAL distance = distance_x
             | WHERE ((distance <= 600000
                   AND distance >= 400000
                   AND NOT (distance <= 500000

@@ -15,6 +15,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,32 +79,32 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         return filterExec;
     }
 
-    private boolean isPushableAlias(Alias alias) {
-        // TODO: Add support for more pushable aliases, like simple field references
-        return alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, Map.of());
+    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases) {
+        LinkedHashMap<NameId, StDistance> refs = new LinkedHashMap<>();
+        aliases.forEach(alias -> {
+            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, Map.of())) {
+                refs.put(alias.id(), distance);
+            } else if (alias.child() instanceof ReferenceAttribute ref && refs.containsKey(ref.id())) {
+                StDistance distance = refs.get(ref.id());
+                refs.put(alias.id(), distance);
+            }
+        });
+        return refs;
     }
 
     private PhysicalPlan rewrite(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {
-        Map<String, Alias> pushable = new LinkedHashMap<>();
-        List<Alias> nonPushable = new ArrayList<>();
-        evalExec.fields().forEach(alias -> {
-            if (isPushableAlias(alias)) {
-                pushable.put(alias.name(), alias);
-            } else {
-                nonPushable.add(alias);
-            }
-        });
+        Map<NameId, StDistance> pushable = getPushableDistances(evalExec.fields());
         if (pushable.isEmpty() == false) {
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
                 ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
-                if (comparison.left() instanceof ReferenceAttribute d && pushable.containsKey(d.name()) && comparison.right().foldable()) {
-                    StDistance dist = (StDistance) pushable.get(d.name()).child();
+                if (comparison.left() instanceof ReferenceAttribute r && pushable.containsKey(r.id()) && comparison.right().foldable()) {
+                    StDistance dist = pushable.get(r.id());
                     return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
-                } else if (comparison.right() instanceof ReferenceAttribute d
-                    && pushable.containsKey(d.name())
+                } else if (comparison.right() instanceof ReferenceAttribute r
+                    && pushable.containsKey(r.id())
                     && comparison.left().foldable()) {
-                        StDistance dist = (StDistance) pushable.get(d.name()).child();
+                        StDistance dist = pushable.get(r.id());
                         return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
                     }
                 return comparison;

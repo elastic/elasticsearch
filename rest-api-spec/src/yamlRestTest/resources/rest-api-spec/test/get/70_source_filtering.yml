@@ -62,3 +62,123 @@
   - match:   { _id:      "1"       }
   - match:   { fields.count:  [1] }
   - match:   { _source.include.field1: v1 }
+
+---
+"Vector fields are included in source by default":
+  - requires:
+      cluster_features: "search.hide_vectors_in_source"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: vector-test
+        body:
+          mappings:
+            properties:
+              sparse:
+                type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
+
+  - do:
+      index:
+        index: vector-test
+        id: 1
+        body:
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+          dense: [ 1.0, 2.0, 3.0 ]
+        refresh: true
+
+  - do:
+      get:
+        index: vector-test
+        id: 1
+
+  - exists: _source.sparse
+  - exists: _source.dense
+
+---
+"Explicitly include vector fields in source":
+  - requires:
+      cluster_features: "search.hide_vectors_in_source"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: vector-test
+        body:
+          mappings:
+            properties:
+              sparse:
+                type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
+
+  - do:
+      index:
+        index: vector-test
+        id: 1
+        body:
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+          dense: [ 1.0, 2.0, 3.0 ]
+        refresh: true
+
+  - do:
+      get:
+        index: vector-test
+        id: 1
+        _source_include_vectors: true
+
+  - exists: _source.sparse
+  - exists: _source.dense
+
+---
+"Explicitly exclude vector fields from source":
+  - requires:
+      cluster_features: "search.hide_vectors_in_source"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: vector-test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              sparse:
+                type: sparse_vector
+              dense:
+                type: dense_vector
+                dims: 3
+
+  - do:
+      index:
+        index: vector-test
+        id: 1
+        body:
+          text: running is good for you
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+          dense: [ 1.0, 2.0, 3.0 ]
+        refresh: true
+
+  - do:
+      get:
+        index: vector-test
+        id: 1
+        _source_include_vectors: false
+
+  - exists: _source.text
+  - not_exists: _source.sparse
+  - not_exists: _source.dense

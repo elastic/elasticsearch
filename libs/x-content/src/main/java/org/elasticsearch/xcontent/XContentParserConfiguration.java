@@ -51,15 +51,18 @@ public interface XContentParserConfiguration {
 
     /**
      * Replace the configured filtering.
+     *
+     * @param prefixPath                    The prefix path to be appended to each sub-path before applying the include/exclude rules.
+     *                                      Specify {@code null} if parsing starts from the root.
+     * @param includeStrings                A set of strings representing paths to include during filtering.
+     *                                      If specified, only these paths will be included in parsing.
+     * @param excludeStrings                A set of strings representing paths to exclude during filtering.
+     *                                      If specified, these paths will be excluded from parsing.
+     * @param filtersMatchFieldNamesWithDots Indicates whether filters should match field names containing dots ('.')
+     *                                      as part of the field name.
      */
     XContentParserConfiguration withFiltering(
-        Set<String> includeStrings,
-        Set<String> excludeStrings,
-        boolean filtersMatchFieldNamesWithDots
-    );
-
-    XContentParserConfiguration withFiltering(
-        String rootPath,
+        String prefixPath,
         Set<String> includeStrings,
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots

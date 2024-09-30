@@ -138,6 +138,7 @@ public final class SourceFilter {
             return this::filterMap;
         }
         final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+            null,
             Set.copyOf(Arrays.asList(includes)),
             Set.copyOf(Arrays.asList(excludes)),
             true

@@ -104,7 +104,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     }
 
     public XContentParserConfiguration withFiltering(
-        String rootPath,
+        String prefixPath,
         Set<String> includeStrings,
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
@@ -112,11 +112,11 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         FilterPath[] includePaths = FilterPath.compile(includeStrings);
         FilterPath[] excludePaths = FilterPath.compile(excludeStrings);
 
-        if (rootPath != null) {
+        if (prefixPath != null) {
             if (includePaths != null) {
                 List<FilterPath> includeFilters = new ArrayList<>();
                 for (var incl : includePaths) {
-                    incl.matches(rootPath, includeFilters, true);
+                    incl.matches(prefixPath, includeFilters, true);
                 }
                 includePaths = includeFilters.isEmpty() ? null : includeFilters.toArray(FilterPath[]::new);
             }
@@ -124,7 +124,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             if (excludePaths != null) {
                 List<FilterPath> excludeFilters = new ArrayList<>();
                 for (var excl : excludePaths) {
-                    excl.matches(rootPath, excludeFilters, true);
+                    excl.matches(prefixPath, excludeFilters, true);
                 }
                 excludePaths = excludeFilters.isEmpty() ? null : excludeFilters.toArray(FilterPath[]::new);
             }
@@ -137,14 +137,6 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             excludePaths,
             filtersMatchFieldNamesWithDots
         );
-    }
-
-    public XContentParserConfiguration withFiltering(
-        Set<String> includeStrings,
-        Set<String> excludeStrings,
-        boolean filtersMatchFieldNamesWithDots
-    ) {
-        return withFiltering(null, includeStrings, excludeStrings, filtersMatchFieldNamesWithDots);
     }
 
     public JsonParser filter(JsonParser parser) {

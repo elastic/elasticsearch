@@ -57,7 +57,9 @@ import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory
 import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.UpnADAuthenticator;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapServerDebugLogging;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ReservedRoleMappings;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -74,6 +76,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -118,6 +121,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     private Settings globalSettings;
     private SSLService sslService;
     private XPackLicenseState licenseState;
+    private ReservedRoleMappings reservedRoleMappings;
     private LdapServerDebugLogging debugLogging = new LdapServerDebugLogging(logger);
 
     @BeforeClass
@@ -163,6 +167,9 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         licenseState = new TestUtils.UpdatableLicenseState();
+        final ClusterStateRoleMapper mock = mock(ClusterStateRoleMapper.class);
+        when(mock.getMappings()).thenReturn(Set.of());
+        reservedRoleMappings = new ReservedRoleMappings(mock);
 
         // Verify we can connect to each server. Tests will fail in strange ways if this isn't true
         Arrays.stream(directoryServers).forEachOrdered(ds -> tryConnect(ds));
@@ -438,7 +445,13 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
-        NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(settings, mockClient, mockSecurityIndex, scriptService) {
+        NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(
+            settings,
+            mockClient,
+            mockSecurityIndex,
+            scriptService,
+            reservedRoleMappings
+        ) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
                 listener.onResponse(Arrays.asList(NativeRoleMappingStore.buildMapping("m1", new BytesArray("""

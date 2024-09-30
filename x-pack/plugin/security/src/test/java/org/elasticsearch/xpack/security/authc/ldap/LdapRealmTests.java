@@ -51,7 +51,9 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ReservedRoleMappings;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -61,6 +63,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -537,11 +540,15 @@ public class LdapRealmTests extends LdapTestCase {
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
+        final ClusterStateRoleMapper mock = mock(ClusterStateRoleMapper.class);
+        when(mock.getMappings()).thenReturn(Set.of());
+        final ReservedRoleMappings reservedRoleMappings = new ReservedRoleMappings(mock);
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(
             defaultGlobalSettings,
             mockClient,
             mockSecurityIndex,
-            scriptService
+            scriptService,
+            reservedRoleMappings
         ) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ReservedRoleMappings;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -182,7 +183,8 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
             Settings.EMPTY,
             mockClient,
             mock(SecurityIndexManager.class),
-            mock(ScriptService.class)
+            mock(ScriptService.class),
+            mock(ReservedRoleMappings.class)
         );
         final NativeRoleMappingStore roleMapper = spy(store);
 

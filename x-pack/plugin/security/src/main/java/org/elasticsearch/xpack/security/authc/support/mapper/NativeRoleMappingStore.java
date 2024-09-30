@@ -108,10 +108,6 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     private final boolean enabled;
     private final ReservedRoleMappings reservedRoleMappings;
 
-    public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
-        this(settings, client, securityIndex, scriptService, new ReservedRoleMappings(null));
-    }
-
     public NativeRoleMappingStore(
         Settings settings,
         Client client,

@@ -82,6 +82,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
     private ScriptService scriptService;
     private SecurityIndexManager securityIndex;
+    private ReservedRoleMappings reservedRoleMappings;
 
     @Before
     public void setup() {
@@ -92,6 +93,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             () -> 1L
         );
         securityIndex = mockHealthySecurityIndex();
+        final ClusterStateRoleMapper mock = mock(ClusterStateRoleMapper.class);
+        when(mock.getMappings()).thenReturn(Set.of());
+        reservedRoleMappings = new ReservedRoleMappings(mock);
     }
 
     public void testResolveRoles() throws Exception {
@@ -148,8 +152,13 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         );
 
         final Client client = mock(Client.class);
-
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, securityIndex, scriptService) {
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            Settings.EMPTY,
+            client,
+            securityIndex,
+            scriptService,
+            reservedRoleMappings
+        ) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
                 final List<ExpressionRoleMapping> mappings = Arrays.asList(mapping1, mapping2, mapping3, mapping4);
@@ -203,7 +212,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
-            scriptService
+            scriptService,
+            reservedRoleMappings
         );
 
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
@@ -245,7 +255,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
-            scriptService
+            scriptService,
+            reservedRoleMappings
         );
 
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
@@ -307,7 +318,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
-            scriptService
+            scriptService,
+            reservedRoleMappings
         );
 
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
@@ -508,7 +520,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.EMPTY,
             mock(Client.class),
             mock(SecurityIndexManager.class),
-            scriptService
+            scriptService,
+            reservedRoleMappings
         );
         expectThrows(IllegalArgumentException.class, () -> nativeRoleMappingStore.putRoleMapping(putRoleMappingRequest, null));
     }
@@ -545,7 +558,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.EMPTY,
             client,
             mock(SecurityIndexManager.class),
-            mock(ScriptService.class)
+            mock(ScriptService.class),
+            reservedRoleMappings
         );
 
         if (attachRealm) {

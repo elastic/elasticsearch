@@ -63,9 +63,7 @@ public class FetchSourceContextTests extends AbstractBWCSerializationTestCase<Fe
 
     @Override
     protected void assertEqualInstances(FetchSourceContext expectedInstance, FetchSourceContext newInstance) {
-        if (expectedInstance == FetchSourceContext.FETCH_SOURCE
-            || expectedInstance == FetchSourceContext.DO_NOT_FETCH_SOURCE
-            || expectedInstance == FetchSourceContext.FETCH_SOURCE_WITH_VECTORS) {
+        if (expectedInstance == FetchSourceContext.FETCH_SOURCE || expectedInstance == FetchSourceContext.DO_NOT_FETCH_SOURCE) {
             assertSame(expectedInstance, newInstance);
         } else {
             super.assertEqualInstances(expectedInstance, newInstance);
@@ -83,9 +81,7 @@ public class FetchSourceContextTests extends AbstractBWCSerializationTestCase<Fe
 
     @Override
     protected void assertOnBWCObject(FetchSourceContext bwcSerializedObject, FetchSourceContext testInstance, TransportVersion version) {
-        if (bwcSerializedObject == FetchSourceContext.FETCH_SOURCE
-            || bwcSerializedObject == FetchSourceContext.DO_NOT_FETCH_SOURCE
-            || bwcSerializedObject == FetchSourceContext.FETCH_SOURCE_WITH_VECTORS) {
+        if (bwcSerializedObject == FetchSourceContext.FETCH_SOURCE || bwcSerializedObject == FetchSourceContext.DO_NOT_FETCH_SOURCE) {
             assertSame(version.toString(), bwcSerializedObject, testInstance);
         } else {
             super.assertOnBWCObject(bwcSerializedObject, testInstance, version);

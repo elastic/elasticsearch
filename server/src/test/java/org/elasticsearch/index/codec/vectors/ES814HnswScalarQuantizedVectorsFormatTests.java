@@ -19,6 +19,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -68,9 +69,10 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                 try (IndexReader reader = DirectoryReader.open(w2)) {
                     LeafReader r = getOnlyLeafReader(reader);
                     FloatVectorValues vectorValues = r.getFloatVectorValues(fieldName);
-                    assertEquals(0, vectorValues.nextDoc());
-                    assertEquals(0, vectorValues.vectorValue()[0], 0);
-                    assertEquals(NO_MORE_DOCS, vectorValues.nextDoc());
+                    KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
+                    assertEquals(0, iterator.nextDoc());
+                    assertEquals(0, vectorValues.vectorValue(iterator.index())[0], 0);
+                    assertEquals(NO_MORE_DOCS, iterator.nextDoc());
                 }
             }
         }
@@ -110,12 +112,13 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                 try (IndexReader reader = DirectoryReader.open(w2)) {
                     LeafReader r = getOnlyLeafReader(reader);
                     FloatVectorValues vectorValues = r.getFloatVectorValues(fieldName);
-                    assertEquals(0, vectorValues.nextDoc());
+                    KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
+                    assertEquals(0, iterator.nextDoc());
                     // The merge order is randomized, we might get 1 first, or 2
-                    float value = vectorValues.vectorValue()[0];
+                    float value = vectorValues.vectorValue(iterator.index())[0];
                     assertTrue(value == 1 || value == 2);
-                    assertEquals(1, vectorValues.nextDoc());
-                    value += vectorValues.vectorValue()[0];
+                    assertEquals(1, iterator.nextDoc());
+                    value += vectorValues.vectorValue(iterator.index())[0];
                     assertEquals(3f, value, 0);
                 }
             }

@@ -19,7 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
@@ -217,18 +217,18 @@ public class VectorScorerBenchmark {
         return 1 / (1f + adjustedDistance);
     }
 
-    RandomAccessQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+    QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
         var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
         var slice = in.slice("values", 0, in.length());
         return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
     }
 
-    RandomVectorScorerSupplier luceneScoreSupplier(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim)
+    RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
 
-    RandomVectorScorer luceneScorer(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
+    RandomVectorScorer luceneScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
     }

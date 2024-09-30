@@ -54,11 +54,7 @@ public class MatchFunction extends FullTextFunction {
     )
     public MatchFunction(
         Source source,
-        @Param(
-            name = "field",
-            type = { "keyword", "text" },
-            description = "Field that the query will target."
-        ) Expression field,
+        @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
         @Param(
             name = "query",
             type = { "keyword", "text" },

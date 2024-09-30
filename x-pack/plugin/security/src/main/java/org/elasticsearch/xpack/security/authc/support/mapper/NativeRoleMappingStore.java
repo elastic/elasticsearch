@@ -341,7 +341,8 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         } else if (names == null || names.isEmpty()) {
             getMappings(listener);
         } else {
-            // TODO make sure order in which we are filtering is as expected...
+            // TODO make sure order in which we are filtering is as expected... i.e., name filter happens _after_ mergeWithReserved is
+            // called... listeners upon listeners...
             getMappings(listener.safeMap(mappings -> mappings.stream().filter(m -> names.contains(m.getName())).toList()));
         }
     }

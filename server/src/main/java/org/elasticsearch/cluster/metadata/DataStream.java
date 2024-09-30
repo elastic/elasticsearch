@@ -199,8 +199,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             ? in.readOptionalWriteable(DataStreamLifecycle::new)
             : null;
         // This boolean flag has been moved in data stream options
-        var failureStoreEnabled = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
-            && in.getTransportVersion().before(TransportVersions.ADD_DATA_STREAM_OPTIONS) ? in.readBoolean() : false;
+        var failureStoreEnabled = in.getTransportVersion()
+            .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS)
+                ? in.readBoolean()
+                : false;
         var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
             ? readIndices(in)
             : List.<Index>of();
@@ -1065,10 +1067,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(lifecycle);
         }
+        if (out.getTransportVersion()
+            .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+            out.writeBoolean(isFailureStoreEnabled());
+        }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-            if (out.getTransportVersion().before(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
-                out.writeBoolean(isFailureStoreEnabled());
-            }
             out.writeCollection(failureIndices.indices);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {

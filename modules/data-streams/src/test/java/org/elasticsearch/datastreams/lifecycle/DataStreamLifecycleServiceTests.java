@@ -1496,11 +1496,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         int numFailureIndices = 2;
-        DataStreamOptions dataStreamOptions = switch (randomIntBetween(0, 2)) {
+        int mutationBranch = randomIntBetween(0, 2);
+        DataStreamOptions dataStreamOptions = switch (mutationBranch) {
             case 0 -> DataStreamOptions.EMPTY;
             case 1 -> DataStreamOptions.FAILURE_STORE_ENABLED;
             case 2 -> DataStreamOptions.FAILURE_STORE_DISABLED;
-            default -> throw new IllegalStateException("Unexpected value: " + randomIntBetween(0, 2));
+            default -> throw new IllegalStateException("Unexpected value: " + mutationBranch);
         };
         Metadata.Builder builder = Metadata.builder();
         DataStream dataStream = createDataStream(

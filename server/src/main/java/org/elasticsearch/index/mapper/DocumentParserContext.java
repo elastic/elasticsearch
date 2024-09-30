@@ -861,25 +861,26 @@ public abstract class DocumentParserContext {
     }
 
     private final Map<String, SortedMap<String, List<Integer>>> arrayOffsetsByField = new HashMap<>();
-    private final Map<String, Integer> numValuesByField = new HashMap<>();
+    private final Map<String, Integer> offsetCounterByField = new HashMap<>();
 
     public SortedMap<String, List<Integer>> getValuesWithOffsets(String field) {
         return arrayOffsetsByField.get(field);
     }
 
     public int getArrayValueCount(String field) {
-        if (numValuesByField.containsKey(field)) {
-            return numValuesByField.get(field) + 1;
+        if (offsetCounterByField.containsKey(field)) {
+            // last offset + 1
+            return offsetCounterByField.get(field) + 1;
         } else {
             return 0;
         }
     }
 
     public void recordOffset(String fieldName, String value) {
-        int count = numValuesByField.compute(fieldName, (s, integer) -> integer == null ? 0 : ++integer);
+        int nextOffset = offsetCounterByField.compute(fieldName, (s, integer) -> integer == null ? 0 : ++integer);
         var values = arrayOffsetsByField.computeIfAbsent(fieldName , s -> new TreeMap<>(Comparator.naturalOrder()));
         var offsets = values.computeIfAbsent(value, s -> new ArrayList<>());
-        offsets.add(count);
+        offsets.add(nextOffset);
     }
 
 }

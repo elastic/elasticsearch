@@ -205,6 +205,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                     ords[i] = dv.nextOrd();
                 }
 
+                // TODO: remove later
                 logger.info("ords=" + Arrays.toString(ords));
                 logger.info("vals=" + Arrays.stream(ords).mapToObj(ord -> {
                     try {

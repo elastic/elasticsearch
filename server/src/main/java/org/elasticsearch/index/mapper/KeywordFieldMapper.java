@@ -949,8 +949,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        int arrayLength = context.getArrayValueCount(fullPath());
         int ord = 0;
+        final int arrayLength = context.getArrayValueCount(fullPath());
         int[] offsetToOrd = new int[arrayLength];
         for (var entry : values.entrySet()) {
             for (var offsetAndLevel : entry.getValue()) {
@@ -959,6 +959,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             ord++;
         }
 
+        // TODO: remove later
         logger.info("values=" + values);
         logger.info("offsetToOrd=" + Arrays.toString(offsetToOrd));
 

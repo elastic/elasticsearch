@@ -100,7 +100,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
+                parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, request.syntheticSourceKeepValue());
             }
 
             return parameters;

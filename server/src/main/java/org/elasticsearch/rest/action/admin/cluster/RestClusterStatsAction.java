@@ -11,8 +11,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -30,9 +28,7 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterStatsAction extends BaseRestHandler {
 
-    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("human-readable-total-docs-size");
-    private static final Set<String> SUPPORTED_CAPABILITIES_CCS_STATS = Sets.union(SUPPORTED_CAPABILITIES, Set.of("ccs-stats"));
-    public static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("human-readable-total-docs-size", "ccs-stats");
 
     @Override
     public List<Route> routes() {
@@ -68,6 +64,6 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? SUPPORTED_CAPABILITIES_CCS_STATS : SUPPORTED_CAPABILITIES;
+        return SUPPORTED_CAPABILITIES;
     }
 }

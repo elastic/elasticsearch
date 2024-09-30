@@ -19,6 +19,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -37,9 +38,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportGetRoleMappingsActionTests extends ESTestCase {
 
+    private ClusterStateRoleMapper clusterStateRoleMapper;
     private NativeRoleMappingStore store;
     private TransportGetRoleMappingsAction action;
     private AtomicReference<Set<String>> namesRef;
@@ -48,6 +51,8 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setupMocks() {
+        clusterStateRoleMapper = mock(ClusterStateRoleMapper.class);
+        when(clusterStateRoleMapper.getMappings()).thenReturn(Set.of());
         store = mock(NativeRoleMappingStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -58,6 +63,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
+
         action = new TransportGetRoleMappingsAction(mock(ActionFilters.class), transportService, store);
 
         namesRef = new AtomicReference<>(null);

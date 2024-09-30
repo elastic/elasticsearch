@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.core.security.SecurityExtension.SecurityCo
  * A role mapper the reads the role mapping rules (i.e. {@link ExpressionRoleMapping}s) from the cluster state
  * (i.e. {@link RoleMappingMetadata}). This is not enabled by default.
  */
-public final class ReservedClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
+public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
 
     /**
      * This setting is never registered by the xpack security plugin - in order to enable the
@@ -44,26 +44,21 @@ public final class ReservedClusterStateRoleMapper extends AbstractRoleMapperClea
      *          of the {@link NativeRoleMappingStore} and this mapper.</li>
      * </ul>
      */
+    // TODO we need to register this setting as an escape hatch
     public static final String CLUSTER_STATE_ROLE_MAPPINGS_ENABLED = "xpack.security.authc.cluster_state_role_mappings.enabled";
-    private static final Logger logger = LogManager.getLogger(ReservedClusterStateRoleMapper.class);
+    private static final Logger logger = LogManager.getLogger(ClusterStateRoleMapper.class);
 
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final boolean enabled;
 
-    public ReservedClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
+    public ClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
-        // this role mapper is disabled by default and only code in other plugins can enable it
-        // TODO its likely not viable to default to true; we need a different way to configure this
         this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, true);
         if (this.enabled) {
             clusterService.addListener(this);
         }
-    }
-
-    public boolean isEnabled() {
-        return enabled;
     }
 
     @Override

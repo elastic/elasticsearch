@@ -48,7 +48,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
@@ -107,10 +106,10 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     private final boolean lastLoadCacheEnabled;
     private final AtomicReference<List<ExpressionRoleMapping>> lastLoadRef = new AtomicReference<>(null);
     private final boolean enabled;
-    private final Supplier<Set<ExpressionRoleMapping>> reservedRoleMappingSupplier;
+    private final ReservedRoleMappings reservedRoleMappings;
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
-        this(settings, client, securityIndex, scriptService, Set::of);
+        this(settings, client, securityIndex, scriptService, new ReservedRoleMappings(null));
     }
 
     public NativeRoleMappingStore(
@@ -118,7 +117,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         Client client,
         SecurityIndexManager securityIndex,
         ScriptService scriptService,
-        Supplier<Set<ExpressionRoleMapping>> reservedRoleMappingSupplier
+        ReservedRoleMappings reservedRoleMappings
     ) {
         this.settings = settings;
         this.client = client;
@@ -126,7 +125,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         this.scriptService = scriptService;
         this.lastLoadCacheEnabled = LAST_LOAD_CACHE_ENABLED_SETTING.get(settings);
         this.enabled = settings.getAsBoolean(NATIVE_ROLE_MAPPINGS_ENABLED, true);
-        this.reservedRoleMappingSupplier = reservedRoleMappingSupplier;
+        this.reservedRoleMappings = reservedRoleMappings;
     }
 
     /**
@@ -212,8 +211,8 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         Request request,
         ActionListener<Result> listener
     ) {
-        if (reservedRoleMappingSupplier.get().stream().anyMatch(it -> it.getName().equals(name))) {
-            listener.onFailure(new IllegalArgumentException("[" + name + "] role mapping is reserved and cannot be modified via API"));
+        if (reservedRoleMappings.isReserved(name)) {
+            listener.onFailure(new IllegalArgumentException("Role mapping [" + name + "] cannot be modified via API"));
             return;
         }
         if (securityIndex.isIndexUpToDate() == false) {
@@ -322,17 +321,9 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
-        ActionListener<List<ExpressionRoleMapping>> reservedMappingListener = listener.delegateFailureAndWrap((l, mappings) -> {
-            var reservedMappings = reservedRoleMappingSupplier.get();
-            if (reservedMappings.isEmpty()) {
-                listener.onResponse(mappings);
-                return;
-            }
-            var reservedMappingNames = reservedMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
-            var filteredNativeRoleMappings = mappings.stream().filter(it -> false == reservedMappingNames.contains(it.getName())).toList();
-            listener.onResponse(filteredNativeRoleMappings);
-        });
-        innerGetRoleMappings(names, reservedMappingListener);
+        innerGetRoleMappings(names, listener.delegateFailureAndWrap((l, mappings) -> {
+            l.onResponse(enabled == false ? List.of() : reservedRoleMappings.combineWithReserved(mappings));
+        }));
     }
 
     /**
@@ -428,7 +419,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         getRoleMappings(null, ActionListener.wrap(mappings -> {
-            logger.trace("Retrieved [{}] role mapping(s) from security index", mappings.size());
+            logger.trace("Retrieved [{}] role mapping(s) from security index.", mappings.size());
             listener.onResponse(ExpressionRoleMapping.resolveRoles(user, mappings, scriptService, logger));
         }, listener::onFailure));
     }

@@ -312,9 +312,9 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenSt
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
-import org.elasticsearch.xpack.security.authc.support.mapper.ReservedClusterStateRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.mapper.ReservedRoleMappings;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
@@ -851,19 +851,14 @@ public class Security extends Plugin
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, systemIndices.getMainIndexManager());
-        final ReservedClusterStateRoleMapper reservedClusterStateRoleMapper = new ReservedClusterStateRoleMapper(
-            settings,
-            scriptService,
-            clusterService
-        );
+        final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(
             settings,
             client,
             systemIndices.getMainIndexManager(),
             scriptService,
-            reservedClusterStateRoleMapper::getMappings
+            new ReservedRoleMappings(clusterStateRoleMapper)
         );
-        final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, reservedClusterStateRoleMapper);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
         final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, threadPool);
@@ -872,7 +867,7 @@ public class Security extends Plugin
             client,
             clusterService,
             resourceWatcherService,
-            userRoleMapper
+            nativeRoleMappingStore
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
@@ -881,7 +876,7 @@ public class Security extends Plugin
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
-                userRoleMapper,
+                nativeRoleMappingStore,
                 systemIndices.getMainIndexManager()
             )
         );
@@ -903,7 +898,8 @@ public class Security extends Plugin
         );
         components.add(nativeUsersStore);
         components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
-        components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
+        components.add(new PluginComponentBinding<>(ClusterStateRoleMapper.class, clusterStateRoleMapper));
+        components.add(new PluginComponentBinding<>(UserRoleMapper.class, (UserRoleMapper) nativeRoleMappingStore));
         components.add(reservedRealm);
         components.add(realms);
         this.realms.set(realms);

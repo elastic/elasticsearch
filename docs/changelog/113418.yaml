@@ -1,5 +1,5 @@
 pr: 113418
-summary: Hide Semantic Text Inference Results In Source By Default
-area: "Vector Search, Relevance"
+summary: Add parameter to hide/show vector fields in _source
+area: Vector Search
 type: enhancement
 issues: []

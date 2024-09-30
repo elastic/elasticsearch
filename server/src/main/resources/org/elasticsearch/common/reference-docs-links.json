@@ -43,5 +43,6 @@
   "MAX_SHARDS_PER_NODE": "size-your-shards.html#troubleshooting-max-shards-open",
   "FLOOD_STAGE_WATERMARK": "fix-watermark-errors.html",
   "X_OPAQUE_ID": "api-conventions.html#x-opaque-id",
-  "FORMING_SINGLE_NODE_CLUSTERS": "modules-discovery-bootstrap-cluster.html#modules-discovery-bootstrap-cluster-joining"
+  "FORMING_SINGLE_NODE_CLUSTERS": "modules-discovery-bootstrap-cluster.html#modules-discovery-bootstrap-cluster-joining",
+  "JDK_LOCALE_DIFFERENCES": "mapping-date-format.html#custom-date-format-locales"
 }

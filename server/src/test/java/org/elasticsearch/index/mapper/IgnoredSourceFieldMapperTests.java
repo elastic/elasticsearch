@@ -674,9 +674,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         assertEquals("""
-            {"path":{"bool_value":true,"int_value":[10,20,30],"obj":{"foo":[1,2]}}}
-
-            """, syntheticSource);
+            {"path":{"bool_value":true,"int_value":[10,20,30],"obj":{"foo":[1,2]}}}""", syntheticSource);
     }
 
     public void testFieldStoredArraySourceNestedValueArray() throws IOException {

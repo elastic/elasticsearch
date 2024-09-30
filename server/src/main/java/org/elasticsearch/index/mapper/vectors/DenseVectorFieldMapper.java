@@ -2196,7 +2196,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             byteVectorValues = leafReader.getByteVectorValues(fullPath());
             if (byteVectorValues != null) {
-                KnnVectorValues.DocIndexIterator iterator = values.iterator();
+                KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
                 return docId -> {
                     hasValue = docId == iterator.advance(docId);
                     ord = iterator.index();

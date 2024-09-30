@@ -868,7 +868,11 @@ public abstract class DocumentParserContext {
     }
 
     public int getArrayValueCount(String field) {
-        return numValuesByField.getOrDefault(field, 0);
+        if (numValuesByField.containsKey(field)) {
+            return numValuesByField.get(field) + 1;
+        } else {
+            return 0;
+        }
     }
 
     public void recordOffset(String fieldName, String value) {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
@@ -22,7 +23,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.List;
 
@@ -85,8 +85,11 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             }
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
             return mapperService.documentMapper().sourceMapper().isSynthetic();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (AssertionError | Exception e) {
+            // In case invalid mappings or setting are provided, then mapper service creation can fail.
+            // In that case it is ok to return false here. The index creation will fail anyway later, so need to fallback to stored source.
+            LOGGER.info(() -> Strings.format("unable to create mapper service for index [%s]", indexName), e);
+            return false;
         }
     }
 

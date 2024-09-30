@@ -24,6 +24,7 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.MATCH_FUNCTION;
@@ -55,9 +56,13 @@ public class MatchFunctionTests extends AbstractFunctionTestCase {
                 );
             }
         }
-        List<TestCaseSupplier> errorsSuppliers = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
+        List<TestCaseSupplier> errorsSuppliers = errorsForCasesWithoutExamples(suppliers, MatchFunctionTests::matchTypeErrorSupplier);
         // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
         return parameterSuppliersFromTypedData(errorsSuppliers.stream().filter(s -> s.types().contains(DataType.NULL) == false).toList());
+    }
+
+    private static String matchTypeErrorSupplier(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        return "[] cannot operate on [" + types.getFirst().typeName() + "] which is not an Elasticsearch field";
     }
 
     private static List<DataType> validStringDataTypes() {

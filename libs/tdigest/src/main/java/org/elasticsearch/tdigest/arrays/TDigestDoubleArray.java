@@ -21,10 +21,12 @@
 
 package org.elasticsearch.tdigest.arrays;
 
+import org.elasticsearch.core.Releasable;
+
 /**
  * Minimal interface for DoubleArray-like classes used within TDigest.
  */
-public interface TDigestDoubleArray {
+public interface TDigestDoubleArray extends Releasable {
     int size();
 
     double get(int index);

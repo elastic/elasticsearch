@@ -57,4 +57,11 @@ public interface XContentParserConfiguration {
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
     );
+
+    XContentParserConfiguration withFiltering(
+        String rootPath,
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots
+    );
 }

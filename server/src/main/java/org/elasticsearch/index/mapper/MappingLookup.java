@@ -12,10 +12,12 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -497,9 +499,11 @@ public final class MappingLookup {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(SourceFieldMetrics metrics) {
-        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping, metrics);
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
+        if (isSourceSynthetic()) {
+            return new SourceLoader.Synthetic(() -> mapping.syntheticFieldLoader(filter), metrics);
+        }
+        return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }
 
     /**

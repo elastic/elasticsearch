@@ -646,8 +646,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testSyntheticSourceDocValuesEmpty() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("o").field("type", "object").endObject()));
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
-        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
-        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(o.syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
     }
 
     /**
@@ -672,8 +672,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject().endObject();
         }));
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
-        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
-        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(o.syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
     }
 
     public void testStoreArraySourceinSyntheticSourceMode() throws IOException {

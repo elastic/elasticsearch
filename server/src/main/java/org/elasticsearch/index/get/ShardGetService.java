@@ -307,8 +307,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
-            ? new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics())
-            : mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
+            ? new SourceLoader.Synthetic(
+                () -> mappingLookup.getMapping().syntheticFieldLoader(fetchSourceContext.hasFilter() ? fetchSourceContext.filter() : null),
+                mapperMetrics.sourceFieldMetrics()
+            )
+            : mappingLookup.newSourceLoader(
+                fetchSourceContext.hasFilter() ? fetchSourceContext.filter() : null,
+                mapperMetrics.sourceFieldMetrics()
+            );
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFields, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
@@ -367,10 +373,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         if (mapperService.mappingLookup().isSourceEnabled() && fetchSourceContext.fetchSource()) {
             Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
                 .source(leafStoredFieldLoader, docIdAndVersion.docId);
-
-            if (fetchSourceContext.hasFilter()) {
-                source = source.filter(fetchSourceContext.filter());
-            }
             sourceBytes = source.internalSourceRef();
         }
 

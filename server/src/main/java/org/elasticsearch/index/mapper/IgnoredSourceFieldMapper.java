@@ -21,6 +21,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -281,7 +282,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(bytes);
         XContentBuilder xContentBuilder = XContentBuilder.builder(XContentDataHelper.getXContentType(nameValue.value()).xContent());
         xContentBuilder.startObject().field(nameValue.name());
-        XContentDataHelper.decodeAndWrite(xContentBuilder, nameValue.value());
+        XContentDataHelper.decodeAndWrite(XContentParserConfiguration.EMPTY, xContentBuilder, nameValue.value());
         xContentBuilder.endObject();
         Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(BytesReference.bytes(xContentBuilder), true);
         return new MappedNameValue(nameValue, result.v1(), result.v2());

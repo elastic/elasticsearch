@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -71,7 +72,15 @@ public interface SourceLoader {
     /**
      * Load {@code _source} from a stored field.
      */
-    SourceLoader FROM_STORED_SOURCE = new SourceLoader() {
+    SourceLoader FROM_STORED_SOURCE = new Stored(null);
+
+    class Stored implements SourceLoader {
+        final SourceFilter filter;
+
+        public Stored(SourceFilter filter) {
+            this.filter = filter;
+        }
+
         @Override
         public boolean reordersFieldValues() {
             return false;
@@ -82,7 +91,8 @@ public interface SourceLoader {
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
-                    return Source.fromBytes(storedFields.source());
+                    var res = Source.fromBytes(storedFields.source());
+                    return filter == null ? res : res.filter(filter);
                 }
 
                 @Override
@@ -97,7 +107,7 @@ public interface SourceLoader {
         public Set<String> requiredStoredFields() {
             return Set.of();
         }
-    };
+    }
 
     /**
      * Reconstructs {@code _source} from doc values anf stored fields.

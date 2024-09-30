@@ -13,6 +13,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.List;
@@ -128,7 +129,7 @@ public abstract class IgnoreMalformedStoredValues {
         public void write(XContentBuilder b) throws IOException {
             for (Object v : values) {
                 if (v instanceof BytesRef r) {
-                    XContentDataHelper.decodeAndWrite(b, r);
+                    XContentDataHelper.decodeAndWrite(XContentParserConfiguration.EMPTY, b, r);
                 } else {
                     b.value(v);
                 }

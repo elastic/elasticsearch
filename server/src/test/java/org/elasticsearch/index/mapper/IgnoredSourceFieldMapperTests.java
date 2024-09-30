@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -45,8 +47,15 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     private String getSyntheticSourceWithFieldLimit(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        return getSyntheticSourceWithFieldLimit(null, build);
+    }
+
+    private String getSyntheticSourceWithFieldLimit(
+        @Nullable SourceFilter sourceFilter,
+        CheckedConsumer<XContentBuilder, IOException> build
+    ) throws IOException {
         DocumentMapper documentMapper = getDocumentMapperWithFieldLimit();
-        return syntheticSource(documentMapper, build);
+        return syntheticSource(documentMapper, sourceFilter, build);
     }
 
     private MapperService createMapperServiceWithStoredArraySource(XContentBuilder mappings) throws IOException {
@@ -60,36 +69,92 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     public void testIgnoredBoolean() throws IOException {
         boolean value = randomBoolean();
         assertEquals("{\"my_value\":" + value + "}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals(
+            "{\"my_value\":" + value + "}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_value" }, null), b -> b.field("my_value", value))
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
+        );
     }
 
     public void testIgnoredString() throws IOException {
         String value = randomAlphaOfLength(5);
         assertEquals("{\"my_value\":\"" + value + "\"}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals(
+            "{\"my_value\":\"" + value + "\"}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_value" }, null), b -> b.field("my_value", value))
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
+        );
     }
 
     public void testIgnoredInt() throws IOException {
         int value = randomInt();
         assertEquals("{\"my_value\":" + value + "}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals(
+            "{\"my_value\":" + value + "}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_value" }, null), b -> b.field("my_value", value))
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
+        );
     }
 
     public void testIgnoredLong() throws IOException {
         long value = randomLong();
         assertEquals("{\"my_value\":" + value + "}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals(
+            "{\"my_value\":" + value + "}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_value" }, null), b -> b.field("my_value", value))
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
+        );
     }
 
     public void testIgnoredFloat() throws IOException {
         float value = randomFloat();
         assertEquals("{\"my_value\":" + value + "}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals(
+            "{\"my_value\":" + value + "}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_value" }, null), b -> b.field("my_value", value))
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
+        );
     }
 
     public void testIgnoredDouble() throws IOException {
         double value = randomDouble();
         assertEquals("{\"my_value\":" + value + "}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals(
+            "{\"my_value\":" + value + "}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_value" }, null), b -> b.field("my_value", value))
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
+        );
     }
 
     public void testIgnoredBigInteger() throws IOException {
         BigInteger value = randomBigInteger();
         assertEquals("{\"my_value\":" + value + "}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals(
+            "{\"my_value\":" + value + "}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_value" }, null), b -> b.field("my_value", value))
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
+        );
     }
 
     public void testIgnoredBytes() throws IOException {
@@ -98,6 +163,14 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             "{\"my_value\":\"" + Base64.getEncoder().encodeToString(value) + "\"}",
             getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value))
         );
+        assertEquals(
+            "{\"my_value\":\"" + Base64.getEncoder().encodeToString(value) + "\"}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_value" }, null), b -> b.field("my_value", value))
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
+        );
     }
 
     public void testIgnoredObjectBoolean() throws IOException {
@@ -105,15 +178,116 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("{\"my_object\":{\"my_value\":" + value + "}}", getSyntheticSourceWithFieldLimit(b -> {
             b.startObject("my_object").field("my_value", value).endObject();
         }));
+
+        assertEquals(
+            "{\"my_object\":{\"my_value\":" + value + "}}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_object" }, null), b -> {
+                b.startObject("my_object").field("my_value", value).endObject();
+            })
+        );
+
+        assertEquals(
+            "{\"my_object\":{\"my_value\":" + value + "}}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_object.my_value" }, null), b -> {
+                b.startObject("my_object").field("my_value", value).endObject();
+            })
+        );
+
+        assertEquals("{}", getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_object" }), b -> {
+            b.startObject("my_object").field("my_value", value).endObject();
+        }));
+
+        assertEquals(
+            "{\"my_object\":{}}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_object.my_value" }), b -> {
+                b.startObject("my_object").field("my_value", value).endObject();
+            })
+        );
+    }
+
+    public void testIgnoredArrayOfObjects() throws IOException {
+        boolean value = randomBoolean();
+        int another_value = randomInt();
+
+        assertEquals(
+            "{\"my_object\":[{\"my_value\":" + value + "},{\"another_value\":" + another_value + "}]}",
+            getSyntheticSourceWithFieldLimit(b -> {
+                b.startArray("my_object");
+                b.startObject().field("my_value", value).endObject();
+                b.startObject().field("another_value", another_value).endObject();
+                b.endArray();
+            })
+        );
+
+        assertEquals(
+            "{\"my_object\":[{\"another_value\":" + another_value + "}]}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_object.my_value" }), b -> {
+                b.startArray("my_object");
+                b.startObject().field("my_value", value).endObject();
+                b.startObject().field("another_value", another_value).endObject();
+                b.endArray();
+            })
+        );
+
+        assertEquals(
+            "{\"my_object\":[{\"my_value\":" + value + "}]}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_object.another_value" }), b -> {
+                b.startArray("my_object");
+                b.startObject().field("my_value", value).endObject();
+                b.startObject().field("another_value", another_value).endObject();
+                b.endArray();
+            })
+        );
+
+        assertEquals(
+            "{\"my_object\":{}}",
+            getSyntheticSourceWithFieldLimit(
+                new SourceFilter(null, new String[] { "my_object.another_value", "my_object.my_value" }),
+                b -> {
+                    b.startArray("my_object");
+                    b.startObject().field("my_value", value).endObject();
+                    b.startObject().field("another_value", another_value).endObject();
+                    b.endArray();
+                }
+            )
+        );
+
+        assertEquals("{}", getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_object" }), b -> {
+            b.startArray("my_object");
+            b.startObject().field("my_value", value).endObject();
+            b.startObject().field("another_value", another_value).endObject();
+            b.endArray();
+        }));
     }
 
     public void testIgnoredArray() throws IOException {
-        assertEquals("{\"my_array\":[{\"int_value\":10},{\"int_value\":20}]}", getSyntheticSourceWithFieldLimit(b -> {
+        assertEquals(
+            "{\"my_array\":[{\"int_value\":10},{\"int_value\":20}]}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_array" }, null), b -> {
+                b.startArray("my_array");
+                b.startObject().field("int_value", 10).endObject();
+                b.startObject().field("int_value", 20).endObject();
+                b.endArray();
+            })
+        );
+
+        assertEquals(
+            "{\"my_array\":[{\"int_value\":10},{\"int_value\":20}]}",
+            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_array" }, null), b -> {
+                b.startArray("my_array");
+                b.startObject().field("int_value", 10).endObject();
+                b.startObject().field("int_value", 20).endObject();
+                b.endArray();
+            })
+        );
+
+        assertEquals("{}", getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_array" }), b -> {
             b.startArray("my_array");
             b.startObject().field("int_value", 10).endObject();
             b.startObject().field("int_value", 20).endObject();
             b.endArray();
         }));
+
     }
 
     public void testEncodeFieldToMap() throws IOException {

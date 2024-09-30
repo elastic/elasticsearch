@@ -458,16 +458,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return new Builder(indexMode, Settings.EMPTY, false, enableRecoverySource).init(this);
     }
 
-    /**
-     * Build something to load source {@code _source}.
-     */
-    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
-        if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
-        }
-        return SourceLoader.FROM_STORED_SOURCE;
-    }
-
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
     }

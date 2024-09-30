@@ -85,27 +85,52 @@ public final class XContentDataHelper {
     }
 
     /**
-     * Decode the value in the passed {@link BytesRef} and add it as a value to the
-     * passed build. The assumption is that the passed value has encoded using the function
-     * {@link #encodeToken(XContentParser)} above.
+     * Decode the value, using the provided {@link XContentParserConfiguration}, in the passed {@link BytesRef}
+     * and add it as a value to the passed build.
+     * The assumption is that the passed value has encoded using the function {@link #encodeToken(XContentParser)} above.
      */
-    static void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+    static void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
         switch ((char) r.bytes[r.offset]) {
-            case BINARY_ENCODING -> TypeUtils.EMBEDDED_OBJECT.decodeAndWrite(b, r);
+            case BINARY_ENCODING -> TypeUtils.EMBEDDED_OBJECT.decodeAndWrite(parserConfig, b, r);
             case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> {
-                TypeUtils.START.decodeAndWrite(b, r);
+                TypeUtils.START.decodeAndWrite(parserConfig, b, r);
             }
-            case BIG_DECIMAL_ENCODING -> TypeUtils.BIG_DECIMAL.decodeAndWrite(b, r);
-            case FALSE_ENCODING, TRUE_ENCODING -> TypeUtils.BOOLEAN.decodeAndWrite(b, r);
-            case BIG_INTEGER_ENCODING -> TypeUtils.BIG_INTEGER.decodeAndWrite(b, r);
-            case STRING_ENCODING -> TypeUtils.STRING.decodeAndWrite(b, r);
-            case INTEGER_ENCODING -> TypeUtils.INTEGER.decodeAndWrite(b, r);
-            case LONG_ENCODING -> TypeUtils.LONG.decodeAndWrite(b, r);
-            case DOUBLE_ENCODING -> TypeUtils.DOUBLE.decodeAndWrite(b, r);
-            case FLOAT_ENCODING -> TypeUtils.FLOAT.decodeAndWrite(b, r);
-            case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
-            case VOID_ENCODING -> TypeUtils.VOID.decodeAndWrite(b, r);
+            case BIG_DECIMAL_ENCODING -> TypeUtils.BIG_DECIMAL.decodeAndWrite(parserConfig, b, r);
+            case FALSE_ENCODING, TRUE_ENCODING -> TypeUtils.BOOLEAN.decodeAndWrite(parserConfig, b, r);
+            case BIG_INTEGER_ENCODING -> TypeUtils.BIG_INTEGER.decodeAndWrite(parserConfig, b, r);
+            case STRING_ENCODING -> TypeUtils.STRING.decodeAndWrite(parserConfig, b, r);
+            case INTEGER_ENCODING -> TypeUtils.INTEGER.decodeAndWrite(parserConfig, b, r);
+            case LONG_ENCODING -> TypeUtils.LONG.decodeAndWrite(parserConfig, b, r);
+            case DOUBLE_ENCODING -> TypeUtils.DOUBLE.decodeAndWrite(parserConfig, b, r);
+            case FLOAT_ENCODING -> TypeUtils.FLOAT.decodeAndWrite(parserConfig, b, r);
+            case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(parserConfig, b, r);
+            case VOID_ENCODING -> TypeUtils.VOID.decodeAndWrite(parserConfig, b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
+        }
+    }
+
+    /**
+     * Determines if the given {@link BytesRef}, encoded with {@link XContentDataHelper#encodeToken(XContentParser)},
+     * represents an object that can contain sub-fields. Returns {@code true} if it does.
+     */
+    static boolean isEncodedObject(BytesRef encoded) {
+        var type = switch ((char) encoded.bytes[encoded.offset]) {
+            case CBOR_OBJECT_ENCODING -> XContentType.CBOR;
+            case JSON_OBJECT_ENCODING -> XContentType.JSON;
+            case SMILE_OBJECT_ENCODING -> XContentType.SMILE;
+            case YAML_OBJECT_ENCODING -> XContentType.YAML;
+            default -> null;
+        };
+        if (type == null) {
+            return false;
+        }
+        try (
+            XContentParser parser = type.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, encoded.bytes, encoded.offset + 1, encoded.length - 1)
+        ) {
+            return parser.nextToken() == XContentParser.Token.START_OBJECT;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -114,19 +139,21 @@ public final class XContentDataHelper {
      * a single resulting array.
      *
      * Note that this method assumes all encoded parts have values that need to be written (are not VOID encoded).
+     * @param parserConfig The configuration for the parsing of the provided {@code encodedParts}.
      * @param b destination
      * @param fieldName name of the field that is written
      * @param encodedParts subset of field data encoded using methods of this class. Can contain arrays which will be flattened.
      * @throws IOException
      */
-    static void writeMerged(XContentBuilder b, String fieldName, List<BytesRef> encodedParts) throws IOException {
+    static void writeMerged(XContentParserConfiguration parserConfig, XContentBuilder b, String fieldName, List<BytesRef> encodedParts)
+        throws IOException {
         if (encodedParts.isEmpty()) {
             return;
         }
 
         if (encodedParts.size() == 1) {
             b.field(fieldName);
-            XContentDataHelper.decodeAndWrite(b, encodedParts.get(0));
+            XContentDataHelper.decodeAndWrite(parserConfig, b, encodedParts.get(0));
             return;
         }
 
@@ -141,19 +168,14 @@ public final class XContentDataHelper {
             };
             if (encodedXContentType.isEmpty()) {
                 // This is a plain value, we can just write it
-                XContentDataHelper.decodeAndWrite(b, encodedValue);
+                XContentDataHelper.decodeAndWrite(parserConfig, b, encodedValue);
             } else {
                 // Encoded value could be an array which needs to be flattened
                 // since we are already inside an array.
                 try (
                     XContentParser parser = encodedXContentType.get()
                         .xContent()
-                        .createParser(
-                            XContentParserConfiguration.EMPTY,
-                            encodedValue.bytes,
-                            encodedValue.offset + 1,
-                            encodedValue.length - 1
-                        )
+                        .createParser(parserConfig, encodedValue.bytes, encodedValue.offset + 1, encodedValue.length - 1)
                 ) {
                     if (parser.currentToken() == null) {
                         parser.nextToken();
@@ -297,7 +319,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 b.value(new BytesRef(r.bytes, r.offset + 1, r.length - 1).utf8ToString());
             }
         },
@@ -317,7 +339,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 b.value(ByteUtils.readIntLE(r.bytes, 1 + r.offset));
             }
         },
@@ -337,7 +359,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 b.value(ByteUtils.readLongLE(r.bytes, 1 + r.offset));
             }
         },
@@ -357,7 +379,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 b.value(ByteUtils.readDoubleLE(r.bytes, 1 + r.offset));
             }
         },
@@ -377,7 +399,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 b.value(ByteUtils.readFloatLE(r.bytes, 1 + r.offset));
             }
         },
@@ -395,7 +417,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 b.value(new BigInteger(r.bytes, r.offset + 1, r.length - 1));
             }
         },
@@ -413,7 +435,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 if (r.length < 5) {
                     throw new IllegalArgumentException("Can't decode " + r);
                 }
@@ -435,7 +457,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 if (r.length != 1) {
                     throw new IllegalArgumentException("Can't decode " + r);
                 }
@@ -457,7 +479,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 b.nullValue();
             }
         },
@@ -475,7 +497,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 b.value(r.bytes, r.offset + 1, r.length - 1);
             }
         },
@@ -496,12 +518,12 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException {
                 switch ((char) r.bytes[r.offset]) {
-                    case CBOR_OBJECT_ENCODING -> decodeAndWriteXContent(b, XContentType.CBOR, r);
-                    case JSON_OBJECT_ENCODING -> decodeAndWriteXContent(b, XContentType.JSON, r);
-                    case SMILE_OBJECT_ENCODING -> decodeAndWriteXContent(b, XContentType.SMILE, r);
-                    case YAML_OBJECT_ENCODING -> decodeAndWriteXContent(b, XContentType.YAML, r);
+                    case CBOR_OBJECT_ENCODING -> decodeAndWriteXContent(parserConfig, b, XContentType.CBOR, r);
+                    case JSON_OBJECT_ENCODING -> decodeAndWriteXContent(parserConfig, b, XContentType.JSON, r);
+                    case SMILE_OBJECT_ENCODING -> decodeAndWriteXContent(parserConfig, b, XContentType.SMILE, r);
+                    case YAML_OBJECT_ENCODING -> decodeAndWriteXContent(parserConfig, b, XContentType.YAML, r);
                     default -> throw new IllegalArgumentException("Can't decode " + r);
                 }
             }
@@ -520,7 +542,7 @@ public final class XContentDataHelper {
             }
 
             @Override
-            void decodeAndWrite(XContentBuilder b, BytesRef r) {
+            void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) {
                 // NOOP
             }
         };
@@ -548,7 +570,7 @@ public final class XContentDataHelper {
 
         abstract byte[] encode(XContentParser parser) throws IOException;
 
-        abstract void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException;
+        abstract void decodeAndWrite(XContentParserConfiguration parserConfig, XContentBuilder b, BytesRef r) throws IOException;
 
         static byte[] encode(BigInteger n, Byte encoding) throws IOException {
             byte[] twosCompliment = n.toByteArray();
@@ -596,11 +618,14 @@ public final class XContentDataHelper {
             return encoded;
         }
 
-        static void decodeAndWriteXContent(XContentBuilder b, XContentType type, BytesRef r) throws IOException {
-            try (
-                XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, r.bytes, r.offset + 1, r.length - 1)
-            ) {
-                b.copyCurrentStructure(parser);
+        static void decodeAndWriteXContent(XContentParserConfiguration parserConfig, XContentBuilder b, XContentType type, BytesRef r)
+            throws IOException {
+            try (XContentParser parser = type.xContent().createParser(parserConfig, r.bytes, r.offset + 1, r.length - 1)) {
+                if (parser.nextToken() == null) {
+                    b.startObject().endObject();
+                } else {
+                    b.copyCurrentStructure(parser);
+                }
             }
         }
     }

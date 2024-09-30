@@ -629,3 +629,50 @@ setup:
   - exists: _source.dense_field.inference.chunks.0.embeddings
   - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
   - match: { _source.non_inference_field: "updated non inference test" }
+
+---
+"Source filtering excludes semantic_text embeddings by default":
+  - requires:
+      cluster_features: "search.hide_vectors_in_source"
+      reason: semantic_text _source filtering added in 8.16.0
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      bulk:
+        index: test-index
+        _source: true
+        body:
+          - '{"update": {"_id": "doc_1"}}'
+          - '{"doc":{"sparse_field": "I am a test", "dense_field": "I am a teapot"}}'
+
+  - length: { items: 1 }
+  - match: { items.0.update.get._source.sparse_field.text: "I am a test" }
+  - match: { items.0.update.get._source.dense_field.text: "I am a teapot" }
+  - not_exists: items.0.update.get._source.sparse_field.inference
+  - not_exists: items.0.update.get._source.dense_field.inference
+
+  # Don't update the semantic_text fields because the Update API returns _source in its pre-indexed form (i.e. before
+  # embeddings are calculated for any updated semantic_text fields). Thus, updating a semantic_text field overwrites
+  # the sub-field structure we are testing the filtering of here.
+  - do:
+      update:
+        index: test-index
+        id: doc_1
+        _source: true
+        body:
+          doc:
+            non_inference_field: "another non inference test"
+
+  - match: { get._source.non_inference_field: "another non inference test" }
+  - match: { get._source.sparse_field.text: "I am a test" }
+  - match: { get._source.dense_field.text: "I am a teapot" }
+  - not_exists: get._source.sparse_field.inference
+  - not_exists: get._source.dense_field.inference

@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
@@ -378,9 +379,15 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
         // return a node client
-        return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
+        return client -> asInstanceOf(NodeClient.class, client).filterWithHeader(headers);
     }
 
+    /**
+     * Waits for security index to become available. Note that you must ensure index creation was triggered before calling this method,
+     * by calling one of the resource creation APIs (e.g., creating a user).
+     * If you use {@link #createSecurityIndexWithWaitForActiveShards()} to create the index it's not necessary to call
+     * {@link #assertSecurityIndexActive} since the create method ensures the index is active.
+     */
     public void assertSecurityIndexActive() throws Exception {
         assertSecurityIndexActive(cluster());
     }
@@ -391,14 +398,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 Index securityIndex = resolveSecurityIndex(clusterState.metadata());
-                // TODO this is a bug -- since we are not tripping assertions here, this will complete successfully even if the security
-                // index does not exist
-                if (securityIndex != null) {
-                    IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
-                    if (indexRoutingTable != null) {
-                        assertTrue(indexRoutingTable.allPrimaryShardsActive());
-                    }
-                }
+                assertNotNull(securityIndex);
+                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
+                assertNotNull(indexRoutingTable);
+                assertTrue(indexRoutingTable.allPrimaryShardsActive());
             }, 30L, TimeUnit.SECONDS);
         }
     }
@@ -424,7 +427,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected void createSecurityIndex() {
+    protected void createSecurityIndexWithWaitForActiveShards() {
         final Client client = client().filterWithHeader(
             Collections.singletonMap(
                 "Authorization",
@@ -434,7 +437,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 )
             )
         );
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS).waitForActiveShards(ActiveShardCount.ALL)
+            .masterNodeTimeout(TEST_REQUEST_TIMEOUT);
         client.admin().indices().create(createIndexRequest).actionGet();
     }
 

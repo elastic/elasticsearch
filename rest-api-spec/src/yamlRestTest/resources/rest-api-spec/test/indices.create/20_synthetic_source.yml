@@ -1815,6 +1815,8 @@ synthetic_source with copy_to pointing at dynamic field:
             _source:
               mode: synthetic
             properties:
+              name:
+                type: keyword
               k:
                 type: keyword
                 copy_to: c.copy
@@ -1829,6 +1831,7 @@ synthetic_source with copy_to pointing at dynamic field:
         id: 1
         refresh: true
         body:
+          name: "A"
           k: "hello"
 
   - do:
@@ -1837,6 +1840,7 @@ synthetic_source with copy_to pointing at dynamic field:
         id: 2
         refresh: true
         body:
+          name: "B"
           k: ["55", "66"]
 
   - do:
@@ -1845,6 +1849,7 @@ synthetic_source with copy_to pointing at dynamic field:
         id: 3
         refresh: true
         body:
+          name: "C"
           k: "hello"
           c:
             copy: "zap"
@@ -1852,11 +1857,13 @@ synthetic_source with copy_to pointing at dynamic field:
   - do:
       search:
         index: test
+        sort: name
         body:
           docvalue_fields: [ "c.copy.keyword" ]
 
   - match:
       hits.hits.0._source:
+        name: "A"
         k: "hello"
   - match:
       hits.hits.0.fields:
@@ -1864,6 +1871,7 @@ synthetic_source with copy_to pointing at dynamic field:
 
   - match:
       hits.hits.1._source:
+        name: "B"
         k: ["55", "66"]
   - match:
       hits.hits.1.fields:
@@ -1871,6 +1879,7 @@ synthetic_source with copy_to pointing at dynamic field:
 
   - match:
       hits.hits.2._source:
+        name: "C"
         k: "hello"
         c:
           copy: "zap"
@@ -1892,6 +1901,8 @@ synthetic_source with copy_to pointing inside dynamic object:
             _source:
               mode: synthetic
             properties:
+              name:
+                type: keyword
               k:
                 type: keyword
                 copy_to: c.copy
@@ -1902,6 +1913,7 @@ synthetic_source with copy_to pointing inside dynamic object:
         id: 1
         refresh: true
         body:
+          name: "A"
           k: "hello"
 
   - do:
@@ -1910,6 +1922,7 @@ synthetic_source with copy_to pointing inside dynamic object:
         id: 2
         refresh: true
         body:
+          name: "B"
           k: ["55", "66"]
 
   - do:
@@ -1918,6 +1931,7 @@ synthetic_source with copy_to pointing inside dynamic object:
         id: 3
         refresh: true
         body:
+          name: "C"
           k: "hello"
           c:
             copy: "zap"
@@ -1925,11 +1939,13 @@ synthetic_source with copy_to pointing inside dynamic object:
   - do:
       search:
         index: test
+        sort: name
         body:
           docvalue_fields: [ "c.copy.keyword" ]
 
   - match:
       hits.hits.0._source:
+        name: "A"
         k: "hello"
   - match:
       hits.hits.0.fields:
@@ -1937,6 +1953,7 @@ synthetic_source with copy_to pointing inside dynamic object:
 
   - match:
       hits.hits.1._source:
+        name: "B"
         k: ["55", "66"]
   - match:
       hits.hits.1.fields:
@@ -1944,6 +1961,7 @@ synthetic_source with copy_to pointing inside dynamic object:
 
   - match:
       hits.hits.2._source:
+        name: "C"
         k: "hello"
         c:
           copy: "zap"

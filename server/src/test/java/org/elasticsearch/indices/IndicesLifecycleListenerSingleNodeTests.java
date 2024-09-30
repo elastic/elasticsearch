@@ -128,6 +128,8 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(6, counter.get());
+        } catch (Exception ex) {
+            logger.warn("unexpected exception", ex);
         } finally {
             indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
         }

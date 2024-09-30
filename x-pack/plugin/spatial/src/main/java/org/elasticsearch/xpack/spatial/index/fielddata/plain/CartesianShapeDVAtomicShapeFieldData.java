@@ -38,11 +38,6 @@ final class CartesianShapeDVAtomicShapeFieldData extends LeafShapeFieldData<Cart
     }
 
     @Override
-    public void close() {
-        // noop
-    }
-
-    @Override
     public CartesianShapeValues getShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);

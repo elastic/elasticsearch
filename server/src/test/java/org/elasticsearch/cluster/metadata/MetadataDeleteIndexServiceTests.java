@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -132,8 +131,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             before,
             service.executor,
             List.of(
-                new DeleteIndexClusterStateUpdateRequest(ActionListener.noop()).indices(
-                    new Index[] { before.metadata().getIndices().get(index).getIndex() }
+                new MetadataDeleteIndexService.DeleteIndicesClusterStateUpdateTask(
+                    Set.of(before.metadata().getIndices().get(index).getIndex()),
+                    TEST_REQUEST_TIMEOUT,
+                    ActionListener.noop()
                 )
             )
         );

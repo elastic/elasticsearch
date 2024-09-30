@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -41,8 +40,8 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/_template/{name}").deprecated(DEPRECATION_WARNING, Level.WARN, DEPRECATION_VERSION).build(),
-            Route.builder(PUT, "/_template/{name}").deprecated(DEPRECATION_WARNING, Level.WARN, DEPRECATION_VERSION).build()
+            Route.builder(POST, "/_template/{name}").deprecateAndKeep(DEPRECATION_WARNING).build(),
+            Route.builder(PUT, "/_template/{name}").deprecateAndKeep(DEPRECATION_WARNING).build()
         );
     }
 

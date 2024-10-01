@@ -1,5 +1,0 @@
-pr: 113890
-summary: Removing unnecessary `platfromArchitectures` from `InferenceService` tests
-area: Machine Learning
-type: bug
-issues: []

@@ -62,7 +62,7 @@ public class MatchFunctionTests extends AbstractFunctionTestCase {
     }
 
     private static String matchTypeErrorSupplier(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        return "[] cannot operate on [" + types.getFirst().typeName() + "] which is not an Elasticsearch field";
+        return "[] cannot operate on [" + types.getFirst().typeName() + "], which is not a field from an index mapping";
     }
 
     private static List<DataType> validStringDataTypes() {

@@ -32,4 +32,9 @@ public class MapperFeatures implements FeatureSpecification {
             SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX
         );
     }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX);
+    }
 }

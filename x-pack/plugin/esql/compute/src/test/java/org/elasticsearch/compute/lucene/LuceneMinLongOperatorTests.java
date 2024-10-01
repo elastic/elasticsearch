@@ -18,19 +18,19 @@ import org.elasticsearch.compute.data.LongBlock;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class LuceneMaxLonOperatorTests extends LuceneMaxOperatorTestCase {
+public class LuceneMinLongOperatorTests extends LuceneMinOperatorTestCase {
 
     @Override
-    public LuceneMaxFactory.NumberType getNumberType() {
-        return LuceneMaxFactory.NumberType.LONG;
+    public LuceneMinFactory.NumberType getNumberType() {
+        return LuceneMinFactory.NumberType.LONG;
     }
 
     @Override
     protected NumberTypeTest getNumberTypeTest() {
         return new NumberTypeTest() {
 
-            long max = Long.MIN_VALUE;
-            long result = Long.MIN_VALUE;
+            long min = Long.MAX_VALUE;
+            long result = Long.MAX_VALUE;
 
             @Override
             public IndexableField newPointField() {
@@ -44,7 +44,7 @@ public class LuceneMaxLonOperatorTests extends LuceneMaxOperatorTestCase {
 
             private long newValue() {
                 long value = randomLong();
-                max = Math.max(max, value);
+                min = Math.min(min, value);
                 return value;
             }
 
@@ -53,15 +53,15 @@ public class LuceneMaxLonOperatorTests extends LuceneMaxOperatorTestCase {
                 assertThat(block, instanceOf(LongBlock.class));
                 LongBlock lb = (LongBlock) block;
                 long v = lb.getLong(0);
-                result = Math.max(result, v);
+                result = Math.min(result, v);
                 if (bb.getBoolean(0) == false) {
-                    assertThat(v, equalTo(Long.MIN_VALUE));
+                    assertThat(v, equalTo(Long.MAX_VALUE));
                 }
             }
 
             @Override
             public void assertMaxValue() {
-                assertThat(result, equalTo(max));
+                assertThat(result, equalTo(min));
             }
         };
     }

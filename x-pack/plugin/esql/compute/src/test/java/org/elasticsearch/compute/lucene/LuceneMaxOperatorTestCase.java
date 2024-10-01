@@ -155,12 +155,12 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
     }
 
     private void testMax(Supplier<DriverContext> contexts, int size, int limit) {
-        DataPartitioning dataPartitioning = DataPartitioning.DOC; // randomFrom(DataPartitioning.values());
+        DataPartitioning dataPartitioning = randomFrom(DataPartitioning.values());
         NumberTypeTest numberTypeTest = getNumberTypeTest();
         LuceneMaxFactory factory = simple(numberTypeTest, dataPartitioning, size, limit);
         List<Page> results = new CopyOnWriteArrayList<>();
         List<Driver> drivers = new ArrayList<>();
-        int taskConcurrency = 2; // between(1, 8);
+        int taskConcurrency = between(1, 8);
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext ctx = contexts.get();
             drivers.add(new Driver(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));

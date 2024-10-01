@@ -111,7 +111,11 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                     if (pointValues != null && pointValues.getDocCount() >= remainingDocs) {
                         final Bits liveDocs = reader.getLiveDocs();
                         if (liveDocs == null) {
-                            // In data partitioning, we should have already collected it
+                            // In data partitioning, we might have got the same segment previous
+                            // to this but with a different document range. And we're totally ignoring that range.
+                            // We're just reading the min/max from the segment. That's sneaky, but it makes sense.
+                            // And if we get another slice in the same segment we may as well skip it -
+                            // we've already looked.
                             if (scorer.position() == 0) {
                                 seen = true;
                                 result = numberType.evaluate(result, numberType.fromPointValues(pointValues));

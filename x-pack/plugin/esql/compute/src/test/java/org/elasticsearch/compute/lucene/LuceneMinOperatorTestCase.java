@@ -132,7 +132,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
     private void testSimple(Supplier<DriverContext> contexts) {
         int size = between(1_000, 20_000);
         int limit = randomBoolean() ? between(10, size) : Integer.MAX_VALUE;
-        testMax(contexts, size, limit);
+        testMin(contexts, size, limit);
     }
 
     public void testEmpty() {
@@ -151,10 +151,10 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
 
     private void testEmpty(Supplier<DriverContext> contexts) {
         int limit = randomBoolean() ? between(10, 10000) : Integer.MAX_VALUE;
-        testMax(contexts, 0, limit);
+        testMin(contexts, 0, limit);
     }
 
-    private void testMax(Supplier<DriverContext> contexts, int size, int limit) {
+    private void testMin(Supplier<DriverContext> contexts, int size, int limit) {
         DataPartitioning dataPartitioning = randomFrom(DataPartitioning.values());
         NumberTypeTest numberTypeTest = getNumberTypeTest();
         LuceneMinFactory factory = simple(numberTypeTest, dataPartitioning, size, limit);

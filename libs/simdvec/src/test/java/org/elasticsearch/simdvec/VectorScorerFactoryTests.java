@@ -237,6 +237,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
             for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                // Use the random supplier for COSINE, which returns values in the normalized range
+                floatArraySupplier = sim == COSINE ? FLOAT_ARRAY_RANDOM_FUNC : floatArraySupplier;
                 final int dims = randomIntBetween(1, 4096);
                 final int size = randomIntBetween(2, 100);
                 final float[][] vectors = new float[size][];

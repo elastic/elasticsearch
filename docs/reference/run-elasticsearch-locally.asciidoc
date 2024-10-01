@@ -98,7 +98,6 @@ docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
   -e ELASTICSEARCH_HOSTS=http://elasticsearch:9200 \
   -e ELASTICSEARCH_USERNAME=kibana_system \
   -e ELASTICSEARCH_PASSWORD=$KIBANA_PASSWORD \
-  -e "xpack.security.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
   {kib-docker-image}
 ----

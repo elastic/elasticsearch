@@ -28,10 +28,12 @@ import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -401,9 +403,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 boost
             ).queryName(queryName).addFilterQueries(filterQueries);
         }
-        if (ctx.convertToInnerHitsRewriteContext() != null) {
-            return new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity).boost(boost).queryName(queryName);
-        }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
         for (QueryBuilder query : filterQueries) {
@@ -421,6 +420,25 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 .boost(boost)
                 .queryName(queryName)
                 .addFilterQueries(rewrittenQueries);
+        }
+        if (ctx.convertToInnerHitsRewriteContext() != null) {
+            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
+            if (filterQueries.isEmpty()) {
+                return exactKnnQuery;
+            } else {
+                BoolQueryBuilder filterQueryChildren = new BoolQueryBuilder();
+                for (QueryBuilder query : this.filterQueries) {
+                    filterQueryChildren.filter(query);
+                }
+                // filter can be both over parents or nested docs,
+                // so add them as should clauses to a filter
+                BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+                boolQuery.must(exactKnnQuery);
+                boolQuery.filter(new BoolQueryBuilder()
+                    .should(filterQueryChildren)
+                    .should(new ToChildBlockJoinQueryBuilder(filterQueryChildren)));
+                return boolQuery;
+            }
         }
         return this;
     }
@@ -482,14 +500,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             parentBitSet = context.bitsetFilter(parentFilter);
             if (filterQuery != null) {
                 NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
-                // We treat the provided filter as a filter over PARENT documents, so if it might match nested documents
-                // we need to adjust it.
-                if (nestedHelper.mightMatchNestedDocs(filterQuery)) {
+                // If filter matches non-nested docs, we assume this is a filter over parents docs,
+                // so we will modify it accordingly: matching parents docs with join to its child docs
+                if (nestedHelper.mightMatchNonNestedDocs(filterQuery, parentPath)) {
                     // Ensure that the query only returns parent documents matching `filterQuery`
                     filterQuery = Queries.filtered(filterQuery, parentFilter);
+                    filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSet);
                 }
-                // Now join the filterQuery & parentFilter to provide the matching blocks of children
-                filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSet);
             }
             return vectorFieldType.createKnnQuery(queryVector, k, adjustedNumCands, filterQuery, vectorSimilarity, parentBitSet);
         }

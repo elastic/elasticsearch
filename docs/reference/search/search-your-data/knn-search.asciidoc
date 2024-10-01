@@ -677,6 +677,9 @@ PUT passage_vectors
                             "type": "hnsw"
                         }
                     },
+                    "language": {
+                        "type" : "keyword"
+                    },
                     "text": {
                         "type": "text",
                         "index": false
@@ -695,9 +698,9 @@ With the above mapping, we can index multiple passage vectors along with storing
 ----
 POST passage_vectors/_bulk?refresh=true
 { "index": { "_id": "1" } }
-{ "full_text": "first paragraph another paragraph", "creation_time": "2019-05-04", "paragraph": [ { "vector": [ 0.45, 45 ], "text": "first paragraph", "paragraph_id": "1" }, { "vector": [ 0.8, 0.6 ], "text": "another paragraph", "paragraph_id": "2" } ] }
+{ "full_text": "first paragraph another paragraph", "creation_time": "2019-05-04", "paragraph": [ { "vector": [ 0.45, 45 ], "text": "first paragraph", "paragraph_id": "1", "language": "EN" }, { "vector": [ 0.8, 0.6 ], "text": "another paragraph", "paragraph_id": "2", "language": "FR"  } ] }
 { "index": { "_id": "2" } }
-{ "full_text": "number one paragraph number two paragraph", "creation_time": "2020-05-04", "paragraph": [ { "vector": [ 1.2, 4.5 ], "text": "number one paragraph", "paragraph_id": "1" }, { "vector": [ -1, 42 ], "text": "number two paragraph", "paragraph_id": "2" } ] }
+{ "full_text": "number one paragraph number two paragraph", "creation_time": "2020-05-04", "paragraph": [ { "vector": [ 1.2, 4.5 ], "text": "number one paragraph", "paragraph_id": "1", "language": "FR"  }, { "vector": [ -1, 42 ], "text": "number two paragraph", "paragraph_id": "2", "language": "EN"  } ] }
 ----
 //TEST[continued]
 //TEST[s/\.\.\.//]
@@ -776,12 +779,8 @@ scored by their nearest passage vector (e.g. `"paragraph.vector"`).
 ----
 // TESTRESPONSE[s/"took": 4/"took" : "$body.took"/]
 
-What if you wanted to filter by some top-level document metadata? You can do this by adding `filter` to your
-`knn` clause.
-
-
-NOTE: `filter` will always be over the top-level document metadata. This means you cannot filter based on `nested`
-      field metadata.
+What if you wanted to filter by some document metadata? You can do this by adding `filter` to your
+`knn` clause. `filter` can be run based on both: the top-level document metadata and `nested` field metadata.
 
 [source,console]
 ----
@@ -857,6 +856,37 @@ Now we have filtered based on the top level `"creation_time"` and only one docum
 }
 ----
 // TESTRESPONSE[s/"took": 4/"took" : "$body.took"/]
+
+
+Filtering by nested field metadata: `paragraph.language` makes kNN search only consider vectors with this metadata
+for scoring parents' documents:
+
+[source,console]
+----
+POST passage_vectors/_search
+{
+    "fields": [
+        "creation_time",
+        "full_text"
+    ],
+    "_source": false,
+    "knn": {
+        "query_vector": [
+            0.45,
+            45
+        ],
+        "field": "paragraph.vector",
+        "k": 2,
+        "num_candidates": 2,
+        "filter": {
+            "match" : {
+                "paragraph.language" : "EN"
+            }
+        }
+    }
+}
+----
+//TEST[continued]
 
 [discrete]
 [[nested-knn-search-inner-hits]]

@@ -240,26 +240,30 @@ to <<nested-knn-search, top level nested kNN search>>:
 
 * kNN search over nested dense_vectors diversifies the top results over
 the top-level document
-* `filter`  over the top-level document metadata is supported and acts as a
-pre-filter
-* `filter` over `nested` field metadata is not supported
+* `filter`  is supported both over the top-level document metadata and `nested`
+field metadata. Filter acts as a pre-filter.
 
-A sample query can look like below:
+A sample query with filter over nested metadata can look like below:
 
 [source,js]
 ----
 {
-  "query" : {
-    "nested" : {
-      "path" : "paragraph",
-        "query" : {
-          "knn": {
-            "query_vector": [
-                0.45,
-                45
-            ],
-            "field": "paragraph.vector",
-            "num_candidates": 2
+  "query": {
+    "nested": {
+      "path": "paragraph",
+      "query": {
+        "knn": {
+          "query_vector": [
+            0.45,
+            45
+          ],
+          "field": "paragraph.vector",
+          "k": 10,
+          "filter": {
+            "match": {
+              "paragraph.language": "EN"
+            }
+          }
         }
       }
     }
@@ -267,6 +271,9 @@ A sample query can look like below:
 }
 ----
 // NOTCONSOLE
+
+The above query only considers vectors with `"paragraph.language": "EN"`
+for scoring parents' documents.
 
 [[knn-query-aggregations]]
 ==== Knn query with aggregations

@@ -467,7 +467,6 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             SnapshotState.SUCCESS,
             startFullSnapshot(repoName, randomIdentifier()).get(10, TimeUnit.SECONDS).getSnapshotInfo().state()
         );
-
         clearShutdownMetadata(clusterService);
     }
 

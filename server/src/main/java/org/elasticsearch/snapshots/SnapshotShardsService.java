@@ -752,5 +752,4 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             )
         );
     }
-
 }

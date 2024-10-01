@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,8 +25,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.junit.After;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.function.BiConsumer;
@@ -39,12 +39,14 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     final Settings settings = Settings.builder()
         .put(
             SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(),
-            TimeValue.timeValueMillis(200)
+            TimeValue.timeValueMillis(500)
         )
         .build();
 
+    DeterministicTaskQueue deterministicTaskQueue;
+
     // Construction parameters for the Tracker.
-    TestThreadPool testThreadPool;
+    ThreadPool testThreadPool;
     private final Supplier<String> getLocalNodeIdSupplier = () -> "local-node-id-for-test";
     private final BiConsumer<Setting<TimeValue>, Consumer<TimeValue>> addSettingsUpdateConsumerNoOp = (setting, updateMethod) -> {};
 
@@ -71,19 +73,13 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             }
             default -> newStatus.pauseIfNotCompleted((listener) -> {});
         }
-        ;
         return newStatus;
     };
 
     @Before
     public void setUpThreadPool() {
-        testThreadPool = new TestThreadPool("thread-pool-for-test");
-    }
-
-    @After
-    public void shutdownThreadPool() {
-        boolean successfulTermination = terminate(testThreadPool);
-        assert successfulTermination;
+        deterministicTaskQueue = new DeterministicTaskQueue();
+        testThreadPool = deterministicTaskQueue.getThreadPool();
     }
 
     /**
@@ -129,7 +125,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             tracker.onClusterStateAddShutdown();
 
             // Wait for the initial progress log message with no shard snapshot completions.
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
         }
 
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
@@ -147,11 +145,13 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             tracker.assertStatsForTesting(2, 1, 1, 1);
 
             // Wait for the next periodic log message to include the new completion stats.
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
-    public void testTrackerPauseTimestamp() throws Exception {
+    public void testTrackerPauseTimestamp() {
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
             addSettingsUpdateConsumerNoOp,
@@ -176,7 +176,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             tracker.onClusterStatePausingSetForAllShardSnapshots();
 
             // Wait for the first log message to ensure the pausing timestamp was set.
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
@@ -209,7 +211,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             tracker.trackRequestSentToMaster(snapshot, shardId);
 
             // Wait for the first log message to ensure the pausing timestamp was set.
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
         }
 
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
@@ -225,7 +229,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             tracker.releaseRequestSentToMaster(snapshot, shardId);
 
             // Wait for the first log message to ensure the pausing timestamp was set.
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
@@ -254,7 +260,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             tracker.onClusterStatePausingSetForAllShardSnapshots();
 
             // Wait for the first log message to ensure the pausing timestamp was set.
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
         }
 
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
@@ -272,7 +280,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             tracker.assertStatsForTesting(2, 2, 2, 1);
 
             // Wait for the first log message to ensure the pausing timestamp was set.
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
         }
 
         // Clear start and pause timestamps
@@ -292,7 +302,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             tracker.onClusterStateAddShutdown();
 
             // Wait for the first log message to ensure the pausing timestamp was set.
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
         }
 
     }

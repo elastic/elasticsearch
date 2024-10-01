@@ -513,23 +513,110 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         // comma separated indices
+        // These fail because there is an invalid index name, and there is no index name with wildcard before it
         for (String command : commands.keySet()) {
             if (command.contains("LOOKUP")) {
                 continue;
             }
-            lineNumber = commands.get(command);
             for (String clusterString : clusterStrings) {
+                lineNumber = command.contains("FROM")
+                    ? "line 1:" + (22 + clusterString.length() - 1) + ": "
+                    : "line 1:" + (25 + clusterString.length() - 1) + ": ";
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
-                    clusterString + "--indexpattern, indexpattern",
+                    clusterString + "indexpattern, --indexpattern",
                     lineNumber,
                     "-indexpattern"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
-                    clusterString + "\"--indexpattern\", indexpattern",
+                    clusterString + "indexpattern, \"--indexpattern\"",
                     lineNumber,
                     "-indexpattern"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"indexpattern, --indexpattern\"",
+                    commands.get(command),
+                    "-indexpattern"
+                );
+            }
+        }
+
+        // The invalid index name, except invalid DateMath, are ignored if there is an index name with wildcard before it
+        for (String command : commands.keySet()) {
+            if (command.contains("LOOKUP")) {
+                continue;
+            }
+            for (String clusterString : clusterStrings) {
+                lineNumber = command.contains("FROM")
+                    ? "line 1:" + (11 + clusterString.length() - 1) + ": "
+                    : "line 1:" + (14 + clusterString.length() - 1) + ": ";
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*,-index#pattern"),
+                    statement(command, clusterString + "*, \"-index#pattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*,-index#pattern"),
+                    statement(command, clusterString + "*, -index#pattern")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*, -index#pattern"),
+                    statement(command, clusterString + "\"*, -index#pattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*,-index#pattern"),
+                    statement(command, clusterString + "index*, \"-index#pattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*,-index#pattern"),
+                    statement(command, clusterString + "index*, -index#pattern")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*, -index#pattern"),
+                    statement(command, clusterString + "\"index*, -index#pattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*,-<--logstash-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "*, \"-<--logstash-{now/M{yyyy.MM}}>\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*,-<--logstash-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "*, -<--logstash-{now/M{yyyy.MM}}>")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*, -<--logstash-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "\"*, -<--logstash-{now/M{yyyy.MM}}>\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*,-<--logstash#-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "index*, \"-<--logstash#-{now/M{yyyy.MM}}>\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*,-<--logstash#-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "index*, -<--logstash#-{now/M{yyyy.MM}}>")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*, -<--logstash#-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "\"index*, -<--logstash#-{now/M{yyyy.MM}}>\"")
+                );
+                expectDateMathErrorWithLineNumber(
+                    command,
+                    clusterString + "*, \"-<-logstash-{now/D}>\"",
+                    lineNumber,
+                    "unit [D] not supported for date math [/D]"
+                );
+                expectDateMathErrorWithLineNumber(
+                    command,
+                    clusterString + "*, -<-logstash-{now/D}>",
+                    lineNumber,
+                    "unit [D] not supported for date math [/D]"
+                );
+                expectDateMathErrorWithLineNumber(
+                    command,
+                    clusterString + "\"*, -<-logstash-{now/D}>\"",
+                    commands.get(command),
+                    "unit [D] not supported for date math [/D]"
                 );
             }
         }

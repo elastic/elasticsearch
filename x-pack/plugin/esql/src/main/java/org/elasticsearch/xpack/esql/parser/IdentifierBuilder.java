@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
@@ -20,6 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.EXCLUSION;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
@@ -51,9 +54,11 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     public String visitIndexPattern(List<EsqlBaseParser.IndexPatternContext> ctx) {
         List<String> patterns = new ArrayList<>(ctx.size());
+        Holder<Boolean> hasSeeStar = new Holder<>(false);
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
-            validateIndexPattern(indexPattern, c);
+            hasSeeStar.set(indexPattern.contains(WILDCARD) || hasSeeStar.get());
+            validateIndexPattern(indexPattern, c, hasSeeStar.get());
             patterns.add(
                 c.clusterString() != null ? c.clusterString().getText() + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern
             );
@@ -61,25 +66,42 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return Strings.collectionToDelimitedString(patterns, ",");
     }
 
-    private static void validateIndexPattern(String indexPattern, EsqlBaseParser.IndexPatternContext ctx) {
-        String[] indices = indexPattern.replace("*", "").split(",");
-        try {
-            for (String index : indices) {
-                if (index.isBlank()) {
+    private static void validateIndexPattern(String indexPattern, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeeStar) {
+        // multiple index names can be in the same double quote, e.g. indexPattern = "idx1, *, -idx2"
+        String[] indices = indexPattern.split(",");
+        Holder<Boolean> hasExclusion = new Holder<>(false);
+        for (String index : indices) {
+            hasSeeStar = index.contains(WILDCARD) || hasSeeStar;
+            index = index.replace(WILDCARD, "").strip();
+            if (index.isBlank()) {
+                continue;
+            }
+            hasExclusion.set(index.startsWith(EXCLUSION));
+            index = removeExclusion(index);
+            String tempName;
+            try {
+                // remove the exclusion outside of <>, from index names with DateMath expression,
+                // e.g. -<-logstash-{now/d}> becomes <-logstash-{now/d}> before calling resolveDateMathExpression
+                tempName = IndexNameExpressionResolver.resolveDateMathExpression(index);
+            } catch (ElasticsearchParseException e) {
+                // throws exception if the DateMath expression is invalid, resolveDateMathExpression does not complain about exclusions
+                throw new ParsingException(e, source(ctx), e.getMessage());
+            }
+            hasExclusion.set(tempName.startsWith(EXCLUSION) || hasExclusion.get());
+            index = tempName.equals(index) ? index : removeExclusion(tempName);
+            try {
+                MetadataCreateIndexService.validateIndexOrAliasName(index, InvalidIndexNameException::new);
+            } catch (InvalidIndexNameException e) {
+                // ignore invalid index name if it has exclusions and there is an index with wildcard before it
+                if (hasSeeStar && hasExclusion.get()) {
                     continue;
                 }
-                index = removeExclusion(index.strip());
-                String temp = IndexNameExpressionResolver.resolveDateMathExpression(index);
-                // remove the double exclusion from index names with DateMath -<-logstash-{now/d}>
-                index = temp.equals(index) ? index : removeExclusion(temp);
-                MetadataCreateIndexService.validateIndexOrAliasName(index, InvalidIndexNameException::new);
+                throw new ParsingException(e, source(ctx), e.getMessage());
             }
-        } catch (InvalidIndexNameException | ElasticsearchParseException e) {
-            throw new ParsingException(e, source(ctx), e.getMessage());
         }
     }
 
     private static String removeExclusion(String indexPattern) {
-        return indexPattern.charAt(0) == '-' ? indexPattern.substring(1) : indexPattern;
+        return indexPattern.charAt(0) == EXCLUSION.charAt(0) ? indexPattern.substring(1) : indexPattern;
     }
 }

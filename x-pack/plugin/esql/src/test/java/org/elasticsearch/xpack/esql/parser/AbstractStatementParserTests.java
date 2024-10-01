@@ -39,6 +39,10 @@ abstract class AbstractStatementParserTests extends ESTestCase {
         assertThat(statement, actual, equalTo(expected));
     }
 
+    LogicalPlan statement(String query, String arg) {
+        return statement(LoggerMessageFormat.format(null, query, arg), new QueryParams());
+    }
+
     LogicalPlan statement(String e) {
         return statement(e, new QueryParams());
     }
@@ -128,5 +132,9 @@ abstract class AbstractStatementParserTests extends ESTestCase {
 
     void expectInvalidIndexNameErrorWithLineNumber(String query, String arg, String lineNumber, String indexString) {
         expectError(LoggerMessageFormat.format(null, query, arg), lineNumber + "Invalid index name [" + indexString);
+    }
+
+    void expectDateMathErrorWithLineNumber(String query, String arg, String lineNumber, String error) {
+        expectError(LoggerMessageFormat.format(null, query, arg), lineNumber + error);
     }
 }

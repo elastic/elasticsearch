@@ -61,12 +61,6 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeTestCase {
 
-    // using a specialized logger for this case because we want to log things in static context, and "logger" means "Engine#logger"
-    // (relates investigation into https://github.com/elastic/elasticsearch/issues/88201)
-    private static final Logger blockedSearcherRestCancellationTestCaseLogger = LogManager.getLogger(
-        BlockedSearcherRestCancellationTestCase.class
-    );
-
     protected static final Setting<Boolean> BLOCK_SEARCHER_SETTING = Setting.boolSetting(
         "index.block_searcher",
         false,
@@ -150,6 +144,12 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
     }
 
     private static class SearcherBlockingEngine extends ReadOnlyEngine {
+
+        // using a specialized logger for this case because and "logger" means "Engine#logger"
+        // (relates investigation into https://github.com/elastic/elasticsearch/issues/88201)
+        private static final Logger blockedSearcherRestCancellationTestCaseLogger = LogManager.getLogger(
+            BlockedSearcherRestCancellationTestCase.class
+        );
 
         final Semaphore searcherBlock = new Semaphore(1);
 

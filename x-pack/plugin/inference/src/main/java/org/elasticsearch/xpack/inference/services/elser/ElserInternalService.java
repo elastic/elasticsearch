@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -54,7 +56,7 @@ import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER
 
 public class ElserInternalService extends BaseElasticsearchInternalService {
 
-    public static final String DEFAULT_ELSER_ID = ".elser-default";
+    public static final String DEFAULT_ELSER_ID = ".default-elser-2";
 
     public static final String NAME = "elser";
 
@@ -279,7 +281,7 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         InferModelAction.Request request,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (DefaultElserFeatureFlag.isEnabled() ==  false) {
+        if (DefaultElserFeatureFlag.isEnabled() == false) {
             listener.onFailure(e);
             return;
         }
@@ -336,6 +338,39 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
             }
         }
         return translated;
+    }
+
+    @Override
+    public List<UnparsedModel> defaultConfigs() {
+        // TODO Chunking settings
+        Map<String, Object> elserSettings = Map.of(
+            ModelConfigurations.SERVICE_SETTINGS,
+            Map.of(
+                ElasticsearchInternalServiceSettings.MODEL_ID,
+                ElserModels.ELSER_V2_MODEL,  // TODO pick model depending on platform
+                ElasticsearchInternalServiceSettings.NUM_THREADS,
+                1,
+                ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS,
+                Map.of(
+                    "enabled",
+                    Boolean.TRUE,
+                    "min_number_of_allocations",
+                    0,
+                    "max_number_of_allocations",
+                    8   // no max?
+                )
+            )
+        );
+
+        return List.of(
+            new UnparsedModel(
+                ElserInternalService.DEFAULT_ELSER_ID,
+                TaskType.SPARSE_EMBEDDING,
+                ElserInternalService.NAME,  // TODO elasticsearch service ??
+                elserSettings,
+                Map.of() // no secrets
+            )
+        );
     }
 
     @Override

@@ -13,8 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,8 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -36,9 +34,10 @@ import java.util.function.Supplier;
 public class SnapshotShutdownProgressTracker {
 
     /** How frequently shard snapshot progress is logged after receiving local node shutdown metadata. */
-    public static final Setting<TimeValue> SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING = Setting.positiveTimeSetting(
+    public static final Setting<TimeValue> SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "snapshots.shutdown.progress.interval",
         TimeValue.timeValueSeconds(5),
+        TimeValue.MINUS_ONE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -84,42 +83,42 @@ public class SnapshotShutdownProgressTracker {
     private final AtomicLong abortedCount = new AtomicLong();
     private final AtomicLong pausedCount = new AtomicLong();
 
-    public SnapshotShutdownProgressTracker(
-        Supplier<String> localNodeIdSupplier,
-        BiConsumer<Setting<TimeValue>, Consumer<TimeValue>> addSettingsUpdateConsumer,
-        Settings settings,
-        ThreadPool threadPool
-    ) {
+    public SnapshotShutdownProgressTracker(Supplier<String> localNodeIdSupplier, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.getLocalNodeId = localNodeIdSupplier;
-        this.progressLoggerInterval = SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.get(settings);
+        clusterSettings.initializeAndWatch(
+            SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING,
+            value -> this.progressLoggerInterval = value
+        );
         this.threadPool = threadPool;
-
-        addSettingsUpdateConsumer.accept(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING, this::updateLogIntervalSetting);
-    }
-
-    private void updateLogIntervalSetting(TimeValue updatedTimeValue) {
-        progressLoggerInterval = updatedTimeValue;
     }
 
     private void scheduleProgressLogger() {
-        scheduledProgressLoggerFuture = threadPool.scheduleWithFixedDelay(
-            this::logProgressReport,
-            progressLoggerInterval,
-            threadPool.executor(ThreadPool.Names.GENERIC)
-        );
-        logger.debug(
-            () -> Strings.format(
-                "Starting shutdown snapshot progress logging on node [%s], runs every [%s]",
-                getLocalNodeId.get(),
-                progressLoggerInterval
-            )
-        );
+        if (progressLoggerInterval.millis() > 0) {
+            scheduledProgressLoggerFuture = threadPool.scheduleWithFixedDelay(
+                this::logProgressReport,
+                progressLoggerInterval,
+                threadPool.executor(ThreadPool.Names.GENERIC)
+            );
+            logger.debug(
+                () -> Strings.format(
+                    "Starting shutdown snapshot progress logging on node [%s], runs every [%s]",
+                    getLocalNodeId.get(),
+                    progressLoggerInterval
+                )
+            );
+        } else {
+            logger.debug("Snapshot progress logging during shutdown is disabled");
+        }
     }
 
     private void cancelProgressLogger() {
         assert scheduledProgressLoggerFuture != null : "Somehow shutdown mode was removed before it was added.";
         scheduledProgressLoggerFuture.cancel();
-        logger.debug(() -> Strings.format("Cancelling shutdown snapshot progress logging on node [%s]", getLocalNodeId.get()));
+        if (progressLoggerInterval.millis() > 0) {
+            // Only log cancellation if it was most likely started. Theoretically the interval setting could be updated during shutdown,
+            // such that the progress logger is already running and ignores the new value, but that does not currently happen.
+            logger.debug(() -> Strings.format("Cancelling shutdown snapshot progress logging on node [%s]", getLocalNodeId.get()));
+        }
     }
 
     /**

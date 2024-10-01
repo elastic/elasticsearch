@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,6 +26,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -42,6 +44,10 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             TimeValue.timeValueMillis(500)
         )
         .build();
+    final Settings disabledTrackerLoggingSettings = Settings.builder()
+        .put(SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+        .build();
+    ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
     DeterministicTaskQueue deterministicTaskQueue;
 
@@ -103,11 +109,10 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         }
     }
 
-    public void testTrackerLogsStats() throws Exception {
+    public void testTrackerLogsStats() {
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
-            addSettingsUpdateConsumerNoOp,
-            settings,
+            clusterSettings,
             testThreadPool
         );
 
@@ -151,21 +156,114 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         }
     }
 
-    public void testTrackerPauseTimestamp() {
+    /**
+     * Test that {@link SnapshotShutdownProgressTracker#SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING} can be disabled by setting
+     * a value of {@link TimeValue#MINUS_ONE}. This will disable progress logging, though the Tracker will continue to track things.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.snapshots.SnapshotShutdownProgressTracker:DEBUG",
+        reason = "Test checks for DEBUG-level log message"
+    )
+    public void testTrackerProgressLoggingIntervalSettingCanBeDisabled() {
+        ClusterSettings clusterSettingsDisabledLogging = new ClusterSettings(
+            disabledTrackerLoggingSettings,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
-            addSettingsUpdateConsumerNoOp,
-            settings,
+            clusterSettingsDisabledLogging,
             testThreadPool
         );
 
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
             mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "disabled logging message",
+                    SnapshotShutdownProgressTracker.class.getName(),
+                    Level.DEBUG,
+                    "Snapshot progress logging during shutdown is disabled"
+                )
+            );
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
-                    "pausing timestamp should be unset",
+                    "no progress logging message",
                     SnapshotShutdownProgressTracker.class.getName(),
                     Level.INFO,
-                    "*Finished signalling shard snapshots to pause at [-1]*"
+                    "Current active shard snapshot stats on data node*"
+                )
+            );
+
+            // Simulate starting shutdown -- no logging will start because the Tracker logging is disabled.
+            tracker.onClusterStateAddShutdown();
+            tracker.onClusterStatePausingSetForAllShardSnapshots();
+
+            // Wait for the logging disabled message.
+            deterministicTaskQueue.runAllTasks();
+            mockLog.awaitAllExpectationsMatched();
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.snapshots.SnapshotShutdownProgressTracker:DEBUG",
+        reason = "Test checks for DEBUG-level log message"
+    )
+    public void testTrackerIntervalSettingDynamically() {
+        ClusterSettings clusterSettingsDisabledLogging = new ClusterSettings(
+            disabledTrackerLoggingSettings,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
+            getLocalNodeIdSupplier,
+            clusterSettingsDisabledLogging,
+            testThreadPool
+        );
+        // Re-enable the progress logging
+        clusterSettingsDisabledLogging.applySettings(settings);
+
+        // Check that the logging is active.
+        try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "disabled logging message",
+                    SnapshotShutdownProgressTracker.class.getName(),
+                    Level.DEBUG,
+                    "Snapshot progress logging during shutdown is disabled"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "progress logging message",
+                    SnapshotShutdownProgressTracker.class.getName(),
+                    Level.INFO,
+                    "Current active shard snapshot stats on data node*"
+                )
+            );
+
+            // Simulate starting shutdown -- progress logging should begin.
+            tracker.onClusterStateAddShutdown();
+            tracker.onClusterStatePausingSetForAllShardSnapshots();
+
+            // Wait for the progress logging message
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
+        }
+    }
+
+    public void testTrackerPauseTimestamp() {
+        SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
+            getLocalNodeIdSupplier,
+            clusterSettings,
+            testThreadPool
+        );
+
+        try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "pausing timestamp should be set",
+                    SnapshotShutdownProgressTracker.class.getName(),
+                    Level.INFO,
+                    "*Finished signalling shard snapshots to pause at [" + testThreadPool.relativeTimeInMillis() + "]*"
                 )
             );
 
@@ -182,11 +280,10 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         }
     }
 
-    public void testTrackerRequestsToMaster() throws Exception {
+    public void testTrackerRequestsToMaster() {
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
-            addSettingsUpdateConsumerNoOp,
-            settings,
+            clusterSettings,
             testThreadPool
         );
         Snapshot snapshot = new Snapshot("repositoryName", new SnapshotId("snapshotName", "snapshotUUID"));
@@ -235,11 +332,10 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         }
     }
 
-    public void testTrackerClearShutdown() throws Exception {
+    public void testTrackerClearShutdown() {
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
-            addSettingsUpdateConsumerNoOp,
-            settings,
+            clusterSettings,
             testThreadPool
         );
 

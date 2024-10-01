@@ -108,8 +108,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         this.threadPool = transportService.getThreadPool();
         this.snapshotShutdownProgressTracker = new SnapshotShutdownProgressTracker(
             () -> clusterService.state().nodes().getLocalNodeId(),
-            clusterService.getClusterSettings()::addSettingsUpdateConsumer,
-            settings,
+            clusterService.getClusterSettings(),
             threadPool
         );
         this.remoteFailedRequestDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());

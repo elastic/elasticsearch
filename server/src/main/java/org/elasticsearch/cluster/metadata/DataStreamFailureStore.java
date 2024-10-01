@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,13 +22,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Holds the data stream failure store metadata that enable or disable the failure store of a data stream. Currently, it
  * supports the following configurations only explicitly enabling or disabling the failure store
  */
-public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<DataStreamFailureStore>, ToXContentObject {
+public class DataStreamFailureStore implements SimpleDiffable<DataStreamFailureStore>, ToXContentObject {
 
+    public static final DataStreamFailureStore NULL = new DataStreamFailureStore();
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
     public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = new ConstructingObjectParser<>(
@@ -36,34 +39,57 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
         (args, unused) -> new DataStreamFailureStore((Boolean) args[0])
     );
 
+    @Nullable
+    private final Boolean enabled;
+
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
     }
 
     /**
-     *  @param enabled, true when the failure is enabled, false when it's disabled, null when it depends on other configuration. Currently,
-     *                  null value is not supported because there are no other arguments
-     * @throws IllegalArgumentException when all the constructor arguments are null
+     * This constructor is only used to represent the <code>null</code> value in a template.
      */
-    public DataStreamFailureStore {
-        if (enabled == null) {
-            throw new IllegalArgumentException("Failure store configuration should have at least one non-null configuration value.");
-        }
-    }
-
-    public DataStreamFailureStore(StreamInput in) throws IOException {
-        this(in.readOptionalBoolean());
-    }
-
-    public static Diff<DataStreamFailureStore> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(DataStreamFailureStore::new, in);
+    private DataStreamFailureStore() {
+        this.enabled = null;
     }
 
     /**
-     * @return iff the user has explicitly enabled the failure store
+     * @param enabled, true when the failure is enabled, false when it's disabled, null when it depends on other configuration. Currently,
+     *                 null value is not supported because there are no other arguments
+     * @throws IllegalArgumentException when all the constructor arguments are null
      */
-    public boolean isExplicitlyEnabled() {
-        return enabled != null && enabled;
+    public DataStreamFailureStore(Boolean enabled) {
+        if (enabled == null) {
+            throw new IllegalArgumentException("Failure store configuration should have at least one non-null configuration value.");
+        }
+        this.enabled = enabled;
+    }
+
+    public static DataStreamFailureStore read(StreamInput in) throws IOException {
+        var enabled = in.readOptionalBoolean();
+        if (enabled == null) {
+            return NULL;
+        }
+        return new DataStreamFailureStore(enabled);
+    }
+
+    public static Diff<DataStreamFailureStore> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(DataStreamFailureStore::read, in);
+    }
+
+    /**
+     * @return iff the user the value represents a user explicitly nullifying the failure store.
+     */
+    public boolean isNullified() {
+        return equals(NULL);
+    }
+
+    /**
+     * @return exposes the value of the enabled flag
+     */
+    @Nullable
+    public Boolean enabled() {
+        return enabled;
     }
 
     @Override
@@ -78,15 +104,32 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (enabled != null) {
-            builder.field(ENABLED_FIELD.getPreferredName(), enabled);
+        if (isNullified()) {
+            builder.nullValue();
+        } else {
+            builder.startObject();
+            if (enabled != null) {
+                builder.field(ENABLED_FIELD.getPreferredName(), enabled);
+            }
+            builder.endObject();
         }
-        builder.endObject();
         return builder;
     }
 
     public static DataStreamFailureStore fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (DataStreamFailureStore) obj;
+        return Objects.equals(this.enabled, that.enabled);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(enabled);
     }
 }

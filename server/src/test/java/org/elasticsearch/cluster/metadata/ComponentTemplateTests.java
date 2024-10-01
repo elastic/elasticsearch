@@ -93,7 +93,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             templateBuilder.lifecycle(DataStreamLifecycleTests.randomLifecycle());
         }
         if (randomBoolean() && supportsDataStreams) {
-            templateBuilder.dataStreamOptions(DataStreamOptionsTests.randomDataStreamOptions());
+            templateBuilder.dataStreamOptions(randomDataStreamOptions());
         }
         Template template = templateBuilder.build();
 
@@ -102,6 +102,10 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             meta = randomMeta();
         }
         return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, deprecated);
+    }
+
+    private static DataStreamOptions randomDataStreamOptions() {
+        return randomBoolean() ? DataStreamOptionsTests.randomDataStreamOptions() : new DataStreamOptions(DataStreamFailureStore.NULL);
     }
 
     public static Map<String, AliasMetadata> randomAliases() {
@@ -182,7 +186,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                     case 4 -> new ComponentTemplate(
                         Template.builder(ot)
                             .dataStreamOptions(
-                                randomValueOtherThan(ot.dataStreamOptions(), DataStreamOptionsTests::randomDataStreamOptions)
+                                randomValueOtherThan(ot.dataStreamOptions(), ComponentTemplateTests::randomDataStreamOptions)
                             )
                             .build(),
                         orig.version(),

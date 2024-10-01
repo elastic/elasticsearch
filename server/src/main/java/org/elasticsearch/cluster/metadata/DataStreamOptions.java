@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,11 +45,11 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     );
 
     static {
-        PARSER.declareField(
+        PARSER.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> DataStreamFailureStore.fromXContent(p),
-            FAILURE_STORE_FIELD,
-            ObjectParser.ValueType.OBJECT_OR_NULL
+            DataStreamFailureStore.NULL,
+            FAILURE_STORE_FIELD
         );
     }
 
@@ -59,7 +58,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     }
 
     public static DataStreamOptions read(StreamInput in) throws IOException {
-        return new DataStreamOptions(in.readOptionalWriteable(DataStreamFailureStore::new));
+        return new DataStreamOptions(in.readOptionalWriteable(DataStreamFailureStore::read));
     }
 
     public static Diff<DataStreamOptions> readDiffFrom(StreamInput in) throws IOException {
@@ -68,6 +67,15 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     public boolean isEmpty() {
         return this.equals(EMPTY);
+    }
+
+    /**
+     * Determines if this data stream has its failure store enabled or not. Currently, the failure store
+     * is enabled only when a user has explicitly requested it.
+     * @return true, if the user has explicitly enabled the failure store.
+     */
+    public boolean isFailureStoreEnabled() {
+        return failureStore != null && failureStore.enabled() != null && failureStore.enabled();
     }
 
     @Override

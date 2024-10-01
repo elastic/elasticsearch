@@ -657,7 +657,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
                 var options = MetadataIndexTemplateService.resolveDataStreamOptions(composableIndexTemplate, metadata.componentTemplates());
-                return options != null && options.failureStore() != null && options.failureStore().enabled();
+                return options != null && options.isFailureStoreEnabled();
             }
         }
 

@@ -21,7 +21,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
 
     @Override
     protected Writeable.Reader<DataStreamFailureStore> instanceReader() {
-        return DataStreamFailureStore::new;
+        return DataStreamFailureStore::read;
     }
 
     @Override
@@ -31,6 +31,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
 
     @Override
     protected DataStreamFailureStore mutateInstance(DataStreamFailureStore instance) throws IOException {
+        // We know the enabled is not null because in this test we do not include the DataStreamFailureStore.NULL
         return new DataStreamFailureStore(instance.enabled() == false);
     }
 
@@ -44,7 +45,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
     }
 
     public void testInvalidEmptyConfiguration() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore((Boolean) null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore(null));
         assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
     }
 }

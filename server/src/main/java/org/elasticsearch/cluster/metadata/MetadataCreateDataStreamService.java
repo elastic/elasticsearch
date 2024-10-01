@@ -264,9 +264,7 @@ public class MetadataCreateDataStreamService {
         final DataStreamOptions dataStreamOptions = isSystem
             ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveDataStreamOptions(template, metadata.componentTemplates());
-        var isFailureStoreEnabled = dataStreamOptions != null
-            && dataStreamOptions.failureStore() != null
-            && dataStreamOptions.failureStore().enabled();
+        var isFailureStoreEnabled = dataStreamOptions != null && dataStreamOptions.isFailureStoreEnabled();
 
         // If we need to create a failure store, do so first. Do not reroute during the creation since we will do
         // that as part of creating the backing index if required.

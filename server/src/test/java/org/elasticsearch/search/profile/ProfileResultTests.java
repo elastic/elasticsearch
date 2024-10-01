@@ -12,6 +12,7 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -72,7 +73,7 @@ public class ProfileResultTests extends AbstractXContentSerializingTestCase<Prof
 
     @Override
     protected ProfileResult doParseInstance(XContentParser parser) throws IOException {
-        return ProfileResult.fromXContent(parser);
+        return SearchResponseUtils.parseProfileResult(parser);
     }
 
     @Override

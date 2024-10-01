@@ -20,8 +20,11 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.ssl.SslCloseCompletionEvent;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
@@ -71,6 +74,12 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Nullable
     private ChunkedWrite currentChunkedWrite;
 
+    /**
+     * HTTP request content stream for current request, it's null if there is no current request or request is fully-aggregated
+     */
+    @Nullable
+    private Netty4HttpRequestBodyStream currentRequestStream;
+
     /*
      * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
      * channel, and then transferred to responses. A response is not written to the channel context until its sequence number matches the
@@ -110,23 +119,38 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         activityTracker.startActivity();
         try {
-            assert msg instanceof FullHttpRequest : "Should have fully aggregated message already but saw [" + msg + "]";
-            final FullHttpRequest fullHttpRequest = (FullHttpRequest) msg;
-            final Netty4HttpRequest netty4HttpRequest;
-            if (fullHttpRequest.decoderResult().isFailure()) {
-                final Throwable cause = fullHttpRequest.decoderResult().cause();
-                final Exception nonError;
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    nonError = new Exception(cause);
+            if (msg instanceof HttpRequest request) {
+                final Netty4HttpRequest netty4HttpRequest;
+                if (request.decoderResult().isFailure()) {
+                    final Throwable cause = request.decoderResult().cause();
+                    final Exception nonError;
+                    if (cause instanceof Error) {
+                        ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                        nonError = new Exception(cause);
+                    } else {
+                        nonError = (Exception) cause;
+                    }
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, (FullHttpRequest) request, nonError);
                 } else {
-                    nonError = (Exception) cause;
+                    assert currentRequestStream == null : "current stream must be null for new request";
+                    if (request instanceof FullHttpRequest fullHttpRequest) {
+                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+                        currentRequestStream = null;
+                    } else {
+                        var contentStream = new Netty4HttpRequestBodyStream(ctx.channel());
+                        currentRequestStream = contentStream;
+                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
+                    }
                 }
-                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest, nonError);
+                handlePipelinedRequest(ctx, netty4HttpRequest);
             } else {
-                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+                assert msg instanceof HttpContent : "expect HttpContent got " + msg;
+                assert currentRequestStream != null : "current stream must exists before handling http content";
+                currentRequestStream.handleNettyContent((HttpContent) msg);
+                if (msg instanceof LastHttpContent) {
+                    currentRequestStream = null;
+                }
             }
-            handlePipelinedRequest(ctx, netty4HttpRequest);
         } finally {
             activityTracker.stopActivity();
         }

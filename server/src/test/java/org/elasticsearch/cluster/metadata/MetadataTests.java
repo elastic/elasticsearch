@@ -112,6 +112,14 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias1").build())
                     .putAlias(AliasMetadata.builder("alias2").build())
             )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("alias2").build())
+                    .putAlias(AliasMetadata.builder("alias3").build())
+            )
             .build();
 
         {
@@ -135,10 +143,12 @@ public class MetadataTests extends ESTestCase {
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias*");
-            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
-            assertThat(aliases, aMapWithSize(1));
-            List<AliasMetadata> aliasMetadataList = aliases.get("index");
-            assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index", "index2" });
+            assertThat(aliases, aMapWithSize(2));
+            List<AliasMetadata> indexAliasMetadataList = aliases.get("index");
+            assertThat(indexAliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
+            List<AliasMetadata> index2AliasMetadataList = aliases.get("index2");
+            assertThat(index2AliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias2", "alias3")));
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias1");

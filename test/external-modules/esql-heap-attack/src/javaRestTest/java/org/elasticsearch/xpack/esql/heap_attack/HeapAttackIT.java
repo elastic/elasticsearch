@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -90,7 +91,8 @@ public class HeapAttackIT extends ESRestTestCase {
                 values = values.item(List.of(0, b));
             }
         }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        MapMatcher mapMatcher = matchesMap();
+        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
     }
 
     /**
@@ -207,7 +209,8 @@ public class HeapAttackIT extends ESRestTestCase {
         Map<?, ?> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        MapMatcher mapMatcher = matchesMap();
+        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
     }
 
     /**
@@ -219,7 +222,8 @@ public class HeapAttackIT extends ESRestTestCase {
         Map<?, ?> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        MapMatcher mapMatcher = matchesMap();
+        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
     }
 
     private Response groupOnManyLongs(int count) throws IOException {
@@ -249,7 +253,8 @@ public class HeapAttackIT extends ESRestTestCase {
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "str").entry("type", "keyword"));
         ListMatcher values = matchesList().item(List.of(1, "1".repeat(100)));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        MapMatcher mapMatcher = matchesMap();
+        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
     }
 
     public void testHugeConcat() throws IOException {
@@ -257,9 +262,10 @@ public class HeapAttackIT extends ESRestTestCase {
         ResponseException e = expectThrows(ResponseException.class, () -> concat(10));
         Map<?, ?> map = responseAsMap(e.getResponse());
         logger.info("expected request rejected {}", map);
+        MapMatcher mapMatcher = matchesMap();
         assertMap(
             map,
-            matchesMap().entry("status", 400)
+            mapMatcher.entry("status", 400)
                 .entry("error", matchesMap().extraOk().entry("reason", "concatenating more than [1048576] bytes is not supported"))
         );
     }
@@ -287,7 +293,8 @@ public class HeapAttackIT extends ESRestTestCase {
         for (int s = 0; s < 300; s++) {
             columns = columns.item(matchesMap().entry("name", "str" + s).entry("type", "keyword"));
         }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", any(List.class)));
+        MapMatcher mapMatcher = matchesMap();
+        assertMap(map, mapMatcher.entry("columns", columns).entry("values", any(List.class)).entry("took", greaterThanOrEqualTo(0)));
     }
 
     /**
@@ -344,7 +351,8 @@ public class HeapAttackIT extends ESRestTestCase {
         for (int i = 0; i < 20; i++) {
             columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
         }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
+        MapMatcher mapMatcher = matchesMap();
+        assertMap(map, mapMatcher.entry("columns", columns).entry("values", hasSize(10_000)).entry("took", greaterThanOrEqualTo(0)));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1874")

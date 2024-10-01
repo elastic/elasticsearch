@@ -40,6 +40,8 @@ include::aggregations.asciidoc[]
 
 include::geospatial-analysis.asciidoc[]
 
+include::connector/docs/index.asciidoc[]
+
 include::eql/eql.asciidoc[]
 
 include::esql/index.asciidoc[]

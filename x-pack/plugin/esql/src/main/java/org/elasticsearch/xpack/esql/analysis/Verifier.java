@@ -645,47 +645,50 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            // Need to check the condition - in case it has a FullTextFunction, all conditions present on it need to be pushed down to
-            // source
-            Holder<Boolean> hasFullTextFunction = new Holder<>(false);
-            condition.forEachDown(FullTextFunction.class, ftf -> {
-                // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
-                // we can't check if it can be pushed down if we don't have information about the fields present in the query.
-                hasFullTextFunction.set(true);
-                plan.forEachDown(LogicalPlan.class, lp -> {
-                    if ((lp instanceof Filter
-                        || lp instanceof OrderBy
-                        || lp instanceof EsRelation
-                        || ftf.hasFieldsInformation()) == false) {
-                        failures.add(
-                            fail(
-                                plan,
-                                "[{}] function cannot be used after {}",
-                                ftf.functionName(),
-                                lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
-                            )
-                        );
-                    }
-                });
-
-                if (hasFullTextFunction.get() && (canPushToSource(condition, x -> false) == false)) {
-                    // We couldn't push everything to Lucene, and there is a FullTextFunction in the condition.
-                    // Fail this early as we can't push down the FullTextFunction query in this case
-                    failures.add(
-                        fail(
-                            condition,
-                            "Invalid condition [{}]. Use a separate WHERE clause for the {} function instead",
-                            condition.sourceText(),
-                            ftf.functionName(),
-                            ftf.functionName()
-                        )
-                    );
-                }
-            });
+            Holder<FullTextFunction> functionHolder = new Holder<>();
+            condition.forEachDown(FullTextFunction.class, functionHolder::set);
+            FullTextFunction ftf = functionHolder.get();
+            if (ftf != null) {
+                checkCommandUsageAfterFullTextFunction(ftf, plan, failures);
+                checkConditionCanBePushedDown(ftf, condition, failures);
+            }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
             });
+        }
+    }
+
+    private static void checkCommandUsageAfterFullTextFunction(FullTextFunction ftf, LogicalPlan plan, Set<Failure> failures) {
+        // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
+        // we can't check if it can be pushed down if we don't have information about the fields present in the query.
+        plan.forEachDown(LogicalPlan.class, lp -> {
+            if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation || ftf.hasFieldsInformation()) == false) {
+                failures.add(
+                    fail(
+                        plan,
+                        "[{}] function cannot be used after {}",
+                        ftf.functionName(),
+                        lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                    )
+                );
+            }
+        });
+    }
+
+    private static void checkConditionCanBePushedDown(FullTextFunction ftf, Expression condition, Set<Failure> failures) {
+        if (canPushToSource(condition, x -> false) == false) {
+            // We couldn't push everything to Lucene, and there is a FullTextFunction in the condition.
+            // Fail this early as we can't push down the FullTextFunction query in this case
+            failures.add(
+                fail(
+                    condition,
+                    "Invalid condition [{}]. Use a separate WHERE clause for the {} function instead",
+                    condition.sourceText(),
+                    ftf.functionName(),
+                    ftf.functionName()
+                )
+            );
         }
     }
 }

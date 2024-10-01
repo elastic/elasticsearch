@@ -30,9 +30,9 @@ import org.elasticsearch.index.analysis.Analysis;
 
 import java.io.Reader;
 
-public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<PersianAnalyzer> {
+public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopwordAnalyzerBase> {
 
-    private final Analyzer analyzer;
+    private final StopwordAnalyzerBase analyzer;
 
     PersianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name, settings);
@@ -74,7 +74,7 @@ public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Persi
     }
 
     @Override
-    public Analyzer get() {
+    public StopwordAnalyzerBase get() {
         return this.analyzer;
     }
 }

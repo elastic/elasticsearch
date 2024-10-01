@@ -323,6 +323,11 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         }
     }
 
+    /**
+     * Retrieves one or more mappings from the index and reserved role mappings (if available).
+     * If <code>names</code> is <code>null</code> or {@link Set#isEmpty empty}, then this retrieves all mappings.
+     * Otherwise it retrieves the specified mappings by name.
+     */
     public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
         getMappings(listener.delegateFailureAndWrap((l, roleMappings) -> {
             final List<ExpressionRoleMapping> merged = reservedRoleMappings.mergeWithReserved(roleMappings);

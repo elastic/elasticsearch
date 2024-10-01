@@ -31,7 +31,8 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
         "human-readable-total-docs-size",
-        "verbose-dense-vector-mapping-stats", "ccs-stats"
+        "verbose-dense-vector-mapping-stats",
+        "ccs-stats"
     );
 
     @Override

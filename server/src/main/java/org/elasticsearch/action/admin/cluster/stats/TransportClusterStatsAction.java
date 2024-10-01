@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -97,6 +98,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         CommonStatsFlags.Flag.SparseVector
     );
     private static final Logger logger = LogManager.getLogger(TransportClusterStatsAction.class);
+
+    public static final Setting<Boolean> REMOTE_STATS = Setting.boolSetting(
+        "stats.ccs.remote_stats",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
     private final NodeService nodeService;
@@ -431,8 +439,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         }
     }
 
-    private static boolean doRemotes(ClusterStatsRequest request) {
-        return request.doRemotes();
+    private boolean doRemotes(ClusterStatsRequest request) {
+        return REMOTE_STATS.get(settings) && request.doRemotes();
     }
 
     private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {

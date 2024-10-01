@@ -37,7 +37,7 @@ IMPORTANT: This content is replicated in the Elasticsearch rep. See `run-elastic
 Ensure both are in sync.
 
 https://github.com/elastic/start-local is the source of truth.
-////  
+//// 
 
 [WARNING]
 ==== 
@@ -46,24 +46,17 @@ DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS.
 This setup is intended for local development and testing only.
 ====
 
-The following commands help you very quickly spin up a single-node Elasticsearch cluster, together with Kibana in Docker.
-Use this setup for local development or testing.
+Quickly set up Elasticsearch and Kibana in Docker for local development or testing, using the https://github.com/elastic/start-local?tab=readme-ov-file#-try-elasticsearch-and-kibana-locally[`start-local` script].
 
 ==== Prerequisites
 
 If you don't have Docker installed, https://www.docker.com/products/docker-desktop[download and install Docker Desktop] for your operating system.
 
-Quickly set up Elasticsearch and Kibana in Docker for local development or testing, using the https://github.com/elastic/start-local?tab=readme-ov-file#-try-elasticsearch-and-kibana-locally[`start-local` script].
+==== Trial license
 
 This setup comes with a one-month trial of the Elastic *Platinum* license.
 After the trial period, the license reverts to *Free and open - Basic*.
 Refer to https://www.elastic.co/subscriptions[Elastic subscriptions] for more information.
-
-[discrete]
-[[local-dev-prerequisites]]
-=== Prerequisites
-
-If you don't have Docker installed, https://www.docker.com/products/docker-desktop[download and install Docker Desktop] for your operating system.
 
 === Run `start-local`
 

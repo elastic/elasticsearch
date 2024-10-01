@@ -563,48 +563,48 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
         }
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
-            logger.debug("security index does not exist");
-            listener.onResponse(null);
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
-        } else if (frozenSecurityIndex.areReservedRolesIndexed()) {
-            logger.debug("security index already contains the latest reserved roles indexed");
-            listener.onResponse(null);
-        } else {
-            // we will first create new or update the existing roles in .security index
-            // then potentially delete the roles from .security index that have been removed from the builtin roles
-            indexReservedRoles(frozenSecurityIndex, ActionListener.wrap(onResponse -> {
-                Map<String, String> indexedRolesVersions = frozenSecurityIndex.getReservedRolesVersionMap() != null
-                    ? frozenSecurityIndex.getReservedRolesVersionMap()
-                    : Map.of();
-                Set<String> rolesToDelete = Sets.difference(indexedRolesVersions.keySet(), ReservedRolesStore.names());
-                if (false == rolesToDelete.isEmpty()) {
-                    deleteRoles(
-                        frozenSecurityIndex,
-                        rolesToDelete,
-                        WriteRequest.RefreshPolicy.IMMEDIATE,
-                        false,
-                        ActionListener.wrap(deleteResponse -> {
-                            if (deleteResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
-                                listener.onFailure(
-                                    new ElasticsearchStatusException(
-                                        "Automatic deletion of builtin reserved roles failed",
-                                        RestStatus.INTERNAL_SERVER_ERROR
-                                    )
-                                );
-                            } else {
-                                frozenSecurityIndex.markReservedRolesAsIndexed(listener);
-                            }
+        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+            if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+                listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            } else if (frozenSecurityIndex.areReservedRolesIndexed()) {
+                logger.debug("security index already contains the latest reserved roles indexed");
+                listener.onResponse(null);
+            } else {
+                // we will first create new or update the existing roles in .security index
+                // then potentially delete the roles from .security index that have been removed from the builtin roles
+                indexReservedRoles(frozenSecurityIndex, ActionListener.wrap(onResponse -> {
+                    Map<String, String> indexedRolesVersions = frozenSecurityIndex.getReservedRolesVersionMap() != null
+                        ? frozenSecurityIndex.getReservedRolesVersionMap()
+                        : Map.of();
+                    Set<String> rolesToDelete = Sets.difference(indexedRolesVersions.keySet(), ReservedRolesStore.names());
+                    if (false == rolesToDelete.isEmpty()) {
+                        deleteRoles(
+                            frozenSecurityIndex,
+                            rolesToDelete,
+                            WriteRequest.RefreshPolicy.IMMEDIATE,
+                            false,
+                            ActionListener.wrap(deleteResponse -> {
+                                if (deleteResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
+                                    listener.onFailure(
+                                        new ElasticsearchStatusException(
+                                            "Automatic deletion of builtin reserved roles failed",
+                                            RestStatus.INTERNAL_SERVER_ERROR
+                                        )
+                                    );
+                                } else {
+                                    frozenSecurityIndex.markReservedRolesAsIndexed(listener);
+                                }
 
-                        }, listener::onFailure)
-                    );
-                } else {
-                    frozenSecurityIndex.markReservedRolesAsIndexed(listener);
-                }
-            }, listener::onFailure));
-        }
+                            }, listener::onFailure)
+                        );
+                    } else {
+                        frozenSecurityIndex.markReservedRolesAsIndexed(listener);
+                    }
+                }, listener::onFailure));
+            }
+        });
+
     }
 
     public void putRoles(

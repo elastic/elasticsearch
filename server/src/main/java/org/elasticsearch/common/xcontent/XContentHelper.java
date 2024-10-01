@@ -266,7 +266,10 @@ public class XContentHelper {
         @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
         try (
-            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(null, include, exclude, false), input)
+            XContentParser parser = xContent.createParser(
+                XContentParserConfiguration.EMPTY.withFiltering(null, include, exclude, false),
+                input
+            )
         ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {

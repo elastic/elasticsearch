@@ -169,7 +169,12 @@ public class XContentDataHelperTests extends ESTestCase {
 
         XContentParser p = createParser(JsonXContent.jsonXContent, object);
         assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, null, Set.of("path.filter.field"), true);
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+            null,
+            null,
+            Set.of("path.filter.field"),
+            true
+        );
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
         XContentDataHelper.decodeAndWrite(parserConfig, builder, XContentDataHelper.encodeToken(p));

@@ -104,6 +104,14 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     }
 
     public XContentParserConfiguration withFiltering(
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots
+    ) {
+        return withFiltering(null, includeStrings, excludeStrings, filtersMatchFieldNamesWithDots);
+    }
+
+    public XContentParserConfiguration withFiltering(
         String prefixPath,
         Set<String> includeStrings,
         Set<String> excludeStrings,

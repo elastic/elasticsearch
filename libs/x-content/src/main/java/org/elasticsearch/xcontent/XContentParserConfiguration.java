@@ -49,6 +49,13 @@ public interface XContentParserConfiguration {
 
     RestApiVersion restApiVersion();
 
+    // TODO: Remove when serverless uses the new API
+    XContentParserConfiguration withFiltering(
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots
+    );
+
     /**
      * Replace the configured filtering.
      *

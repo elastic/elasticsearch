@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
@@ -77,7 +78,7 @@ public interface SourceLoader {
     class Stored implements SourceLoader {
         final SourceFilter filter;
 
-        public Stored(SourceFilter filter) {
+        public Stored(@Nullable SourceFilter filter) {
             this.filter = filter;
         }
 

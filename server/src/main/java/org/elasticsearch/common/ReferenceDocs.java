@@ -27,11 +27,11 @@ import java.util.regex.Pattern;
 /**
  * Encapsulates links to pages in the reference docs, so that for example we can include URLs in logs and API outputs. Each instance's
  * {@link #toString()} yields (a string representation of) a URL for the relevant docs. Links are defined in the resource file
- * {@code reference-docs-links.yaml} which must include definitions for exactly the set of values of this enum.
+ * {@code reference-docs-links.json} which must include definitions for exactly the set of values of this enum.
  */
 public enum ReferenceDocs {
     /*
-     * Note that the docs subsystem parses {@code reference-docs-links.yaml} with regexes, not a YAML parser, so the whitespace in the file
+     * Note that the docs subsystem parses {@code reference-docs-links.json} with regexes, not a JSON parser, so the whitespace in the file
      * is important too. See {@code sub check_elasticsearch_links} in {@code https://github.com/elastic/docs/blob/master/build_docs.pl} for
      * more details.
      *
@@ -89,7 +89,7 @@ public enum ReferenceDocs {
     private static final Map<String, String> linksBySymbol;
 
     static {
-        try (var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.yaml"))) {
+        try (var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.json"))) {
             linksBySymbol = Map.copyOf(readLinksBySymbol(resourceStream));
         } catch (Exception e) {
             assert false : e;
@@ -102,7 +102,7 @@ public enum ReferenceDocs {
     static final String VERSION_COMPONENT = getVersionComponent(Build.current().version(), Build.current().isSnapshot());
 
     static Map<String, String> readLinksBySymbol(InputStream inputStream) throws Exception {
-        try (var parser = XContentFactory.xContent(XContentType.YAML).createParser(XContentParserConfiguration.EMPTY, inputStream)) {
+        try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, inputStream)) {
             final var result = parser.map(LinkedHashMap::new, XContentParser::text);
             final var iterator = result.keySet().iterator();
             for (int i = 0; i < values().length; i++) {

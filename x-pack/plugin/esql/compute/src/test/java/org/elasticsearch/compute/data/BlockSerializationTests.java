@@ -236,10 +236,10 @@ public class BlockSerializationTests extends SerializationTestCase {
     public void testSimulateAggs() {
         DriverContext driverCtx = driverContext();
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        var params = new Object[] {};
         var function = MaxLongAggregatorFunction.create(driverCtx, List.of(0));
-        function.addRawInput(page);
+        try (BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
+            function.addRawInput(page, noMasking);
+        }
         Block[] blocks = new Block[function.intermediateBlockCount()];
         try {
             function.evaluateIntermediate(blocks, 0, driverCtx);

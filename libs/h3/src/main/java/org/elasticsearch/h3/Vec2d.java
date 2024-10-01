@@ -27,10 +27,16 @@ import java.util.Objects;
 /**
  *  2D floating-point vector
  */
-final class Vec2d {
+record Vec2d(
+    double x, // x component
+    double y  // y component
+) {
 
-    /** sin(60') */
-    private static final double M_SIN60 = Constants.M_SQRT3_2;
+    /** 1/sin(60') **/
+    private static final double M_RSIN60 = 1.0 / Constants.M_SQRT3_2;
+
+    /** one third **/
+    private static final double M_ONETHIRD = 1.0 / 3.0;
 
     private static final double VEC2D_RESOLUTION = 1e-7;
 
@@ -87,14 +93,6 @@ final class Vec2d {
         { 2.361378999196363184, 0.266983896803167583, 4.455774101589558636 },  // face 19
     };
 
-    private final double x;  /// < x component
-    private final double y;  /// < y component
-
-    Vec2d(double x, double y) {
-        this.x = x;
-        this.y = y;
-    }
-
     /**
      * Determines the center point in spherical coordinates of a cell given by this 2D
      * hex coordinates on a particular icosahedral face.
@@ -133,14 +131,14 @@ final class Vec2d {
 
         // scale for current resolution length u
         for (int i = 0; i < res; i++) {
-            r /= Constants.M_SQRT7;
+            r *= Constants.M_RSQRT7;
         }
 
         // scale accordingly if this is a substrate grid
         if (substrate) {
             r /= 3.0;
             if (H3Index.isResolutionClassIII(res)) {
-                r /= Constants.M_SQRT7;
+                r *= Constants.M_RSQRT7;
             }
         }
 
@@ -181,8 +179,8 @@ final class Vec2d {
         a2 = Math.abs(y);
 
         // first do a reverse conversion
-        x2 = a2 / M_SIN60;
-        x1 = a1 + x2 / 2.0;
+        x2 = a2 * M_RSIN60;
+        x1 = a1 + x2 * 0.5;
 
         // check if we have the center of a hex
         m1 = (int) x1;
@@ -193,8 +191,8 @@ final class Vec2d {
         r2 = x2 - m2;
 
         if (r1 < 0.5) {
-            if (r1 < 1.0 / 3.0) {
-                if (r2 < (1.0 + r1) / 2.0) {
+            if (r1 < M_ONETHIRD) {
+                if (r2 < (1.0 + r1) * 0.5) {
                     i = m1;
                     j = m2;
                 } else {
@@ -215,7 +213,7 @@ final class Vec2d {
                 }
             }
         } else {
-            if (r1 < 2.0 / 3.0) {
+            if (r1 < 2.0 * M_ONETHIRD) {
                 if (r2 < (1.0 - r1)) {
                     j = m2;
                 } else {
@@ -228,7 +226,7 @@ final class Vec2d {
                     i = Math.incrementExact(m1);
                 }
             } else {
-                if (r2 < (r1 / 2.0)) {
+                if (r2 < (r1 * 0.5)) {
                     i = Math.incrementExact(m1);
                     j = m2;
                 } else {

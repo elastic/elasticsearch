@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -149,6 +150,9 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         }
 
         createIndexService.createIndex(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            request.ackTimeout(),
             updateRequest,
             listener.map(response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName))
         );
@@ -165,9 +169,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 alias.isHidden(true);
             }
         }).collect(Collectors.toSet());
-        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .settings(request.settings())
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).settings(request.settings())
             .mappings(request.mappings())
             .aliases(aliases)
             .nameResolvedInstant(nameResolvedAt)
@@ -195,15 +197,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             );
         }
 
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
-            cause,
-            descriptor.getPrimaryIndex(),
-            request.index()
-        );
-
-        return updateRequest.ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .aliases(aliases)
+        return new CreateIndexClusterStateUpdateRequest(cause, descriptor.getPrimaryIndex(), request.index()).aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
             .mappings(descriptor.getMappings())
             .settings(settings);

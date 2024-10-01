@@ -31,7 +31,7 @@ see the <<jvm-version, JVM version requirements>>
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of {es} has not yet been released.
+WARNING: Version {version} of {es} has not yet been released. The archive might not be available.
 
 endif::[]
 

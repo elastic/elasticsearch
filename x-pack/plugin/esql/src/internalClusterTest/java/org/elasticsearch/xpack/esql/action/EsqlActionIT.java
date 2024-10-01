@@ -1643,7 +1643,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
 
-        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(settings);
 
         client.updateSettings(settingsRequest).actionGet();
         try (EsqlQueryResponse results = run("from test")) {
@@ -1659,7 +1660,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
 
-        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(settings);
 
         client.updateSettings(settingsRequest).actionGet();
         try (EsqlQueryResponse results = run("from test | limit 40")) {
@@ -1677,7 +1679,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             clearedSettings.putNull(s.getKey());
         }
 
-        var clearSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(clearedSettings.build());
+        var clearSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+            clearedSettings.build()
+        );
         admin().cluster().updateSettings(clearSettingsRequest).actionGet();
     }
 

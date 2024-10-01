@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -78,9 +79,8 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
         assertThat(
             warnings,
             contains(
-                "299 Elasticsearch-8.16.0-unknown \"Line -1:-2: evaluation of [] failed, treating result as null. "
-                    + "Only first 20 failures recorded.\"",
-                "299 Elasticsearch-8.16.0-unknown \"Line -1:-2: java.lang.ArithmeticException: long overflow\""
+                containsString("\"Line -1:-2: evaluation of [] failed, treating result as null. Only first 20 failures recorded.\""),
+                containsString("\"Line -1:-2: java.lang.ArithmeticException: long overflow\"")
             )
         );
     }

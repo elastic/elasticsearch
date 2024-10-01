@@ -60,16 +60,32 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void addRawInput(Page page) {
+  public void addRawInput(Page page, BooleanVector mask) {
     if (state.failed()) {
       return;
     }
+    if (mask.isConstant()) {
+      if (mask.getBoolean(0) == false) {
+        // Entire page masked away
+        return;
+      }
+      // No masking
+      LongBlock block = page.getBlock(channels.get(0));
+      LongVector vector = block.asVector();
+      if (vector != null) {
+        addRawVector(vector);
+      } else {
+        addRawBlock(block);
+      }
+      return;
+    }
+    // Some positions masked away, others kept
     LongBlock block = page.getBlock(channels.get(0));
     LongVector vector = block.asVector();
     if (vector != null) {
-      addRawVector(vector);
+      addRawVector(vector, mask);
     } else {
-      addRawBlock(block);
+      addRawBlock(block, mask);
     }
   }
 
@@ -86,8 +102,47 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
     }
   }
 
+  private void addRawVector(LongVector vector, BooleanVector mask) {
+    state.seen(true);
+    for (int i = 0; i < vector.getPositionCount(); i++) {
+      if (mask.getBoolean(i) == false) {
+        continue;
+      }
+      try {
+        state.longValue(SumLongAggregator.combine(state.longValue(), vector.getLong(i)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        state.failed(true);
+        return;
+      }
+    }
+  }
+
   private void addRawBlock(LongBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
+      if (block.isNull(p)) {
+        continue;
+      }
+      state.seen(true);
+      int start = block.getFirstValueIndex(p);
+      int end = start + block.getValueCount(p);
+      for (int i = start; i < end; i++) {
+        try {
+          state.longValue(SumLongAggregator.combine(state.longValue(), block.getLong(i)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
+      }
+    }
+  }
+
+  private void addRawBlock(LongBlock block, BooleanVector mask) {
+    for (int p = 0; p < block.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
       if (block.isNull(p)) {
         continue;
       }

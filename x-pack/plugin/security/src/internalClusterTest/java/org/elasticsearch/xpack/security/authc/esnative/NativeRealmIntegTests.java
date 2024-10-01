@@ -440,7 +440,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .get();
             assertFalse(response.isTimedOut());
             preparePutRole("test_role").cluster("none")
@@ -495,12 +495,20 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     private void assertClusterHealthOnlyAuthorizesWhenAnonymousRoleActive(String token) {
         if (anonymousEnabled && roleExists) {
             assertNoTimeout(
-                client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
+                client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                    .admin()
+                    .cluster()
+                    .prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .get()
             );
         } else {
             ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                    .admin()
+                    .cluster()
+                    .prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .get()
             );
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
@@ -607,7 +615,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
             .get();
         assertFalse(response.isTimedOut());
         new DeleteRoleRequestBuilder(client()).name("test_role").get();
@@ -641,7 +649,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
             .get();
         assertFalse(response.isTimedOut());
 
@@ -657,12 +665,20 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // test that role change took effect if anonymous is disabled as anonymous grants monitoring permissions...
         if (anonymousEnabled && roleExists) {
             assertNoTimeout(
-                client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
+                client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                    .admin()
+                    .cluster()
+                    .prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .get()
             );
         } else {
             ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                    .admin()
+                    .cluster()
+                    .prepareHealth(TEST_REQUEST_TIMEOUT)
+                    .get()
             );
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
             assertThat(e.getMessage(), containsString("authorized"));
@@ -680,7 +696,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         // validate that joe cannot auth with the old token
         try {
-            client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+            client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .admin()
+                .cluster()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
+                .get();
             fail("should not authenticate with old password");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), containsString("authenticate"));
@@ -689,7 +709,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // test with new password and role
         response = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue("joe", new SecureString(secondPassword.toCharArray())))
-        ).admin().cluster().prepareHealth().get();
+        ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertFalse(response.isTimedOut());
     }
 
@@ -800,7 +820,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
             .get();
         assertThat(response.isTimedOut(), is(false));
 
@@ -811,13 +831,17 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         ElasticsearchSecurityException expected = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
+            () -> client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .admin()
+                .cluster()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
+                .get()
         );
         assertThat(expected.status(), is(RestStatus.UNAUTHORIZED));
 
         response = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue("joe", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING))
-        ).admin().cluster().prepareHealth().get();
+        ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.isTimedOut(), is(false));
     }
 
@@ -942,7 +966,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
             .get();
         assertThat(response.isTimedOut(), is(false));
 
@@ -950,13 +974,21 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         ElasticsearchSecurityException expected = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
+            () -> client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .admin()
+                .cluster()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
+                .get()
         );
         assertThat(expected.status(), is(RestStatus.UNAUTHORIZED));
 
         new SetEnabledRequestBuilder(client()).username("joe").enabled(true).get();
 
-        response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+        response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
+            .admin()
+            .cluster()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
+            .get();
         assertThat(response.isTimedOut(), is(false));
 
         IllegalArgumentException e = expectThrows(
@@ -974,14 +1006,14 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             if (anonymousEnabled && roleExists) {
                 ClusterHealthResponse response = client().filterWithHeader(
                     Collections.singletonMap("Authorization", basicAuthHeaderValue("joe", new SecureString("s3krit-password")))
-                ).admin().cluster().prepareHealth().get();
+                ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
                 assertNoTimeout(response);
             } else {
                 ElasticsearchSecurityException e = expectThrows(
                     ElasticsearchSecurityException.class,
                     () -> client().filterWithHeader(
                         Collections.singletonMap("Authorization", basicAuthHeaderValue("joe", new SecureString("s3krit-password")))
-                    ).admin().cluster().prepareHealth().get()
+                    ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get()
                 );
                 assertThat(e.status(), is(RestStatus.FORBIDDEN));
             }
@@ -990,7 +1022,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         preparePutRole("unknown_role").cluster("all").get();
         ClusterHealthResponse response = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue("joe", new SecureString("s3krit-password")))
-        ).admin().cluster().prepareHealth().get();
+        ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertNoTimeout(response);
     }
 
@@ -1017,7 +1049,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 try {
                     latch.await();
                     for (int j = 0; j < numberOfIterations; j++) {
-                        ClusterHealthResponse response = client.admin().cluster().prepareHealth().get();
+                        ClusterHealthResponse response = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
                         assertNoTimeout(response);
                     }
                 } catch (InterruptedException e) {

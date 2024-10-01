@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -1928,6 +1930,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.ingest.IngestPipelineException::new,
             182,
             TransportVersions.INGEST_PIPELINE_EXCEPTION_ADDED
+        ),
+        INDEX_RESPONSE_WRAPPER_EXCEPTION(
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class,
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
+            183,
+            TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

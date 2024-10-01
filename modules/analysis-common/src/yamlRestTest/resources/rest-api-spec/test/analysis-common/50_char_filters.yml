@@ -9,7 +9,6 @@
             char_filter:
               - type: html_strip
                 escaped_tags: ["xxx", "yyy"]
-                read_ahead: 1024
     - length: { tokens: 1 }
     - match:  { tokens.0.token: "\ntest<yyy>foo</yyy>\n" }
 

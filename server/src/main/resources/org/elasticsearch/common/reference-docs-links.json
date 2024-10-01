@@ -4,6 +4,7 @@
   "UNSTABLE_CLUSTER_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html",
   "LAGGING_NODE_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#troubleshooting-unstable-cluster-lagging",
   "SHARD_LOCK_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#troubleshooting-unstable-cluster-shardlockobtainfailedexception",
+  "NETWORK_DISCONNECT_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#troubleshooting-unstable-cluster-network",
   "CONCURRENT_REPOSITORY_WRITERS": "diagnosing-corrupted-repositories.html",
   "ARCHIVE_INDICES": "archive-indices.html",
   "HTTP_TRACER": "modules-network.html#http-rest-request-tracer",

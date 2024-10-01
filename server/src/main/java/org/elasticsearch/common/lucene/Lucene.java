@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene;
@@ -884,24 +885,26 @@ public class Lucene {
             }
         }
 
-        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
-            super(in, new SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader leaf) {
-                    final SegmentReader segmentReader = segmentReader(leaf);
-                    final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
-                    if (hardLiveDocs == null) {
-                        return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
-                    }
-                    // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
-                    // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
-                    // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
-                    // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
-                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
-                    assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
-                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+        private static final SubReaderWrapper ALL_LIVE_DOCS_SUB_READER_WRAPPER = new SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                final SegmentReader segmentReader = segmentReader(leaf);
+                final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
+                if (hardLiveDocs == null) {
+                    return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                 }
-            });
+                // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
+                // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
+                // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
+                // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
+                final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
+                return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+            }
+        };
+
+        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
+            super(in, ALL_LIVE_DOCS_SUB_READER_WRAPPER);
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -170,6 +171,11 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AMAZON_BEDROCK_ADDED = def(8_702_00_0);
     public static final TransportVersion ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15 = def(8_702_00_1);
     public static final TransportVersion FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15 = def(8_702_00_2);
+    /**
+     * we made a single backport for ESQL_ES_FIELD_CACHED_SERIALIZATION and ESQL_ATTRIBUTE_CACHED_SERIALIZATION
+     * with only one TransportVersion entry
+     */
+    public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15 = def(8_702_00_3);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
@@ -206,6 +212,20 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ADD_INDEX_MODE_CONCRETE_INDICES = def(8_736_00_0);
     public static final TransportVersion UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH = def(8_737_00_0);
     public static final TransportVersion ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS = def(8_738_00_0);
+    public static final TransportVersion CCS_TELEMETRY_STATS = def(8_739_00_0);
+    public static final TransportVersion GLOBAL_RETENTION_TELEMETRY = def(8_740_00_0);
+    public static final TransportVersion ROUTING_TABLE_VERSION_REMOVED = def(8_741_00_0);
+    public static final TransportVersion ML_SCHEDULED_EVENT_TIME_SHIFT_CONFIGURATION = def(8_742_00_0);
+    public static final TransportVersion SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS = def(8_743_00_0);
+    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_EMBEDDINGS_ADDED = def(8_744_00_0);
+    public static final TransportVersion BULK_INCREMENTAL_STATE = def(8_745_00_0);
+    public static final TransportVersion FAILURE_STORE_STATUS_IN_INDEX_RESPONSE = def(8_746_00_0);
+    public static final TransportVersion ESQL_AGGREGATION_OPERATOR_STATUS_FINISH_NANOS = def(8_747_00_0);
+    public static final TransportVersion ML_TELEMETRY_MEMORY_ADDED = def(8_748_00_0);
+    public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE = def(8_749_00_0);
+    public static final TransportVersion SEMANTIC_TEXT_SEARCH_INFERENCE_ID = def(8_750_00_0);
+    public static final TransportVersion ML_INFERENCE_CHUNKING_SETTINGS = def(8_751_00_0);
+    public static final TransportVersion SEMANTIC_QUERY_INNER_HITS = def(8_752_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -264,6 +284,8 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
+    @UpdateForV9
+    // This needs to be bumped to the 8.last
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
     /**

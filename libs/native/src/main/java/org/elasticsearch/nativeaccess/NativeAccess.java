@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 
 /**
- * Provides access to native functionality needed by Elastisearch.
+ * Provides access to native functionality needed by Elasticsearch.
  */
 public interface NativeAccess {
 

@@ -882,7 +882,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     private Environment possiblyReconfigureNode(Environment env, Terminal terminal, OptionSet options, ProcessInfo processInfo)
         throws UserException {
-        // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
+        // We remove the existing auto-configuration stanza from elasticsearch.yml, the elasticsearch.keystore and
         // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
         // with --enrolment-token token, in the first place.
         final List<String> existingConfigLines;

@@ -74,7 +74,7 @@
       },
       "_source_include_vectors": {
         "type":"boolean",
-        "description":"True or false to include vector fields in _source"
+        "description":"If true, include vector fields in _source"
       },
       "pipeline":{
         "type":"string",

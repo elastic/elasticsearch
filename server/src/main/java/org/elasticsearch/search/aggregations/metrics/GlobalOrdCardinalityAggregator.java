@@ -93,6 +93,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public ScoreMode scoreMode() {
+        // this check needs to line up with the dynamic pruning as it is the
+        // only case where TOP_DOCS make sense.branch
         if (this.parent == null
             && field != null
             && valuesSource.needsScores() == false

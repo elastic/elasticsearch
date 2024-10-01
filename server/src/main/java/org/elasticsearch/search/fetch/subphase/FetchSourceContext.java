@@ -149,20 +149,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.includeVectors;
     }
 
-    public boolean filterVectorFields() {
-        return this.includeVectors == null || this.includeVectors == false;
-    }
-
-    public boolean hasFilter() {
-        return this.includes.length > 0 || this.excludes.length > 0;
-    }
-
     public SourceFilter filter() {
         return filter(null);
     }
 
     public SourceFilter filter(MappingLookup mappingLookup) {
-        if (filterVectorFields() == false) {
+        if (includeVectors != null && includeVectors) {
             return new SourceFilter(includes, excludes);
         } else {
             if (mappingLookup == null) {

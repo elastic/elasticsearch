@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -368,8 +369,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
                 .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
-            if (fetchSourceContext.hasFilter() || fetchSourceContext.filterVectorFields()) {
-                source = source.filter(fetchSourceContext.filter(mapperService.mappingLookup()));
+            SourceFilter sourceFilter = fetchSourceContext.filter(mapperService.mappingLookup());
+            if (sourceFilter.isEmpty() == false) {
+                source = source.filter(sourceFilter);
             }
             sourceBytes = source.internalSourceRef();
         }

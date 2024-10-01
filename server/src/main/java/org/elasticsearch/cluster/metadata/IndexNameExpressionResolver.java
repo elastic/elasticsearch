@@ -53,7 +53,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -260,7 +259,7 @@ public class IndexNameExpressionResolver {
         }
 
         public String combined() {
-            return resource + (selector == null ? "" : ("$" + selector.getKey()));
+            return resource + (selector == null ? "" : ("::" + selector.getKey()));
         }
     }
 
@@ -269,7 +268,7 @@ public class IndexNameExpressionResolver {
             if (expressions == null
                 || expressions.length == 0
                 || expressions.length == 1
-                    && SelectorResolver.matchesWithOrWithoutSelector(expressions[0], context, Metadata.ALL::equals)) {
+                    && SelectorResolver.selectorsValidatedAndMatchesPredicate(expressions[0], context, Metadata.ALL::equals)) {
                 return List.of();
             } else {
                 return ExplicitResourceNameFilter.filterUnavailable(
@@ -281,7 +280,8 @@ public class IndexNameExpressionResolver {
             Predicate<String> isMatchAll = (((Predicate<String>) Metadata.ALL::equals)).or(Regex::isMatchAllPattern);
             if (expressions == null
                 || expressions.length == 0
-                || expressions.length == 1 && (SelectorResolver.matchesWithOrWithoutSelector(expressions[0], context, isMatchAll))) {
+                || expressions.length == 1
+                    && (SelectorResolver.selectorsValidatedAndMatchesPredicate(expressions[0], context, isMatchAll))) {
                 EnumSet<IndexComponentSelector> selectors = EnumSet.noneOf(IndexComponentSelector.class);
                 if (expressions != null && expressions.length == 1) {
                     selectors = SelectorResolver.resolveMatchAllToSelectors(context, expressions[0]);
@@ -867,7 +867,7 @@ public class IndexNameExpressionResolver {
         boolean skipIdentity,
         Set<ResolvedExpression> resolvedExpressions
     ) {
-        if (isAllIndices(resolvedExpressions)) {
+        if (isAllIndicesExpression(resolvedExpressions)) {
             return null;
         }
 
@@ -894,8 +894,8 @@ public class IndexNameExpressionResolver {
             // Determine which data stream indices this index is from - Multiple aliases with different filters that refer to the same data
             // stream could be present in the expression list using different selectors, so find which selectors would be valid for this
             // index and filter the expressions down to just those that match the expected selector.
-            // e.g. alias-1$data,alias-2$failures ---> alias-1 filters only used for its data streams' backing indices, alias-2 filters only
-            // used for its data streams' failure indices
+            // e.g. alias-1::data,alias-2::failures ---> alias-1 filters only used for its data streams' backing indices, alias-2 filters
+            // only used for its data streams' failure indices
             final IndexComponentSelector expectedSelector;
             if (dataStream.getBackingIndices().containsIndex(index)) {
                 expectedSelector = IndexComponentSelector.DATA;
@@ -1139,7 +1139,20 @@ public class IndexNameExpressionResolver {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array maps to all indices, false otherwise
      */
-    public static boolean isAllIndices(Collection<ResolvedExpression> aliasesOrIndices) {
+    public static boolean isAllIndicesExpression(Collection<ResolvedExpression> aliasesOrIndices) {
+        return aliasesOrIndices == null
+            || aliasesOrIndices.isEmpty()
+            || isExplicitAllPattern(aliasesOrIndices.stream().map(ResolvedExpression::resource).toList());
+    }
+
+    /**
+     * Identifies whether the array containing index names given as argument refers to all indices
+     * The empty or null array identifies all indices
+     *
+     * @param aliasesOrIndices the array containing index names
+     * @return true if the provided array maps to all indices, false otherwise
+     */
+    public static boolean isAllIndices(Collection<String> aliasesOrIndices) {
         return aliasesOrIndices == null || aliasesOrIndices.isEmpty() || isExplicitAllPattern(aliasesOrIndices);
     }
 
@@ -1150,10 +1163,8 @@ public class IndexNameExpressionResolver {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
-    static boolean isExplicitAllPattern(Collection<ResolvedExpression> aliasesOrIndices) {
-        return aliasesOrIndices != null
-            && aliasesOrIndices.size() == 1
-            && Metadata.ALL.equals(aliasesOrIndices.iterator().next().resource());
+    static boolean isExplicitAllPattern(Collection<String> aliasesOrIndices) {
+        return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && Metadata.ALL.equals(aliasesOrIndices.iterator().next());
     }
 
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
@@ -1394,11 +1405,11 @@ public class IndexNameExpressionResolver {
                     // converts any data streams into concrete indices for verifying they are open/closed/etc...
                     if (context.options.allowSelectors()) {
                         if ((ia.getType() == Type.ALIAS && ia.isDataStreamRelated()) || ia.getType() == Type.DATA_STREAM) {
-                            // Aliases can handle both $data and $failures iff they contain data streams
-                            // Data streams can always handle both $data and $failures
+                            // Aliases can handle both ::data and ::failures iff they contain data streams
+                            // Data streams can always handle both ::data and ::failures
                             return selectors.stream().map(selector -> new Tuple<>(ia, selector));
                         } else {
-                            // Everything else only supports $data,
+                            // Everything else only supports ::data,
                             if (selectors.contains(IndexComponentSelector.DATA)) {
                                 return Stream.of(new Tuple<>(ia, IndexComponentSelector.DATA));
                             } else {
@@ -1623,8 +1634,8 @@ public class IndexNameExpressionResolver {
                     if (excludeState != null) {
                         indicesStateStream = indicesStateStream.filter(indexMeta -> indexMeta.getState() != excludeState);
                     }
-                    // After resolving this abstraction to its concrete indices, mark those concrete indices with the $data selector if
-                    // selectors are allowed. This is because indices cannot handle anything other than $data, and it's possible that we
+                    // After resolving this abstraction to its concrete indices, mark those concrete indices with the ::data selector if
+                    // selectors are allowed. This is because indices cannot handle anything other than ::data, and it's possible that we
                     // surfaced index results from abstractions that support other selectors.
                     return indicesStateStream.map(
                         indexMeta -> new ResolvedExpression(
@@ -1652,7 +1663,7 @@ public class IndexNameExpressionResolver {
                 indicesStream = resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(context, allIndices);
             }
             if (context.options.allowSelectors()) {
-                // These only have values if the $data selector was in the enum set, and they only support the $data selector
+                // These only have values if the ::data selector was in the enum set, and they only support the ::data selector
                 return indicesStream.map(idx -> new ResolvedExpression(idx, IndexComponentSelector.DATA)).toList();
             } else {
                 return indicesStream.map(ResolvedExpression::new).toList();
@@ -1956,7 +1967,7 @@ public class IndexNameExpressionResolver {
                 IndexComponentSelector selector = expression.expression().selector();
                 assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
                 if (indexAbstraction.isDataStreamRelated() == false && IndexComponentSelector.FAILURES.equals(selector)) {
-                    // If you aren't data stream related you cannot use $failures
+                    // If you aren't data stream related you cannot use ::failures
                     if (ignoreUnavailable) {
                         return false;
                     } else {
@@ -2008,6 +2019,8 @@ public class IndexNameExpressionResolver {
     }
 
     public static final class SelectorResolver {
+        private static final String SELECTOR_SEPARATOR = "::";
+
         private SelectorResolver() {
             // Utility class
         }
@@ -2015,38 +2028,14 @@ public class IndexNameExpressionResolver {
         /**
          * Parses the given expressions for selector suffixes. If any suffixes are present and supported by the index options, the
          * expression and its suffix are split apart and returned in a pair. If a suffix is not present on the expression, the default
-         * selectors are retrieved from the context and combined with the expression.
+         * selectors are retrieved from the context and combined with the expression. If suffixes are present but not supported by the
+         * index options, this will throw {@link IndexNotFoundException}.
          * @param context Context object
          * @param expressions The expressions to check for selectors
          * @return A list of resolved expressions, each optionally paired with a selector if present and supported.
          */
         public static List<ResolvedExpression> resolve(Context context, List<String> expressions) {
-            if (context.options.allowSelectors()) {
-                return expressions.stream()
-                    .flatMap(expression -> resolve(context, expression))
-                    .toList();
-            } else {
-                return expressions.stream().map(ResolvedExpression::new).toList();
-            }
-        }
-
-        /**
-         * Parses an index expression for selector suffixes. If a suffix is present and supported by the index options, the suffix is
-         * returned in singleton set. If a suffix is not present on the expression, the default set of selectors are returned. If selectors
-         * are disabled in the options, this will return an empty set.
-         * @param context Context object
-         * @param matchAllExpression The match all expression given to the index request (e.g. `*`, `*$failures`, `_all$data`)
-         * @return A set containing the selectors for this match all expression
-         */
-        public static EnumSet<IndexComponentSelector> resolveMatchAllToSelectors(Context context, String matchAllExpression) {
-            if (context.options.allowSelectors()) {
-                return SelectorResolver.resolve(context, matchAllExpression)
-                    .map(ResolvedExpression::selector)
-                    .filter(Objects::nonNull)
-                    .collect(() -> EnumSet.noneOf(IndexComponentSelector.class), EnumSet::add, EnumSet::addAll);
-            } else {
-                return EnumSet.noneOf(IndexComponentSelector.class);
-            }
+            return expressions.stream().flatMap(expr -> resolve(context, expr)).toList();
         }
 
         /**
@@ -2058,57 +2047,157 @@ public class IndexNameExpressionResolver {
          * @return A resolved expression, optionally paired with a selector if present and supported.
          */
         public static Stream<ResolvedExpression> resolve(Context context, String expression) {
-            if (context.options.allowSelectors()) {
-                return parseAndConsumeSelector(
-                    expression,
-                    (baseExpression, maybeSelector) -> Optional.ofNullable(maybeSelector)
-                        .map(Stream::of)
-                        .orElseGet(
-                            // if selector was not present in the expression, use the defaults for the API
-                            () -> context.options.selectorOptions().defaultSelectors().stream()
-                        )
-                        .map(selector -> new ResolvedExpression(baseExpression, selector))
-                );
-            } else {
-                return Stream.of(new ResolvedExpression(expression));
-            }
+            return parseAndTransformSelector(expression, (baseExpression, selectors) -> {
+                if (context.options.allowSelectors()) {
+                    // if selector was not present in the expression, use the defaults for the API
+                    Stream<IndexComponentSelector> selectorStream = selectors.isEmpty()
+                        ? context.options.selectorOptions().defaultSelectors().stream()
+                        : selectors.stream();
+                    return selectorStream.map(selector -> new ResolvedExpression(baseExpression, selector));
+                } else {
+                    // Ensure there is no selector if the API doesn't allow it.
+                    ensureNoSelectorsProvided(expression, selectors);
+                    return Stream.of(new ResolvedExpression(baseExpression));
+                }
+            });
         }
 
         /**
-         * Determines if the given expression matches the provided predicate. If selectors are allowed and the test is negative, the test is
-         * repeated on just the index-part if the given expression has a valid selector suffix.
+         * Parses an index expression for selector suffixes. If a suffix is present and supported by the index options, the suffix is
+         * returned in singleton set. If a suffix is not present on the expression, the default set of selectors are returned. If selectors
+         * are disabled in the options, this will return an empty set.
+         * @param context Context object
+         * @param matchAllExpression The match all expression given to the index request (e.g. `*`, `*::failures`, `_all::data`)
+         * @return A set containing the selectors for this match all expression
+         */
+        public static EnumSet<IndexComponentSelector> resolveMatchAllToSelectors(Context context, String matchAllExpression) {
+            return parseAndTransformSelector(matchAllExpression, (baseExpression, selectors) -> {
+                if (context.options.allowSelectors()) {
+                    // if selector was not present in the expression, use the defaults for the API
+                    if (selectors.isEmpty()) {
+                        return context.options.selectorOptions().defaultSelectors();
+                    } else {
+                        if (selectors instanceof EnumSet<IndexComponentSelector> enumSet) {
+                            return enumSet;
+                        } else {
+                            return EnumSet.copyOf(selectors);
+                        }
+                    }
+                } else {
+                    // Ensure there is no selector if the API doesn't allow it.
+                    ensureNoSelectorsProvided(matchAllExpression, selectors);
+                    return EnumSet.noneOf(IndexComponentSelector.class);
+                }
+            });
+        }
+
+        /**
+         * Determines if the given expression matches the provided predicate. If the predicate evaluates to false for the expression, the
+         * expression is checked for selectors and the evaluation is repeated on just the index-part. If selectors are present when they
+         * should not be (according to the context object) this method will throw an exception.
          * @param expression Index expression that may contain a selector suffix.
          * @param context Context object.
          * @param predicate Determines match criteria. May be called multiple times if expression contains a valid selector.
          * @return true if the expression matches the predicate, with or without its selector suffix if one is present.
+         * @throws InvalidIndexNameException if the expression contains invalid selector syntax.
+         * @throws IllegalArgumentException if selectors were present on the expression, but they are not allowed in this context.
          */
-        private static boolean matchesWithOrWithoutSelector(String expression, Context context, Predicate<String> predicate) {
+        private static boolean selectorsValidatedAndMatchesPredicate(String expression, Context context, Predicate<String> predicate) {
             if (expression == null) {
                 return false;
             }
-            if (predicate.test(expression)) {
-                return true;
-            }
-            if (context.options.allowSelectors()) {
-                // Parse the suffix. Skip evaluating predicate if selector suffix is null since
-                // we already evaluated the base case in the previous conditional
-                return parseAndConsumeSelector(expression, (base, maybeSelector) -> maybeSelector != null && predicate.test(base));
-            }
-            return false;
+            // We need to check if there was a selector present, and validate if it was allowed
+            return parseAndTransformSelector(
+                expression,
+                (base, selectors) -> {
+                    if (context.options.allowSelectors() == false) {
+                        // Ensure there is no selector if the API doesn't allow it.
+                        ensureNoSelectorsProvided(expression, selectors);
+                    }
+                    return predicate.test(base);
+                }
+            );
         }
 
-        private static <V> V parseAndConsumeSelector(String expression, BiFunction<String, IndexComponentSelector, V> resultFunction) {
-            int lastDollarSign = expression.lastIndexOf("$");
-            if (lastDollarSign >= 0) {
-                String suffix = expression.substring(lastDollarSign + 1);
-                IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
-                if (selector != null) {
-                    String expressionBase = expression.substring(0, lastDollarSign);
-                    return resultFunction.apply(expressionBase, selector);
+        /**
+         * Parses selector fragments from an index expression. Selectors are always expected to be the suffix of the expression, and must
+         * equal one of the supported selector keys (data, failures) or be the match-all wildcard (*) which maps to all selectors. The
+         * expression is then split into the base expression and the selectors. A provided function binds the results to the return type.
+         * @param expression The expression to parse and split apart
+         * @param bindFunction A function that is handed the remainder of the expression and any selectors that were parsed off
+         *                       the expression.
+         * @return The result of the bind function
+         * @param <V> The type returned from the binding function
+         * @throws InvalidIndexNameException In the event that the selector syntax is used incorrectly.
+         */
+        private static <V> V parseAndTransformSelector(
+            String expression,
+            BiFunction<String, Collection<IndexComponentSelector>, V> bindFunction
+        ) {
+            int lastDoubleColon = expression.lastIndexOf(SELECTOR_SEPARATOR);
+            if (lastDoubleColon >= 0) {
+                String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
+                if (Regex.isMatchAllPattern(suffix)) {
+                    // Return all selectors
+                    String expressionBase = expression.substring(0, lastDoubleColon);
+                    ensureNoMoreSelectorSeparators(expressionBase, expression);
+                    return bindFunction.apply(expressionBase, EnumSet.allOf(IndexComponentSelector.class));
+                } else {
+                    IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
+                    if (selector == null) {
+                        // Do some work to surface a helpful error message for likely errors
+                        if (Regex.isSimpleMatchPattern(suffix)) {
+                            throw new InvalidIndexNameException(
+                                expression,
+                                "Invalid usage of :: separator, ["
+                                    + suffix
+                                    + "] contains a wildcard, but only the match all wildcard [*] is supported in a selector"
+                            );
+                        } else {
+                            throw new InvalidIndexNameException(
+                                expression,
+                                "Invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
+                            );
+                        }
+                    }
+                    String expressionBase = expression.substring(0, lastDoubleColon);
+                    ensureNoMoreSelectorSeparators(expressionBase, expression);
+                    return bindFunction.apply(expressionBase, List.of(selector));
                 }
             }
             // Otherwise accept the default
-            return resultFunction.apply(expression, null);
+            return bindFunction.apply(expression, List.of());
+        }
+
+        /**
+         * Checks the selectors that have been returned from splitting an expression and throws an exception if any were present.
+         * @param expression Original expression
+         * @param selectors Selectors to validate
+         * @throws IllegalArgumentException if selectors are present
+         */
+        private static void ensureNoSelectorsProvided(String expression, Collection<IndexComponentSelector> selectors) {
+            if (selectors.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Index component selectors are not supported in this context but found selector in expression ["
+                        + expression
+                        + "]"
+                );
+            }
+        }
+
+        /**
+         * Checks the remainder of an expression for any more selector separators and throws an exception if they are encountered.
+         * @param remainingExpression Remaining expression
+         * @param originalExpression Original expression to be used in the exception if invalid name is detected
+         * @throws InvalidIndexNameException if there are any more :: separators
+         */
+        private static void ensureNoMoreSelectorSeparators(String remainingExpression, String originalExpression) {
+            if (remainingExpression.contains(SELECTOR_SEPARATOR)) {
+                throw new InvalidIndexNameException(
+                    originalExpression,
+                    "Invalid usage of :: separator, only one :: separator is allowed per expression"
+                );
+            }
         }
     }
 
@@ -2130,7 +2219,7 @@ public class IndexNameExpressionResolver {
             }
 
             public String getWithSelector() {
-                return get() + (expression().selector() == null ? "" : ("$" + expression().selector().getKey()));
+                return get() + (expression().selector() == null ? "" : ("::" + expression().selector().getKey()));
             }
         }
 

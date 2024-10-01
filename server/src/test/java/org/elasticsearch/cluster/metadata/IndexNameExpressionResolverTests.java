@@ -1419,12 +1419,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIsAllIndicesExplicitAll() throws Exception {
-        assertThat(IndexNameExpressionResolver.isAllIndices(List.of(new ResolvedExpression("_all"))), equalTo(true));
+        assertThat(IndexNameExpressionResolver.isAllIndices(List.of("_all")), equalTo(true));
     }
 
     public void testIsAllIndicesExplicitAllPlusOther() throws Exception {
         assertThat(
-            IndexNameExpressionResolver.isAllIndices(List.of(new ResolvedExpression("_all"), new ResolvedExpression("other"))),
+            IndexNameExpressionResolver.isAllIndices(List.of("_all", "other")),
             equalTo(false)
         );
     }
@@ -1432,14 +1432,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testIsAllIndicesNormalIndexes() throws Exception {
         assertThat(
             IndexNameExpressionResolver.isAllIndices(
-                List.of(new ResolvedExpression("index1"), new ResolvedExpression("index2"), new ResolvedExpression("index3"))
+                List.of("index1", "index2", "index3")
             ),
             equalTo(false)
         );
     }
 
     public void testIsAllIndicesWildcard() throws Exception {
-        assertThat(IndexNameExpressionResolver.isAllIndices(List.of(new ResolvedExpression("*"))), equalTo(false));
+        assertThat(IndexNameExpressionResolver.isAllIndices(List.of("*")), equalTo(false));
     }
 
     public void testIsExplicitAllIndicesNull() throws Exception {
@@ -1451,12 +1451,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIsExplicitAllIndicesExplicitAll() throws Exception {
-        assertThat(IndexNameExpressionResolver.isExplicitAllPattern(List.of(new ResolvedExpression("_all"))), equalTo(true));
+        assertThat(IndexNameExpressionResolver.isExplicitAllPattern(List.of("_all")), equalTo(true));
     }
 
     public void testIsExplicitAllIndicesExplicitAllPlusOther() throws Exception {
         assertThat(
-            IndexNameExpressionResolver.isExplicitAllPattern(List.of(new ResolvedExpression("_all"), new ResolvedExpression("other"))),
+            IndexNameExpressionResolver.isExplicitAllPattern(List.of("_all", "other")),
             equalTo(false)
         );
     }
@@ -1464,14 +1464,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testIsExplicitAllIndicesNormalIndexes() throws Exception {
         assertThat(
             IndexNameExpressionResolver.isExplicitAllPattern(
-                List.of(new ResolvedExpression("index1"), new ResolvedExpression("index2"), new ResolvedExpression("index3"))
+                List.of("index1", "index2", "index3")
             ),
             equalTo(false)
         );
     }
 
     public void testIsExplicitAllIndicesWildcard() throws Exception {
-        assertThat(IndexNameExpressionResolver.isExplicitAllPattern(List.of(new ResolvedExpression("*"))), equalTo(false));
+        assertThat(IndexNameExpressionResolver.isExplicitAllPattern(List.of("*")), equalTo(false));
     }
 
     public void testIndexOptionsFailClosedIndicesAndAliases() {

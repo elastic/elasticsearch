@@ -11,13 +11,14 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 
 import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
@@ -30,19 +31,28 @@ import static org.mockito.Mockito.mock;
 public class SelectorResolverTests extends ESTestCase {
 
     public void testResolveExpression() {
+        // === Parsing and defaults
         // Allow selectors TRUE and default selector of $data (example, a search API)
         Context dataSelector = getContext(getOptionsForSelectors(DATA));
 
         assertThat(resolve(dataSelector, "testXXX"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
-        assertThat(resolve(dataSelector, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
-        assertThat(resolve(dataSelector, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
+        assertThat(resolve(dataSelector, "testXXX::data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
+        assertThat(resolve(dataSelector, "testXXX::failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
+        assertThat(
+            resolve(dataSelector, "testXXX::*"),
+            equalTo(List.of(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXXX", FAILURES)))
+        );
 
         // Allow selectors TRUE and default selector of $failures
         Context failuresSelector = getContext(getOptionsForSelectors(FAILURES));
 
         assertThat(resolve(failuresSelector, "testXXX"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
-        assertThat(resolve(failuresSelector, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
-        assertThat(resolve(failuresSelector, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
+        assertThat(resolve(failuresSelector, "testXXX::data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
+        assertThat(resolve(failuresSelector, "testXXX::failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
+        assertThat(
+            resolve(failuresSelector, "testXXX::*"),
+            equalTo(List.of(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXXX", FAILURES)))
+        );
 
         // Allow selectors TRUE and default selectors of both $data and $failures (example, a management/monitoring API)
         Context bothSelectors = getContext(getOptionsForSelectors(DATA, FAILURES));
@@ -51,57 +61,62 @@ public class SelectorResolverTests extends ESTestCase {
             resolve(bothSelectors, "testXXX"),
             equalTo(List.of(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXXX", FAILURES)))
         );
-        assertThat(resolve(bothSelectors, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
-        assertThat(resolve(bothSelectors, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
+        assertThat(resolve(bothSelectors, "testXXX::data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
+        assertThat(resolve(bothSelectors, "testXXX::failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
+        assertThat(
+            resolve(bothSelectors, "testXXX::*"),
+            equalTo(List.of(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXXX", FAILURES)))
+        );
 
         // Disallow selectors (example: creating, modifying, or deleting indices/data streams/aliases).
-        // Results in expressions with no selector values.
+        // Accepts standard expressions but throws when selectors are specified.
         Context noSelectors = getContext(getDisabledSelectorOptions());
 
         assertThat(resolve(noSelectors, "testXXX"), equalTo(List.of(new ResolvedExpression("testXXX"))));
-        assertThat(resolve(noSelectors, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX$data"))));
-        assertThat(resolve(noSelectors, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX$failures"))));
+        expectThrows(IllegalArgumentException.class, () -> resolve(noSelectors, "testXXX::data"));
+        expectThrows(IllegalArgumentException.class, () -> resolve(noSelectors, "testXXX::failures"));
+        expectThrows(IllegalArgumentException.class, () -> resolve(noSelectors, "testXXX::*"));
 
-        // Wildcards, Date Math, and edge cases
+        // === Errors
+        // Only recognized components can be selected
+        expectThrows(InvalidIndexNameException.class, () -> resolve(dataSelector, "testXXX::custom"));
+        // Spelling is important
+        expectThrows(InvalidIndexNameException.class, () -> resolve(dataSelector, "testXXX::failres"));
+        // Only the match all wildcard is supported
+        expectThrows(InvalidIndexNameException.class, () -> resolve(dataSelector, "testXXX::d*ta"));
+        // Only one selector separator is allowed per expression
+        expectThrows(InvalidIndexNameException.class, () -> resolve(dataSelector, "test::XXX::data"));
+
+        // === Wildcards, Date Math, and edge cases
         // Wildcards are left as-is (handled in wildcard resolver)
         assertThat(resolve(dataSelector, "*"), equalTo(List.of(new ResolvedExpression("*", DATA))));
         // Exclusions are left as-is (handled in wildcard resolver)
         assertThat(resolve(dataSelector, "-testXXX"), equalTo(List.of(new ResolvedExpression("-testXXX", DATA))));
         // Exclusions with selectors will have the selectors parsed
-        assertThat(resolve(dataSelector, "-testXXX$failures"), equalTo(List.of(new ResolvedExpression("-testXXX", FAILURES))));
+        assertThat(resolve(dataSelector, "-testXXX::failures"), equalTo(List.of(new ResolvedExpression("-testXXX", FAILURES))));
         // Date math is left unprocessed (handled in date math resolver)
         assertThat(resolve(dataSelector, "<test-{now/d}>"), equalTo(List.of(new ResolvedExpression("<test-{now/d}>", DATA))));
         // Providing a selector requires adding after the date math brackets
         assertThat(
-            resolve(dataSelector, "<test-{now/d}>$failures"),
+            resolve(dataSelector, "<test-{now/d}>::failures"),
             equalTo(List.of(new ResolvedExpression("<test-{now/d}>", FAILURES)))
         );
-        // Selectors inside of date math expressions are left in as part of the index name and are not parsed
-        assertThat(
-            resolve(dataSelector, "<test-{now/d}$failures>"),
-            equalTo(List.of(new ResolvedExpression("<test-{now/d}$failures>", DATA)))
-        );
-        // Misspelling the suffix on a date math expression will result in it not being parsed off. This will break the date math detection
-        // logic because it no longer ends in a > character.
-        assertThat(
-            resolve(dataSelector, "<test-{now/d}>$failrues"), // misspelled
-            equalTo(List.of(new ResolvedExpression("<test-{now/d}>$failrues", DATA)))
-        );
-        // custom is not a recognized selector
-        assertThat(resolve(dataSelector, "testXXX$custom"), equalTo(List.of(new ResolvedExpression("testXXX$custom", DATA))));
-        // d* is not a recognized selector
-        assertThat(resolve(dataSelector, "testXXX$d*"), equalTo(List.of(new ResolvedExpression("testXXX$d*", DATA))));
-        // The last $data is parsed, leaving the first $data as part of the remaining expression
-        assertThat(resolve(dataSelector, "testXXX$data$data"), equalTo(List.of(new ResolvedExpression("testXXX$data", DATA))));
-        // The last $data is parsed, leaving the first $failures as part of the remaining expression
-        assertThat(resolve(dataSelector, "testXXX$failures$data"), equalTo(List.of(new ResolvedExpression("testXXX$failures", DATA))));
-        // the last $failures is parsed, leaving the first $data as part of the remaining expression
-        assertThat(resolve(dataSelector, "testXXX$data$failures"), equalTo(List.of(new ResolvedExpression("testXXX$data", FAILURES))));
-        // the last $failures is parsed, leaving the first $failures as part of the remaining expression
-        assertThat(
-            resolve(dataSelector, "testXXX$failures$failures"),
-            equalTo(List.of(new ResolvedExpression("testXXX$failures", FAILURES)))
-        );
+        // Selectors inside of date math expressions will trip an exception because they do not match an existing component name exactly
+        expectThrows(InvalidIndexNameException.class, () -> resolve(dataSelector, "<test-{now/d}::failures>"));
+
+        // === Corner Cases
+        // Empty index name is not necessarily disallowed, but will be filtered out in the next steps of resolution
+        assertThat(resolve(dataSelector, "::data"), equalTo(List.of(new ResolvedExpression("", DATA))));
+        // Remote cluster syntax is respected, even if code higher up the call stack is likely to already have handled it already
+        assertThat(resolve(dataSelector, "cluster:index::data"), equalTo(List.of(new ResolvedExpression("cluster:index", DATA))));
+        // CCS with an empty index name is not necessarily disallowed, though other code in the resolution logic will likely throw
+        assertThat(resolve(dataSelector, "cluster:::data"), equalTo(List.of(new ResolvedExpression("cluster:", DATA))));
+        // Same for empty cluster and index names
+        assertThat(resolve(dataSelector, ":::data"), equalTo(List.of(new ResolvedExpression(":", DATA))));
+        // Any more prefix colon characters will trigger the multiple separators error logic
+        expectThrows(InvalidIndexNameException.class, () -> resolve(dataSelector, "::::data"));
+        // Suffix case is not supported because there is no component named with the empty string
+        expectThrows(InvalidIndexNameException.class, () -> resolve(dataSelector, "index::"));
     }
 
     public void testMultipleResolutions() {
@@ -117,71 +132,61 @@ public class SelectorResolverTests extends ESTestCase {
             )
         );
         assertThat(
-            resolveAll(dataSelector, "testXXX$data", "testYYY$failures", "testZZZ$data$data", "<test-{now}>$failures", "test$custom"),
+            resolveAll(dataSelector, "testXXX::data", "testYYY::failures", "testZZZ::*"),
             is(
                 List.of(
                     new ResolvedExpression("testXXX", DATA),
                     new ResolvedExpression("testYYY", FAILURES),
-                    new ResolvedExpression("testZZZ$data", DATA),
-                    new ResolvedExpression("<test-{now}>", FAILURES),
-                    new ResolvedExpression("test$custom", DATA)
+                    new ResolvedExpression("testZZZ", DATA),
+                    new ResolvedExpression("testZZZ", FAILURES)
                 )
             )
         );
         Context bothSelectors = getContext(getOptionsForSelectors(DATA, FAILURES));
         assertThat(
-            resolveAll(bothSelectors, "*", "testYYY$failures", "testZZZ$data$data", "<test-{now}>$failures", "test$custom"),
+            resolveAll(bothSelectors, "*", "testYYY::failures", "testZZZ::*"),
             is(
                 List.of(
                     new ResolvedExpression("*", DATA),
                     new ResolvedExpression("*", FAILURES),
                     new ResolvedExpression("testYYY", FAILURES),
-                    new ResolvedExpression("testZZZ$data", DATA),
-                    new ResolvedExpression("<test-{now}>", FAILURES),
-                    new ResolvedExpression("test$custom", DATA),
-                    new ResolvedExpression("test$custom", FAILURES)
+                    new ResolvedExpression("testZZZ", DATA),
+                    new ResolvedExpression("testZZZ", FAILURES)
                 )
             )
         );
         Context noSelectors = getContext(getDisabledSelectorOptions());
+        expectThrows(IllegalArgumentException.class, () -> resolveAll(noSelectors, "*", "testXXX::failures"));
         assertThat(
-            resolveAll(noSelectors, "*", "testYYY$failures", "testZZZ$data$data", "<test-{now}>$failures", "test$custom"),
-            is(
-                List.of(
-                    new ResolvedExpression("*", null),
-                    new ResolvedExpression("testYYY$failures", null),
-                    new ResolvedExpression("testZZZ$data$data", null),
-                    new ResolvedExpression("<test-{now}>$failures", null),
-                    new ResolvedExpression("test$custom", null)
-                )
-            )
+            resolveAll(noSelectors, "*", "testXXX"),
+            is(List.of(new ResolvedExpression("*", null), new ResolvedExpression("testXXX", null)))
         );
     }
 
     public void testResolveMatchAllToSelectors() {
         Context dataSelector = getContext(getOptionsForSelectors(DATA));
         assertThat(resolveMatchAllToSelectors(dataSelector, "*"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "*$data"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "*$failures"), is(EnumSet.of(FAILURES)));
+        assertThat(resolveMatchAllToSelectors(dataSelector, "*::data"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelectors(dataSelector, "*::failures"), is(EnumSet.of(FAILURES)));
         assertThat(resolveMatchAllToSelectors(dataSelector, "_all"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "_all$data"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(dataSelector, "_all$failures"), is(EnumSet.of(FAILURES)));
+        assertThat(resolveMatchAllToSelectors(dataSelector, "_all::data"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelectors(dataSelector, "_all::failures"), is(EnumSet.of(FAILURES)));
 
         Context bothSelector = getContext(getOptionsForSelectors(DATA, FAILURES));
         assertThat(resolveMatchAllToSelectors(bothSelector, "*"), is(EnumSet.of(DATA, FAILURES)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "*$data"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "*$failures"), is(EnumSet.of(FAILURES)));
+        assertThat(resolveMatchAllToSelectors(bothSelector, "*::data"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelectors(bothSelector, "*::failures"), is(EnumSet.of(FAILURES)));
         assertThat(resolveMatchAllToSelectors(bothSelector, "_all"), is(EnumSet.of(DATA, FAILURES)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "_all$data"), is(EnumSet.of(DATA)));
-        assertThat(resolveMatchAllToSelectors(bothSelector, "_all$failures"), is(EnumSet.of(FAILURES)));
+        assertThat(resolveMatchAllToSelectors(bothSelector, "_all::data"), is(EnumSet.of(DATA)));
+        assertThat(resolveMatchAllToSelectors(bothSelector, "_all::failures"), is(EnumSet.of(FAILURES)));
 
         Context noneSelector = getContext(getDisabledSelectorOptions());
         assertThat(resolveMatchAllToSelectors(noneSelector, "*"), is(EnumSet.noneOf(IndexComponentSelector.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "*$data"), is(EnumSet.noneOf(IndexComponentSelector.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "*$failures"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "*::data"));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "*::failures"));
         assertThat(resolveMatchAllToSelectors(noneSelector, "_all"), is(EnumSet.noneOf(IndexComponentSelector.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "_all$data"), is(EnumSet.noneOf(IndexComponentSelector.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "_all$failures"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "_all::data"));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "_all::failures"));
     }
 
     private static IndicesOptions getOptionsForSelectors(IndexComponentSelector... selectors) {

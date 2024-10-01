@@ -33,10 +33,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TDigestState implements Releasable, Accountable {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TDigestState.class);
 
+    private static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
+
     private final CircuitBreaker breaker;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-
-    protected static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
 
     private final double compression;
 

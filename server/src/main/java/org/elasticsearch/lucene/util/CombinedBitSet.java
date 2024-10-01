@@ -78,6 +78,19 @@ public final class CombinedBitSet extends BitSet implements Bits {
     }
 
     @Override
+    public int nextSetBit(int index, int upperBound) {
+        assert index >= 0 && index < length : "index=" + index + " numBits=" + length();
+        int next = first.nextSetBit(index, upperBound);
+        while (next != DocIdSetIterator.NO_MORE_DOCS && second.get(next) == false) {
+            if (next == length() - 1) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            next = first.nextSetBit(next + 1, upperBound);
+        }
+        return next;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return first.ramBytesUsed();
     }

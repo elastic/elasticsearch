@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -145,7 +144,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private MultiFileWriter createMultiFileWriter() {
         final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
-        return new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger, this::ensureRefCount);
+        return new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger);
     }
 
     /**
@@ -182,7 +181,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     public IndexShard indexShard() {
-        ensureRefCount();
+        assert hasReferences();
         return indexShard;
     }
 
@@ -235,7 +234,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     public Store store() {
-        ensureRefCount();
+        assert hasReferences();
         return store;
     }
 
@@ -362,14 +361,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public String toString() {
         return shardId + " [" + recoveryId + "]";
-    }
-
-    private void ensureRefCount() {
-        if (refCount() <= 0) {
-            throw new ElasticsearchException(
-                "RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " + "calls"
-            );
-        }
     }
 
     /*** Implementation of {@link RecoveryTargetHandler } */

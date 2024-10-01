@@ -9,6 +9,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
 import org.apache.lucene.analysis.bg.BulgarianStemFilter;
@@ -48,6 +49,8 @@ import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -80,9 +83,11 @@ import java.util.Collections;
 
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(StemmerTokenFilterFactory.class);
+
     private static final TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
 
-    private String language;
+    private final String language;
 
     StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         super(name, settings);
@@ -116,8 +121,17 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("dutch".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new DutchStemmer());
         } else if ("dutch_kp".equalsIgnoreCase(language) || "dutchKp".equalsIgnoreCase(language) || "kp".equalsIgnoreCase(language)) {
-            // TODO Lucene 10 upgrade: KPStemmer has been removed, what is the migration path for users relying on it?
-            throw new UnsupportedOperationException();
+            deprecationLogger.critical(
+                DeprecationCategory.ANALYSIS,
+                "dutch_kp_deprecation",
+                "The [dutch_kp] stemmer is deprecated and will be removed in a future version."
+            );
+            return new TokenFilter(tokenStream) {
+                @Override
+                public boolean incrementToken() {
+                    return false;
+                }
+            };
             // English stemmers
         } else if ("english".equalsIgnoreCase(language)) {
             return new PorterStemFilter(tokenStream);
@@ -126,8 +140,17 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             || "kstem".equalsIgnoreCase(language)) {
                 return new KStemFilter(tokenStream);
             } else if ("lovins".equalsIgnoreCase(language)) {
-                // TODO Lucene 10 upgrade: LovinsStemmer has been removed, what is the migration path for users relying on it?
-                throw new UnsupportedOperationException();
+                deprecationLogger.critical(
+                    DeprecationCategory.ANALYSIS,
+                    "lovins_deprecation",
+                    "The [lovins] stemmer is deprecated and will be removed in a future version."
+                );
+                return new TokenFilter(tokenStream) {
+                    @Override
+                    public boolean incrementToken() {
+                        return false;
+                    }
+                };
             } else if ("porter".equalsIgnoreCase(language)) {
                 return new PorterStemFilter(tokenStream);
             } else if ("porter2".equalsIgnoreCase(language)) {

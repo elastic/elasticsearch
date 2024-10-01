@@ -1855,7 +1855,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
-            return CreateIndexResponse.fromXContent(parser);
+            return TestResponseParsers.parseCreateIndexResponse(parser);
         }
     }
 
@@ -1867,7 +1867,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("DELETE", "/" + name);
         Response response = restClient.performRequest(request);
         try (var parser = responseAsParser(response)) {
-            return AcknowledgedResponse.fromXContent(parser);
+            return TestResponseParsers.parseAcknowledgedResponse(parser);
         }
     }
 

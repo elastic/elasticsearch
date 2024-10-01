@@ -43,8 +43,11 @@ public class SyntheticSourceIndexSettingsProvider implements IndexSettingProvide
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
+        // This index name is used when validating component and index templates, we should skip this check in that case.
+        // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
+        boolean isTemplateValidation = "validate-index-name".equals(indexName);
         if (newIndexHasSyntheticSourceUsage(indexTemplateAndCreateRequestSettings)
-            && syntheticSourceLicenseService.fallbackToStoredSource()) {
+            && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
             LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
             // TODO: handle falling back to stored source
         }

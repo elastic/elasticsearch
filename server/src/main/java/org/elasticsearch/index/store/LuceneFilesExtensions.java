@@ -57,6 +57,7 @@ public enum LuceneFilesExtensions {
     NVM("nvm", "Norms Metadata", true, false),
     PAY("pay", "Payloads", false, false),
     POS("pos", "Positions", false, false),
+    PSM("psm", "Postings Metadata", true, false),
     SI("si", "Segment Info", true, false),
     // Term dictionaries are typically performance-sensitive and hot in the page
     // cache, so we use mmap, which provides better performance.

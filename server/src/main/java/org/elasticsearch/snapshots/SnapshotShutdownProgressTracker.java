@@ -99,7 +99,7 @@ public class SnapshotShutdownProgressTracker {
                 progressLoggerInterval,
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
-            logger.debug(
+            logger.info(
                 () -> Strings.format(
                     "Starting shutdown snapshot progress logging on node [%s], runs every [%s]",
                     getLocalNodeId.get(),
@@ -107,7 +107,7 @@ public class SnapshotShutdownProgressTracker {
                 )
             );
         } else {
-            logger.debug("Snapshot progress logging during shutdown is disabled");
+            logger.info("Snapshot progress logging during shutdown is disabled");
         }
     }
 
@@ -117,7 +117,7 @@ public class SnapshotShutdownProgressTracker {
         if (progressLoggerInterval.millis() > 0) {
             // Only log cancellation if it was most likely started. Theoretically the interval setting could be updated during shutdown,
             // such that the progress logger is already running and ignores the new value, but that does not currently happen.
-            logger.debug(() -> Strings.format("Cancelling shutdown snapshot progress logging on node [%s]", getLocalNodeId.get()));
+            logger.info(() -> Strings.format("Cancelling shutdown snapshot progress logging on node [%s]", getLocalNodeId.get()));
         }
     }
 
@@ -174,7 +174,7 @@ public class SnapshotShutdownProgressTracker {
         assert this.shutdownStartMillis != -1
             : "Should not have left shutdown mode before finishing processing the cluster state update with shutdown";
         this.shutdownFinishedSignallingPausingMillis = threadPool.relativeTimeInMillis();
-        logger.debug(() -> Strings.format("Pause signals have been set for all shard snapshots on data node [%s]", getLocalNodeId.get()));
+        logger.info(() -> Strings.format("Pause signals have been set for all shard snapshots on data node [%s]", getLocalNodeId.get()));
     }
 
     /**
@@ -196,7 +196,7 @@ public class SnapshotShutdownProgressTracker {
      * Tracks how many shard snapshots are started.
      */
     public void incNumberOfShardSnapshotsInProgress(ShardId shardId, Snapshot snapshot) {
-        logger.debug(() -> Strings.format("Started shard (shard ID: [%s]) in snapshot ([%s])", shardId, snapshot));
+        logger.info(() -> Strings.format("Started shard (shard ID: [%s]) in snapshot ([%s])", shardId, snapshot));
         numberOfShardSnapshotsInProgressOnDataNode.incrementAndGet();
     }
 
@@ -204,7 +204,7 @@ public class SnapshotShutdownProgressTracker {
      * Tracks how many shard snapshots have finished since shutdown mode began.
      */
     public void decNumberOfShardSnapshotsInProgress(ShardId shardId, Snapshot snapshot, IndexShardSnapshotStatus shardSnapshotStatus) {
-        logger.debug(
+        logger.info(
             () -> Strings.format(
                 "Finished shard (shard ID: [%s]) in snapshot ([%s]) with status ([%s]): ",
                 shardId,
@@ -220,10 +220,7 @@ public class SnapshotShutdownProgressTracker {
                 case FAILURE -> failureCount.incrementAndGet();
                 case ABORTED -> abortedCount.incrementAndGet();
                 case PAUSED -> pausedCount.incrementAndGet();
-                // The other stages are active, we should only see the end result because this method is called upon completion.
-                default -> {
-                    assert false : "unexpected shard snapshot stage transition during shutdown: " + shardSnapshotStatus.getStage();
-                }
+                default -> {}
             }
         }
     }
@@ -235,7 +232,7 @@ public class SnapshotShutdownProgressTracker {
      * @param shardId second part of a unique tracking identifier
      */
     public void trackRequestSentToMaster(Snapshot snapshot, ShardId shardId) {
-        logger.debug(() -> Strings.format("Tracking shard (shard ID: [%s]) snapshot ([%s]) request to master", shardId, snapshot));
+        logger.info(() -> Strings.format("Tracking shard (shard ID: [%s]) snapshot ([%s]) request to master", shardId, snapshot));
         shardSnapshotRequests.put(snapshot.toString() + shardId.getIndexName() + shardId.getId(), threadPool.relativeTimeInNanos());
     }
 
@@ -249,7 +246,7 @@ public class SnapshotShutdownProgressTracker {
         var masterRequestStartTime = shardSnapshotRequests.remove(snapshot.toString() + shardId.getIndexName() + shardId.getId());
         // This method is may be called multiple times. Only log if this is the first time, and the entry hasn't already been removed.
         if (masterRequestStartTime != null) {
-            logger.debug(
+            logger.info(
                 () -> Strings.format(
                     "Finished shard (shard ID: [%s]) snapshot ([%s]) update request to master in [%s]",
                     shardId,

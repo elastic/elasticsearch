@@ -576,24 +576,33 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             // we will first create new or update the existing roles in .security index
             // then potentially delete the roles from .security index that have been removed from the builtin roles
             indexReservedRoles(frozenSecurityIndex, ActionListener.wrap(onResponse -> {
-                deleteRoles(
-                    frozenSecurityIndex,
-                    Sets.difference(frozenSecurityIndex.getReservedRolesVersionMap().keySet(), ReservedRolesStore.names()),
-                    WriteRequest.RefreshPolicy.IMMEDIATE,
-                    false,
-                    ActionListener.wrap(deleteResponse -> {
-                        if (deleteResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
-                            listener.onFailure(
-                                new ElasticsearchStatusException(
-                                    "Automatic deletion of builtin reserved roles failed",
-                                    RestStatus.INTERNAL_SERVER_ERROR
-                                )
-                            );
-                        } else {
-                            frozenSecurityIndex.markReservedRolesAsIndexed(listener);
-                        }
-                    }, listener::onFailure)
-                );
+                Map<String, String> indexedRolesVersions = frozenSecurityIndex.getReservedRolesVersionMap() != null
+                    ? frozenSecurityIndex.getReservedRolesVersionMap()
+                    : Map.of();
+                Set<String> rolesToDelete = Sets.difference(indexedRolesVersions.keySet(), ReservedRolesStore.names());
+                if (false == rolesToDelete.isEmpty()) {
+                    deleteRoles(
+                        frozenSecurityIndex,
+                        rolesToDelete,
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
+                        false,
+                        ActionListener.wrap(deleteResponse -> {
+                            if (deleteResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
+                                listener.onFailure(
+                                    new ElasticsearchStatusException(
+                                        "Automatic deletion of builtin reserved roles failed",
+                                        RestStatus.INTERNAL_SERVER_ERROR
+                                    )
+                                );
+                            } else {
+                                frozenSecurityIndex.markReservedRolesAsIndexed(listener);
+                            }
+
+                        }, listener::onFailure)
+                    );
+                } else {
+                    frozenSecurityIndex.markReservedRolesAsIndexed(listener);
+                }
             }, listener::onFailure));
         }
     }

@@ -1,0 +1,55 @@
+[#es-connectors-security]
+=== Connectors security
+++++
+<titleabbrev>Security</titleabbrev>
+++++
+
+This document describes security considerations for <<es-native-connectors,managed connectors>> and <<es-build-connector,self-managed connectors>>.
+
+Elastic Cloud deployments have strong security defaults.
+For example, data is encrypted by default, whether at rest or in transit.
+
+Self-managed deployments require more upfront work to ensure strong security.
+Refer to {ref}/secure-cluster.html[Secure the Elastic Stack^] in the Elasticsearch documentation for more information.
+
+[discrete#es-native-connectors-security-connections]
+==== Access to credentials
+
+Credentials for the data source — such as API keys or username/password pair— are stored in your deployment's `.elastic-connectors` Elasticsearch index.
+Therefore, the credentials are visible to all Elastic users with the `read` {ref}/security-privileges.html[indices privilege^] for that index.
+By default, the following Elastic users have this privilege: the `elastic` superuser and the `kibana_system` user.
+Enterprise Search service account tokens can also read the `.elastic-connectors` index.
+
+[discrete#es-native-connectors-security-api-key]
+==== Access to internally stored API keys
+
+API keys for Elastic managed connectors are stored in the internal system index `.connector-secrets`.
+Access to this index is restricted to authorized API calls only.
+The cluster privilege `write_connector_secrets` is required to store or update secrets through the API.
+Only the Enterprise Search instance has permission to read from this index.
+
+[discrete#es-native-connectors-security-dls]
+===== Document-level security
+
+Document-level security is available for a subset of connectors.
+DLS is available by default for the following connectors:
+
+include::_connectors-list-dls.asciidoc[]
+
+Learn more about this feature in <<es-dls>>, including availability and prerequisites.
+
+[discrete#es-native-connectors-security-deployment]
+==== Access to documents
+
+Data synced from your data source are stored as documents in the Elasticsearch index you created.
+This data is visible to all Elastic users with the `read` {ref}/security-privileges.html[indices privilege^] for that index.
+Be careful to ensure that access to this index is _at least_ as restrictive as access to the original data source.
+
+[discrete#es-native-connectors-security-encryption]
+==== Encryption
+
+Elastic Cloud automatically encrypts data at rest.
+Data in transit is automatically encrypted using `https`.
+
+Self-managed deployments must implement encryption at rest.
+See {ref}/configuring-stack-security.html[Configure security for the Elastic Stack^] in the Elasticsearch documentation for more information.

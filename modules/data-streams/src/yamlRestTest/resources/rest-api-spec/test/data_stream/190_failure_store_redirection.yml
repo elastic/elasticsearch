@@ -39,6 +39,12 @@ teardown:
         - method: POST
           path: /{index}/_doc
           capabilities: [ 'failure_store_status' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -78,14 +84,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
               number_of_replicas: 1
               index:
                 default_pipeline: "parent_failing_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -154,6 +162,9 @@ teardown:
         - method: POST
           path: /{index}/_doc
           capabilities: [ 'failure_store_status' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
 
   - do:
       allowed_warnings:
@@ -162,8 +173,7 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
@@ -174,7 +184,9 @@ teardown:
                   type: date
                 count:
                   type: long
-
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -238,6 +250,12 @@ teardown:
         - method: POST
           path: /{index}/_doc
           capabilities: [ 'failure_store_status' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -262,14 +280,16 @@ teardown:
         name: destination_template
         body:
           index_patterns: destination-data-stream
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
               number_of_replicas: 1
               index:
                 default_pipeline: "failing_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:
@@ -299,14 +319,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
               number_of_replicas: 1
               index:
                 default_pipeline: "reroute_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -332,9 +354,12 @@ teardown:
 ---
 "Failure redirects to original failure store during index change if self referenced":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ allowed_warnings, contains ]
+      reason: "Data stream failure stores config in templates was added in 8.16+"
+      test_runner_features: [ allowed_warnings, contains, capabilities ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
 
   - do:
       ingest.put_pipeline:
@@ -365,14 +390,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 default_pipeline: "failing_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -437,6 +464,9 @@ teardown:
         - method: POST
           path: /{index}/_doc
           capabilities: [ 'failure_store_status' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
 
   - do:
       ingest.put_pipeline:
@@ -462,14 +492,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 final_pipeline: "change_index_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -533,7 +565,9 @@ teardown:
         - method: POST
           path: /{index}/_doc
           capabilities: [ 'failure_store_status' ]
-
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
   - do:
       ingest.put_pipeline:
         id: "send_to_destination"
@@ -575,14 +609,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 default_pipeline: "send_to_destination"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       allowed_warnings:
@@ -591,14 +627,16 @@ teardown:
         name: destination_logs_template
         body:
           index_patterns: destination-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 default_pipeline: "send_back_to_original"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -664,6 +702,9 @@ teardown:
         - method: POST
           path: /{index}/_doc
           capabilities: [ 'failure_store_status' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
 
   - do:
       ingest.put_pipeline:
@@ -706,14 +747,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 default_pipeline: "step_1"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -774,7 +817,12 @@ teardown:
 ---
 "Version conflicts are not redirected to failure store":
   - requires:
-      test_runner_features: [ allowed_warnings]
+      test_runner_features: [ allowed_warnings, capabilities]
+      reason: "Data stream failure stores config in templates was added in 8.16+"
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
 
   - do:
       allowed_warnings:
@@ -783,8 +831,7 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
@@ -795,6 +842,9 @@ teardown:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       bulk:
@@ -830,8 +880,7 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
@@ -842,6 +891,9 @@ teardown:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
   - do:
       allowed_warnings:
         - "index template [no-fs] has index patterns [no-fs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [no-fs] will take precedence during new index creation"
@@ -849,8 +901,7 @@ teardown:
         name: no-fs
         body:
           index_patterns: no-fs*
-          data_stream:
-            failure_store: false
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
@@ -861,6 +912,9 @@ teardown:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: false
 
 
   - do:

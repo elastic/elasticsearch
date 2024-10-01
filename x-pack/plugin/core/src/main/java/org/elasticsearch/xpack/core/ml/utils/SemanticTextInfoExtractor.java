@@ -37,9 +37,7 @@ public class SemanticTextInfoExtractor {
             if (inferenceFields.values()
                 .stream()
                 .anyMatch(
-                    im -> endpointIds.contains(im.getInferenceId())
-                        || (im.getInferenceId().equals(im.getSearchInferenceId()) == false
-                            && endpointIds.contains(im.getSearchInferenceId()))
+                    im -> endpointIds.contains(im.getInferenceId()) || endpointIds.contains(im.getSearchInferenceId())
                 )) {
                 referenceIndices.add(indexName);
             }

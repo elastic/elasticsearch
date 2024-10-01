@@ -77,7 +77,7 @@ curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
 [[local-dev-additional-info]]
 === Learn more
 
-For more detailed information about the `start-local` setup refer to the https://github.com/elastic/start-local[README on GitHub].
+For more detailed information about the `start-local` setup, refer to the https://github.com/elastic/start-local[README on GitHub].
 Learn about customizing the setup, logging, and more.
 
 [discrete]

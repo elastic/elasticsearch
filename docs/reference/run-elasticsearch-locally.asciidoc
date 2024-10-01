@@ -1,3 +1,9 @@
+//// 
+IMPORTANT: This content is replicated in the Elasticsearch repo root readme. Ensure both are in sync.
+
+https://github.com/elastic/start-local is the source of truth.        
+//// 
+
 [[run-elasticsearch-locally]]
 == Run {es} locally
 ++++

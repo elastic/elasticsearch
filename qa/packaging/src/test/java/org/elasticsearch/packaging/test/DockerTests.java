@@ -386,7 +386,7 @@ public class DockerTests extends PackagingTestCase {
         if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
-        } else if (distribution.packaging == Packaging.DOCKER_WOLFI) {
+        } else if (distribution.packaging == Packaging.DOCKER_WOLFI || distribution.packaging == Packaging.DOCKER_WOLFI_ESS) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
         } else {

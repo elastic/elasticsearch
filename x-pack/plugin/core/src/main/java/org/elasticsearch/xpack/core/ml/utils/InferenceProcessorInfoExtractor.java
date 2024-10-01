@@ -85,13 +85,7 @@ public final class InferenceProcessorInfoExtractor {
             List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                    addModelsAndPipelines(
-                        entry.getKey(),
-                        pipelineId,
-                        (Map<String, Object>) entry.getValue(),
-                        pam -> modelIds.add(pam.modelIdOrAlias()),
-                        0
-                    );
+                    addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> modelIds.add(pam.modelIdOrAlias()), 0);
                 }
             }
         });
@@ -119,7 +113,7 @@ public final class InferenceProcessorInfoExtractor {
             List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                    addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), pam -> {
+                    addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> {
                         if (ids.contains(pam.modelIdOrAlias)) {
                             pipelineIdsByModelIds.computeIfAbsent(pam.modelIdOrAlias, m -> new LinkedHashSet<>()).add(pipelineId);
                         }
@@ -151,7 +145,7 @@ public final class InferenceProcessorInfoExtractor {
             List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                    addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), pam -> {
+                    addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> {
                         if (ids.contains(pam.modelIdOrAlias)) {
                             pipelineIds.add(pipelineId);
                         }
@@ -166,7 +160,7 @@ public final class InferenceProcessorInfoExtractor {
     private static void addModelsAndPipelines(
         String processorType,
         String pipelineId,
-        Map<String, Object> processorDefinition,
+        Object processorDefinition,
         Consumer<PipelineAndModel> handler,
         int level
     ) {
@@ -178,14 +172,16 @@ public final class InferenceProcessorInfoExtractor {
             return;
         }
         if (InferenceProcessorConstants.TYPE.equals(processorType)) {
-            String modelId = (String) processorDefinition.get(MODEL_ID_RESULTS_FIELD);
-            if (modelId != null) {
-                handler.accept(new PipelineAndModel(pipelineId, modelId));
+            if (processorDefinition instanceof Map<?, ?> definitionMap) {
+                String modelId = (String) definitionMap.get(MODEL_ID_RESULTS_FIELD);
+                if (modelId != null) {
+                    handler.accept(new PipelineAndModel(pipelineId, modelId));
+                }
             }
             return;
         }
-        if (FOREACH_PROCESSOR_NAME.equals(processorType)) {
-            Map<String, Object> innerProcessor = (Map<String, Object>) processorDefinition.get("processor");
+        if (FOREACH_PROCESSOR_NAME.equals(processorType) && processorDefinition instanceof Map<?, ?> definitionMap) {
+            Map<String, Object> innerProcessor = (Map<String, Object>) definitionMap.get("processor");
             if (innerProcessor != null) {
                 // a foreach processor should only have a SINGLE nested processor. Iteration is for simplicity's sake.
                 for (Map.Entry<String, Object> innerProcessorWithName : innerProcessor.entrySet()) {
@@ -200,18 +196,16 @@ public final class InferenceProcessorInfoExtractor {
             }
             return;
         }
-        if (processorDefinition.containsKey(Pipeline.ON_FAILURE_KEY)) {
+        if (processorDefinition instanceof Map<?, ?> definitionMap && definitionMap.containsKey(Pipeline.ON_FAILURE_KEY)) {
             List<Map<String, Object>> onFailureConfigs = ConfigurationUtils.readList(
                 null,
                 null,
-                processorDefinition,
+                (Map<String, Object>) definitionMap,
                 Pipeline.ON_FAILURE_KEY
             );
             onFailureConfigs.stream()
                 .flatMap(map -> map.entrySet().stream())
-                .forEach(
-                    entry -> addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), handler, level + 1)
-                );
+                .forEach(entry -> addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), handler, level + 1));
         }
     }
 

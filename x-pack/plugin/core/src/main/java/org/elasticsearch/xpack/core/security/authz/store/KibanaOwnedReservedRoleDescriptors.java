@@ -456,11 +456,13 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
+
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".asset-criticality.asset-criticality-*")
-                    .privileges("create_index", "manage", "read")
+                    .privileges("create_index", "manage", "read", "write")
                     .build(),
+
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")

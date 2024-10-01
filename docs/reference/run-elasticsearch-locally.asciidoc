@@ -30,6 +30,9 @@ Refer to https://www.elastic.co/subscriptions[Elastic subscriptions] for more in
 
 If you don't have Docker installed, https://www.docker.com/products/docker-desktop[download and install Docker Desktop] for your operating system.
 
+- Works on Linux and macOS
+- Works on Microsoft Windows using https://learn.microsoft.com/en-us/windows/wsl/install[Windows Subsystem for Linux (WSL)]
+
 [discrete]
 [[local-dev-quick-start]]
 === Run `start-local`
@@ -48,6 +51,19 @@ After running the script:
 
 * *{es}* will be running at http://localhost:9200
 * *{kib}* will be running at http://localhost:5601
+
+Check the connection to Elasticsearch using `curl` in the `elastic-start-local` folder:
+
+[source,sh]
+----     
+source .env
+curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
+----
+// NOTCONSOLE
+
+source .env
+curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
+
 
 [CAUTION]
 ====

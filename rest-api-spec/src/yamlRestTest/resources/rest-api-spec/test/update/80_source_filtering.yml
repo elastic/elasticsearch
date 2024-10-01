@@ -48,18 +48,6 @@
             good: 2.170997
             run: 2.052153
             race: 0.1
-            for: 1.1908325
-            runner: 1.1803857
-            exercise: 0.1
-            you: 0.9654308
-            training: 0.94999343
-            sports: 0.93650943
-            fitness: 0.83129317
-            best: 0.820365
-            bad: 0.1
-            health: 0.1
-            marathon: 0.61555296
-            gym: 0.5652374
           dense: [ 1.0, 2.0, 3.0 ]
         refresh: true
 
@@ -107,18 +95,6 @@
             good: 2.170997
             run: 2.052153
             race: 0.1
-            for: 1.1908325
-            runner: 1.1803857
-            exercise: 0.1
-            you: 0.9654308
-            training: 0.94999343
-            sports: 0.93650943
-            fitness: 0.83129317
-            best: 0.820365
-            bad: 0.1
-            health: 0.1
-            marathon: 0.61555296
-            gym: 0.5652374
           dense: [ 1.0, 2.0, 3.0 ]
         refresh: true
 
@@ -166,18 +142,6 @@
             good: 2.170997
             run: 2.052153
             race: 0.1
-            for: 1.1908325
-            runner: 1.1803857
-            exercise: 0.1
-            you: 0.9654308
-            training: 0.94999343
-            sports: 0.93650943
-            fitness: 0.83129317
-            best: 0.820365
-            bad: 0.1
-            health: 0.1
-            marathon: 0.61555296
-            gym: 0.5652374
           dense: [ 1.0, 2.0, 3.0 ]
         refresh: true
 

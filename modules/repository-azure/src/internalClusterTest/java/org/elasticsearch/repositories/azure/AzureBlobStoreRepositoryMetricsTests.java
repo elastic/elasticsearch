@@ -21,10 +21,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.TestTelemetryPlugin;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -72,19 +70,48 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
         BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
 
-        // Queue up some throttle responses
-        IntStream.range(0, numThrottles).forEach(i -> errorQueue.offer(new ErrorResponse(RestStatus.TOO_MANY_REQUESTS)));
-
         // Create a blob
         String blobName = "index-" + randomIdentifier();
         OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
 
-        TestTelemetryPlugin plugin = getTelemetryPlugin(dataNodeName);
-        List<Measurement> throttlesHistogram = plugin.getLongHistogramMeasurement(RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM);
-        assertEquals(numThrottles, throttlesHistogram.get(0).value().intValue());
-        List<Measurement> throttlesTotal = plugin.getLongCounterMeasurement(RepositoriesMetrics.METRIC_THROTTLES_TOTAL);
-        assertEquals(numThrottles, throttlesTotal.get(0).value().intValue());
+        // Queue up some throttle responses
+        IntStream.range(0, numThrottles).forEach(i -> errorQueue.offer(new ErrorResponse(RestStatus.TOO_MANY_REQUESTS)));
+
+        // Check that a non-existent blob exists
+        blobContainer.blobExists(purpose, blobName);
+
+        // These are recorded as throttles
+        assertCounterMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_THROTTLES_TOTAL,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB_PROPERTIES,
+            numThrottles
+        );
+        assertHistogramMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB_PROPERTIES,
+            numThrottles
+        );
+
+        // And exceptions
+        assertCounterMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB_PROPERTIES,
+            numThrottles
+        );
+        assertHistogramMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB_PROPERTIES,
+            numThrottles
+        );
     }
 
     public void testRangeNotSatisfiedAreCountedInMetrics() throws IOException {
@@ -100,14 +127,111 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         // Queue up a range-not-satisfied error
         errorQueue.offer(new ErrorResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED));
 
-        // Get the blob
-        assertThrows(RequestedRangeNotSatisfiedException.class, () -> blobContainer.readBlob(purpose, blobName));
+        // Hit the API
+        assertThrows(IOException.class, () -> blobContainer.blobExists(purpose, blobName));
 
-        TestTelemetryPlugin plugin = getTelemetryPlugin(dataNodeName);
-        List<Measurement> rangeNotSatisfiedCounter = plugin.getLongCounterMeasurement(
-            RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL
+        assertCounterMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB_PROPERTIES,
+            1
         );
-        assertEquals(1, rangeNotSatisfiedCounter.get(0).value().intValue());
+    }
+
+    public void testErrorResponsesAreCountedInMetrics() throws IOException {
+        final int numErrors = randomIntBetween(1, 3);
+        final String repository = createRepository(randomRepositoryName());
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
+
+        // Create a blob
+        String blobName = "index-" + randomIdentifier();
+        OperationPurpose purpose = randomFrom(OperationPurpose.values());
+        blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
+
+        // Queue some retryable error responses
+        IntStream.range(0, numErrors)
+            .forEach(
+                i -> errorQueue.offer(
+                    new ErrorResponse(
+                        randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.TOO_MANY_REQUESTS, RestStatus.SERVICE_UNAVAILABLE)
+                    )
+                )
+            );
+
+        // Hit the API
+        blobContainer.blobExists(purpose, blobName);
+
+        assertCounterMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB_PROPERTIES,
+            numErrors
+        );
+        assertHistogramMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB_PROPERTIES,
+            numErrors
+        );
+    }
+
+    private void assertCounterMetricRecorded(
+        String dataNodeName,
+        String metricName,
+        OperationPurpose purpose,
+        AzureBlobStore.Operation operation,
+        int expectedValue
+    ) {
+        assertIntValueMetricRecorded(
+            getTelemetryPlugin(dataNodeName).getLongCounterMeasurement(metricName),
+            purpose,
+            operation,
+            expectedValue
+        );
+    }
+
+    private void assertHistogramMetricRecorded(
+        String dataNodeName,
+        String metricName,
+        OperationPurpose purpose,
+        AzureBlobStore.Operation operation,
+        int expectedValue
+    ) {
+        assertIntValueMetricRecorded(
+            getTelemetryPlugin(dataNodeName).getLongHistogramMeasurement(metricName),
+            purpose,
+            operation,
+            expectedValue
+        );
+    }
+
+    private void assertIntValueMetricRecorded(
+        List<Measurement> measurements,
+        OperationPurpose operationPurpose,
+        AzureBlobStore.Operation operation,
+        int expectedValue
+    ) {
+        Measurement measurement = measurements.stream()
+            .filter(
+                m -> m.attributes().get("operation").equals(operation.getKey())
+                    && m.attributes().get("purpose").equals(operationPurpose.getKey())
+            )
+            .findFirst()
+            .orElseThrow(
+                () -> new IllegalStateException(
+                    "No metric found with operation="
+                        + operation.getKey()
+                        + " and purpose="
+                        + operationPurpose.getKey()
+                        + " in "
+                        + measurements
+                )
+            );
+        assertEquals(measurement.value().intValue(), expectedValue);
     }
 
     @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")

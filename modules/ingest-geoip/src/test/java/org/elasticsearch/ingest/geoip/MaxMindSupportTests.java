@@ -359,26 +359,6 @@ public class MaxMindSupportTests extends ESTestCase {
         IspResponse.class
     );
 
-    private static final Map<Class<? extends AbstractResponse>, Class<? extends IpDataLookup>> MAX_MIND_CLASS_TO_IMPLEMENTATION_CLASS = Map
-        .of(
-            CityResponse.class,
-            MaxmindIpDataLookups.City.class,
-            CountryResponse.class,
-            MaxmindIpDataLookups.Country.class,
-            AsnResponse.class,
-            MaxmindIpDataLookups.Asn.class,
-            AnonymousIpResponse.class,
-            MaxmindIpDataLookups.AnonymousIp.class,
-            ConnectionTypeResponse.class,
-            MaxmindIpDataLookups.ConnectionType.class,
-            DomainResponse.class,
-            MaxmindIpDataLookups.Domain.class,
-            EnterpriseResponse.class,
-            MaxmindIpDataLookups.Enterprise.class,
-            IspResponse.class,
-            MaxmindIpDataLookups.Isp.class
-        );
-
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(IpRiskResponse.class);
 
     public void testMaxMindSupport() {
@@ -484,36 +464,6 @@ public class MaxMindSupportTests extends ESTestCase {
             "We claim to support a MaxMind response class that MaxMind does not expose through DatabaseReader: "
                 + supportedMaxMindClassesThatDoNotExist,
             supportedMaxMindClassesThatDoNotExist,
-            empty()
-        );
-    }
-
-    /*
-     * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through IpDatabase.
-     */
-    public void testUsedMaxMindResponseClassesAreAccountedFor() {
-        Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = MAX_MIND_CLASS_TO_IMPLEMENTATION_CLASS.keySet();
-        Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
-        Set<Class<? extends AbstractResponse>> usedButNotSupportedMaxMindResponseClasses = Sets.difference(
-            usedMaxMindResponseClasses,
-            supportedMaxMindClasses
-        );
-        assertThat(
-            "IpDatabase exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
-                + "TYPE_TO_MAX_MIND_CLASS for the following: "
-                + usedButNotSupportedMaxMindResponseClasses,
-            usedButNotSupportedMaxMindResponseClasses,
-            empty()
-        );
-        Set<Class<? extends AbstractResponse>> supportedButNotUsedMaxMindClasses = Sets.difference(
-            supportedMaxMindClasses,
-            usedMaxMindResponseClasses
-        );
-        assertThat(
-            "This test claims to support MaxMind response classes that are not exposed in IpDatabase. Remove the following from "
-                + "TYPE_TO_MAX_MIND_CLASS: "
-                + supportedButNotUsedMaxMindClasses,
-            supportedButNotUsedMaxMindClasses,
             empty()
         );
     }

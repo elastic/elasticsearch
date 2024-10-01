@@ -61,7 +61,11 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeTestCase {
 
-    private static final Logger testCaseLogger = LogManager.getLogger(BlockedSearcherRestCancellationTestCase.class);
+    // using a specialized logger for this case because we want to log things in static context, and "logger" means "Engine#logger"
+    // (relates investigation into https://github.com/elastic/elasticsearch/issues/88201)
+    private static final Logger blockedSearcherRestCancellationTestCaseLogger = LogManager.getLogger(
+        BlockedSearcherRestCancellationTestCase.class
+    );
 
     protected static final Setting<Boolean> BLOCK_SEARCHER_SETTING = Setting.boolSetting(
         "index.block_searcher",
@@ -155,8 +159,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
 
         @Override
         public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
-            if (testCaseLogger.isDebugEnabled()) {
-                testCaseLogger.debug(
+            if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
+                blockedSearcherRestCancellationTestCaseLogger.debug(
                     Strings.format(
                         "in acquireSearcher for shard [%s] on thread [%s], availablePermits=%d",
                         config().getShardId(),
@@ -174,8 +178,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             }
             searcherBlock.release();
 
-            if (testCaseLogger.isDebugEnabled()) {
-                testCaseLogger.debug(
+            if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
+                blockedSearcherRestCancellationTestCaseLogger.debug(
                     Strings.format(
                         "continuing in acquireSearcher for shard [%s] on thread [%s], availablePermits=%d",
                         config().getShardId(),

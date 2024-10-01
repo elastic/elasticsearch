@@ -229,7 +229,7 @@ class ReplicatedContent {
             assert fileOffset < fileLength
                 : "offset [" + rangeOffset + "+" + offset + "] more than file length [" + rangeOffset + "+" + rangeLength + "]";
             long fileBytesToRead = Math.min(Math.min(length, rangeLength), fileLength - fileOffset);
-            IndexInput input = directory.openInput(filename, IOContext.READ);
+            IndexInput input = directory.openInput(filename, IOContext.READONCE);
             try {
                 input.seek(fileOffset);
                 return new InputStreamIndexInput(input, fileBytesToRead) {

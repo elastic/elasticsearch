@@ -668,7 +668,7 @@ public class Verifier {
                     }
                 });
 
-                if ((canPushToSource(condition, x -> false) == false) && hasFullTextFunction.get()) {
+                if (hasFullTextFunction.get() && (canPushToSource(condition, x -> false) == false)) {
                     // We couldn't push everything to Lucene, and there is a FullTextFunction in the condition.
                     // Fail this early as we can't push down the FullTextFunction query in this case
                     failures.add(

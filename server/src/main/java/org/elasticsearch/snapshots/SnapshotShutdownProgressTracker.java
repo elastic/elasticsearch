@@ -220,7 +220,8 @@ public class SnapshotShutdownProgressTracker {
                 case FAILURE -> failureCount.incrementAndGet();
                 case ABORTED -> abortedCount.incrementAndGet();
                 case PAUSED -> pausedCount.incrementAndGet();
-                default -> {}
+                default -> {
+                }
             }
         }
     }

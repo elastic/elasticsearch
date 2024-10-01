@@ -187,10 +187,8 @@ public class NodeShutdownIT extends ESRestTestCase {
     /**
      * A very basic smoke test to make sure the allocation decider is working.
      */
-    @TestIssueLogging(
-        value = "org.elasticsearch.snapshots:DEBUG",
-        issueUrl = "my-test"
-    )    @SuppressWarnings("unchecked")
+    @TestIssueLogging(value = "org.elasticsearch.snapshots:DEBUG", issueUrl = "my-test")
+    @SuppressWarnings("unchecked")
     public void testAllocationPreventedForRemoval() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");

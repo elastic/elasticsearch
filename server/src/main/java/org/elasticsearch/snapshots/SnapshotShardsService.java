@@ -415,6 +415,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         ActionListener<ShardSnapshotResult> snapshotResultListener = new ActionListener<>() {
             @Override
             public void onResponse(ShardSnapshotResult shardSnapshotResult) {
+                snapshotShutdownProgressTracker.decNumberOfShardSnapshotsInProgress(shardId, snapshot, snapshotStatus);
+
                 final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
                 assert newGeneration != null;
                 assert newGeneration.equals(snapshotStatus.generation());
@@ -434,6 +436,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
             @Override
             public void onFailure(Exception e) {
+                snapshotShutdownProgressTracker.decNumberOfShardSnapshotsInProgress(shardId, snapshot, snapshotStatus);
+
                 final String failure;
                 final Stage nextStage;
                 if (e instanceof AbortedSnapshotException) {
@@ -460,7 +464,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         });
 
         // separate method to make sure this lambda doesn't capture any heavy local objects like a SnapshotsInProgress.Entry
-        return () -> snapshot(shardId, snapshot, indexId, snapshotStatus, entryVersion, entryStartTime, decTrackerRunsBeforeResultListener);
+        return () -> snapshot(shardId, snapshot, indexId, snapshotStatus, entryVersion, entryStartTime, snapshotResultListener);
     }
 
     // package private for testing
@@ -723,11 +727,13 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         ActionListener<Void> updateResultListener = new ActionListener<>() {
             @Override
             public void onResponse(Void aVoid) {
+                snapshotShutdownProgressTracker.releaseRequestSentToMaster(snapshot, shardId);
                 logger.trace("[{}][{}] updated snapshot state to [{}]", shardId, snapshot, status);
             }
 
             @Override
             public void onFailure(Exception e) {
+                snapshotShutdownProgressTracker.releaseRequestSentToMaster(snapshot, shardId);
                 logger.warn(() -> format("[%s][%s] failed to update snapshot state to [%s]", shardId, snapshot, status), e);
             }
         };
@@ -738,7 +744,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
         remoteFailedRequestDeduplicator.executeOnce(
             new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
-            releaseTrackerRequestRunsBeforeResultListener,
+            updateResultListener,
             (req, reqListener) -> transportService.sendRequest(
                 transportService.getLocalNode(),
                 SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,

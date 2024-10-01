@@ -6,20 +6,6 @@ _meta:
 template:
   mappings:
     properties:
-#      attributes:
-#        type: passthrough
-#        dynamic: true
-#        priority: 10
-#        time_series_dimension: true
-#        properties:
-#          exception.type:
-#            type: keyword
-#            ignore_above: 1024
-#          exception.message:
-#            type: keyword
-#            ignore_above: 1024
-#          exception.handled:
-#            type: boolean
       resource:
         properties:
           attributes:
@@ -136,16 +122,7 @@ template:
       kubernetes.pod.uid:
         type: alias
         path: resource.attributes.k8s.pod.uid
-#      exception.type:
-#        type: alias
-#        path: attributes.exception.type
-#      exception.message:
-#        type: alias
-#        path: attributes.exception.message
 # Below are non-ECS fields that may be used by Kibana.
       service.language.name:
         type: alias
         path: resource.attributes.telemetry.sdk.language
-#      exception.handled:
-#        type: alias
-#        path: attributes.exception.handled

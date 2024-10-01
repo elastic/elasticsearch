@@ -11,6 +11,7 @@ composed_of:
   - metrics@tsdb-settings
   - otel@mappings
   - metrics-otel@mappings
+  - semconv-attribute-to-ecs@mappings
   - semconv-resource-to-ecs@mappings
   - metrics@custom
   - metrics-otel@custom

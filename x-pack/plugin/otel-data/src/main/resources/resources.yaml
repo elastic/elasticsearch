@@ -6,6 +6,7 @@ version: 1
 component-templates:
   - otel@mappings
   - logs-otel@mappings
+  - semconv-attribute-to-ecs@mappings
   - semconv-resource-to-ecs@mappings
   - metrics-otel@mappings
   - traces-otel@mappings

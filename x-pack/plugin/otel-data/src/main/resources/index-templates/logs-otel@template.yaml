@@ -12,6 +12,7 @@ composed_of:
   - logs@settings
   - otel@mappings
   - logs-otel@mappings
+  - semconv-attribute-to-ecs@mappings
   - semconv-resource-to-ecs@mappings
   - logs@custom
   - logs-otel@custom

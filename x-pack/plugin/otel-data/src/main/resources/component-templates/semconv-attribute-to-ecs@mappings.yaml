@@ -1,0 +1,27 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Aliases from OpenTelemetry SemConv fields to ECS (and some non-ECS) fields
+  managed: true
+template:
+  mappings:
+    properties:
+      attributes:
+        type: passthrough
+        dynamic: true
+        priority: 10
+        time_series_dimension: true
+        properties:
+          exception.type:
+            type: keyword
+            ignore_above: 1024
+          exception.message:
+            type: keyword
+            ignore_above: 1024
+      error.exception.type:
+        type: alias
+        path: attributes.exception.type
+      error.exception.message:
+        type: alias
+        path: attributes.exception.message
+

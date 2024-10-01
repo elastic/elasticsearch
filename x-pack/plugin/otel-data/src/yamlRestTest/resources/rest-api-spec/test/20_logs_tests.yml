@@ -65,6 +65,7 @@ setup:
       search:
         index: logs-generic.otel-default
         body:
-          fields: ["exception.type"]
+          fields: ["error.exception.type", "error.exception.message"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields.exception\.type: ["MyException"] }
+  - match: { hits.hits.0.fields.error\.exception\.type: ["MyException"] }
+  - match: { hits.hits.0.fields.error\.exception\.message: ["foo"] }

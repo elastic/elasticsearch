@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Predicates;
@@ -404,18 +405,18 @@ public class DateUtils {
             deprecationLogger.warn(
                 DeprecationCategory.PARSING,
                 "cldr_date_formats_" + format,
-                "Date format [{}] contains textual field specifiers that could change in JDK 23."
-                    + " For more information, see https://ela.st/jdk-23-locales",
-                format
+                "Date format [{}] contains textual field specifiers that could change in JDK 23. See [{}] for more information.",
+                format,
+                ReferenceDocs.JDK_LOCALE_DIFFERENCES
             );
         }
         if (CONTAINS_WEEK_DATE_SPECIFIERS.test(format)) {
             deprecationLogger.warn(
                 DeprecationCategory.PARSING,
                 "cldr_week_dates_" + format,
-                "Date format [{}] contains week-date field specifiers that are changing in JDK 23."
-                    + " For more information, see https://ela.st/jdk-23-locales",
-                format
+                "Date format [{}] contains week-date field specifiers that are changing in JDK 23. See [{}] for more information.",
+                format,
+                ReferenceDocs.JDK_LOCALE_DIFFERENCES
             );
         }
     }

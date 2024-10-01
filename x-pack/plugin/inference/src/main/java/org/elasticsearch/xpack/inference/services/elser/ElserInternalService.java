@@ -355,7 +355,7 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
                     "enabled",
                     Boolean.TRUE,
                     "min_number_of_allocations",
-                    0,
+                    1,
                     "max_number_of_allocations",
                     8   // no max?
                 )

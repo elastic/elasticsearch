@@ -1,6 +1,14 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.kql.parser;
 
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -53,18 +61,6 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
     @Override public void enterLogicalAnd(KqlBaseParser.LogicalAndContext ctx) { }
     /**
      * {@inheritDoc}
@@ -84,6 +80,18 @@ class KqlBaseBaseListener implements KqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override public void exitLogicalOr(KqlBaseParser.LogicalOrContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterSimpleQuery(KqlBaseParser.SimpleQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
@@ -113,6 +121,18 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
+    @Override public void enterParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
     @Override public void enterFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx) { }
     /**
      * {@inheritDoc}
@@ -137,13 +157,13 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterTermValue(KqlBaseParser.TermValueContext ctx) { }
+    @Override public void enterFieldName(KqlBaseParser.FieldNameContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitTermValue(KqlBaseParser.TermValueContext ctx) { }
+    @Override public void exitFieldName(KqlBaseParser.FieldNameContext ctx) { }
     /**
      * {@inheritDoc}
      *
@@ -161,13 +181,37 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterFieldName(KqlBaseParser.FieldNameContext ctx) { }
+    @Override public void enterWildcard(KqlBaseParser.WildcardContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitFieldName(KqlBaseParser.FieldNameContext ctx) { }
+    @Override public void exitWildcard(KqlBaseParser.WildcardContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterQuotedString(KqlBaseParser.QuotedStringContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitQuotedString(KqlBaseParser.QuotedStringContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterDefaultLiteralExpression(KqlBaseParser.DefaultLiteralExpressionContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitDefaultLiteralExpression(KqlBaseParser.DefaultLiteralExpressionContext ctx) { }
 
     /**
      * {@inheritDoc}

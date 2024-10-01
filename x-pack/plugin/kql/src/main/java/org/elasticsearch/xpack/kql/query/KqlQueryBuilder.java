@@ -72,7 +72,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        Query luceneQuery = new KqlParser().parseKqlQuery(query, context);
+        Query luceneQuery = new KqlParser().parseKqlQuery(query, context).toQuery(context);
 
         if (log.isTraceEnabled()) {
             log.trace("KQL query {} translated to lucene query: {}", query, luceneQuery);

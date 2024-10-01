@@ -16,8 +16,8 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.function.BiFunction;
@@ -29,7 +29,7 @@ public class KqlParser {
 
     private final boolean DEBUG = false;
 
-    public Query parseKqlQuery(String kqlQuery, SearchExecutionContext searchExecutionContext) {
+    public QueryBuilder parseKqlQuery(String kqlQuery, SearchExecutionContext searchExecutionContext) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing KQL query: {}", kqlQuery);
         }

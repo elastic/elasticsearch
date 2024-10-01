@@ -7,17 +7,35 @@
 
 grammar KqlBase;
 
+
+@header {
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+}
+
+options {
+  caseInsensitive=true;
+}
+
 topLevelQuery
-    : query EOF
+    : query? EOF
     ;
 
 query
-    : query OR query                                 #logicalOr
-    | query AND query                                #logicalAnd
-    | NOT subQuery=query                             #logicalNot
-    | nestedQuery                                    #queryDefault
-    | expression                                     #queryDefault
-    | LEFT_PARENTHESIS query RIGHT_PARENTHESIS       #parenthesizedQuery
+    : query AND query               #logicalAnd
+    | query OR query                   #logicalOr
+    | NOT subQuery=simpleQuery         #logicalNot
+    | simpleQuery                      #queryDefault
+    ;
+
+simpleQuery
+    : nestedQuery
+    | expression
+    | parenthesizedQuery
     ;
 
 expression
@@ -29,33 +47,36 @@ nestedQuery
     : fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET
     ;
 
+parenthesizedQuery:
+   LEFT_PARENTHESIS query RIGHT_PARENTHESIS;
+
 fieldRangeQuery
-    : fieldName operator=OP_COMPARE termValue
+    : fieldName operator=OP_COMPARE termValue=literalExpression
     ;
 
 fieldTermQuery
-    : (fieldName (COLON))? ( termValue+ | groupingExpr )
-    ;
-
-termValue
-    : QUOTED_STRING
-    | UNQUOTED_LITERAL
-    ;
-
-groupingExpr
-    : LEFT_PARENTHESIS termValue+ RIGHT_PARENTHESIS
+    : (fieldName COLON)? (termValue=literalExpression | groupingExpr)
     ;
 
 fieldName
-    : QUOTED_STRING
-    | UNQUOTED_LITERAL
+    : literalExpression
+    ;
+
+groupingExpr
+    : LEFT_PARENTHESIS literalExpression+ RIGHT_PARENTHESIS
+    ;
+
+literalExpression
+    : WILDCARD                                #wildcard
+    | QUOTED_STRING                           #quotedString
+    | WILDCARD? UNQUOTED_LITERAL+ WILDCARD?   #defaultLiteralExpression
     ;
 
 DEFAULT_SKIP: WHITESPACE -> skip;
 
-AND: [Aa][Nn][Dd];
-OR: [Oo][Rr];
-NOT: [Nn][Oo][Tt];
+AND: 'and';
+OR: 'or';
+NOT: 'not';
 
 COLON: ':';
 OP_COMPARE: OP_LESS | OP_MORE | OP_LESS_EQ | OP_MORE_EQ;
@@ -65,23 +86,24 @@ RIGHT_PARENTHESIS: ')';
 LEFT_CURLY_BRACKET: '{';
 RIGHT_CURLY_BRACKET: '}';
 
-UNQUOTED_LITERAL: UNQUOTED_CHAR+;
+UNQUOTED_LITERAL: UNQUOTED_LITERAL_CHAR+;
+
 QUOTED_STRING: '"' QUOTED_CHAR* '"';
 
-LITERAL: QUOTED_STRING | UNQUOTED_LITERAL;
+WILDCARD: WILDCARD_CHAR;
 
-fragment WILDCARD: '*';
+fragment WILDCARD_CHAR: '*';
 fragment OP_LESS: '<';
 fragment OP_LESS_EQ: '<=';
 fragment OP_MORE: '>';
 fragment OP_MORE_EQ: '>=';
 
-fragment UNQUOTED_CHAR
+fragment UNQUOTED_LITERAL_CHAR
     : ESCAPED_WHITESPACE
     | ESCAPED_SPECIAL_CHAR
     | ESCAPE_UNICODE_SEQUENCE
-    // TODO add escaped keyword
-    | WILDCARD
+    | '\\' (AND | OR | NOT)
+    | WILDCARD_CHAR UNQUOTED_LITERAL_CHAR
     | NON_SPECIAL_CHAR
     ;
 
@@ -92,12 +114,13 @@ fragment QUOTED_CHAR
     | ~["]
     ;
 
-
 fragment WHITESPACE: [ \t\n\r\u3000];
 fragment ESCAPED_WHITESPACE: '\\r' | '\\t' | '\\n';
-
 fragment NON_SPECIAL_CHAR: ~[ \\():<>"*{}];
-fragment ESCAPED_SPECIAL_CHAR: '\\'[\\():<>"*{}];
+fragment ESCAPED_SPECIAL_CHAR: '\\'[ \\():<>"*{}];
 
-fragment ESCAPE_UNICODE_SEQUENCE: '\\';
 fragment ESCAPED_QUOTE: '\\"';
+
+fragment ESCAPE_UNICODE_SEQUENCE: '\\' UNICODE_SEQUENCE;
+fragment UNICODE_SEQUENCE: 'u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT;
+fragment HEX_DIGIT: [0-9a-f];

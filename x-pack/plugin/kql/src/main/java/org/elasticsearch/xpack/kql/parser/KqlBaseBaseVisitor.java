@@ -1,5 +1,13 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.kql.parser;
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 
 /**
@@ -39,13 +47,6 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) { return visitChildren(ctx); }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation returns the result of calling
-     * {@link #visitChildren} on {@code ctx}.</p>
-     */
     @Override public T visitLogicalAnd(KqlBaseParser.LogicalAndContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
@@ -54,6 +55,13 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * {@link #visitChildren} on {@code ctx}.</p>
      */
     @Override public T visitLogicalOr(KqlBaseParser.LogicalOrContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *
@@ -74,6 +82,13 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
+    @Override public T visitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
     @Override public T visitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
@@ -88,7 +103,7 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitTermValue(KqlBaseParser.TermValueContext ctx) { return visitChildren(ctx); }
+    @Override public T visitFieldName(KqlBaseParser.FieldNameContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *
@@ -102,5 +117,19 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitFieldName(KqlBaseParser.FieldNameContext ctx) { return visitChildren(ctx); }
+    @Override public T visitWildcard(KqlBaseParser.WildcardContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitQuotedString(KqlBaseParser.QuotedStringContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitDefaultLiteralExpression(KqlBaseParser.DefaultLiteralExpressionContext ctx) { return visitChildren(ctx); }
 }

@@ -25,7 +25,7 @@ create logs index:
           settings:
             index:
               mode: logsdb
-              number_of_replicas: 0
+              number_of_replicas: 1
               number_of_shards: 2
           mappings:
             properties:

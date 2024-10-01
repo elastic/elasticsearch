@@ -187,4 +187,43 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         }
     }
 
+    public void testNewIndexHasSyntheticSourceUsage_invalidSettings() throws IOException {
+        String dataStreamName = "logs-app1";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        Settings settings = Settings.builder().put("index.soft_deletes.enabled", false).build();
+        {
+            String mapping = """
+                {
+                    "_doc": {
+                        "_source": {
+                            "mode": "synthetic"
+                        },
+                        "properties": {
+                            "my_field": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+                """;
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+            assertFalse(result);
+        }
+        {
+            String mapping = """
+                {
+                    "_doc": {
+                        "properties": {
+                            "my_field": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+                """;
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+            assertFalse(result);
+        }
+    }
+
 }

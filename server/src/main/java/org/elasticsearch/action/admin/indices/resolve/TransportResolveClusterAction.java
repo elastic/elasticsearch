@@ -35,9 +35,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NoSeedNodeLeftException;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -172,7 +169,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             releaseResourcesOnCancel(clusterInfoMap);
                             return;
                         }
-                        if (notConnectedError(failure)) {
+                        if (ExceptionsHelper.isRemoteUnavailableException((failure))) {
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
                         } else if (ExceptionsHelper.unwrap(
                             failure,
@@ -244,27 +241,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 );
             }
         }
-    }
-
-    /**
-     * Checks the exception against a known list of exceptions that indicate a remote cluster
-     * cannot be connected to.
-     */
-    private boolean notConnectedError(Exception e) {
-        if (e instanceof ConnectTransportException || e instanceof NoSuchRemoteClusterException) {
-            return true;
-        }
-        if (e instanceof IllegalStateException && e.getMessage().contains("Unable to open any connections")) {
-            return true;
-        }
-        Throwable ill = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
-        if (ill != null && ill.getMessage().contains("unknown host")) {
-            return true;
-        }
-        if (ExceptionsHelper.unwrap(e, NoSeedNodeLeftException.class) != null) {
-            return true;
-        }
-        return false;
     }
 
     /**

@@ -33,7 +33,7 @@ final class Constants {
     /**
      * 2.0 * PI
      */
-    public static final double M_2PI = 6.28318530717958647692528676655900576839433;
+    public static final double M_2PI = 2.0 * Math.PI;
     /**
      * max H3 resolution; H3 version 1 has 16 resolutions, numbered 0 through 15
      */
@@ -58,6 +58,11 @@ final class Constants {
      * square root of 7
      */
     public static final double M_SQRT7 = 2.6457513110645905905016157536392604257102;
+
+    /**
+     * 1 / square root of 7
+     */
+    public static final double M_RSQRT7 = 1.0 / M_SQRT7;
     /**
      * scaling factor from hex2d resolution 0 unit length
      * (or distance between adjacent cell center points

@@ -255,9 +255,9 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
     /**
      * Index documents until all the shards are at least WATERMARK_BYTES in size, and return the one with the smallest size
      */
-    private ShardSizes createReasonableSizedShards(final String indexName) throws InterruptedException {
+    private ShardSizes createReasonableSizedShards(final String indexName) {
         while (true) {
-            indexRandom(true, indexName, scaledRandomIntBetween(100, 10000));
+            indexRandom(false, indexName, scaledRandomIntBetween(100, 10000));
             forceMerge();
             refresh();
 

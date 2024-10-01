@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -143,13 +142,19 @@ public class MetadataCreateDataStreamService {
         );
     }
 
-    public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest<
-        CreateDataStreamClusterStateUpdateRequest> {
-
-        private final boolean performReroute;
-        private final String name;
-        private final long startTime;
-        private final SystemDataStreamDescriptor descriptor;
+    public record CreateDataStreamClusterStateUpdateRequest(
+        String name,
+        long startTime,
+        @Nullable SystemDataStreamDescriptor systemDataStreamDescriptor,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        boolean performReroute
+    ) {
+        public CreateDataStreamClusterStateUpdateRequest {
+            Objects.requireNonNull(name);
+            Objects.requireNonNull(masterNodeTimeout);
+            Objects.requireNonNull(ackTimeout);
+        }
 
         public CreateDataStreamClusterStateUpdateRequest(String name) {
             this(name, System.currentTimeMillis(), null, TimeValue.ZERO, TimeValue.ZERO, true);
@@ -159,42 +164,14 @@ public class MetadataCreateDataStreamService {
             String name,
             SystemDataStreamDescriptor systemDataStreamDescriptor,
             TimeValue masterNodeTimeout,
-            TimeValue timeout,
+            TimeValue ackTimeout,
             boolean performReroute
         ) {
-            this(name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, timeout, performReroute);
-        }
-
-        public CreateDataStreamClusterStateUpdateRequest(
-            String name,
-            long startTime,
-            SystemDataStreamDescriptor systemDataStreamDescriptor,
-            TimeValue masterNodeTimeout,
-            TimeValue timeout,
-            boolean performReroute
-        ) {
-            this.name = name;
-            this.startTime = startTime;
-            this.descriptor = systemDataStreamDescriptor;
-            this.performReroute = performReroute;
-            masterNodeTimeout(masterNodeTimeout);
-            ackTimeout(timeout);
+            this(name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, ackTimeout, performReroute);
         }
 
         public boolean isSystem() {
-            return descriptor != null;
-        }
-
-        public boolean performReroute() {
-            return performReroute;
-        }
-
-        public SystemDataStreamDescriptor getSystemDataStreamDescriptor() {
-            return descriptor;
-        }
-
-        long getStartTime() {
-            return startTime;
+            return systemDataStreamDescriptor != null;
         }
     }
 
@@ -243,7 +220,7 @@ public class MetadataCreateDataStreamService {
         boolean initializeFailureStore
     ) throws Exception {
         String dataStreamName = request.name;
-        SystemDataStreamDescriptor systemDataStreamDescriptor = request.getSystemDataStreamDescriptor();
+        SystemDataStreamDescriptor systemDataStreamDescriptor = request.systemDataStreamDescriptor();
         boolean isSystemDataStreamName = metadataCreateIndexService.getSystemIndices().isSystemDataStream(request.name);
         assert (isSystemDataStreamName && systemDataStreamDescriptor != null)
             || (isSystemDataStreamName == false && systemDataStreamDescriptor == null)
@@ -292,13 +269,13 @@ public class MetadataCreateDataStreamService {
             if (isSystem) {
                 throw new IllegalArgumentException("Failure stores are not supported on system data streams");
             }
-            String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, initialGeneration, request.getStartTime());
+            String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, initialGeneration, request.startTime());
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
                 "initialize_data_stream",
                 settings,
                 currentState,
-                request.getStartTime(),
+                request.startTime(),
                 dataStreamName,
                 template,
                 failureStoreIndexName,
@@ -308,7 +285,7 @@ public class MetadataCreateDataStreamService {
         }
 
         if (writeIndex == null) {
-            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, initialGeneration, request.getStartTime());
+            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, initialGeneration, request.startTime());
             currentState = createBackingIndex(
                 metadataCreateIndexService,
                 currentState,
@@ -336,7 +313,7 @@ public class MetadataCreateDataStreamService {
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
+        final IndexMode indexMode = metadata.retrieveIndexModeFromTemplate(template);
         final DataStreamLifecycle lifecycle = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
@@ -352,7 +329,7 @@ public class MetadataCreateDataStreamService {
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
             lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
-            template.getDataStreamTemplate().hasFailureStore(),
+            template.getDataStreamTemplate().hasFailureStore() ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, dsBackingIndices, false, null),
             // If the failure store shouldn't be initialized on data stream creation, we're marking it for "lazy rollover", which will
             // initialize the failure store on first write.
@@ -397,7 +374,7 @@ public class MetadataCreateDataStreamService {
             firstBackingIndexName
         ).dataStreamName(dataStreamName)
             .systemDataStreamDescriptor(systemDataStreamDescriptor)
-            .nameResolvedInstant(request.getStartTime())
+            .nameResolvedInstant(request.startTime())
             .performReroute(request.performReroute())
             .setMatchingTemplate(template);
 

@@ -219,6 +219,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
+        DataStreamOptions dataStreamOptions = null;
         ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
         if (randomBoolean()) {
             settings = randomSettings();
@@ -229,9 +230,12 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         if (randomBoolean()) {
             aliases = randomAliases();
         }
+        if (randomBoolean()) {
+            dataStreamOptions = DataStreamOptionsTests.randomDataStreamOptions();
+        }
         // We use the empty lifecycle so the global retention can be in effect
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
-        Template template = new Template(settings, mappings, aliases, lifecycle);
+        Template template = new Template(settings, mappings, aliases, lifecycle, dataStreamOptions);
         ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(4)))
             .template(template)

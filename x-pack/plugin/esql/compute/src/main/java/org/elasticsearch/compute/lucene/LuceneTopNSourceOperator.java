@@ -233,7 +233,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             }
 
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            this.topFieldCollector = new TopFieldCollectorManager(sortAndFormats.get().sort, limit, 0).newCollector();
+            this.topFieldCollector = new TopFieldCollectorManager(sortAndFormats.get().sort, limit, null, 0, false).newCollector();
         }
 
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {

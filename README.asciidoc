@@ -75,6 +75,15 @@ After running the script:
 * *Elasticsearch* will be running at http://localhost:9200
 * *Kibana* will be running at http://localhost:5601
 
+Check the connection to Elasticsearch using `curl` in the `elastic-start-local` folder:
+
+[source,sh]
+----     
+source .env
+curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
+----
+// NOTCONSOLE
+
 [CAUTION]
 ====
 This setup is for local testing only. HTTPS is disabled, and Basic authentication is used for Elasticsearch. For security, Elasticsearch and Kibana are accessible only via `localhost`.

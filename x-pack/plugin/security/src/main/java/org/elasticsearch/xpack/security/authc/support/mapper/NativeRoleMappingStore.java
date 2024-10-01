@@ -324,18 +324,15 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
-        // TODO clean up the redundancy
-        if (enabled == false) {
-            listener.onResponse(reservedRoleMappings.mergeWithReserved(List.of()));
-        } else if (names == null || names.isEmpty()) {
-            getMappings(listener.safeMap(reservedRoleMappings::mergeWithReserved));
-        } else {
-            getMappings(
-                listener.safeMap(
-                    mappings -> reservedRoleMappings.mergeWithReserved(mappings).stream().filter(m -> names.contains(m.getName())).toList()
-                )
-            );
-        }
+        getMappings(listener.delegateFailureAndWrap((l, roleMappings) -> {
+            final List<ExpressionRoleMapping> merged = reservedRoleMappings.mergeWithReserved(roleMappings);
+            final boolean includeAll = names == null || names.isEmpty();
+            if (includeAll) {
+                l.onResponse(merged);
+            } else {
+                l.onResponse(merged.stream().filter(m -> names.contains(m.getName())).toList());
+            }
+        }));
     }
 
     private void getMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
@@ -416,6 +413,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     @Override
     public void clearRealmCacheOnChange(CachingRealm realm) {
         super.clearRealmCacheOnChange(realm);
+        // Also need to clear caches associated with the store that backs reserved role mappings
         reservedRoleMappings.clearRealmCacheOnChange(realm);
     }
 

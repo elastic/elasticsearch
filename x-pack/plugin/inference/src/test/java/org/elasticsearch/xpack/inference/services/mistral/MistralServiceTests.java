@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
@@ -47,7 +49,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -58,6 +59,8 @@ import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -113,6 +116,90 @@ public class MistralServiceTests extends ESTestCase {
                     getEmbeddingsTaskSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
+                }
+            );
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getEmbeddingsServiceSettingsMap("mistral-embed", null, null, null),
+                    getEmbeddingsTaskSettingsMap(),
+                    createRandomChunkingSettingsMap(),
+                    getSecretSettingsMap("secret")
+                ),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAMistralEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(MistralEmbeddingsModel.class));
+
+                var embeddingsModel = (MistralEmbeddingsModel) model;
+                var serviceSettings = (MistralEmbeddingsServiceSettings) model.getServiceSettings();
+                assertThat(serviceSettings.modelId(), is("mistral-embed"));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getEmbeddingsServiceSettingsMap("mistral-embed", null, null, null),
+                    getEmbeddingsTaskSettingsMap(),
+                    createRandomChunkingSettingsMap(),
+                    getSecretSettingsMap("secret")
+                ),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAMistralEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(MistralEmbeddingsModel.class));
+
+                var embeddingsModel = (MistralEmbeddingsModel) model;
+                var serviceSettings = (MistralEmbeddingsServiceSettings) model.getServiceSettings();
+                assertThat(serviceSettings.modelId(), is("mistral-embed"));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getEmbeddingsServiceSettingsMap("mistral-embed", null, null, null),
+                    getEmbeddingsTaskSettingsMap(),
+                    getSecretSettingsMap("secret")
+                ),
+                Set.of(),
                 modelVerificationListener
             );
         }
@@ -233,6 +320,76 @@ public class MistralServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAMistralEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("mistral-embed", 1024, 512, null),
+                getEmbeddingsTaskSettingsMap(),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(MistralEmbeddingsModel.class));
+
+            var embeddingsModel = (MistralEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAMistralEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("mistral-embed", 1024, 512, null),
+                getEmbeddingsTaskSettingsMap(),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(MistralEmbeddingsModel.class));
+
+            var embeddingsModel = (MistralEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAMistralEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("mistral-embed", 1024, 512, null),
+                getEmbeddingsTaskSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(MistralEmbeddingsModel.class));
+
+            var embeddingsModel = (MistralEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -358,6 +515,74 @@ public class MistralServiceTests extends ESTestCase {
         }
     }
 
+    public void testParsePersistedConfig_WithoutSecretsCreatesAnEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("mistral-embed", 1024, 512, null),
+                getEmbeddingsTaskSettingsMap(),
+                createRandomChunkingSettingsMap(),
+                Map.of()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+
+            assertThat(model, instanceOf(MistralEmbeddingsModel.class));
+
+            var embeddingsModel = (MistralEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_WithoutSecretsCreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("mistral-embed", 1024, 512, null),
+                getEmbeddingsTaskSettingsMap(),
+                createRandomChunkingSettingsMap(),
+                Map.of()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+
+            assertThat(model, instanceOf(MistralEmbeddingsModel.class));
+
+            var embeddingsModel = (MistralEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+        }
+    }
+
+    public void testParsePersistedConfig_WithoutSecretsCreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("mistral-embed", 1024, 512, null),
+                getEmbeddingsTaskSettingsMap(),
+                Map.of()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+
+            assertThat(model, instanceOf(MistralEmbeddingsModel.class));
+
+            var embeddingsModel = (MistralEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+        }
+    }
+
     public void testCheckModelConfig_ForEmbeddingsModel_Works() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -464,7 +689,31 @@ public class MistralServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    public void testChunkedInfer_Embeddings_CallsInfer_ConvertsFloatResponse() throws IOException, URISyntaxException {
+    public void testChunkedInfer_Embeddings_CallsInfer_ConvertsFloatResponse() throws IOException {
+        var model = MistralEmbeddingModelTests.createModel("id", "mistral-embed", "apikey", null, null, null, null);
+        model.setURI(getUrl(webServer));
+
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_ChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        var model = MistralEmbeddingModelTests.createModel(
+            "id",
+            "mistral-embed",
+            createRandomChunkingSettings(),
+            "apikey",
+            null,
+            null,
+            null,
+            null
+        );
+        model.setURI(getUrl(webServer));
+
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer(MistralEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -498,9 +747,6 @@ public class MistralServiceTests extends ESTestCase {
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = MistralEmbeddingModelTests.createModel("id", "mistral-embed", "apikey", null, null, null, null);
-            model.setURI(getUrl(webServer));
 
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
@@ -586,6 +832,18 @@ public class MistralServiceTests extends ESTestCase {
 
     private MistralService createService() {
         return new MistralService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+    }
+
+    private Map<String, Object> getRequestConfigMap(
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        Map<String, Object> chunkingSettings,
+        Map<String, Object> secretSettings
+    ) {
+        var requestConfigMap = getRequestConfigMap(serviceSettings, taskSettings, secretSettings);
+        requestConfigMap.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+
+        return requestConfigMap;
     }
 
     private Map<String, Object> getRequestConfigMap(

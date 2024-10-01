@@ -176,6 +176,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":false"));
             assertThat(entityString, containsString(indexName));
+            assertThat(entityString, containsString(endpointId));
         }
         {
             var response = deleteModel(endpointId, "force=true");
@@ -195,6 +196,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":false"));
             assertThat(entityString, containsString(indexName));
+            assertThat(entityString, containsString(searchEndpointId));
         }
         {
             var response = deleteModel(searchEndpointId, "force=true");
@@ -237,6 +239,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             assertThat(entityString, containsString("\"acknowledged\":false"));
             assertThat(entityString, containsString(indexName));
             assertThat(entityString, containsString(pipelineId));
+            assertThat(entityString, containsString(endpointId));
         }
         {
             var response = deleteModel(endpointId, "force=true");

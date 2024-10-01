@@ -312,12 +312,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = new Template(
-            finalSettings,
-            wrappedMappings,
-            template.template().aliases(),
-            template.template().lifecycle()
-        );
+        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
             finalTemplate,
             template.version(),
@@ -629,7 +624,7 @@ public class MetadataIndexTemplateService {
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-            final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
+            final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
             finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
@@ -1554,7 +1549,7 @@ public class MetadataIndexTemplateService {
     public static DataStreamLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
-            : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
+            : "attempted to resolve lifecycle for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return null;
         }
@@ -1644,6 +1639,66 @@ public class MetadataIndexTemplateService {
             }
         }
         return builder == null ? null : builder.build();
+    }
+
+    /**
+     * Resolve the given v2 template into a {@link DataStreamOptions} object
+     */
+    @Nullable
+    public static DataStreamOptions resolveDataStreamOptions(final Metadata metadata, final String templateName) {
+        final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
+        assert template != null
+            : "attempted to resolve data stream options for a template [" + templateName + "] that did not exist in the cluster state";
+        if (template == null) {
+            return null;
+        }
+        return resolveDataStreamOptions(template, metadata.componentTemplates());
+    }
+
+    /**
+     * Resolve the provided v2 template and component templates into a {@link DataStreamOptions} object
+     */
+    @Nullable
+    public static DataStreamOptions resolveDataStreamOptions(
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        Objects.requireNonNull(template, "attempted to resolve data stream for a null template");
+        Objects.requireNonNull(componentTemplates, "attempted to resolve data stream options with null component templates");
+
+        List<DataStreamOptions> dataStreamOptionsList = new ArrayList<>();
+        for (String componentTemplateName : template.composedOf()) {
+            if (componentTemplates.containsKey(componentTemplateName) == false) {
+                continue;
+            }
+            DataStreamOptions dataStreamOptions = componentTemplates.get(componentTemplateName).template().dataStreamOptions();
+            if (dataStreamOptions != null && DataStreamOptions.EMPTY.equals(dataStreamOptions) == false) {
+                dataStreamOptionsList.add(dataStreamOptions);
+            }
+        }
+        // The actual index template's lifecycle has the highest precedence.
+        if (template.template() != null
+            && template.template().dataStreamOptions() != null
+            && template.template().dataStreamOptions().isEmpty() == false) {
+            dataStreamOptionsList.add(template.template().dataStreamOptions());
+        }
+        return composeDataStreamOptions(dataStreamOptionsList);
+    }
+
+    /**
+     * This method composes a series of data streams options to a final one. Since currently the data stream options list
+     * contains only the failure store configuration which also contains only one field, so it has to be set, returning the
+     * last non-null configuration is (for now) sufficient. But we keep this method in order to build on it.
+     * @param dataStreamOptionsList a sorted list of data stream options in the order that they will be composed
+     * @return the final data stream option configuration
+     */
+    @Nullable
+    public static DataStreamOptions composeDataStreamOptions(List<DataStreamOptions> dataStreamOptionsList) {
+        if (dataStreamOptionsList.isEmpty()) {
+            return null;
+        }
+        DataStreamOptions current = dataStreamOptionsList.getLast();
+        return current;
     }
 
     /**

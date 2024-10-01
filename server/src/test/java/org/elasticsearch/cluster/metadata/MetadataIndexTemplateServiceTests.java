@@ -1514,7 +1514,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = addComponentTemplate(service, state, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
 
         String ctNoLifecycle = "ct_no_lifecycle";
-        state = addComponentTemplate(service, state, ctNoLifecycle, null);
+        state = addComponentTemplate(service, state, ctNoLifecycle, (DataStreamLifecycle) null);
 
         // Component A: -
         // Component B: "lifecycle": {"enabled": true}
@@ -1608,13 +1608,77 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertLifecycleResolution(service, state, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
     }
 
+    public void testResolveFailureStore() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        String ctNoFailureStoreConfig = "no_failure_store";
+        state = addComponentTemplate(service, state, ctNoFailureStoreConfig, (DataStreamOptions) null);
+
+        String ctFailureStoreEnabled = "ct_failure_store_enabled";
+        state = addComponentTemplate(service, state, ctFailureStoreEnabled, DataStreamOptions.FAILURE_STORE_ENABLED);
+
+        String ctFailureStoreDisabled = "ct_failure_store_disabled";
+        state = addComponentTemplate(service, state, ctFailureStoreDisabled, DataStreamOptions.FAILURE_STORE_DISABLED);
+
+        // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
+        // Composable Z: -
+        // Result: "data_stream_options": { "failure_store": { "enabled": true}}
+        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), null, DataStreamOptions.FAILURE_STORE_ENABLED);
+
+        // Component A: "data_stream_options": { "failure_store": { "enabled": false}}
+        // Composable Z: "data_stream_options": {}
+        // Result: "data_stream_options": { "failure_store": { "enabled": false}}
+        assertDataStreamOptionsResolution(
+            service,
+            state,
+            List.of(ctFailureStoreDisabled),
+            DataStreamOptions.EMPTY,
+            DataStreamOptions.FAILURE_STORE_DISABLED
+        );
+
+        // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
+        // Composable Z: "data_stream_options": { "failure_store": { "enabled": false}}
+        // Result: "data_stream_options": { "failure_store": { "enabled": false}}
+        assertDataStreamOptionsResolution(
+            service,
+            state,
+            List.of(ctFailureStoreEnabled),
+            DataStreamOptions.FAILURE_STORE_DISABLED,
+            DataStreamOptions.FAILURE_STORE_DISABLED
+        );
+    }
+
     private ClusterState addComponentTemplate(
         MetadataIndexTemplateService service,
         ClusterState state,
         String name,
         DataStreamLifecycle lifecycle
     ) throws Exception {
-        ComponentTemplate ct = new ComponentTemplate(Template.builder().lifecycle(lifecycle).build(), null, null);
+        return addComponentTemplate(service, state, name, null, lifecycle);
+    }
+
+    private ClusterState addComponentTemplate(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        String name,
+        DataStreamOptions dataStreamOptions
+    ) throws Exception {
+        return addComponentTemplate(service, state, name, dataStreamOptions, null);
+    }
+
+    private ClusterState addComponentTemplate(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        String name,
+        DataStreamOptions dataStreamOptions,
+        DataStreamLifecycle lifecycle
+    ) throws Exception {
+        ComponentTemplate ct = new ComponentTemplate(
+            Template.builder().dataStreamOptions(dataStreamOptions).lifecycle(lifecycle).build(),
+            null,
+            null
+        );
         return service.addComponentTemplate(state, true, name, ct);
     }
 
@@ -1637,6 +1701,30 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
         assertThat(resolvedLifecycle, equalTo(expected));
+    }
+
+    private void assertDataStreamOptionsResolution(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        List<String> composeOf,
+        DataStreamOptions dataStreamOptionsZ,
+        DataStreamOptions expected
+    ) throws Exception {
+        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomAlphaOfLength(10) + "*"))
+            .template(Template.builder().dataStreamOptions(dataStreamOptionsZ))
+            .componentTemplates(composeOf)
+            .priority(0L)
+            .version(1L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        state = service.addIndexTemplateV2(state, true, "my-template", it);
+
+        DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(
+            state.metadata(),
+            "my-template"
+        );
+        assertThat(resolvedDataStreamOptions, equalTo(expected));
     }
 
     public void testAddInvalidTemplate() throws Exception {

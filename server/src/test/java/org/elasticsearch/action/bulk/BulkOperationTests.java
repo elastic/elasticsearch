@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -145,12 +146,14 @@ public class BulkOperationTests extends ESTestCase {
                         "ds-template",
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(dataStreamName))
-                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, false))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .template(Template.builder().dataStreamOptions(DataStreamOptions.FAILURE_STORE_DISABLED))
                             .build(),
                         "ds-template-with-failure-store",
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(fsDataStreamName, fsRolloverDataStreamName))
-                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .template(Template.builder().dataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED))
                             .build()
                     )
                 )

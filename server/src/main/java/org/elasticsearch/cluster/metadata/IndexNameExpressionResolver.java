@@ -194,7 +194,7 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
         final Collection<ResolvedExpression> expressions = resolveExpressions(context, indexExpressions);
-        // TODO: FIXME - Update to return ResolvedExpression
+        // PRTODO: FIXME - Update to return ResolvedExpression
         return expressions.stream()
             .filter(expression -> {
                 IndexAbstraction ia = state.metadata().getIndicesLookup().get(expression.resource());
@@ -226,7 +226,7 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
 
-        // TODO: FIXME We will likely want to return an abstraction here that respects the selector returned from the expression resolution
+        // PRTODO: FIXME We will likely want to return an abstraction here that respects the selector returned from expression resolution
         final Collection<ResolvedExpression> expressions = resolveExpressions(context, request.index());
 
         if (expressions.size() == 1) {

@@ -124,7 +124,7 @@ public class RolloverStep extends AsyncActionStep {
         // Calling rollover with no conditions will always roll over the index
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (targetFailureStore) {
-            // TODO: target operation to failure store
+            // PRTODO: target operation to failure store
         }
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so

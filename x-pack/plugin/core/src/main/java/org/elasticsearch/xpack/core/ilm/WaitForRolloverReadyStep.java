@@ -245,7 +245,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         rolloverRequest.dryRun(true);
         rolloverRequest.setConditions(applyDefaultConditions(conditions, rolloverOnlyIfHasDocuments));
         if (targetFailureStore) {
-            // TODO: Target operation to failure store
+            // PRTODO: Target operation to failure store
         }
         return rolloverRequest;
     }

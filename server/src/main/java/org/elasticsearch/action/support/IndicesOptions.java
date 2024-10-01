@@ -810,7 +810,7 @@ public record IndicesOptions(
                 .build()
         )
         .build();
-    // TODO: Most users of these options will probably want to not support selectors
+    // PRTODO: Most users of these options will probably want to not support selectors
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(

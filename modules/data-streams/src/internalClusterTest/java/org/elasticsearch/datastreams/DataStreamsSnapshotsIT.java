@@ -128,7 +128,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
 
-        // TODO: Initialize the failure store.
+        // PRTODO: Initialize the failure store.
 
         // Resolve backing index names after data streams have been created:
         // (these names have a date component, and running around midnight could lead to test failures otherwise)

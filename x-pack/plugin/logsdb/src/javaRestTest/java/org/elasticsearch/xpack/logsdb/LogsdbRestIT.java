@@ -42,7 +42,31 @@ public class LogsdbRestIT extends ESRestTestCase {
             assertThat(features, Matchers.empty());
         }
         {
-            createIndex("test-index", Settings.builder().put("index.mode", "logsdb").build());
+            if (randomBoolean()) {
+                createIndex("test-index", Settings.builder().put("index.mode", "logsdb").build());
+            } else if (randomBoolean()) {
+                String mapping = """
+                    {
+                        "properties": {
+                            "field1": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            }
+                        }
+                    }
+                    """;
+                var settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "field1").build();
+                createIndex("test-index", settings, mapping);
+            } else {
+                String mapping = """
+                    {
+                        "_source": {
+                            "mode": "synthetic"
+                        }
+                    }
+                    """;
+                createIndex("test-index", Settings.EMPTY, mapping);
+            }
             var response = getAsMap("/_license/feature_usage");
             @SuppressWarnings("unchecked")
             List<Map<?, ?>> features = (List<Map<?, ?>>) response.get("features");

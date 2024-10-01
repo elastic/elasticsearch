@@ -30,13 +30,14 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
             return Double.NaN;
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch);
-            valuesSketch.centroids().forEach(centroid -> {
-                final double deviation = Math.abs(approximateMedian - centroid.mean());
-                approximatedDeviationsSketch.add(deviation, centroid.count());
-            });
+            try (TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch)) {
+                valuesSketch.centroids().forEach(centroid -> {
+                    final double deviation = Math.abs(approximateMedian - centroid.mean());
+                    approximatedDeviationsSketch.add(deviation, centroid.count());
+                });
 
-            return approximatedDeviationsSketch.quantile(0.5);
+                return approximatedDeviationsSketch.quantile(0.5);
+            }
         }
     }
 

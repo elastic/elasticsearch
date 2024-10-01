@@ -66,6 +66,7 @@ To set up Elasticsearch and Kibana locally, run the `start-local` script:
 ----
 curl -fsSL https://elastic.co/start-local | sh
 ----
+// NOTCONSOLE
 
 This script creates an `elastic-start-local` folder containing configuration files and starts both Elasticsearch and Kibana using Docker.
 

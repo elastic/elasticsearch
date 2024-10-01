@@ -162,8 +162,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             + endpointName
             + " is being used in the mapping for indexes: "
             + Set.of(indexName)
-            + ". Ensure that no index mappings are using this inference endpoint, or use force to ignore this warning and delete the" +
-            " inference endpoint.";
+            + ". Ensure that no index mappings are using this inference endpoint, or use force to ignore this warning and delete the"
+            + " inference endpoint.";
 
         putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         putSemanticText(endpointId, indexName);

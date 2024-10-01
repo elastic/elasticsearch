@@ -16,17 +16,22 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingResponse;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+
+import java.util.Set;
 
 public class TransportDeleteRoleMappingAction extends HandledTransportAction<DeleteRoleMappingRequest, DeleteRoleMappingResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
+    private final ClusterStateRoleMapper clusterStateRoleMapper;
 
     @Inject
     public TransportDeleteRoleMappingAction(
         ActionFilters actionFilters,
         TransportService transportService,
-        NativeRoleMappingStore roleMappingStore
+        NativeRoleMappingStore roleMappingStore,
+        ClusterStateRoleMapper clusterStateRoleMapper
     ) {
         super(
             DeleteRoleMappingAction.NAME,
@@ -36,10 +41,21 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.roleMappingStore = roleMappingStore;
+        this.clusterStateRoleMapper = clusterStateRoleMapper;
     }
 
     @Override
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
-        roleMappingStore.deleteRoleMapping(request, listener.safeMap(DeleteRoleMappingResponse::new));
+        roleMappingStore.deleteRoleMapping(request, listener.delegateFailureAndWrap((l, found) -> {
+            if (false == found && false == clusterStateRoleMapper.getMappings(Set.of(request.getName())).isEmpty()) {
+                l.onFailure(
+                    new IllegalArgumentException(
+                        "You attempted to delete an operator-defined role mapping [" + request.getName() + "] This is not possible via API."
+                    )
+                );
+                return;
+            }
+            l.onResponse(new DeleteRoleMappingResponse(found));
+        }));
     }
 }

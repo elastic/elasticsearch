@@ -17,21 +17,26 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsA
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRoleMappingsRequest, GetRoleMappingsResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
+    private final ClusterStateRoleMapper clusterStateRoleMapper;
 
     @Inject
     public TransportGetRoleMappingsAction(
         ActionFilters actionFilters,
         TransportService transportService,
-        NativeRoleMappingStore nativeRoleMappingStore
+        NativeRoleMappingStore nativeRoleMappingStore,
+        ClusterStateRoleMapper clusterStateRoleMapper
     ) {
         super(
             GetRoleMappingsAction.NAME,
@@ -41,6 +46,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.roleMappingStore = nativeRoleMappingStore;
+        this.clusterStateRoleMapper = clusterStateRoleMapper;
     }
 
     @Override
@@ -51,9 +57,23 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
         } else {
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
-        this.roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
-            ExpressionRoleMapping[] array = mappings.toArray(new ExpressionRoleMapping[mappings.size()]);
-            listener.onResponse(new GetRoleMappingsResponse(array));
+        // TODO sort so we get deterministic order; don't think ExpressionRoleMapping have a compareTo currently
+        final List<ExpressionRoleMapping> clusterStateRoleMappings = new ArrayList<>(clusterStateRoleMapper.getMappings(names));
+        roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
+            if (clusterStateRoleMappings.isEmpty()) {
+                listener.onResponse(new GetRoleMappingsResponse(mappings));
+                return;
+            }
+
+            if (mappings.isEmpty()) {
+                listener.onResponse(new GetRoleMappingsResponse(clusterStateRoleMappings));
+                return;
+            }
+
+            // Native role mappings must come first
+            final List<ExpressionRoleMapping> combined = new ArrayList<>(mappings);
+            combined.addAll(clusterStateRoleMappings);
+            listener.onResponse(new GetRoleMappingsResponse(combined.toArray(new ExpressionRoleMapping[0])));
         }, listener::onFailure));
     }
 }

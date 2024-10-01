@@ -59,11 +59,9 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -270,18 +268,28 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             assertThat(resolveRolesFuture.get(), containsInAnyOrder("kibana_user", "fleet_user"));
         }
 
-        // the role mappings are not retrievable by the role mapping action (which only accesses "native" i.e. index-based role mappings)
-        var request = new GetRoleMappingsRequest();
-        request.setNames("everyone_kibana", "everyone_fleet");
-        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertFalse(response.hasMappings());
-        assertThat(response.mappings(), emptyArray());
+        // the role mappings are retrievable by the role mapping action for BWC
+        assertGetResponseHasMappings("everyone_kibana", "everyone_fleet");
 
-        // role mappings (with the same names) can also be stored in the "native" store
-        var putRoleMappingResponse = client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet();
-        assertTrue(putRoleMappingResponse.isCreated());
-        putRoleMappingResponse = client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet();
-        assertTrue(putRoleMappingResponse.isCreated());
+        // role mappings (with the same names) cannot be stored in the "native" store
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet()
+        );
+        // deleting role mappings that don't exist in the native store but do in cluster-state also results in an error response
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_fleet")).actionGet()
+        );
+
     }
 
     public void testRoleMappingsApplied() throws Exception {
@@ -307,40 +315,15 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
         );
 
-        // native role mappings are not affected by the removal of the cluster-state based ones
+        // cluster-state role mapping was removed and is not returned in the API anymore
         {
             var request = new GetRoleMappingsRequest();
             request.setNames("everyone_kibana", "everyone_fleet");
             var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-            assertTrue(response.hasMappings());
-            assertThat(
-                Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
-                containsInAnyOrder("everyone_kibana", "everyone_fleet")
-            );
+            assertFalse(response.hasMappings());
         }
 
-        // and roles are resolved based on the native role mappings
-        for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
-            PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
-            userRoleMapper.resolveRoles(
-                new UserRoleMapper.UserData("anyUsername", null, List.of(), Map.of(), mock(RealmConfig.class)),
-                resolveRolesFuture
-            );
-            assertThat(resolveRolesFuture.get(), contains("kibana_user_native"));
-        }
-
-        {
-            var request = new DeleteRoleMappingRequest();
-            request.setName("everyone_kibana");
-            var response = client().execute(DeleteRoleMappingAction.INSTANCE, request).get();
-            assertTrue(response.isFound());
-            request = new DeleteRoleMappingRequest();
-            request.setName("everyone_fleet");
-            response = client().execute(DeleteRoleMappingAction.INSTANCE, request).get();
-            assertTrue(response.isFound());
-        }
-
-        // no roles are resolved now, because both native and cluster-state based stores have been cleared
+        // no role mappings means no roles are resolved
         for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
             PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
             userRoleMapper.resolveRoles(
@@ -348,6 +331,15 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                 resolveRolesFuture
             );
             assertThat(resolveRolesFuture.get(), empty());
+        }
+
+        {
+            // Deleting non-existent native role mappings returns not found instead of illegal arg error since there are no clashing
+            // cluster-state role mappings
+            var response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).get();
+            assertFalse(response.isFound());
+            response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_fleet")).get();
+            assertFalse(response.isFound());
         }
     }
 
@@ -433,11 +425,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
             assertTrue(awaitSuccessful);
 
-            // no native role mappings exist
-            var request = new GetRoleMappingsRequest();
-            request.setNames("everyone_kibana", "everyone_fleet");
-            var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-            assertFalse(response.hasMappings());
+            // even if index is closed, cluster-state role mappings are still returned
+            assertGetResponseHasMappings("everyone_kibana", "everyone_fleet");
 
             // cluster state settings are also applied
             var clusterStateResponse = clusterAdmin().state(
@@ -476,6 +465,12 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }
     }
 
+    private DeleteRoleMappingRequest deleteRequest(String name) {
+        var request = new DeleteRoleMappingRequest();
+        request.setName(name);
+        return request;
+    }
+
     private PutRoleMappingRequest sampleRestRequest(String name) throws Exception {
         var json = """
             {
@@ -493,5 +488,13 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         ) {
             return new PutRoleMappingRequestBuilder(null).source(name, parser).request();
         }
+    }
+
+    private static void assertGetResponseHasMappings(String... mappings) throws InterruptedException, ExecutionException {
+        var request = new GetRoleMappingsRequest();
+        request.setNames(mappings);
+        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+        assertTrue(response.hasMappings());
+        assertThat(Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(), containsInAnyOrder(mappings));
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -57,9 +58,10 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
         } else {
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
-        // TODO sort so we get deterministic order; don't think ExpressionRoleMapping have a compareTo currently
-        final List<ExpressionRoleMapping> clusterStateRoleMappings = new ArrayList<>(clusterStateRoleMapper.getMappings(names));
         roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
+            // TODO make sure we handle cluster-state blocks appropriately since `getMappings(...)` access cluster-state under the hood
+            // TODO add metadata marking these as originating from cluster-state/file-settings
+            final List<ExpressionRoleMapping> clusterStateRoleMappings = toOrderedList(clusterStateRoleMapper.getMappings(names));
             if (clusterStateRoleMappings.isEmpty()) {
                 listener.onResponse(new GetRoleMappingsResponse(mappings));
                 return;
@@ -70,10 +72,19 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
                 return;
             }
 
-            // Native role mappings must come first
+            // Native role mappings must come first to simplify consumer behavior around role mappings with duplicate names
             final List<ExpressionRoleMapping> combined = new ArrayList<>(mappings);
             combined.addAll(clusterStateRoleMappings);
-            listener.onResponse(new GetRoleMappingsResponse(combined.toArray(new ExpressionRoleMapping[0])));
+            listener.onResponse(new GetRoleMappingsResponse(combined));
         }, listener::onFailure));
+    }
+
+    private static List<ExpressionRoleMapping> toOrderedList(Set<ExpressionRoleMapping> roleMappings) {
+        if (roleMappings.isEmpty()) {
+            return List.of();
+        }
+        final List<ExpressionRoleMapping> sortedList = new ArrayList<>(roleMappings);
+        sortedList.sort(Comparator.comparing(ExpressionRoleMapping::getName));
+        return sortedList;
     }
 }

@@ -47,10 +47,15 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
     @Override
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
         roleMappingStore.deleteRoleMapping(request, listener.delegateFailureAndWrap((l, found) -> {
+            // TODO make sure we handle cluster-state blocks appropriately since `getMappings(...)` access cluster-state under the hood
             if (false == found && false == clusterStateRoleMapper.getMappings(Set.of(request.getName())).isEmpty()) {
+                // TODO perhaps always returning not-found if the role mapping is not found in native store is less confusing
                 l.onFailure(
                     new IllegalArgumentException(
-                        "You attempted to delete an operator-defined role mapping [" + request.getName() + "] This is not possible via API."
+                        "You attempted to delete a role mapping ["
+                            + request.getName()
+                            + "] that exists in the [file_settings] namespace. "
+                            + "Deleting role mappings in the [file_settings] namespace is not possible via API."
                     )
                 );
                 return;

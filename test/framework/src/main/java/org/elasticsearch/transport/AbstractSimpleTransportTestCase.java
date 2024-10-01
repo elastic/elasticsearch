@@ -3369,7 +3369,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "stuck threads logging",
                 ThreadWatchdog.class.getCanonicalName(),
                 Level.WARN,
-                "the following threads are active but did not make progress in the preceding [5s]: [" + threadName + "]"
+                "the following threads are active but did not make progress in the preceding [5s]: [*" + threadName + "*]"
             )
         );
         safeAwait(barrier);

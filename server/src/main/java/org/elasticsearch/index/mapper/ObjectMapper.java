@@ -45,6 +45,7 @@ public class ObjectMapper extends Mapper {
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
     static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto");
+    static final NodeFeature SUBOBJECTS_AUTO_FIXES = new NodeFeature("mapper.subobjects_auto_fixes");
 
     /**
      * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses

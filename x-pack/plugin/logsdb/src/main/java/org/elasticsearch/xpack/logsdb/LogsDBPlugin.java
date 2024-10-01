@@ -51,7 +51,10 @@ public class LogsDBPlugin extends Plugin {
         if (DiscoveryNode.isStateless(settings)) {
             return List.of(logsdbIndexModeSettingsProvider);
         }
-        return List.of(new SyntheticSourceIndexSettingsProvider(licenseService), logsdbIndexModeSettingsProvider);
+        return List.of(
+            new SyntheticSourceIndexSettingsProvider(licenseService, parameters.mapperServiceFactory()),
+            logsdbIndexModeSettingsProvider
+        );
     }
 
     @Override

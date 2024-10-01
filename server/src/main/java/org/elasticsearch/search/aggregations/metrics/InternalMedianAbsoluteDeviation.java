@@ -69,7 +69,12 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         double compression,
         TDigestExecutionHint executionHint
     ) {
-        return new InternalMedianAbsoluteDeviation(name, metadata, format, TDigestState.create(compression, executionHint));
+        return new InternalMedianAbsoluteDeviation(
+            name,
+            metadata,
+            format,
+            TDigestState.createWithoutCircuitBreaking(compression, executionHint)
+        );
     }
 
     @Override

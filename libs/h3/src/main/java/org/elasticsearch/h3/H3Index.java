@@ -325,7 +325,9 @@ final class H3Index {
                 foundFirstNonZeroDigit = true;
 
                 // adjust for deleted k-axes sequence
-                if (h3LeadingNonZeroDigit(h) == CoordIJK.Direction.K_AXES_DIGIT.digit()) h = h3Rotate60ccw(h);
+                if (h3LeadingNonZeroDigit(h) == CoordIJK.Direction.K_AXES_DIGIT.digit()) {
+                    h = h3Rotate60ccw(h);
+                }
             }
         }
         return h;

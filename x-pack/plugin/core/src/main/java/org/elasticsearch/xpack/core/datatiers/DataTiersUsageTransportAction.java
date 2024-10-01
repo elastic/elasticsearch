@@ -149,7 +149,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         long docCount = 0;
         int primaryShardCount = 0;
         long primaryByteCount = 0L;
-        final TDigestState valueSketch = TDigestState.create(1000);
+        final TDigestState valueSketch = TDigestState.createWithoutCircuitBreaking(1000);
     }
 
     // Visible for testing

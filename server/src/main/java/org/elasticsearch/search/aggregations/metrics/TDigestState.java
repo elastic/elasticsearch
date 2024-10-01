@@ -65,7 +65,7 @@ public class TDigestState implements Releasable, Accountable {
      *             Please use the {@link #create(CircuitBreaker, double)} method instead on new usages.
      */
     @Deprecated
-    public static TDigestState create(double compression) {
+    public static TDigestState createWithoutCircuitBreaking(double compression) {
         return create(DEFAULT_NOOP_BREAKER, compression);
     }
 
@@ -115,7 +115,7 @@ public class TDigestState implements Releasable, Accountable {
      *             Please use the {@link #create(CircuitBreaker, double, TDigestExecutionHint)} method instead on new usages.
      */
     @Deprecated
-    public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+    public static TDigestState createWithoutCircuitBreaking(double compression, TDigestExecutionHint executionHint) {
         return create(DEFAULT_NOOP_BREAKER, compression, executionHint);
     }
 

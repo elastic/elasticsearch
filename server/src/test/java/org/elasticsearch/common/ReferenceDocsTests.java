@@ -47,16 +47,10 @@ public class ReferenceDocsTests extends ESTestCase {
     }
 
     private static InputStream getResourceStream(LinkSupplier linkSupplier) {
-        int splitColumn = 0;
-        for (final var value : ReferenceDocs.values()) {
-            splitColumn = Math.max(splitColumn, value.name().length() + 1);
-        }
-        final var padding = " ".repeat(splitColumn);
-
         final var stringBuilder = new StringBuilder();
         for (int i = 0; i < ReferenceDocs.values().length; i++) {
             final var symbol = ReferenceDocs.values()[i];
-            final var lineWithPlaceholder = symbol.name() + padding.substring(0, splitColumn - symbol.name().length())
+            final var lineWithPlaceholder = symbol.name() + " ".repeat(ReferenceDocs.SYMBOL_COLUMN_WIDTH - symbol.name().length())
                 + TEST_LINK_PLACEHOLDER;
             final var updatedLine = linkSupplier.mutateLinkLine(i, lineWithPlaceholder);
             if (updatedLine == null) {
@@ -108,7 +102,7 @@ public class ReferenceDocsTests extends ESTestCase {
                 IllegalStateException.class,
                 () -> ReferenceDocs.readLinksBySymbol(getResourceStream((i, l) -> l.replace(targetSymbol, replacement)))
             ).getMessage(),
-            startsWith("unexpected content at line ")
+            startsWith("unexpected symbol at line ")
         );
     }
 

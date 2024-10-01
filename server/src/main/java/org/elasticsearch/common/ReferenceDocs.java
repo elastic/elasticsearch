@@ -98,12 +98,10 @@ public enum ReferenceDocs {
     static final String CURRENT_VERSION_COMPONENT = "current";
     static final String VERSION_COMPONENT = getVersionComponent(Build.current().version(), Build.current().isSnapshot());
 
+    static final int SYMBOL_COLUMN_WIDTH = 64; // increase as needed to accommodate yet longer symbols
+
     static Map<String, String> readLinksBySymbol(InputStream inputStream) throws IOException {
-        int splitColumn = 0;
-        for (final var value : values()) {
-            splitColumn = Math.max(splitColumn, value.name().length() + 1);
-        }
-        final var padding = " ".repeat(splitColumn);
+        final var padding = " ".repeat(SYMBOL_COLUMN_WIDTH);
 
         record LinksBySymbolEntry(String symbol, String link) implements Map.Entry<String, String> {
             @Override
@@ -133,11 +131,16 @@ public enum ReferenceDocs {
                 if (currentLine == null) {
                     throw new IllegalStateException("links resource truncated at line " + (i + 1));
                 }
-                final var link = currentLine.substring(splitColumn).trim();
+                if (currentLine.startsWith(symbol + " ") == false) {
+                    throw new IllegalStateException(
+                        "unexpected symbol at line " + (i + 1) + ": expected line starting with [" + symbol + " ]"
+                    );
+                }
+                final var link = currentLine.substring(SYMBOL_COLUMN_WIDTH).trim();
                 if (Strings.hasText(link) == false) {
                     throw new IllegalStateException("no link found for [" + symbol + "] at line " + (i + 1));
                 }
-                final var expectedLine = (symbol + padding).substring(0, splitColumn) + link;
+                final var expectedLine = (symbol + padding).substring(0, SYMBOL_COLUMN_WIDTH) + link;
                 if (currentLine.equals(expectedLine) == false) {
                     throw new IllegalStateException("unexpected content at line " + (i + 1) + ": expected [" + expectedLine + "]");
                 }

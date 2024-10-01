@@ -2,8 +2,6 @@
 [[delete-inference-api]]
 === Delete {infer} API
 
-experimental[]
-
 Deletes an {infer} endpoint.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in

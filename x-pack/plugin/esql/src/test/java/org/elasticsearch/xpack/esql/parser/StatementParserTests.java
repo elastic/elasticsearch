@@ -352,12 +352,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(min_alias, max_filter, avg_filter, a)
             ),
             processingCommand("""
-            stats
-            min = min(a),
-            max = max(a) WHERE (a % 3 > 10 OR a / 2 > 100),
-            avg = avg(a) WHERE a / 2 > 100
-            BY a
-            """));
+                stats
+                min = min(a),
+                max = max(a) WHERE (a % 3 > 10 OR a / 2 > 100),
+                avg = avg(a) WHERE a / 2 > 100
+                BY a
+                """)
+        );
     }
 
     public void testStatsWithoutGroupKeyMixedAggAndFilter() throws Exception {

@@ -356,7 +356,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-
     public void testAggFilterOnNonAggregates() {
         assertEquals(
             "1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1]",

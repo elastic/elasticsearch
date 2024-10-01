@@ -29,6 +29,10 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     private final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
 
+    protected ES815BitFlatVectorsFormat() {
+        super("ES815BitFlatVectorsFormat");
+    }
+
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState segmentWriteState) throws IOException {
         return delegate.fieldsWriter(segmentWriteState);

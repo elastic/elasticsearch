@@ -26,6 +26,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.elasticsearch.script.field.vectors.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -173,7 +174,7 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
             }
 
             public static double constSqrt(double x) {
-                return x >= 0 && !Double.isInfinite(x) ? sqrtNewtonRaphson(x, x, 0) : Double.NaN;
+                return x >= 0 && Double.isInfinite(x) == false ? sqrtNewtonRaphson(x, x, 0) : Double.NaN;
             }
         }
 
@@ -198,7 +199,7 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
             float normOC = targetVectors.getNormOC(targetOrd);
             float oDotC = targetVectors.getODotC(targetOrd);
 
-            float qcDist = VectorUtil.ipByteBinByte(quantizedQuery, binaryCode);
+            float qcDist = ESVectorUtil.ipByteBinByte(quantizedQuery, binaryCode);
 
             // FIXME: pre-compute these only once for each target vector
             // ... pull this out or use a similar cache mechanism as do in score
@@ -253,7 +254,7 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
             float factorPPC = (float) (-2.0 / sqrtDimensions * xX0 * (xbSum * 2.0 - targetVectors.dimension()));
             float factorIP = (float) (-2.0 / sqrtDimensions * xX0);
 
-            long qcDist = VectorUtil.ipByteBinByte(quantizedQuery, binaryCode);
+            long qcDist = ESVectorUtil.ipByteBinByte(quantizedQuery, binaryCode);
             float score = sqrX + distanceToCentroid + factorPPC * lower + (qcDist * 2 - quantizedSum) * factorIP * width;
             // TODO: this is useful for mandatory rescoring by accounting for bias
             // However, for just oversampling & rescoring, it isn't strictly useful.

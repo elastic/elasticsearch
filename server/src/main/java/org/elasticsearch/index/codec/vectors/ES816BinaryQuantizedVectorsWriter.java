@@ -938,11 +938,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         public int totalVectorCount() {
             return vectorValues.size();
         }
-
-        @Override
-        public RandomAccessVectorValues vectors() {
-            return vectorValues;
-        }
     }
 
     static final class NormalizedFloatVectorValues extends FloatVectorValues {

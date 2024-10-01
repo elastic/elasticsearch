@@ -55,7 +55,7 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
 
     /** Creates a new instance with the default number of vectors per cluster. */
     public ES816BinaryQuantizedVectorsFormat() {
-        super();
+        super(NAME);
     }
 
     @Override

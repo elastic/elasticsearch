@@ -102,7 +102,7 @@ POST books/_doc
 
 The response includes metadata that {es} generates for the document, including a unique `_id` for the document within the index.
 
-.Expand to see example response
+.Expand to see example response with annotations
 [%collapsible]
 ===============
 [source,console-result]
@@ -409,7 +409,7 @@ GET books/_search
 ----
 // TEST[continued]
 
-.Expand to see example response (truncated)
+.Expand to see (truncated) example response with annotations
 [%collapsible]
 ===============
 [source,console-result]
@@ -481,7 +481,7 @@ GET books/_search
 ----
 // TEST[continued]
 
-.Expand to see example response
+.Expand to see example response with annotations
 [%collapsible]
 ===============
 [source,console-result]

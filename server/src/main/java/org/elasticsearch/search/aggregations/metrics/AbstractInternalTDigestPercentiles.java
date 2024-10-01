@@ -142,7 +142,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
                 if (percentiles.state != null) {
                     if (merged == null) {
-                        merged = TDigestState.createUsingParamsFrom(percentiles.state);
+                        merged = TDigestState.createUsingParamsFromWithoutCircuitBreaking(percentiles.state);
                     }
                     merged = merge(merged, percentiles.state);
                 }

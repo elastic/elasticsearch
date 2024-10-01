@@ -30,7 +30,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
             return Double.NaN;
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch);
+            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFromWithoutCircuitBreaking(valuesSketch);
             valuesSketch.centroids().forEach(centroid -> {
                 final double deviation = Math.abs(approximateMedian - centroid.mean());
                 approximatedDeviationsSketch.add(deviation, centroid.count());
@@ -69,13 +69,13 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         double compression,
         TDigestExecutionHint executionHint
     ) {
-        return new InternalMedianAbsoluteDeviation(name, metadata, format, TDigestState.create(compression, executionHint));
+        return new InternalMedianAbsoluteDeviation(name, metadata, format, TDigestState.createWithoutCircuitBreaking(compression, executionHint));
     }
 
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final TDigestState valueMerged = TDigestState.createUsingParamsFrom(valuesSketch);
+            final TDigestState valueMerged = TDigestState.createUsingParamsFromWithoutCircuitBreaking(valuesSketch);
 
             @Override
             public void accept(InternalAggregation aggregation) {

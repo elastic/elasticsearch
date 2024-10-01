@@ -31,6 +31,8 @@ public class TDigestState implements Releasable {
 
     protected static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
 
+    private final CircuitBreaker breaker;
+
     private final double compression;
 
     private final TDigest tdigest;
@@ -110,15 +112,13 @@ public class TDigestState implements Releasable {
      * input TDigestState object doesn't get altered in any way.
      * @param state the TDigestState object providing the initialization params
      * @return a TDigestState object
-     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
-     *             Please use one of the other methods receiving a CircuitBreaker instead on new usages.
      */
-    @Deprecated
-    public static TDigestState createUsingParamsFromWithoutCircuitBreaking(TDigestState state) {
-        return new TDigestState(DEFAULT_NOOP_BREAKER, state.type, state.compression);
+    public static TDigestState createUsingParamsFrom(TDigestState state) {
+        return new TDigestState(state.breaker, state.type, state.compression);
     }
 
     protected TDigestState(CircuitBreaker breaker, Type type, double compression) {
+        this.breaker = breaker;
         var arrays = new MemoryTrackingTDigestArrays(breaker);
         tdigest = switch (type) {
             case HYBRID -> TDigest.createHybridDigest(arrays, compression);

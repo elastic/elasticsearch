@@ -99,7 +99,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = TDigestState.createUsingParamsFromWithoutCircuitBreaking(state);
+                TDigestState newState = TDigestState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

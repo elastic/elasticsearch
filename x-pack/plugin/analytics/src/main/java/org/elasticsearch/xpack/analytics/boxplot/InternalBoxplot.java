@@ -298,7 +298,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             public void accept(InternalAggregation aggregation) {
                 final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
                 if (merged == null) {
-                    merged = TDigestState.createUsingParamsFromWithoutCircuitBreaking(percentiles.state);
+                    merged = TDigestState.createUsingParamsFrom(percentiles.state);
                 }
                 merged.add(percentiles.state);
             }

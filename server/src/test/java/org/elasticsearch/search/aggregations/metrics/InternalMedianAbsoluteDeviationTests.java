@@ -34,7 +34,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
 
     @Override
     protected void assertReduced(InternalMedianAbsoluteDeviation reduced, List<InternalMedianAbsoluteDeviation> inputs) {
-        final TDigestState expectedValuesSketch = TDigestState.createUsingParamsFromWithoutCircuitBreaking(reduced.getValuesSketch());
+        final TDigestState expectedValuesSketch = TDigestState.createUsingParamsFrom(reduced.getValuesSketch());
 
         long totalCount = 0;
         for (InternalMedianAbsoluteDeviation input : inputs) {
@@ -72,7 +72,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         switch (between(0, 2)) {
             case 0 -> name += randomAlphaOfLengthBetween(2, 10);
             case 1 -> {
-                final TDigestState newValuesSketch = TDigestState.createUsingParamsFromWithoutCircuitBreaking(instance.getValuesSketch());
+                final TDigestState newValuesSketch = TDigestState.createUsingParamsFrom(instance.getValuesSketch());
                 final int numberOfValues = between(10, 100);
                 for (int i = 0; i < numberOfValues; i++) {
                     newValuesSketch.add(randomDouble());

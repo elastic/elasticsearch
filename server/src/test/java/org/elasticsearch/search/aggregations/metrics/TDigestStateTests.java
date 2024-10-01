@@ -153,7 +153,7 @@ public class TDigestStateTests extends ESTestCase {
             TDigestState fast = TDigestState.create(breaker(), 100);
             TDigestState anotherFast = TDigestState.create(breaker(), 100);
             TDigestState accurate = TDigestState.createOptimizedForAccuracy(breaker(), 100);
-            TDigestState anotherAccurate = TDigestState.createUsingParamsFromWithoutCircuitBreaking(accurate);
+            TDigestState anotherAccurate = TDigestState.createUsingParamsFrom(accurate);
         ) {
 
             for (int i = 0; i < 100; i++) {

@@ -228,7 +228,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             return 0;
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFromWithoutCircuitBreaking(valuesSketch);
+            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch);
             valuesSketch.centroids().forEach(centroid -> {
                 final double deviation = Math.abs(approximateMedian - centroid.mean());
                 approximatedDeviationsSketch.add(deviation, centroid.count());

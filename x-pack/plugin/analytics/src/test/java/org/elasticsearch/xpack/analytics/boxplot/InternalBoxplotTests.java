@@ -47,7 +47,7 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
 
     @Override
     protected void assertReduced(InternalBoxplot reduced, List<InternalBoxplot> inputs) {
-        TDigestState expected = TDigestState.createUsingParamsFromWithoutCircuitBreaking(reduced.state());
+        TDigestState expected = TDigestState.createUsingParamsFrom(reduced.state());
         for (InternalBoxplot input : inputs) {
             expected.add(input.state());
         }

@@ -45,7 +45,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
 
     @Override
     protected void assertReduced(InternalTDigestPercentiles reduced, List<InternalTDigestPercentiles> inputs) {
-        final TDigestState expectedState = TDigestState.createUsingParamsFromWithoutCircuitBreaking(reduced.state);
+        final TDigestState expectedState = TDigestState.createUsingParamsFrom(reduced.state);
 
         long totalCount = 0;
         for (InternalTDigestPercentiles input : inputs) {
@@ -91,7 +91,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = TDigestState.createUsingParamsFromWithoutCircuitBreaking(state);
+                TDigestState newState = TDigestState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

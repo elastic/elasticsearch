@@ -93,7 +93,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                     if (state == null) {
                         // We have to create a new TDigest histogram because otherwise it will alter the
                         // existing histogram and bucket value
-                        state = TDigestState.createUsingParamsFromWithoutCircuitBreaking(bucketState);
+                        state = TDigestState.createUsingParamsFrom(bucketState);
                     }
                     state.add(bucketState);
 

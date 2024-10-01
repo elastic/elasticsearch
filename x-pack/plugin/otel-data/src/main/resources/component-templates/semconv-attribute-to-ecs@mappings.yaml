@@ -18,10 +18,15 @@ template:
           exception.message:
             type: keyword
             ignore_above: 1024
+          exception.stacktrace:
+            type: keyword
       error.exception.type:
         type: alias
         path: attributes.exception.type
       error.exception.message:
         type: alias
         path: attributes.exception.message
+      error.exception.stacktrace:
+        type: alias
+        path: attributes.exception.stacktrace
 

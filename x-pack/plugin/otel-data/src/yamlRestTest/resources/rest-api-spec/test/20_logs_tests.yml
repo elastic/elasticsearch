@@ -59,13 +59,14 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "exception.type": "MyException", "exception.message": "foo"},"trace_id":"abc123xyz456def789ghi012jkl345"}'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "exception.type": "MyException", "exception.message": "foo", "exception.stacktrace": "Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)" },"trace_id":"abc123xyz456def789ghi012jkl345"}'
   - is_false: errors
   - do:
       search:
         index: logs-generic.otel-default
         body:
-          fields: ["error.exception.type", "error.exception.message"]
+          fields: ["error.exception.type", "error.exception.message", "error.exception.stacktrace"]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.error\.exception\.type: ["MyException"] }
   - match: { hits.hits.0.fields.error\.exception\.message: ["foo"] }
+  - match: { hits.hits.0.fields.error\.exception\.stacktrace: ["Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)"] }

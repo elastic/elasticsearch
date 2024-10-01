@@ -53,6 +53,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         store = mock(NativeRoleMappingStore.class);
         clusterStateRoleMapper = mock(ClusterStateRoleMapper.class);
         when(clusterStateRoleMapper.getMappings(anySet())).thenReturn(Set.of());
+        when(clusterStateRoleMapper.hasMapping(any())).thenReturn(false);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),

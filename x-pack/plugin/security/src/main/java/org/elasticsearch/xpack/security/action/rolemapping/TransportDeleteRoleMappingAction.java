@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
-import java.util.Set;
-
 public class TransportDeleteRoleMappingAction extends HandledTransportAction<DeleteRoleMappingRequest, DeleteRoleMappingResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
@@ -48,7 +46,7 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
         roleMappingStore.deleteRoleMapping(request, listener.delegateFailureAndWrap((l, found) -> {
             // TODO make sure we handle cluster-state blocks appropriately since `getMappings(...)` access cluster-state under the hood
-            if (false == found && false == clusterStateRoleMapper.getMappings(Set.of(request.getName())).isEmpty()) {
+            if (false == found && clusterStateRoleMapper.hasMapping(request.getName())) {
                 // TODO perhaps always returning not-found if the role mapping is not found in native store is less confusing
                 l.onFailure(
                     new IllegalArgumentException(

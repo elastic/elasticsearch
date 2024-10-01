@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
-import java.util.Set;
-
 public class TransportPutRoleMappingAction extends HandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
@@ -41,14 +39,14 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
     @Override
     protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
         // TODO make sure we handle cluster-state blocks appropriately since `getMappings(...)` access cluster-state under the hood
-        if (false == clusterStateRoleMapper.getMappings(Set.of(request.getName())).isEmpty()) {
+        if (clusterStateRoleMapper.hasMapping(request.getName())) {
             listener.onFailure(
                 new IllegalArgumentException(
                     // TODO we need a more instructive error message here
                     "Role mapping ["
                         + request.getName()
                         + "] cannot be created or updated via API since a role mapping "
-                        + "with the same name is already exists in the [file_settings] namespace. "
+                        + "with the same name is already exists in the [file_settings] namespace."
                 )
             );
             return;

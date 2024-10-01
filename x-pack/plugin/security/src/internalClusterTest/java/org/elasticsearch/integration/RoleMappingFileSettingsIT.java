@@ -54,11 +54,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -343,6 +345,53 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }
     }
 
+    public void testGetRoleMappings() throws Exception {
+        ensureGreen();
+
+        final List<String> nativeMappings = List.of("everyone_kibana", "_everyone_kibana", "zzz_mapping", "123_mapping");
+        for (var mapping : nativeMappings) {
+            client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest(mapping)).actionGet();
+        }
+
+        var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        var request = new GetRoleMappingsRequest();
+        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+        assertTrue(response.hasMappings());
+        assertThat(
+            Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
+            containsInAnyOrder("everyone_kibana", "everyone_kibana", "_everyone_kibana", "everyone_fleet", "zzz_mapping", "123_mapping")
+        );
+
+        // assert that cluster-state role mappings come last
+        List<Boolean> isNativeFlags = Arrays.stream(response.mappings()).map(it -> {
+            // native=true is added in `sampleRestRequest` as part of test setup
+            Boolean isNative = (Boolean) it.getMetadata().get("native");
+            return Boolean.TRUE.equals(isNative);
+        }).collect(Collectors.toList());
+        // first 4 are native (and first), last to cluster-state
+        assertThat(isNativeFlags, contains(true, true, true, true, false, false));
+
+        // it's possible to delete overlapping native role mapping
+        assertTrue(client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet().isFound());
+
+        savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+        awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
+        ).get();
+
+        assertNull(
+            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
+        );
+    }
+
     public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(
         ClusterService clusterService,
         Consumer<ReservedStateErrorMetadata> errorMetadataConsumer
@@ -478,6 +527,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                 "roles": [ "kibana_user_native" ],
                 "rules": { "field": { "username": "*" } },
                 "metadata": {
+                    "native": true,
                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
                 }
             }""";

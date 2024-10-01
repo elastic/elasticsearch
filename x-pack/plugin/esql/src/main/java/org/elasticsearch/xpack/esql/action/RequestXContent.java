@@ -153,7 +153,6 @@ final class RequestXContent {
             DataType type = null;
             QueryParam currentParam = null;
             TempObjects param;
-            HashMap<String, Object> tempMap = new HashMap<>();
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();

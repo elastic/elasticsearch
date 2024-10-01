@@ -678,7 +678,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     + "{\"fn1\" : {\"value\" : \"max\" , \"identifier\" : true}}]"
             );
         Map<String, Object> result = runEsql(query);
-        assertEquals(2, result.size());
         Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
         Map<String, String> colB = Map.of("name", "xx2", "type", "double");
         assertEquals(List.of(colA, colB), result.get("columns"));

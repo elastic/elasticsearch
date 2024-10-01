@@ -2,4 +2,4 @@
 
 *Description*
 
-Performs a match query on the specified fields. Returns true if the provided query matches the row.
+Performs a match query on the specified field. Returns true if the provided query matches the row.

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;

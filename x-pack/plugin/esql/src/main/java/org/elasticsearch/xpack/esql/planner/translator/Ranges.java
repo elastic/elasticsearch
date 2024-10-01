@@ -77,15 +77,6 @@ public class Ranges extends ExpressionTranslator<Range> {
                 upper = unsignedLongAsNumber(ul);
             }
         }
-        return new RangeQuery(
-            r.source(),
-            handler.nameOf(r.value()),
-            lower,
-            r.includeLower(),
-            upper,
-            r.includeUpper(),
-            format,
-            r.zoneId()
-        );
+        return new RangeQuery(r.source(), handler.nameOf(r.value()), lower, r.includeLower(), upper, r.includeUpper(), format, r.zoneId());
     }
 }

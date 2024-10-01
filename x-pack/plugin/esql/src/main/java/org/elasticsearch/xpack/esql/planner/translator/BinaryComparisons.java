@@ -163,9 +163,7 @@ public class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
     }
 
     private static Query translateOutOfRangeComparisons(BinaryComparison bc) {
-        if ((bc.left() instanceof FieldAttribute) == false
-            || bc.left().dataType().isNumeric() == false
-            || bc.right().foldable() == false) {
+        if ((bc.left() instanceof FieldAttribute) == false || bc.left().dataType().isNumeric() == false || bc.right().foldable() == false) {
             return null;
         }
         Source source = bc.source();

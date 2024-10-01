@@ -289,6 +289,7 @@ public final class IndexLifecycleTransition {
 
         // clear any step info or error-related settings from the current step
         updatedState.setFailedStep(null);
+        updatedState.setPreviousStepInfo(existingState.stepInfo());
         updatedState.setStepInfo(null);
         updatedState.setIsAutoRetryableError(null);
         updatedState.setFailedStepRetryCount(null);
@@ -389,6 +390,7 @@ public final class IndexLifecycleTransition {
         updatedState.setStep(nextStep.name());
         updatedState.setStepTime(nowAsMillis);
         updatedState.setFailedStep(null);
+        updatedState.setPreviousStepInfo(existingState.stepInfo());
         updatedState.setStepInfo(null);
         updatedState.setIsAutoRetryableError(null);
         updatedState.setFailedStepRetryCount(null);

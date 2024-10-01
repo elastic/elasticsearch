@@ -321,15 +321,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 });
             metrics.requestCount++;
             return next.process().doOnError(throwable -> {
-                logger.warn("Got on error in RetryCounter", throwable);
+                logger.debug("Detected error in RetryMetricsTracker", throwable);
                 metrics.errorCount++;
             }).doOnSuccess(response -> {
-                logger.info(
-                    "Got on success in RetryCounter: statusCode={}, request={} {}",
-                    response.getStatusCode(),
-                    context.getHttpRequest().getHttpMethod(),
-                    context.getHttpRequest().getUrl()
-                );
                 if (response.getStatusCode() == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
                     metrics.throttleCount++;
                 }
@@ -359,12 +353,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             long requestStartTimeInMillis = System.currentTimeMillis();
             context.setData(ES_REQUEST_METRICS_CONTEXT_KEY, requestMetrics);
             return next.process().doOnSuccess((httpResponse) -> {
-                logger.info("Doing on success: statusCode={}", httpResponse.getStatusCode());
                 requestMetrics.statusCode = httpResponse.getStatusCode();
                 requestMetrics.timeToResponseInMillis = System.currentTimeMillis() - requestStartTimeInMillis;
                 trackCompletedRequest(context.getHttpRequest(), requestMetrics);
             }).doOnError(throwable -> {
-                logger.warn("Doing on error", throwable);
+                logger.debug("Detected error in RequestMetricsTracker", throwable);
                 trackCompletedRequest(context.getHttpRequest(), requestMetrics);
             });
         }

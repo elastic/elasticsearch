@@ -700,16 +700,27 @@ public class AzureBlobStore implements BlobStore {
         Operation(String key) {
             this.key = key;
         }
+
+        public static Operation fromKey(String key) {
+            for (Operation operation : Operation.values()) {
+                if (operation.key.equals(key)) {
+                    return operation;
+                }
+            }
+            throw new IllegalArgumentException("No matching key");
+        }
     }
 
-    private record StatsKey(Operation operation, OperationPurpose purpose) {
+    // visible for testing
+    record StatsKey(Operation operation, OperationPurpose purpose) {
         @Override
         public String toString() {
             return purpose.getKey() + "_" + operation.getKey();
         }
     }
 
-    private class StatsCollectors {
+    // visible for testing
+    class StatsCollectors {
         final Map<StatsKey, OperationMetrics> collectors = new ConcurrentHashMap<>();
 
         Map<String, Long> statsMap(boolean stateless) {
@@ -735,10 +746,11 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    private class OperationMetrics {
+    // visible for testing
+    class OperationMetrics {
 
-        private final LongAdder counter;
-        private final Map<String, Object> attributes;
+        final LongAdder counter;
+        final Map<String, Object> attributes;
 
         private OperationMetrics(Operation operation, OperationPurpose purpose) {
             this.counter = new LongAdder();
@@ -748,6 +760,7 @@ public class AzureBlobStore implements BlobStore {
         public void onOccurrence(AzureClientProvider.RequestMetrics requestMetrics) {
             counter.add(requestMetrics.getRequestCount());
 
+            repositoriesMetrics.requestCounter().incrementBy(requestMetrics.getRequestCount(), attributes);
             repositoriesMetrics.operationCounter().incrementBy(1, attributes);
             if (requestMetrics.getStatusCode() <= 199 || requestMetrics.getStatusCode() > 299) {
                 repositoriesMetrics.unsuccessfulOperationCounter().incrementBy(1, attributes);
@@ -777,6 +790,11 @@ public class AzureBlobStore implements BlobStore {
         public long count() {
             return counter.sum();
         }
+    }
+
+    // visible for testing
+    StatsCollectors getStatsCollectors() {
+        return statsCollectors;
     }
 
     private static class AzureInputStream extends InputStream {

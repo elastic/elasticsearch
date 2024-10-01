@@ -17,10 +17,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -32,7 +29,6 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -46,11 +42,6 @@ import static org.elasticsearch.repositories.azure.AbstractAzureServerTestCase.r
 public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreRepositoryTests {
 
     private Queue<ErrorResponse> errorQueue = new ConcurrentLinkedQueue<>();
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
-    }
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
@@ -67,13 +58,6 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     @Override
     protected HttpHandler createErroneousHttpHandler(HttpHandler delegate) {
         return delegate;
-    }
-
-    private TestTelemetryPlugin getPlugin(String dataNodeName) {
-        return internalCluster().getInstance(PluginsService.class, dataNodeName)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
     }
 
     private static BlobContainer getBlobContainer(String dataNodeName, String repository) {
@@ -96,7 +80,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
 
-        TestTelemetryPlugin plugin = getPlugin(dataNodeName);
+        TestTelemetryPlugin plugin = getTelemetryPlugin(dataNodeName);
         List<Measurement> throttlesHistogram = plugin.getLongHistogramMeasurement(RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM);
         assertEquals(numThrottles, throttlesHistogram.get(0).value().intValue());
         List<Measurement> throttlesTotal = plugin.getLongCounterMeasurement(RepositoriesMetrics.METRIC_THROTTLES_TOTAL);
@@ -119,7 +103,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         // Get the blob
         assertThrows(RequestedRangeNotSatisfiedException.class, () -> blobContainer.readBlob(purpose, blobName));
 
-        TestTelemetryPlugin plugin = getPlugin(dataNodeName);
+        TestTelemetryPlugin plugin = getTelemetryPlugin(dataNodeName);
         List<Measurement> rangeNotSatisfiedCounter = plugin.getLongCounterMeasurement(
             RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL
         );

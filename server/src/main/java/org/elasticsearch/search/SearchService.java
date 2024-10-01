@@ -144,7 +144,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -230,7 +229,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.worker_threads_enabled",
         true,
         Property.NodeScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.DeprecatedWarning
     );
 
     public static final Setting<Boolean> QUERY_PHASE_PARALLEL_COLLECTION_ENABLED = Setting.boolSetting(
@@ -281,7 +281,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final FetchPhase fetchPhase;
     private final RankFeatureShardPhase rankFeatureShardPhase;
-    private volatile boolean enableSearchWorkerThreads;
+    private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
     private volatile long defaultKeepAlive;
@@ -375,7 +375,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
 
-        enableSearchWorkerThreads = SEARCH_WORKER_THREADS_ENABLED.get(settings);
+        if (SEARCH_WORKER_THREADS_ENABLED.get(settings)) {
+            searchExecutor = threadPool.executor(Names.SEARCH);
+        }
+
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
@@ -384,7 +387,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
-        this.enableSearchWorkerThreads = enableSearchWorkerThreads;
+        if (enableSearchWorkerThreads) {
+            searchExecutor = threadPool.executor(Names.SEARCH);
+        } else {
+            searchExecutor = null;
+        }
     }
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
@@ -1125,7 +1132,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader.indexShard().shardId(),
                 request.getClusterAlias()
             );
-            ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1134,7 +1140,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
-                executor,
+                searchExecutor,
                 resultsType,
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice

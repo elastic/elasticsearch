@@ -17,6 +17,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.Database.Property;
+import org.elasticsearch.ingest.geoip.IpDataLookupFactories.IpDataLookupFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -243,21 +244,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 databaseType = ipDatabase.getDatabaseType();
             }
 
-            final Database database;
+            final IpDataLookupFactory factory;
             try {
-                database = Database.getDatabase(databaseType, databaseFile);
+                factory = IpDataLookupFactories.get(databaseType, databaseFile);
             } catch (IllegalArgumentException e) {
                 throw newConfigurationException(TYPE, processorTag, "database_file", e.getMessage());
             }
 
-            final Set<Property> properties;
+            final IpDataLookup ipDataLookup;
             try {
-                properties = database.parseProperties(propertyNames);
+                ipDataLookup = factory.create(propertyNames);
             } catch (IllegalArgumentException e) {
                 throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
             }
-
-            final IpDataLookup ipDataLookup = IpDataLookupFactory.get(database).create(properties);
 
             return new GeoIpProcessor(
                 processorTag,

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,7 +48,7 @@ public class MatchFunction extends FullTextFunction {
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        description = "Performs a match query on the specified fields. Returns true if the provided query matches the row.",
+        description = "Performs a match query on the specified field. Returns true if the provided query matches the row.",
         examples = { @Example(file = "match-function", tag = "match-with-field") }
     )
     public MatchFunction(
@@ -82,13 +81,8 @@ public class MatchFunction extends FullTextFunction {
     }
 
     @Override
-    public Query asQuery() {
-        Object queryAsObject = query().fold();
-        if (queryAsObject instanceof BytesRef == false) {
-            throw new IllegalArgumentException("Query in MATCH function needs to be resolved to a string");
-        }
-
-        return new MatchQuery(source(), ((FieldAttribute) field).name(), ((BytesRef) queryAsObject).utf8ToString());
+    public Query asQuery(String queryText) {
+        return new MatchQuery(source(), ((FieldAttribute) field).name(), queryText);
     }
 
     @Override

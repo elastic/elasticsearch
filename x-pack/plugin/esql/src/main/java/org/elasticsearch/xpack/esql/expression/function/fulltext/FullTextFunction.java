@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -80,9 +82,26 @@ public abstract class FullTextFunction extends Function {
 
     /**
      * Returns the resulting Query for the function parameters so it can be pushed down to Lucene
-     * @return
+     *
+     * @return Lucene query
      */
-    public abstract Query asQuery();
+    public final Query asQuery() {
+        Object queryAsObject = query().fold();
+        if (queryAsObject instanceof BytesRef bytesRef) {
+            return asQuery(bytesRef.utf8ToString());
+        }
+
+        throw new IllegalArgumentException(
+            format(null, "{} argument in {} function needs to be resolved to a string", queryParamOrdinal(), functionName())
+        );
+    }
+
+    /**
+     * Overriden by subclasses to return the corresponding Lucene query from a query text
+     *
+     * @return corresponding query for the query text
+     */
+    protected abstract Query asQuery(String queryText);
 
     /**
      * Returns the param ordinal for the query parameter so it can be used in error messages

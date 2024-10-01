@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,13 +68,8 @@ public class QueryStringFunction extends FullTextFunction {
     }
 
     @Override
-    public Query asQuery() {
-        Object queryAsObject = query().fold();
-        if (queryAsObject instanceof BytesRef queryAsBytesRef) {
-            return new QueryStringQuery(source(), queryAsBytesRef.utf8ToString(), Map.of(), null);
-        } else {
-            throw new IllegalArgumentException("Query in QSTR function needs to be resolved to a string");
-        }
+    public Query asQuery(String queryText) {
+        return new QueryStringQuery(source(), queryText, Map.of(), null);
     }
 
     @Override

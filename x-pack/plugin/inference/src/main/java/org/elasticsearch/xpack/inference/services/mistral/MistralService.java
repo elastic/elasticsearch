@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuild
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.TransportVersions.ADD_MISTRAL_EMBEDDINGS_INFERENCE;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -110,7 +109,6 @@ public class MistralService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platfromArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {

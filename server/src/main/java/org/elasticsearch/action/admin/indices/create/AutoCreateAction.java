@@ -350,7 +350,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     indexName,
                     request.index()
-                ).ackTimeout(request.ackTimeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
+                ).performReroute(false);
                 logger.debug("Auto-creating index {}", indexName);
                 return updateRequest;
             }
@@ -367,7 +367,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     concreteIndexName,
                     request.index()
-                ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
+                ).performReroute(false);
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

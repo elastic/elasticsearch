@@ -27,11 +27,13 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
@@ -126,6 +128,14 @@ public class Netty4Utils {
             final ByteBuffer[] byteBuffers = buffer.nioBuffers();
             return BytesReference.fromByteBuffers(byteBuffers);
         }
+    }
+
+    public static ReleasableBytesReference toReleasableBytesReference(final ByteBuf buffer) {
+        return new ReleasableBytesReference(toBytesReference(buffer), buffer::release);
+    }
+
+    public static HttpBody.Full fullHttpBodyFrom(final ByteBuf buf) {
+        return new HttpBody.ByteRefHttpBody(toBytesReference(buf));
     }
 
     public static Recycler<BytesRef> createRecycler(Settings settings) {

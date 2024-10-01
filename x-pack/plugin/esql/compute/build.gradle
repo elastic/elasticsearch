@@ -636,6 +636,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/TopBooleanAggregator.java"
   }
   template {
+    it.properties = bytesRefProperties
+    it.inputFile = topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopBytesRefAggregator.java"
+  }
+  template {
     it.properties = ipProperties
     it.inputFile = topAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/TopIpAggregator.java"

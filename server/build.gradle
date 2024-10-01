@@ -40,8 +40,6 @@ dependencies {
   api project(":libs:elasticsearch-tdigest")
   implementation project(":libs:elasticsearch-simdvec")
 
-  implementation project(':libs:elasticsearch-plugin-classloader')
-
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"

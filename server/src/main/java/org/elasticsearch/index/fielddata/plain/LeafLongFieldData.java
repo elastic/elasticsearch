@@ -9,15 +9,12 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-
-import java.io.IOException;
 
 /**
  * Specialization of {@link LeafNumericFieldData} for integers.
@@ -47,25 +44,7 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
 
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
-        SortedNumericDocValues values = getLongValues();
-        return new FormattedDocValues() {
-            @Override
-            public boolean advanceExact(int docId) throws IOException {
-                return values.advanceExact(docId);
-            }
-
-            @Override
-            public int docValueCount() throws IOException {
-                return values.docValueCount();
-            }
-
-            @Override
-            public Object nextValue() throws IOException {
-                return format.format(values.nextValue());
-            }
-        };
+        return new FormattedSortedNumericDocValues(getLongValues(), format);
     }
 
-    @Override
-    public void close() {}
 }

@@ -60,7 +60,7 @@ final class GeoIpCache {
     }
 
     @SuppressWarnings("unchecked")
-    <T> T putIfAbsent(String ip, String databasePath, Function<String, T> retrieveFunction) {
+    <RESPONSE> RESPONSE putIfAbsent(String ip, String databasePath, Function<String, RESPONSE> retrieveFunction) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
@@ -87,7 +87,7 @@ final class GeoIpCache {
         if (response == NO_RESULT) {
             return null; // the no-result sentinel is an internal detail, don't expose it
         } else {
-            return (T) response;
+            return (RESPONSE) response;
         }
     }
 

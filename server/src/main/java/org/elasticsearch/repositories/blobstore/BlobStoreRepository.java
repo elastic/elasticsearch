@@ -4030,7 +4030,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final String file = fileInfo.physicalName();
         try (
             Releasable ignored = context.withCommitRef();
-            IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())
+            IndexInput indexInput = store.openVerifyingInput(file, IOContext.READ, fileInfo.metadata())
         ) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);

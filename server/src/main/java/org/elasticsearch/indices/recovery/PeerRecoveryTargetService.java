@@ -401,8 +401,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 .andThenApply(startingSeqNo -> {
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
-                    final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
-                    return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
+                    try {
+                        recoveryTarget.incRef();
+                        final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
+                        return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
+                    } finally {
+                        recoveryTarget.decRef();
+                    }
                 })
                 // finally send the start-recovery request
                 .addListener(toSendListener);
@@ -572,7 +577,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         protected CheckedFunction<Void, TransportResponse, Exception> responseMapping(RecoveryTarget recoveryTarget) {
-            return v -> new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint());
+            return v -> {
+                try {
+                    recoveryTarget.incRef();
+                    return new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint());
+                } finally {
+                    recoveryTarget.decRef();
+                }
+            };
         }
 
         private void performTranslogOps(

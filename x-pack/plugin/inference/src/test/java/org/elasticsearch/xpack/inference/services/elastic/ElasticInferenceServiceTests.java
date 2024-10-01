@@ -46,7 +46,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -104,7 +103,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of()),
-                Set.of(),
                 modelListener
             );
         }
@@ -121,7 +119,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of()),
-                Set.of(),
                 failureListener
             );
         }
@@ -136,7 +133,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 
@@ -151,7 +148,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 
@@ -165,7 +162,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 
@@ -179,7 +176,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 

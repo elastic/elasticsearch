@@ -3369,7 +3369,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "stuck threads logging",
                 ThreadWatchdog.class.getCanonicalName(),
                 Level.WARN,
-                "the following threads are active but did not make progress in the preceding [5s]: [" + threadName + "]"
+                "the following threads are active but did not make progress in the preceding [5s]: [*" + threadName + "*]"
             )
         );
         safeAwait(barrier);
@@ -3507,9 +3507,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         DiscoveryNode node,
         ConnectionProfile connectionProfile
     ) {
-        return asInstanceOf(
+        return safeAwaitFailure(
             ConnectTransportException.class,
-            safeAwaitFailure(Releasable.class, listener -> service.connectToNode(node, connectionProfile, listener))
+            Releasable.class,
+            listener -> service.connectToNode(node, connectionProfile, listener)
         );
     }
 
@@ -3532,9 +3533,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         DiscoveryNode node,
         ConnectionProfile connectionProfile
     ) {
-        return asInstanceOf(
+        return safeAwaitFailure(
             ConnectTransportException.class,
-            safeAwaitFailure(Transport.Connection.class, listener -> service.openConnection(node, connectionProfile, listener))
+            Transport.Connection.class,
+            listener -> service.openConnection(node, connectionProfile, listener)
         );
     }
 

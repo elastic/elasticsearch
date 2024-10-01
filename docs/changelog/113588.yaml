@@ -1,0 +1,5 @@
+pr: 113588
+summary: Add asset criticality indices for `kibana_system_user`
+area: Security
+type: enhancement
+issues: []

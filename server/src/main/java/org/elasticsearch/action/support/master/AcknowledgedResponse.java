@@ -11,17 +11,11 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A response to an action which updated the cluster state, but needs to report whether any relevant nodes failed to apply the update. For
@@ -39,16 +33,6 @@ public class AcknowledgedResponse extends ActionResponse implements IsAcknowledg
     public static final AcknowledgedResponse FALSE = new AcknowledgedResponse(false);
 
     public static final String ACKNOWLEDGED_KEY = "acknowledged";
-    private static final ParseField ACKNOWLEDGED = new ParseField(ACKNOWLEDGED_KEY);
-
-    public static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
-        objectParser.declareField(
-            constructorArg(),
-            (parser, context) -> parser.booleanValue(),
-            ACKNOWLEDGED,
-            ObjectParser.ValueType.BOOLEAN
-        );
-    }
 
     protected final boolean acknowledged;
 
@@ -92,28 +76,6 @@ public class AcknowledgedResponse extends ActionResponse implements IsAcknowledg
     }
 
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {}
-
-    /**
-     * A generic parser that simply parses the acknowledged flag
-     */
-    private static final ConstructingObjectParser<Boolean, Void> ACKNOWLEDGED_FLAG_PARSER = new ConstructingObjectParser<>(
-        "acknowledged_flag",
-        true,
-        args -> (Boolean) args[0]
-    );
-
-    static {
-        ACKNOWLEDGED_FLAG_PARSER.declareField(
-            constructorArg(),
-            (parser, context) -> parser.booleanValue(),
-            ACKNOWLEDGED,
-            ObjectParser.ValueType.BOOLEAN
-        );
-    }
-
-    public static AcknowledgedResponse fromXContent(XContentParser parser) throws IOException {
-        return AcknowledgedResponse.of(ACKNOWLEDGED_FLAG_PARSER.apply(parser, null));
-    }
 
     @Override
     public boolean equals(Object o) {

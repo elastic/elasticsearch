@@ -333,6 +333,12 @@ tests:
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
   method: testGzippedDatabase
   issue: https://github.com/elastic/elasticsearch/issues/113752
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/more than 1}
+  issue: https://github.com/elastic/elasticsearch/issues/113841
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/nested}
+  issue: https://github.com/elastic/elasticsearch/issues/113842
 
 # Examples:
 #

@@ -312,9 +312,10 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenSt
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.authc.support.mapper.AbstractRoleMappingStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ReservedRoleMappingWrappedStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.ReservedRoleMappings;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -860,7 +861,7 @@ public class Security extends Plugin
             scriptService,
             new ReservedRoleMappings(clusterStateRoleMapper)
         );
-        final UserRoleMapper userRoleMapper = getUserRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
+        final AbstractRoleMappingStore roleMappingStore = getRoleMappingStore(nativeRoleMappingStore, clusterStateRoleMapper);
 
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
@@ -870,7 +871,7 @@ public class Security extends Plugin
             client,
             clusterService,
             resourceWatcherService,
-            userRoleMapper
+            roleMappingStore
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
@@ -879,7 +880,7 @@ public class Security extends Plugin
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
-                userRoleMapper,
+                roleMappingStore,
                 systemIndices.getMainIndexManager()
             )
         );
@@ -900,8 +901,8 @@ public class Security extends Plugin
             reservedRealm
         );
         components.add(nativeUsersStore);
-        components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
-        components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
+        components.add(new PluginComponentBinding<>(AbstractRoleMappingStore.class, roleMappingStore));
+        components.add(new PluginComponentBinding<>(UserRoleMapper.class, roleMappingStore));
         components.add(reservedRealm);
         components.add(realms);
         this.realms.set(realms);
@@ -1226,16 +1227,14 @@ public class Security extends Plugin
         return components;
     }
 
-    private UserRoleMapper getUserRoleMapper(NativeRoleMappingStore nativeRoleMappingStore, ClusterStateRoleMapper clusterStateRoleMapper) {
-        if (nativeRoleMappingStore.isEnabled()) {
-            // native role mapper is set up to handle both cluster state role mapping AND native role mapping
-            return nativeRoleMappingStore;
-        } else if (clusterStateRoleMapper.isEnabled()) {
-            return clusterStateRoleMapper;
-        } else {
-            // shouldn't happen but might as well handle this
-            return new CompositeRoleMapper();
+    protected AbstractRoleMappingStore getRoleMappingStore(
+        NativeRoleMappingStore nativeRoleMappingStore,
+        ClusterStateRoleMapper clusterStateRoleMapper
+    ) {
+        if (clusterStateRoleMapper.isEnabled()) {
+            return new ReservedRoleMappingWrappedStore(new ReservedRoleMappings(clusterStateRoleMapper), nativeRoleMappingStore);
         }
+        return nativeRoleMappingStore;
     }
 
     private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {

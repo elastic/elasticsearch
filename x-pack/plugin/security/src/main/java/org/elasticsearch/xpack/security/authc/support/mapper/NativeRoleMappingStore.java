@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -74,7 +75,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  * is done by this class. Modification operations make a best effort attempt to clear the cache
  * on all nodes for the user that was modified.
  */
-public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
+public class NativeRoleMappingStore extends AbstractRoleMappingStore {
 
     /**
      * This setting is never registered by the security plugin - in order to disable the native role APIs
@@ -324,18 +325,15 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
-        // TODO clean up the redundancy
-        if (enabled == false) {
-            listener.onResponse(reservedRoleMappings.mergeWithReserved(List.of()));
-        } else if (names == null || names.isEmpty()) {
-            getMappings(listener.safeMap(reservedRoleMappings::mergeWithReserved));
-        } else {
-            getMappings(
-                listener.safeMap(
-                    mappings -> reservedRoleMappings.mergeWithReserved(mappings).stream().filter(m -> names.contains(m.getName())).toList()
-                )
-            );
-        }
+        getMappings(listener.delegateFailureAndWrap((l, roleMappings) -> {
+            final List<ExpressionRoleMapping> merged = reservedRoleMappings.mergeWithReserved(roleMappings);
+            final boolean includeAll = names == null || names.isEmpty();
+            if (includeAll) {
+                l.onResponse(merged);
+            } else {
+                l.onResponse(merged.stream().filter(m -> names.contains(m.getName())).toList());
+            }
+        }));
     }
 
     private void getMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
@@ -423,8 +421,12 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         getRoleMappings(null, ActionListener.wrap(mappings -> {
             logger.trace("Retrieved [{}] role mapping(s) from security index", mappings.size());
-            listener.onResponse(ExpressionRoleMapping.resolveRoles(user, mappings, scriptService, logger));
+            listener.onResponse(resolveRoles(user, mappings));
         }, listener::onFailure));
+    }
+
+    public Set<String> resolveRoles(UserRoleMapper.UserData user, Collection<ExpressionRoleMapping> mappings) {
+        return ExpressionRoleMapping.resolveRoles(user, mappings, scriptService, logger);
     }
 
     protected static ExpressionRoleMapping buildMapping(String id, BytesReference source) {

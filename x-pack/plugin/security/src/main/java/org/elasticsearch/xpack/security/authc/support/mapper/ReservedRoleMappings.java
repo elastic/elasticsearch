@@ -52,7 +52,6 @@ public class ReservedRoleMappings {
         return clusterStateRoleMapper.getMappings().stream().anyMatch(roleMapping -> roleMapping.getName().equals(roleMappingName));
     }
 
-    // TODO find a cleaner way
     public void clearRealmCacheOnChange(CachingRealm realm) {
         clusterStateRoleMapper.clearRealmCacheOnChange(realm);
     }

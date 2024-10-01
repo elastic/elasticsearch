@@ -61,10 +61,6 @@ curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
 ----
 // NOTCONSOLE
 
-source .env
-curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
-
-
 [CAUTION]
 ====
 This setup is for local testing only. HTTPS is disabled, and Basic authentication is used for {es}. For security, {es} and {kib} are accessible only via `localhost`.

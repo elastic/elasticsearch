@@ -1,5 +1,5 @@
 //// 
-IMPORTANT: This content is replicated in the Elasticsearch repo root readme. Ensure both are in sync.
+IMPORTANT: This content is replicated in the Elasticsearch repo root readme. Ensure both files are in sync.
 
 https://github.com/elastic/start-local is the source of truth.        
 //// 

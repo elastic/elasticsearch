@@ -162,13 +162,20 @@ final class ESPolicy extends Policy {
         if (domain == null) {
             return false;
         }
+
+        // If the domain in question has AllPermission - only true of sources built into the JDK, as we prevent AllPermission from being
+        // configured in Elasticsearch - then it has access to this file.
+        if (system.implies(domain, new AllPermission())) {
+            return true;
+        }
         URL location = domain.getCodeSource().getLocation();
 
         // check the source
         Set<URL> accessibleSources = securedFiles.get(permission);
         if (accessibleSources != null) {
             // simple case - single-file referenced directly
-            return accessibleSources.contains(location) || system.implies(domain, new AllPermission());
+
+            return accessibleSources.contains(location);
         } else {
             // there's a directory reference in there somewhere
             // do a manual search :(

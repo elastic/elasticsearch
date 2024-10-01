@@ -37,6 +37,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
+        .setting("xpack.otel_data.registry.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
         .build();
@@ -96,10 +97,15 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(type, equalTo("date"));
     }
 
-    public void testConfigureStoredSource() throws IOException {
+    public void testConfigureStoredSourceBeforeIndexCreation() throws IOException {
         var storedSourceMapping = """
             {
               "template": {
+                "settings": {
+                  "index": {
+                    "mode": "logsdb"
+                  }
+                },
                 "mappings": {
                   "_source": {
                     "mode": "stored"
@@ -111,15 +117,32 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         Exception e = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", storedSourceMapping));
         assertThat(
             e.getMessage(),
-            containsString("updating component template [logs@custom] results in invalid composable template [logs]")
+            containsString("Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source")
         );
-        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
+        assertThat(e.getMessage(), containsString("mapper_parsing_exception"));
 
         assertOK(createDataStream(client, "logs-custom-dev"));
 
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("synthetic"));
+    }
+
+    public void testConfigureStoredSourceWhenIndexIsCreated() throws IOException {
+        var storedSourceMapping = """
+            {
+              "template": {
+                "mappings": {
+                  "_source": {
+                    "mode": "stored"
+                  }
+                }
+              }
+            }""";
+
+        assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
+        ResponseException e = expectThrows(ResponseException.class, () -> createDataStream(client, "logs-custom-dev"));
+        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
     }
 
     public void testOverrideIndexCodec() throws IOException {

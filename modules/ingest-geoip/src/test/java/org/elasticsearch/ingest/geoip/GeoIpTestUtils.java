@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.db.DatabaseRecord;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.CountryResponse;
 
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.network.InetAddresses;
@@ -71,11 +72,22 @@ public final class GeoIpTestUtils {
      * tests.
      * <p>
      * Like this: {@code CityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
-     *
      */
     public static CityResponse getCity(Reader reader, String ip) throws IOException {
         DatabaseRecord<CityResponse> record = reader.getRecord(InetAddresses.forString(ip), CityResponse.class);
         CityResponse data = record.getData();
         return data == null ? null : new CityResponse(data, ip, record.getNetwork(), List.of("en"));
+    }
+
+    /**
+     * A static country-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
+     * tests.
+     * <p>
+     * Like this: {@code CountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
+     */
+    public static CountryResponse getCountry(Reader reader, String ip) throws IOException {
+        DatabaseRecord<CountryResponse> record = reader.getRecord(InetAddresses.forString(ip), CountryResponse.class);
+        CountryResponse data = record.getData();
+        return data == null ? null : new CountryResponse(data, ip, record.getNetwork(), List.of("en"));
     }
 }

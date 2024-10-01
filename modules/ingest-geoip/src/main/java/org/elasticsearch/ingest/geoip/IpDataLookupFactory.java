@@ -13,6 +13,7 @@ import java.util.Set;
 
 @FunctionalInterface
 interface IpDataLookupFactory<PROVIDER extends IpDataLookup> {
+
     PROVIDER create(Set<Database.Property> properties);
 
     static IpDataLookupFactory<?> get(final Database database) {

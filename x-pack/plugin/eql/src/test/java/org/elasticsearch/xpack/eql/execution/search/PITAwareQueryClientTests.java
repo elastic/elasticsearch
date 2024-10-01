@@ -204,7 +204,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 assertArrayEquals(INDICES, openPIT.indices()); // indices for opening pit should be the same as for the eql query itself
 
                 openedPIT = true;
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest closePIT) {
                 assertTrue(openedPIT);

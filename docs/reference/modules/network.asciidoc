@@ -5,7 +5,9 @@ Each {es} node has two different network interfaces. Clients send requests to
 {es}'s REST APIs using its <<http-settings,HTTP interface>>, but nodes
 communicate with other nodes using the <<transport-settings,transport
 interface>>. The transport interface is also used for communication with
-<<remote-clusters,remote clusters>>.
+<<remote-clusters,remote clusters>>. The transport interface uses a custom
+binary protocol sent over <<long-lived-connections,long-lived>> TCP channels.
+Both interfaces can be configured to use <<secure-cluster,TLS for security>>.
 
 You can configure both of these interfaces at the same time using the
 `network.*` settings. If you have a more complicated network, you might need to

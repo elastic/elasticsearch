@@ -2,7 +2,7 @@
 
 [source,console]
 ----
-DELETE _ingest/pipeline/*_embeddings
+DELETE _ingest/pipeline/*_embeddings_pipeline
 ----
 // TEST
 // TEARDOWN
@@ -13,7 +13,7 @@ DELETE _ingest/pipeline/*_embeddings
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/cohere_embeddings
+PUT _ingest/pipeline/cohere_embeddings_pipeline
 {
   "processors": [
     {
@@ -39,7 +39,7 @@ and the `output_field` that will contain the {infer} results.
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/elser_embeddings
+PUT _ingest/pipeline/elser_embeddings_pipeline
 {
   "processors": [
     {
@@ -65,7 +65,7 @@ and the `output_field` that will contain the {infer} results.
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/hugging_face_embeddings
+PUT _ingest/pipeline/hugging_face_embeddings_pipeline
 {
   "processors": [
     {
@@ -91,7 +91,7 @@ and the `output_field` that will contain the {infer} results.
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/openai_embeddings
+PUT _ingest/pipeline/openai_embeddings_pipeline
 {
   "processors": [
     {
@@ -117,7 +117,7 @@ and the `output_field` that will contain the {infer} results.
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/azure_openai_embeddings
+PUT _ingest/pipeline/azure_openai_embeddings_pipeline
 {
   "processors": [
     {
@@ -143,7 +143,7 @@ and the `output_field` that will contain the {infer} results.
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/azure_ai_studio_embeddings
+PUT _ingest/pipeline/azure_ai_studio_embeddings_pipeline
 {
   "processors": [
     {
@@ -165,11 +165,37 @@ and the `output_field` that will contain the {infer} results.
 
 // end::azure-ai-studio[]
 
+// tag::google-vertex-ai[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/google_vertex_ai_embeddings_pipeline
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "google_vertex_ai_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::google-vertex-ai[]
+
 // tag::mistral[]
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/mistral_embeddings
+PUT _ingest/pipeline/mistral_embeddings_pipeline
 {
   "processors": [
     {
@@ -195,7 +221,7 @@ and the `output_field` that will contain the {infer} results.
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/amazon_bedrock_embeddings
+PUT _ingest/pipeline/amazon_bedrock_embeddings_pipeline
 {
   "processors": [
     {
@@ -216,3 +242,29 @@ PUT _ingest/pipeline/amazon_bedrock_embeddings
 and the `output_field` that will contain the {infer} results.
 
 // end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/alibabacloud_ai_search_embeddings_pipeline
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "alibabacloud_ai_search_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::alibabacloud-ai-search[]

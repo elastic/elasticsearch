@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 
-public class SpatialPushDownGeoPointIT extends SpatialPushDownTestCase {
+public class SpatialPushDownGeoPointIT extends SpatialPushDownPointsTestCase {
+
+    private static final double LAT_MAX_VALUE = GeoEncodingUtils.decodeLatitude(Integer.MAX_VALUE - 3);
 
     @Override
     protected String fieldType() {
@@ -19,7 +22,9 @@ public class SpatialPushDownGeoPointIT extends SpatialPushDownTestCase {
 
     @Override
     protected Geometry getIndexGeometry() {
-        return GeometryTestUtils.randomPoint();
+        // This is to overcome lucene bug https://github.com/apache/lucene/issues/13703.
+        // Once it is fixed we can remove this workaround.
+        return randomValueOtherThanMany(p -> p.getLat() >= LAT_MAX_VALUE, GeometryTestUtils::randomPoint);
     }
 
     @Override

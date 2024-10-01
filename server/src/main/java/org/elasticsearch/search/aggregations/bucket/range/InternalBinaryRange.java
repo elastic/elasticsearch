@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
@@ -72,8 +73,8 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString()
                 : in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1) ? in.readOptionalString()
                 : in.readString();
-            BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
-            BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
+            BytesRef from = in.readOptional(StreamInput::readBytesRef);
+            BytesRef to = in.readOptional(StreamInput::readBytesRef);
             long docCount = in.readLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);
 
@@ -89,14 +90,8 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             } else {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
             }
-            out.writeBoolean(from != null);
-            if (from != null) {
-                out.writeBytesRef(from);
-            }
-            out.writeBoolean(to != null);
-            if (to != null) {
-                out.writeBytesRef(to);
-            }
+            out.writeOptional(StreamOutput::writeBytesRef, from);
+            out.writeOptional(StreamOutput::writeBytesRef, to);
             out.writeLong(docCount);
             aggregations.writeTo(out);
         }

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
 
-import org.apache.lucene.tests.mockfile.ExtrasFS;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -23,18 +24,12 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 public class BlobStoreCorruptionIT extends AbstractSnapshotIntegTestCase {
@@ -57,7 +52,7 @@ public class BlobStoreCorruptionIT extends AbstractSnapshotIntegTestCase {
         flushAndRefresh(indexName);
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
 
-        final var corruptedFile = corruptRandomFile(repositoryRootPath);
+        final var corruptedFile = BlobStoreCorruptionUtils.corruptRandomFile(repositoryRootPath);
         final var corruptedFileType = RepositoryFileType.getRepositoryFileType(repositoryRootPath, corruptedFile);
         final var corruptionDetectors = new ArrayList<CheckedConsumer<ActionListener<Exception>, ?>>();
 
@@ -74,17 +69,51 @@ public class BlobStoreCorruptionIT extends AbstractSnapshotIntegTestCase {
 
         // detect corruption by taking another snapshot
         if (corruptedFileType == RepositoryFileType.SHARD_GENERATION) {
-            corruptionDetectors.add(exceptionListener -> {
-                logger.info("--> taking another snapshot");
-                client().admin()
-                    .cluster()
-                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
-                    .setWaitForCompletion(true)
-                    .execute(exceptionListener.map(createSnapshotResponse -> {
-                        assertNotEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
-                        return new ElasticsearchException("create-snapshot failed as expected");
-                    }));
-            });
+            if (Files.exists(corruptedFile)) {
+                corruptionDetectors.add(exceptionListener -> {
+                    logger.info("--> taking another snapshot");
+                    client().admin()
+                        .cluster()
+                        .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+                        .setWaitForCompletion(true)
+                        .execute(exceptionListener.map(createSnapshotResponse -> {
+                            assertNotEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
+                            return new ElasticsearchException("create-snapshot failed as expected");
+                        }));
+                });
+            } else {
+                corruptionDetectors.add(exceptionListener -> {
+                    logger.info("--> taking another snapshot");
+                    final var mockLog = MockLog.capture(BlobStoreRepository.class);
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "fallback message",
+                            "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
+                            Level.ERROR,
+                            "index [*] shard generation [*] in ["
+                                + repositoryName
+                                + "][*] not found - falling back to reading all shard snapshots"
+                        )
+                    );
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "shard blobs list",
+                            "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
+                            Level.ERROR,
+                            "read shard snapshots [*] due to missing shard generation [*] for index [*] in [" + repositoryName + "][*]"
+                        )
+                    );
+                    client().admin()
+                        .cluster()
+                        .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+                        .setWaitForCompletion(true)
+                        .execute(ActionListener.releaseAfter(exceptionListener.map(createSnapshotResponse -> {
+                            assertEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
+                            mockLog.assertAllExpectationsMatched();
+                            return new ElasticsearchException("create-snapshot logged errors as expected");
+                        }), mockLog));
+                });
+            }
         }
 
         // detect corruption by restoring the snapshot
@@ -126,61 +155,4 @@ public class BlobStoreCorruptionIT extends AbstractSnapshotIntegTestCase {
             logger.info(Strings.format("--> corrupted [%s] and caught exception", corruptedFile), exception);
         }
     }
-
-    private static Path corruptRandomFile(Path repositoryRootPath) throws IOException {
-        final var corruptedFileType = getRandomCorruptibleFileType();
-        final var corruptedFile = getRandomFileToCorrupt(repositoryRootPath, corruptedFileType);
-        if (randomBoolean()) {
-            logger.info("--> deleting [{}]", corruptedFile);
-            Files.delete(corruptedFile);
-        } else {
-            corruptFileContents(corruptedFile);
-        }
-        return corruptedFile;
-    }
-
-    private static void corruptFileContents(Path fileToCorrupt) throws IOException {
-        final var oldFileContents = Files.readAllBytes(fileToCorrupt);
-        logger.info("--> contents of [{}] before corruption: [{}]", fileToCorrupt, Base64.getEncoder().encodeToString(oldFileContents));
-        final byte[] newFileContents = new byte[randomBoolean() ? oldFileContents.length : between(0, oldFileContents.length)];
-        System.arraycopy(oldFileContents, 0, newFileContents, 0, newFileContents.length);
-        if (newFileContents.length == oldFileContents.length) {
-            final var corruptionPosition = between(0, newFileContents.length - 1);
-            newFileContents[corruptionPosition] = randomValueOtherThan(oldFileContents[corruptionPosition], ESTestCase::randomByte);
-            logger.info(
-                "--> updating byte at position [{}] from [{}] to [{}]",
-                corruptionPosition,
-                oldFileContents[corruptionPosition],
-                newFileContents[corruptionPosition]
-            );
-        } else {
-            logger.info("--> truncating file from length [{}] to length [{}]", oldFileContents.length, newFileContents.length);
-        }
-        Files.write(fileToCorrupt, newFileContents);
-        logger.info("--> contents of [{}] after corruption: [{}]", fileToCorrupt, Base64.getEncoder().encodeToString(newFileContents));
-    }
-
-    private static RepositoryFileType getRandomCorruptibleFileType() {
-        return randomValueOtherThanMany(
-            // these blob types do not have reliable corruption detection, so we must skip them
-            t -> t == RepositoryFileType.ROOT_INDEX_N || t == RepositoryFileType.ROOT_INDEX_LATEST,
-            () -> randomFrom(RepositoryFileType.values())
-        );
-    }
-
-    private static Path getRandomFileToCorrupt(Path repositoryRootPath, RepositoryFileType corruptedFileType) throws IOException {
-        final var corruptibleFiles = new ArrayList<Path>();
-        Files.walkFileTree(repositoryRootPath, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path filePath, BasicFileAttributes attrs) throws IOException {
-                if (ExtrasFS.isExtra(filePath.getFileName().toString()) == false
-                    && RepositoryFileType.getRepositoryFileType(repositoryRootPath, filePath) == corruptedFileType) {
-                    corruptibleFiles.add(filePath);
-                }
-                return super.visitFile(filePath, attrs);
-            }
-        });
-        return randomFrom(corruptibleFiles);
-    }
-
 }

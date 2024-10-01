@@ -15,9 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,14 +26,21 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExecSerializationTests.randomAggregateExec;
 import static org.elasticsearch.xpack.esql.plan.physical.DissectExecSerializationTests.randomDissectExec;
 import static org.elasticsearch.xpack.esql.plan.physical.EsSourceExecSerializationTests.randomEsSourceExec;
+import static org.elasticsearch.xpack.esql.plan.physical.ExchangeExecSerializationTests.randomExchangeExec;
+import static org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExecSerializationTests.randomExchangeSinkExec;
+import static org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExecSerializationTests.randomExchangeSourceExec;
 
 public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalPlan> extends AbstractNodeSerializationTests<T> {
     public static PhysicalPlan randomChild(int depth) {
         if (randomBoolean() && depth < 4) {
-            // TODO more random options
-            return randomBoolean() ? randomDissectExec(depth + 1) : randomAggregateExec(depth + 1);
+            switch (between(0, 3)) {
+                case 0 -> randomDissectExec(depth + 1);
+                case 1 -> randomExchangeExec(depth + 1);
+                case 2 -> randomExchangeSinkExec(depth + 1);
+                case 3 -> randomAggregateExec(depth + 1);
+            }
         }
-        return randomEsSourceExec();
+        return randomBoolean() ? randomExchangeSourceExec() : randomEsSourceExec();
     }
 
     public static Integer randomEstimatedRowSize() {
@@ -43,13 +51,14 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(PhysicalPlan.getNamedWriteables());
+        entries.addAll(LogicalPlan.getNamedWriteables());
         entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(Expression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(EsField.getNamedWriteables());
         entries.addAll(Block.getNamedWriteables());
         entries.addAll(NamedExpression.getNamedWriteables());
-        entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
+        entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()); // Query builders
+        entries.add(Add.ENTRY); // Used by the eval tests
         return new NamedWriteableRegistry(entries);
     }
 

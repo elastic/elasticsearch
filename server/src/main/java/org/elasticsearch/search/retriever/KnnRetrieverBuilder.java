@@ -1,16 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
+import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -118,6 +123,16 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     @Override
     public String getName() {
         return NAME;
+    }
+
+    @Override
+    public QueryBuilder topDocsQuery() {
+        assert rankDocs != null : "{rankDocs} should have been materialized at this point";
+
+        BoolQueryBuilder knnTopResultsQuery = new BoolQueryBuilder().filter(new RankDocsQueryBuilder(rankDocs))
+            .should(new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), field, similarity));
+        preFilterQueryBuilders.forEach(knnTopResultsQuery::filter);
+        return knnTopResultsQuery;
     }
 
     @Override

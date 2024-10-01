@@ -37,8 +37,18 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     @Override
     BooleanVector asVector();
 
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
+     */
+    ToMask toMask();
+
     @Override
     BooleanBlock filter(int... positions);
+
+    @Override
+    BooleanBlock keepMask(BooleanVector mask);
 
     @Override
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);

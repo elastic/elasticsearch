@@ -67,7 +67,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
             var getResponse = runAsyncGet("user1", id); // sanity
             assertOK(getResponse);
             ResponseException error;
-            error = expectThrows(ResponseException.class, () -> runAsyncGet("user2", id));
+            error = expectThrows(ResponseException.class, () -> runAsyncGet("user2", id, true));
             // resource not found exception if the authenticated user is not the creator of the original task
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
@@ -85,7 +85,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
             var getResponse = runAsyncGet("user2", id); // sanity
             assertOK(getResponse);
             ResponseException error;
-            error = expectThrows(ResponseException.class, () -> runAsyncGet("user1", id));
+            error = expectThrows(ResponseException.class, () -> runAsyncGet("user1", id, true));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             error = expectThrows(ResponseException.class, () -> runAsyncDelete("user1", id));
@@ -117,6 +117,10 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
     }
 
     private Response runAsyncGet(String user, String id) throws IOException {
+        return runAsyncGet(user, id, false);
+    }
+
+    private Response runAsyncGet(String user, String id, boolean isAsyncIdNotFound_Expected) throws IOException {
         int tries = 0;
         while (tries < 10) {
             // Sometimes we get 404s fetching the task status.
@@ -129,15 +133,24 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
                 logResponse(response);
                 return response;
             } catch (ResponseException e) {
-                if (e.getResponse().getStatusLine().getStatusCode() == 404
-                    && EntityUtils.toString(e.getResponse().getEntity()).contains("no such index [.async-search]")) {
-                    /*
-                     * Work around https://github.com/elastic/elasticsearch/issues/110304 - the .async-search
-                     * index may not exist when we try the fetch, but it should exist on next attempt.
-                     */
+                var statusCode = e.getResponse().getStatusLine().getStatusCode();
+                var message = EntityUtils.toString(e.getResponse().getEntity());
+
+                if (statusCode == 404 && message.contains("no such index [.async-search]")) {
+                    // Work around https://github.com/elastic/elasticsearch/issues/110304 - the .async-search
+                    // index may not exist when we try the fetch, but it should exist on next attempt.
                     logger.warn("async-search index does not exist", e);
                     try {
                         Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                } else if (statusCode == 404 && false == isAsyncIdNotFound_Expected && message.contains("resource_not_found_exception")) {
+                    // Work around for https://github.com/elastic/elasticsearch/issues/112110
+                    // The async id is not indexed quickly enough in .async-search index for us to retrieve it.
+                    logger.warn("async id not found", e);
+                    try {
+                        Thread.sleep(500);
                     } catch (InterruptedException ex) {
                         throw new RuntimeException(ex);
                     }
@@ -145,6 +158,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
                     throw e;
                 }
                 tries++;
+                logger.warn("retry [" + tries + "] for GET /_query/async/" + id);
             }
         }
         throw new IllegalStateException("couldn't find task status");

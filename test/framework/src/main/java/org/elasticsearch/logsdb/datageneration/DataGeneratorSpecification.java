@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration;
@@ -23,6 +24,7 @@ import java.util.List;
  *                              Applies to subobjects.
  * @param maxObjectDepth maximum depth of nested objects
  * @param nestedFieldsLimit how many total nested fields can be present in a produced mapping
+ * @param fullyDynamicMapping if the mapping is fully dynamic, meaning none of the fields are mapped (essentially mapping is empty)
  * @param predefinedFields predefined fields that must be present in mapping and documents. Only top level fields are supported.
  */
 public record DataGeneratorSpecification(
@@ -30,6 +32,7 @@ public record DataGeneratorSpecification(
     int maxFieldCountPerLevel,
     int maxObjectDepth,
     int nestedFieldsLimit,
+    boolean fullyDynamicMapping,
     List<PredefinedField> predefinedFields
 ) {
 
@@ -46,6 +49,7 @@ public record DataGeneratorSpecification(
         private int maxFieldCountPerLevel;
         private int maxObjectDepth;
         private int nestedFieldsLimit;
+        private boolean fullyDynamicMapping;
         private List<PredefinedField> predefinedFields;
 
         public Builder() {
@@ -55,6 +59,7 @@ public record DataGeneratorSpecification(
             this.maxObjectDepth = 2;
             // Default value of index.mapping.nested_fields.limit
             this.nestedFieldsLimit = 50;
+            fullyDynamicMapping = false;
             this.predefinedFields = new ArrayList<>();
         }
 
@@ -78,6 +83,11 @@ public record DataGeneratorSpecification(
             return this;
         }
 
+        public Builder withFullyDynamicMapping(boolean fullyDynamicMapping) {
+            this.fullyDynamicMapping = fullyDynamicMapping;
+            return this;
+        }
+
         public Builder withPredefinedFields(List<PredefinedField> predefinedFields) {
             this.predefinedFields = predefinedFields;
             return this;
@@ -89,6 +99,7 @@ public record DataGeneratorSpecification(
                 maxFieldCountPerLevel,
                 maxObjectDepth,
                 nestedFieldsLimit,
+                fullyDynamicMapping,
                 predefinedFields
             );
         }

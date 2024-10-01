@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -179,6 +180,10 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
 
     public long getInvocationsSinceLastSuccess() {
         return invocationsSinceLastSuccess;
+    }
+
+    public SchedulerEngine.Job buildSchedulerJob(String jobId) {
+        return policy.buildSchedulerJob(jobId, modifiedDate);
     }
 
     @Override

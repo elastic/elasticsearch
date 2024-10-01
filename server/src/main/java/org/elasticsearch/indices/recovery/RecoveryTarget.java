@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -12,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -141,7 +141,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private MultiFileWriter createMultiFileWriter() {
         final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
-        return new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger, this::ensureRefCount);
+        return new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger);
     }
 
     /**
@@ -178,7 +178,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     public IndexShard indexShard() {
-        ensureRefCount();
+        assert hasReferences();
         return indexShard;
     }
 
@@ -231,7 +231,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     public Store store() {
-        ensureRefCount();
+        assert hasReferences();
         return store;
     }
 
@@ -358,14 +358,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public String toString() {
         return shardId + " [" + recoveryId + "]";
-    }
-
-    private void ensureRefCount() {
-        if (refCount() <= 0) {
-            throw new ElasticsearchException(
-                "RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " + "calls"
-            );
-        }
     }
 
     /*** Implementation of {@link RecoveryTargetHandler } */

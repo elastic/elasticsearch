@@ -1,0 +1,6 @@
+pr: 111193
+summary: Fix cases of collections with one point
+area: Geo
+type: bug
+issues:
+ - 110982

@@ -405,6 +405,74 @@ count:long  |  message:keyword
 2           |  Connected to 10.1.0.3
 ;
 
+multiIndexMissingIpToString
+required_capability: union_types
+required_capability: union_types_missing_field
+
+FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
+| EVAL client_ip = TO_STRING(client_ip)
+| KEEP _index, @timestamp, client_ip, event_duration, message
+| SORT _index ASC, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           |  client_ip:keyword  |  event_duration:long  |  message:keyword
+missing_ip_sample_data | 2023-10-23T13:55:01.543Z  |  null               |  1756467              |  Connected to 10.1.0.1
+missing_ip_sample_data | 2023-10-23T13:53:55.832Z  |  null               |  5033755              |  Connection error
+missing_ip_sample_data | 2023-10-23T13:52:55.015Z  |  null               |  8268153              |  Connection error
+missing_ip_sample_data | 2023-10-23T13:51:54.732Z  |  null               |  725448               |  Connection error
+missing_ip_sample_data | 2023-10-23T13:33:34.937Z  |  null               |  1232382              |  Disconnected
+missing_ip_sample_data | 2023-10-23T12:27:28.948Z  |  null               |  2764889              |  Connected to 10.1.0.2
+missing_ip_sample_data | 2023-10-23T12:15:03.360Z  |  null               |  3450233              |  Connected to 10.1.0.3
+sample_data            | 2023-10-23T13:55:01.543Z  |  172.21.3.15        |  1756467              |  Connected to 10.1.0.1
+sample_data            | 2023-10-23T13:53:55.832Z  |  172.21.3.15        |  5033755              |  Connection error
+sample_data            | 2023-10-23T13:52:55.015Z  |  172.21.3.15        |  8268153              |  Connection error
+sample_data            | 2023-10-23T13:51:54.732Z  |  172.21.3.15        |  725448               |  Connection error
+sample_data            | 2023-10-23T13:33:34.937Z  |  172.21.0.5         |  1232382              |  Disconnected
+sample_data            | 2023-10-23T12:27:28.948Z  |  172.21.2.113       |  2764889              |  Connected to 10.1.0.2
+sample_data            | 2023-10-23T12:15:03.360Z  |  172.21.2.162       |  3450233              |  Connected to 10.1.0.3
+sample_data_str        | 2023-10-23T13:55:01.543Z  |  172.21.3.15        |  1756467              |  Connected to 10.1.0.1
+sample_data_str        | 2023-10-23T13:53:55.832Z  |  172.21.3.15        |  5033755              |  Connection error
+sample_data_str        | 2023-10-23T13:52:55.015Z  |  172.21.3.15        |  8268153              |  Connection error
+sample_data_str        | 2023-10-23T13:51:54.732Z  |  172.21.3.15        |  725448               |  Connection error
+sample_data_str        | 2023-10-23T13:33:34.937Z  |  172.21.0.5         |  1232382              |  Disconnected
+sample_data_str        | 2023-10-23T12:27:28.948Z  |  172.21.2.113       |  2764889              |  Connected to 10.1.0.2
+sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162       |  3450233              |  Connected to 10.1.0.3
+;
+
+multiIndexMissingIpToIp
+required_capability: union_types
+required_capability: union_types_missing_field
+
+FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
+| EVAL client_ip = TO_IP(client_ip)
+| KEEP _index, @timestamp, client_ip, event_duration, message
+| SORT _index ASC, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           |  client_ip:ip  |  event_duration:long  |  message:keyword
+missing_ip_sample_data | 2023-10-23T13:55:01.543Z  |  null          |  1756467              |  Connected to 10.1.0.1
+missing_ip_sample_data | 2023-10-23T13:53:55.832Z  |  null          |  5033755              |  Connection error
+missing_ip_sample_data | 2023-10-23T13:52:55.015Z  |  null          |  8268153              |  Connection error
+missing_ip_sample_data | 2023-10-23T13:51:54.732Z  |  null          |  725448               |  Connection error
+missing_ip_sample_data | 2023-10-23T13:33:34.937Z  |  null          |  1232382              |  Disconnected
+missing_ip_sample_data | 2023-10-23T12:27:28.948Z  |  null          |  2764889              |  Connected to 10.1.0.2
+missing_ip_sample_data | 2023-10-23T12:15:03.360Z  |  null          |  3450233              |  Connected to 10.1.0.3
+sample_data            | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data            | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data            | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data            | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data            | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data            | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data            | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data_str        | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_str        | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_str        | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_str        | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_str        | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_str        | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+;
+
 multiIndexTsLong
 required_capability: union_types
 required_capability: metadata_fields
@@ -977,7 +1045,25 @@ event_duration:long | _index:keyword      | ts:date                   | ts_str:k
 ;
 
 
-inlineStatsUnionGroup
+inlineStatsUnionGroup-Ignore
+required_capability: union_types
+required_capability: inlinestats
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS count = COUNT(*)
+           BY @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
+| SORT client_ip ASC, @timestamp ASC
+| LIMIT 4
+;
+
+client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
+  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
+  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
+;
+
+inlineStatsUnionGroupWithEval-Ignore
 required_capability: union_types
 required_capability: inlinestats
 
@@ -993,16 +1079,15 @@ client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword 
   172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
-
 ;
 
-inlineStatsUnionGroupTogether
+inlineStatsUnionGroupTogether-Ignore
 required_capability: union_types
 required_capability: inlinestats
 
 FROM sample_data, sample_data_ts_long
-| EVAL @timestamp = TO_STRING(TO_DATETIME(@timestamp))
-| INLINESTATS count = COUNT(*) BY @timestamp
+| INLINESTATS count = COUNT(*)
+           BY @timestamp = TO_STRING(TO_DATETIME(@timestamp))
 | SORT client_ip ASC, @timestamp ASC
 | LIMIT 4
 ;
@@ -1265,4 +1350,55 @@ FROM sample_data, sample_data_ts_long
 @timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:keyword
            null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
            null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+;
+
+shortIntegerWidening
+required_capability: union_types
+required_capability: metadata_fields
+required_capability: casting_operator
+required_capability: union_types_numeric_widening
+
+FROM apps, apps_short METADATA _index
+| EVAL id = id::integer
+| KEEP _index, id, version, name
+| WHERE name == "aaaaa" OR name == "hhhhh"
+| SORT _index ASC, id ASC
+;
+
+_index:keyword | id:integer  | version:version  | name:keyword
+apps           | 1           | 1                | aaaaa
+apps           | 8           | 1.2.3.4          | hhhhh
+apps           | 12          | 1.2.3.4          | aaaaa
+apps_short     | 1           | 1                | aaaaa
+apps_short     | 8           | 1.2.3.4          | hhhhh
+apps_short     | 12          | 1.2.3.4          | aaaaa
+;
+
+shortIntegerWideningStats
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_numeric_widening
+
+FROM apps, apps_short
+| EVAL id = id::integer
+| STATS count=count() BY name, id
+| KEEP id, name, count
+| SORT id ASC, name ASC
+;
+
+id:integer | name:keyword | count:long
+1          | aaaaa        | 2
+2          | bbbbb        | 2
+3          | ccccc        | 2
+4          | ddddd        | 2
+5          | eeeee        | 2
+6          | fffff        | 2
+7          | ggggg        | 2
+8          | hhhhh        | 2
+9          | iiiii        | 2
+10         | jjjjj        | 2
+11         | kkkkk        | 2
+12         | aaaaa        | 2
+13         | lllll        | 2
+14         | mmmmm        | 2
 ;

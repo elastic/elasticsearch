@@ -182,6 +182,7 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(addRawInputLoop(INT_VECTOR, valueVectorType(init, combine)));
         builder.addMethod(addRawInputLoop(INT_BLOCK, valueBlockType(init, combine)));
         builder.addMethod(addRawInputLoop(INT_BLOCK, valueVectorType(init, combine)));
+        builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
         builder.addMethod(evaluateIntermediate());
@@ -338,6 +339,9 @@ public class GroupingAggregatorImplementer {
         addBlock.accept(vector);
         builder.addMethod(vector.build());
 
+        MethodSpec.Builder close = MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addMethod(close.build());
+
         return builder.build();
     }
 
@@ -364,16 +368,15 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
             if (groupsIsBlock) {
-                // TODO we can drop this once we stop sending null group keys
                 builder.beginControlFlow("if (groups.isNull(groupPosition))");
                 builder.addStatement("continue");
                 builder.endControlFlow();
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
                 builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
                 builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
-                builder.addStatement("int groupId = Math.toIntExact(groups.getInt(g))");
+                builder.addStatement("int groupId = groups.getInt(g)");
             } else {
-                builder.addStatement("int groupId = Math.toIntExact(groups.getInt(groupPosition))");
+                builder.addStatement("int groupId = groups.getInt(groupPosition)");
             }
 
             if (warnExceptions.isEmpty() == false) {
@@ -486,6 +489,14 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("$T.combine(state, groupId, $L.getBytesRef($L, scratch))", declarationType, blockVariable, offsetVariable);
     }
 
+    private MethodSpec selectedMayContainUnseenGroups() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("selectedMayContainUnseenGroups");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds");
+        builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
+        return builder.build();
+    }
+
     private MethodSpec addIntermediateInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
@@ -516,7 +527,7 @@ public class GroupingAggregatorImplementer {
         }
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            builder.addStatement("int groupId = Math.toIntExact(groups.getInt(groupPosition))");
+            builder.addStatement("int groupId = groups.getInt(groupPosition)");
             if (hasPrimitiveState()) {
                 if (warnExceptions.isEmpty()) {
                     assert intermediateState.size() == 2;

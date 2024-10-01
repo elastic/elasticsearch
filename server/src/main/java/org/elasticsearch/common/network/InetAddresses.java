@@ -17,6 +17,7 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 
 import java.net.Inet4Address;
@@ -246,14 +247,14 @@ public class InetAddresses {
      * @return {@code String} containing the text-formatted IP address
      * @since 10.0
      */
+    @SuppressForbidden(reason = "java.net.Inet4Address#getHostAddress() is fine no need to duplicate its code")
     public static String toAddrString(InetAddress ip) {
         if (ip == null) {
             throw new NullPointerException("ip");
         }
-        if (ip instanceof Inet4Address) {
+        if (ip instanceof Inet4Address inet4Address) {
             // For IPv4, Java's formatting is good enough.
-            byte[] bytes = ip.getAddress();
-            return (bytes[0] & 0xff) + "." + (bytes[1] & 0xff) + "." + (bytes[2] & 0xff) + "." + (bytes[3] & 0xff);
+            return inet4Address.getHostAddress();
         }
         if ((ip instanceof Inet6Address) == false) {
             throw new IllegalArgumentException("ip");

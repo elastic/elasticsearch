@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -201,6 +202,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (TimeExceededException e) {
             timeExceeded = true;
             return new MatchNoDocsQuery("rewrite timed out");
+        } catch (TooManyClauses e) {
+            throw new IllegalArgumentException("Query rewrite failed: too many clauses", e);
         } finally {
             if (profiler != null) {
                 profiler.stopAndAddRewriteTime(rewriteTimer);
@@ -319,12 +322,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Similar to the lucene implementation, with the following changes made:
-     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search worker threads
-     * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
-     * does not allow consuming them from a different thread.
-     * 2) handles the ES TimeExceededException
-     * */
+     * Same implementation as the default one in Lucene, with an additional call to postCollection in cased there are no segments.
+     * The rest is a plain copy from Lucene.
+     */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
         LeafSlice[] leafSlices = getSlices();
         if (leafSlices.length == 0) {
@@ -356,14 +356,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    /**
+     * Similar to the lucene implementation, with the following changes made:
+     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search threads
+     * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
+     * does not allow consuming them from a different thread.
+     * 2) handles the ES TimeExceededException
+     */
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        collector.setWeight(weight);
         boolean success = false;
         try {
-            for (LeafReaderContext ctx : leaves) { // search each subreader
-                searchLeaf(ctx, weight, collector);
-            }
+            super.search(leaves, weight, collector);
             success = true;
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
@@ -407,13 +411,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
     }
 
-    /**
-     * Lower-level search API.
-     *
-     * {@link LeafCollector#collect(int)} is called for every matching document in
-     * the provided <code>ctx</code>.
-     */
-    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    @Override
+    protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
         final LeafCollector leafCollector;
         try {
@@ -495,13 +494,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
-        if (aggregatedDfs == null) {
-            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
-            return super.termStatistics(term, docFreq, totalTermFreq);
-        }
-        TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
         if (termStatistics == null) {
-            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+            // we don't have stats for this - dfs might be disabled pr this might be a must_not clauses etc.
+            // that doesn't allow extract terms on the query
             return super.termStatistics(term, docFreq, totalTermFreq);
         }
         return termStatistics;
@@ -519,6 +516,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.collectionStatistics(field);
         }
         return collectionStatistics;
+    }
+
+    public long docFreq(Term term, long docFreq) throws IOException {
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
+        if (termStatistics == null) {
+            return docFreq;
+        }
+        return termStatistics.docFreq();
+    }
+
+    public long totalTermFreq(Term term, long totalTermFreq) throws IOException {
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
+        if (termStatistics == null) {
+            return totalTermFreq;
+        }
+        return termStatistics.docFreq();
+    }
+
+    private TermStatistics termStatisticsFromDfs(Term term) {
+        if (aggregatedDfs == null) {
+            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
+            return null;
+        }
+
+        return aggregatedDfs.termStatistics().get(term);
     }
 
     public DirectoryReader getDirectoryReader() {

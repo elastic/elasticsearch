@@ -42,7 +42,8 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             StringUtils.EMPTY,
             randomBoolean(),
-            Map.of()
+            Map.of(),
+            System.nanoTime()
         );
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
@@ -40,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Flow;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -90,6 +92,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
         private final TimeValue inferenceTimeout;
+        private final boolean stream;
 
         public Request(
             TaskType taskType,
@@ -98,7 +101,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            TimeValue inferenceTimeout
+            TimeValue inferenceTimeout,
+            boolean stream
         ) {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
@@ -107,6 +111,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.taskSettings = taskSettings;
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
+            this.stream = stream;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -132,6 +137,9 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
+
+            // streaming is not supported yet for transport traffic
+            this.stream = false;
         }
 
         public TaskType getTaskType() {
@@ -160,6 +168,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public TimeValue getInferenceTimeout() {
             return inferenceTimeout;
+        }
+
+        public boolean isStreaming() {
+            return stream;
         }
 
         @Override
@@ -255,6 +267,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private Map<String, Object> taskSettings = Map.of();
             private String query;
             private TimeValue timeout = DEFAULT_TIMEOUT;
+            private boolean stream = false;
 
             private Builder() {}
 
@@ -297,8 +310,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
+            public Builder setStream(boolean stream) {
+                this.stream = stream;
+                return this;
+            }
+
             public Request build() {
-                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout);
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream);
             }
         }
 
@@ -324,9 +342,19 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
         private final InferenceServiceResults results;
+        private final boolean isStreaming;
+        private final Flow.Publisher<ChunkedToXContent> publisher;
 
         public Response(InferenceServiceResults results) {
             this.results = results;
+            this.isStreaming = false;
+            this.publisher = null;
+        }
+
+        public Response(InferenceServiceResults results, Flow.Publisher<ChunkedToXContent> publisher) {
+            this.results = results;
+            this.isStreaming = true;
+            this.publisher = publisher;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -338,6 +366,9 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 // hugging face elser and elser
                 results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
             }
+            // streaming isn't supported via Writeable yet
+            this.isStreaming = false;
+            this.publisher = null;
         }
 
         @SuppressWarnings("deprecation")
@@ -391,6 +422,24 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return results;
         }
 
+        /**
+         * Returns {@code true} if these results are streamed as chunks, or {@code false} if these results contain the entire payload.
+         * Currently set to false while it is being implemented.
+         */
+        public boolean isStreaming() {
+            return isStreaming;
+        }
+
+        /**
+         * When {@link #isStreaming()} is {@code true}, the RestHandler will subscribe to this publisher.
+         * When the RestResponse is finished with the current chunk, it will request the next chunk using the subscription.
+         * If the RestResponse is closed, it will cancel the subscription.
+         */
+        public Flow.Publisher<ChunkedToXContent> publisher() {
+            assert isStreaming() : "this should only be called after isStreaming() verifies this object is non-null";
+            return publisher;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
@@ -398,6 +447,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 out.writeNamedWriteable(results.transformToLegacyFormat().get(0));
             }
+            // streaming isn't supported via Writeable yet
         }
 
         @Override

@@ -8,14 +8,24 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -27,6 +37,10 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Make sures that we can run many concurrent requests with large number of shards with any data_partitioning.
@@ -38,6 +52,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         var plugins = new ArrayList<>(super.getMockPlugins());
         plugins.add(MockSearchService.TestPlugin.class);
+        plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
     }
 
@@ -94,6 +109,51 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         latch.countDown();
         for (Thread thread : threads) {
             thread.join();
+        }
+    }
+
+    public void testRejection() throws Exception {
+        String[] nodes = internalCluster().getNodeNames();
+        for (String node : nodes) {
+            MockTransportService ts = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+            ts.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+                }, task);
+            });
+        }
+        try {
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("from test-* | stats count(user) by tags");
+            request.acceptedPragmaRisks(true);
+            request.pragmas(randomPragmas());
+            CountDownLatch queryLatch = new CountDownLatch(1);
+            client().execute(EsqlQueryAction.INSTANCE, request, ActionListener.runAfter(ActionListener.wrap(r -> {
+                r.close();
+                throw new AssertionError("expected failure");
+            }, failure::set), queryLatch::countDown));
+            assertTrue(queryLatch.await(10, TimeUnit.SECONDS));
+            assertThat(failure.get(), instanceOf(EsRejectedExecutionException.class));
+            assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            assertThat(failure.get().getMessage(), equalTo("test queue"));
+        } finally {
+            for (String node : nodes) {
+                ((MockTransportService) internalCluster().getInstance(TransportService.class, node)).clearAllRules();
+            }
         }
     }
 

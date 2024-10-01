@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -45,6 +46,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -195,6 +197,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Before;
@@ -1034,7 +1037,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
-            createIndexResponse -> client().admin().cluster().state(new ClusterStateRequest(), clusterStateResponseStepListener)
+            createIndexResponse -> client().admin()
+                .cluster()
+                .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT), clusterStateResponseStepListener)
         );
 
         continueOrDie(clusterStateResponseStepListener, clusterStateResponse -> {
@@ -1046,7 +1051,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 @Override
                 public void run() {
                     final SubscribableListener<ClusterStateResponse> updatedClusterStateResponseStepListener = new SubscribableListener<>();
-                    masterAdminClient.cluster().state(new ClusterStateRequest(), updatedClusterStateResponseStepListener);
+                    masterAdminClient.cluster()
+                        .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT), updatedClusterStateResponseStepListener);
                     continueOrDie(updatedClusterStateResponseStepListener, updatedClusterState -> {
                         final ShardRouting shardRouting = updatedClusterState.getState()
                             .routingTable()
@@ -1844,8 +1850,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
             Settings.builder()
                 .put(NODE_NAME_SETTING.getKey(), nodeName)
                 .put(PATH_HOME_SETTING.getKey(), tempDir.resolve(nodeName).toAbsolutePath())
-                // test uses the same executor service for all thread pools, search worker would need to be a different one
-                .put(SearchService.SEARCH_WORKER_THREADS_ENABLED.getKey(), false)
                 .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo").toAbsolutePath())
                 .putList(
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
@@ -2058,6 +2062,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final BigArrays bigArrays;
 
+            private final UsageService usageService;
+
             private Coordinator coordinator;
 
             TestClusterNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) throws IOException {
@@ -2068,6 +2074,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 client = new NodeClient(settings, threadPool);
+                this.usageService = new UsageService();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
                     settings,
@@ -2395,14 +2402,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            DocumentParsingProvider.EMPTY_INSTANCE
+                            DocumentParsingProvider.EMPTY_INSTANCE,
+                            FailureStoreMetrics.NOOP
                         ),
                         mockFeatureService,
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
-                        EmptySystemIndices.INSTANCE
+                        EmptySystemIndices.INSTANCE,
+                        FailureStoreMetrics.NOOP
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -2483,7 +2492,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
                         new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                        client
+                        client,
+                        usageService
                     )
                 );
                 actions.put(

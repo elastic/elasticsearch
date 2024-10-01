@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec;
@@ -11,7 +12,7 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
@@ -45,7 +46,7 @@ public class CodecService implements CodecProvider {
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
         final var codecs = new HashMap<String, Codec>();
 
-        Codec legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, mapperService, bigArrays);
+        Codec legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene912Codec.Mode.BEST_SPEED, mapperService, bigArrays);
         if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
             codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
         } else {
@@ -53,15 +54,11 @@ public class CodecService implements CodecProvider {
         }
         codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
 
-        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            codecs.put(
-                BEST_COMPRESSION_CODEC,
-                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
-            );
-        } else {
-            codecs.put(BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
-        }
+        codecs.put(
+            BEST_COMPRESSION_CODEC,
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
+        );
+        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene912Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
         codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
 
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
@@ -97,6 +94,7 @@ public class CodecService implements CodecProvider {
 
         private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
 
+        @SuppressWarnings("this-escape")
         protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
             super(name, delegate);
             this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());

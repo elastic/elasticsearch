@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -41,7 +42,7 @@ public class ReleaseVersions {
 
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");
 
-    public static IntFunction<String> generateVersionsLookup(Class<?> versionContainer) {
+    public static IntFunction<String> generateVersionsLookup(Class<?> versionContainer, int current) {
         if (USES_VERSIONS == false) return Integer::toString;
 
         try {
@@ -52,6 +53,9 @@ public class ReleaseVersions {
             }
 
             NavigableMap<Integer, List<Version>> versions = new TreeMap<>();
+            // add the current version id, which won't be in the csv
+            versions.computeIfAbsent(current, k -> new ArrayList<>()).add(Version.CURRENT);
+
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(versionsFile, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -121,8 +125,8 @@ public class ReleaseVersions {
                     // too hard to guess what version this id might be for using the next version - just use it directly
                     upperBound = upperRange.getValue().get(0).toString();
                 } else {
-                    // likely a version created after the last release tagged version - ok
-                    upperBound = "snapshot[" + id + "]";
+                    // a newer version than all we know about? Can't map it...
+                    upperBound = "[" + id + "]";
                 }
             }
 

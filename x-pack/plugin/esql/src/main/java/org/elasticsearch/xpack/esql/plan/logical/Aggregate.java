@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -108,8 +109,8 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     @Override
-    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new Aggregate(source(), child(), aggregateType(), newGroupings, newAggregates);
+    public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new Aggregate(source(), child, aggregateType(), newGroupings, newAggregates);
     }
 
     public AggregateType aggregateType() {
@@ -125,6 +126,14 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     @Override
+    public String commandName() {
+        return switch (aggregateType) {
+            case STANDARD -> "STATS";
+            case METRICS -> "METRICS";
+        };
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(groupings) && Resolvables.resolved(aggregates);
     }
@@ -132,9 +141,22 @@ public class Aggregate extends UnaryPlan implements Stats {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = mergeOutputAttributes(Expressions.asAttributes(aggregates()), emptyList());
+            lazyOutput = output(aggregates);
         }
         return lazyOutput;
+    }
+
+    public static List<Attribute> output(List<? extends NamedExpression> aggregates) {
+        return mergeOutputAttributes(Expressions.asAttributes(aggregates), emptyList());
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return computeReferences(aggregates, groupings);
+    }
+
+    public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
+        return Expressions.references(groupings).combine(Expressions.references(aggregates));
     }
 
     @Override

@@ -33,10 +33,13 @@ mapping values by overriding values in the mapping during the search request.
 [discrete]
 [[mapping-dynamic]]
 == Dynamic mapping
-<<dynamic-field-mapping,Dynamic mapping>> allows you to experiment with
-and explore data when you’re just getting started. {es} adds new fields
-automatically, just by indexing a document. You can add fields to the top-level
-mapping, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
+
+When you use <<dynamic-field-mapping,dynamic mapping>>, {es} automatically
+attempts to detect the data type of fields in your documents. This allows 
+you to get started quickly by just adding data to an index. If you index
+additional documents with new fields, {es} will add these fields automatically. 
+You can add fields to the top-level mapping, and to inner <<object,`object`>> 
+and <<nested,`nested`>> fields.
 
 Use <<dynamic-templates,dynamic templates>> to define custom mappings that are
 applied to dynamically added fields based on the matching condition.
@@ -44,14 +47,28 @@ applied to dynamically added fields based on the matching condition.
 [discrete]
 [[mapping-explicit]]
 == Explicit mapping
-<<explicit-mapping,Explicit mapping>> allows you to precisely choose how to
-define the mapping definition, such as:
 
-* Which string fields should be treated as full text fields.
-* Which fields contain numbers, dates, or geolocations.
-* The <<mapping-date-format,format>> of date values.
-* Custom rules to control the mapping for
-  <<dynamic-mapping,dynamically added fields>>.
+Use <<explicit-mapping,explicit mapping>> to define exactly how data types
+are mapped to fields, customized to your specific use case.
+
+Defining your own mappings enables you to:
+
+* Define which string fields should be treated as full-text fields.
+* Define which fields contain numbers, dates, or geolocations.
+* Use data types that cannot be automatically detected (such as `geo_point` and `geo_shape`.)
+* Choose date value <<mapping-date-format,formats>>, including custom date formats.
+* Create custom rules to control the mapping for <<dynamic-mapping,dynamically added fields>>.
+* Optimize fields for partial matching.
+* Perform language-specific text analysis.
+
+[TIP]
+====
+It’s often useful to index the same field in different ways for different purposes.
+For example, you might want to index a string field as both a text field for full-text 
+search and as a keyword field for sorting or aggregating your data. Or, you might 
+choose to use more than one language analyzer to process the contents of a string field 
+that contains user input.
+====
 
 Use <<runtime-mapping-fields,runtime fields>> to make schema changes without
 reindexing. You can use runtime fields in conjunction with indexed fields to

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -35,14 +34,11 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.esql.core.rule.Rule;
-import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -55,11 +51,15 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -77,10 +77,13 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -184,7 +187,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
-                        context.indexResolution().toString()
+                        context.indexResolution().toString(),
+                        plan.commandName()
                     );
             }
             TableIdentifier table = plan.table();
@@ -196,7 +200,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
-                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
+                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]",
+                    plan.commandName()
                 );
             }
 
@@ -454,7 +459,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    stats = stats.with(newGroupings, stats.aggregates());
+                    stats = stats.with(stats.child(), newGroupings, stats.aggregates());
                     changed.set(false);
                 }
             }
@@ -483,7 +488,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                stats = changed.get() ? stats.with(groupings, newAggregates) : stats;
+                stats = changed.get() ? stats.with(stats.child(), groupings, newAggregates) : stats;
             }
 
             return (LogicalPlan) stats;
@@ -943,6 +948,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return b;
     }
 
+    /**
+     * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison and In to desired data types.
+     * For example, the string literals in the following expressions will be cast implicitly to the field data type on the left hand side.
+     * date > "2024-08-21"
+     * date in ("2024-08-21", "2024-08-22", "2024-08-23")
+     * date = "2024-08-21" + 3 days
+     * ip == "127.0.0.1"
+     * version != "1.0"
+     *
+     * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
+     * applicable. For example, implicit casting converts:
+     * Coalesce(Long, Int) to Coalesce(Long, Long)
+     * Coalesce(null, Long, Int) to Coalesce(null, Long, Long)
+     * Coalesce(Double, Long, Int) to Coalesce(Double, Double, Double)
+     * Coalesce(null, Double, Long, Int) to Coalesce(null, Double, Double, Double)
+     *
+     * Coalesce(Int, Long) will NOT be converted to Coalesce(Long, Long) or Coalesce(Int, Int).
+     */
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -972,22 +995,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean childrenChanged = false;
             DataType targetDataType = DataType.NULL;
             Expression arg;
+            DataType targetNumericType = null;
+            boolean castNumericArgs = true;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
-                if (arg.resolved() && arg.dataType() == KEYWORD && arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
-                    if (i < targetDataTypes.size()) {
-                        targetDataType = targetDataTypes.get(i);
-                    }
-                    if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
-                        Expression e = castStringLiteral(arg, targetDataType);
-                        childrenChanged = true;
-                        newChildren.add(e);
-                        continue;
+                if (arg.resolved()) {
+                    var dataType = arg.dataType();
+                    if (dataType == KEYWORD) {
+                        if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
+                            if (i < targetDataTypes.size()) {
+                                targetDataType = targetDataTypes.get(i);
+                            }
+                            if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
+                                Expression e = castStringLiteral(arg, targetDataType);
+                                childrenChanged = true;
+                                newChildren.add(e);
+                                continue;
+                            }
+                        }
+                    } else if (dataType.isNumeric() && canCastMixedNumericTypes(f) && castNumericArgs) {
+                        if (targetNumericType == null) {
+                            targetNumericType = dataType;  // target data type is the first numeric data type
+                        } else if (dataType != targetNumericType) {
+                            castNumericArgs = canCastNumeric(dataType, targetNumericType);
+                        }
                     }
                 }
                 newChildren.add(args.get(i));
             }
-            return childrenChanged ? f.replaceChildren(newChildren) : f;
+            Expression resultF = childrenChanged ? f.replaceChildren(newChildren) : f;
+            return targetNumericType != null && castNumericArgs
+                ? castMixedNumericTypes((EsqlScalarFunction) resultF, targetNumericType)
+                : resultF;
         }
 
         private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o) {
@@ -1002,7 +1041,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression from = Literal.NULL;
 
             if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
-                if (supportsImplicitCasting(right.dataType())) {
+                if (supportsStringImplicitCasting(right.dataType())) {
                     targetDataType = right.dataType();
                     from = left;
                 } else if (supportsImplicitTemporalCasting(right, o)) {
@@ -1011,7 +1050,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
-                if (supportsImplicitCasting(left.dataType())) {
+                if (supportsStringImplicitCasting(left.dataType())) {
                     targetDataType = left.dataType();
                     from = right;
                 } else if (supportsImplicitTemporalCasting(left, o)) {
@@ -1032,15 +1071,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression left = in.value();
             List<Expression> right = in.list();
 
-            if (left.resolved() == false || supportsImplicitCasting(left.dataType()) == false) {
+            if (left.resolved() == false || supportsStringImplicitCasting(left.dataType()) == false) {
                 return in;
             }
+
+            DataType targetDataType = left.dataType();
             List<Expression> newChildren = new ArrayList<>(right.size() + 1);
             boolean childrenChanged = false;
 
             for (Expression value : right) {
-                if (value.dataType() == KEYWORD && value.foldable()) {
-                    Expression e = castStringLiteral(value, left.dataType());
+                if (value.resolved() && value.dataType() == KEYWORD && value.foldable()) {
+                    Expression e = castStringLiteral(value, targetDataType);
                     newChildren.add(e);
                     childrenChanged = true;
                 } else {
@@ -1051,11 +1092,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? in.replaceChildren(newChildren) : in;
         }
 
+        private static boolean canCastMixedNumericTypes(EsqlScalarFunction f) {
+            return f instanceof Coalesce;
+        }
+
+        private static boolean canCastNumeric(DataType from, DataType to) {
+            DataType commonType = EsqlDataTypeConverter.commonType(from, to);
+            return commonType == to;
+        }
+
+        private static Expression castMixedNumericTypes(EsqlScalarFunction f, DataType targetNumericType) {
+            List<Expression> newChildren = new ArrayList<>(f.children().size());
+            boolean childrenChanged = false;
+            DataType childDataType;
+
+            for (Expression e : f.children()) {
+                if (e.resolved()) {
+                    childDataType = e.dataType();
+                    if (childDataType.isNumeric() == false
+                        || childDataType == targetNumericType
+                        || canCastNumeric(childDataType, targetNumericType) == false) {
+                        newChildren.add(e);
+                        continue;
+                    }
+                    childrenChanged = true;
+                    // add a casting function
+                    switch (targetNumericType) {
+                        case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
+                        case LONG -> newChildren.add(new ToLong(e.source(), e));
+                        case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
+                        case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
+                        default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
+                    }
+                } else {
+                    newChildren.add(e);
+                }
+            }
+            return childrenChanged ? f.replaceChildren(newChildren) : f;
+        }
+
         private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
             return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
         }
 
-        private static boolean supportsImplicitCasting(DataType type) {
+        private static boolean supportsStringImplicitCasting(DataType type) {
             return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
         }
 
@@ -1145,8 +1225,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
                 imf.types().forEach(type -> {
-                    // TODO: Shouldn't we perform widening of small numerical types here?
-                    if (supportedTypes.contains(type)) {
+                    if (supportedTypes.contains(type.widenSmallNumeric())) {
                         TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                         var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
                         typeResolutions.put(key, concreteConvert);
@@ -1169,12 +1248,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
-            String unionTypedFieldName = LogicalPlanOptimizer.rawTemporaryName(
-                fa.name(),
-                "converted_to",
-                resolvedField.getDataType().typeName()
-            );
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parent(), unionTypedFieldName, resolvedField);
+            // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
+            // synthetic to work around a bug.
+            String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", resolvedField.getDataType().typeName());
+            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parent(), unionTypedFieldName, resolvedField, true);
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1200,8 +1277,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
-            NameId id = ((FieldAttribute) convert.field()).id();
-            FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, Nullability.TRUE, id, false);
+            FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
+            FieldAttribute resolvedAttr = new FieldAttribute(
+                source,
+                originalFieldAttr.parent(),
+                originalFieldAttr.name(),
+                field,
+                originalFieldAttr.nullable(),
+                originalFieldAttr.id(),
+                true
+            );
             return convert.replaceChildren(Collections.singletonList(resolvedAttr));
         }
     }
@@ -1250,11 +1335,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> newOutput = new ArrayList<>(output.size());
 
             for (Attribute attr : output) {
-                // TODO: this should really use .synthetic()
-                // https://github.com/elastic/elasticsearch/issues/105821
-                if (attr.name().startsWith(FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
-                    newOutput.add(attr);
+                // Do not let the synthetic union type field attributes end up in the final output.
+                if (attr.synthetic() && attr instanceof FieldAttribute) {
+                    continue;
                 }
+                newOutput.add(attr);
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);

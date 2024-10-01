@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
+import java.util.concurrent.Flow;
+
 /**
  * A contract for clients to specify behavior for handling http responses. Clients can pass this contract to the retry sender to parse
  * the response and help with logging.
@@ -47,4 +49,28 @@ public interface ResponseHandler {
      * @return a {@link String} indicating the request type that was sent (e.g. elser, elser hugging face etc)
      */
     String getRequestType();
+
+    /**
+     * Returns {@code true} if the response handler can handle streaming results, or {@code false} if can only parse the entire payload.
+     * Defaults to {@code false}.
+     */
+    default boolean canHandleStreamingResponses() {
+        return false;
+    }
+
+    /**
+     * A method for parsing the streamed response from the server. Implementations must invoke the
+     * {@link Flow.Publisher#subscribe(Flow.Subscriber)} method on the {@code Flow.Publisher<HttpResult> flow} parameter in order to stream
+     * HttpResults to the InferenceServiceResults.
+     *
+     * @param request The original request sent to the server
+     * @param result The first result that initiated the stream. If the result is HTTP 200, this result will not contain content bytes
+     * @param flow The remaining stream of results from the server.  If the result is HTTP 200, these results will contain content bytes
+     * @return an inference results with {@link InferenceServiceResults#publisher()} set and {@link InferenceServiceResults#isStreaming()}
+     * set to true.
+     */
+    default InferenceServiceResults parseResult(Request request, HttpResult result, Flow.Publisher<HttpResult> flow) {
+        assert canHandleStreamingResponses() == false : "This must be implemented when canHandleStreamingResponses() == true";
+        throw new UnsupportedOperationException("This must be implemented when canHandleStreamingResponses() == true");
+    }
 }

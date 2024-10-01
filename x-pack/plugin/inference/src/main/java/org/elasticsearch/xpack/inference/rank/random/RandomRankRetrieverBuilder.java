@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.rank.random;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -25,7 +26,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * A {@code RetrieverBuilder} for parsing and constructing a text similarity reranker retriever.
+ * A {@code RetrieverBuilder} for randomly scoring a set of documents using the {@code RandomRankBuilder}
  */
 public class RandomRankRetrieverBuilder extends RetrieverBuilder {
 
@@ -72,6 +73,11 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
         this.field = field;
         this.rankWindowSize = rankWindowSize;
         this.seed = seed;
+    }
+
+    @Override
+    public QueryBuilder topDocsQuery() {
+        return retrieverBuilder.topDocsQuery();
     }
 
     @Override

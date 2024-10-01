@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -172,6 +173,7 @@ import java.util.stream.Stream;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
+import static org.elasticsearch.common.blobstore.OperationPurpose.SNAPSHOT_METADATA;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -199,25 +201,78 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME = "stateless_cluster_state";
     public static final String STATELESS_SHARD_PREWARMING_THREAD_NAME = "stateless_prewarm";
 
-    public static final String SNAPSHOT_PREFIX = "snap-";
-
+    /**
+     * Prefix for the name of the root {@link RepositoryData} blob.
+     * @see #getRepositoryDataBlobName
+     */
     public static final String INDEX_FILE_PREFIX = "index-";
 
+    /**
+     * Name of the blob which points to the root {@link RepositoryData} blob.
+     * @see #supportURLRepo()
+     */
     public static final String INDEX_LATEST_BLOB = "index.latest";
 
     private static final String TESTS_FILE = "tests-";
 
+    /**
+     * Name prefix for the blobs that hold the global {@link Metadata} for each snapshot, and the {@link IndexMetadata} for its indices.
+     * @see #METADATA_NAME_FORMAT
+     */
     public static final String METADATA_PREFIX = "meta-";
 
-    public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s.dat";
+    /**
+     * Name prefix for the blobs that hold top-level {@link SnapshotInfo} and shard-level {@link BlobStoreIndexShardSnapshot} metadata.
+     * @see #SNAPSHOT_NAME_FORMAT
+     */
+    public static final String SNAPSHOT_PREFIX = "snap-";
 
-    public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
+    /**
+     * Name suffix for all {@code meta-*.dat} and {@code snap-*.dat} blobs.
+     * @see #METADATA_NAME_FORMAT
+     * @see #SNAPSHOT_NAME_FORMAT
+     */
+    public static final String METADATA_BLOB_NAME_SUFFIX = ".dat";
 
-    private static final String SNAPSHOT_INDEX_PREFIX = "index-";
+    /**
+     * Blob name format for global {@link Metadata} and {@link IndexMetadata} blobs.
+     * @see #GLOBAL_METADATA_FORMAT
+     * @see #INDEX_METADATA_FORMAT
+     */
+    public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
 
+    /**
+     * Blob name format for top-level {@link SnapshotInfo} and shard-level {@link BlobStoreIndexShardSnapshot} blobs.
+     * @see #SNAPSHOT_FORMAT
+     * @see #INDEX_SHARD_SNAPSHOT_FORMAT
+     */
+    public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
+
+    /**
+     * Name prefix for shard-level {@link BlobStoreIndexShardSnapshots} blobs.
+     * @see #SNAPSHOT_INDEX_NAME_FORMAT
+     * @see #INDEX_SHARD_SNAPSHOTS_FORMAT
+     */
+    public static final String SNAPSHOT_INDEX_PREFIX = "index-";
+
+    /**
+     * Name format for shard-level {@link BlobStoreIndexShardSnapshots} blobs.
+     * @see #INDEX_SHARD_SNAPSHOTS_FORMAT
+     */
     public static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
 
+    /**
+     * Name prefix for blobs holding the actual shard data.
+     */
     public static final String UPLOADED_DATA_BLOB_PREFIX = "__";
+
+    /**
+     * @param repositoryGeneration The numeric generation of the {@link RepositoryData} blob.
+     * @return The name of the blob holding the corresponding {@link RepositoryData}.
+     */
+    public static String getRepositoryDataBlobName(long repositoryGeneration) {
+        return INDEX_FILE_PREFIX + repositoryGeneration;
+    }
 
     // Expose a copy of URLRepository#TYPE here too, for a better error message until https://github.com/elastic/elasticsearch/issues/68918
     // is resolved.
@@ -533,7 +588,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final ShardGeneration existingShardGen;
             if (shardGeneration == null) {
                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
-                    shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX).keySet(),
+                    shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet(),
                     shardContainer
                 );
                 existingShardGen = new ShardGeneration(tuple.v2());
@@ -541,7 +596,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 existingSnapshots = tuple.v1();
             } else {
                 newGen = ShardGeneration.newGeneration();
-                existingSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
+                existingSnapshots = buildBlobStoreIndexShardSnapshots(
+                    index,
+                    shardNum,
+                    Collections.emptySet(),
+                    shardContainer,
+                    shardGeneration
+                ).v1();
                 existingShardGen = shardGeneration;
             }
             SnapshotFiles existingTargetFiles = null;
@@ -1253,6 +1314,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (useShardGenerations) {
                         newGen = -1L;
                         blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(
+                            indexId,
+                            shardId,
                             originalShardBlobs,
                             shardContainer,
                             originalRepositoryData.shardGenerations().getShardGen(indexId, shardId)
@@ -1331,9 +1394,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         .filter(
                             blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)
                                 || (blob.startsWith(SNAPSHOT_PREFIX)
-                                    && blob.endsWith(".dat")
+                                    && blob.endsWith(METADATA_BLOB_NAME_SUFFIX)
                                     && survivingSnapshotUUIDs.contains(
-                                        blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
+                                        blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length())
                                     ) == false)
                                 || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX)
                                     && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
@@ -1486,13 +1549,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (FsBlobContainer.isTempBlobName(blob)) {
                     return true;
                 }
-                if (blob.endsWith(".dat")) {
+                if (blob.endsWith(METADATA_BLOB_NAME_SUFFIX)) {
                     final String foundUUID;
                     if (blob.startsWith(SNAPSHOT_PREFIX)) {
-                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length());
                         assert SNAPSHOT_FORMAT.blobName(foundUUID).equals(blob);
                     } else if (blob.startsWith(METADATA_PREFIX)) {
-                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
+                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length());
                         assert GLOBAL_METADATA_FORMAT.blobName(foundUUID).equals(blob);
                     } else {
                         return false;
@@ -1525,7 +1588,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotId -> Stream.of(
                             GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
                             SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
-                            INDEX_FILE_PREFIX + newestStaleRepositoryDataGeneration
+                            getRepositoryDataBlobName(newestStaleRepositoryDataGeneration)
                         )
                     )
                     .collect(Collectors.toSet());
@@ -1849,7 +1912,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Math.max(existingRepositoryData.getGenId() - 1, 0),
             newRepoGeneration - 1000
         ); gen < newRepoGeneration; gen++) {
-            toDelete.add(INDEX_FILE_PREFIX + gen);
+            toDelete.add(getRepositoryDataBlobName(gen));
         }
         if (writeShardGenerations) {
             final int prefixPathLen = basePath().buildAsString().length();
@@ -1858,15 +1921,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .forEach(
                     (indexId, gens) -> gens.forEach(
                         (shardId, oldGen) -> toDelete.add(
-                            shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
-                                .getGenerationUUID()
+                            shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + BlobStoreRepository.SNAPSHOT_INDEX_PREFIX
+                                + oldGen.getGenerationUUID()
                         )
                     )
                 );
             for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
                 .entrySet()) {
                 final String containerPath = shardPath(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).buildAsString()
-                    .substring(prefixPathLen) + INDEX_FILE_PREFIX;
+                    .substring(prefixPathLen) + SNAPSHOT_INDEX_PREFIX;
                 for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
                     toDelete.add(containerPath + shardGeneration);
                 }
@@ -2565,11 +2628,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return RepositoryData.EMPTY;
         }
         try {
-            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+            final var repositoryDataBlobName = getRepositoryDataBlobName(indexGen);
 
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
-                InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, snapshotsIndexBlobName);
+                InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, repositoryDataBlobName);
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
             ) {
@@ -2795,7 +2858,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (ensureSafeGenerationExists(expectedGen, delegate::onFailure) == false) {
                 return;
             }
-            final String indexBlob = INDEX_FILE_PREFIX + newGen;
+            final String indexBlob = getRepositoryDataBlobName(newGen);
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
             writeAtomic(OperationPurpose.SNAPSHOT_METADATA, blobContainer(), indexBlob, out -> {
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder(org.elasticsearch.core.Streams.noCloseStream(out))) {
@@ -2936,7 +2999,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private boolean ensureSafeGenerationExists(long safeGeneration, Consumer<Exception> onFailure) throws IOException {
         logger.debug("Ensure generation [{}] that is the basis for this write exists in [{}]", safeGeneration, metadata.name());
         if (safeGeneration != RepositoryData.EMPTY_REPO_GEN
-            && blobContainer().blobExists(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX + safeGeneration) == false) {
+            && blobContainer().blobExists(SNAPSHOT_METADATA, getRepositoryDataBlobName(safeGeneration)) == false) {
             Tuple<Long, String> previousWriterInfo = null;
             Exception readRepoDataEx = null;
             try {
@@ -3136,16 +3199,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (generation == null) {
                 snapshotStatus.ensureNotAborted();
                 try {
-                    blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX).keySet();
+                    blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet();
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
                 }
             } else {
-                blobs = Collections.singleton(INDEX_FILE_PREFIX + generation);
+                blobs = Collections.singleton(SNAPSHOT_INDEX_PREFIX + generation);
             }
 
             snapshotStatus.ensureNotAborted();
             Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> tuple = buildBlobStoreIndexShardSnapshots(
+                context.indexId(),
+                shardId.id(),
                 blobs,
                 shardContainer,
                 generation
@@ -3550,6 +3615,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     ensureNotClosing(store);
                                     return container.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(slice));
                                 }
+
+                                @Override
+                                public boolean markSupported() {
+                                    return false;
+                                }
                             })) {
                                 final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
                                 int length;
@@ -3689,7 +3759,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 testBlobContainer.writeBlob(
                     OperationPurpose.SNAPSHOT_METADATA,
-                    "data-" + localNode.getId() + ".dat",
+                    "data-" + localNode.getId() + METADATA_BLOB_NAME_SUFFIX,
                     new BytesArray(seed),
                     true
                 );
@@ -3783,16 +3853,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         Set<String> blobs = Collections.emptySet();
         if (shardGen == null) {
-            blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX).keySet();
+            blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet();
         }
 
-        return buildBlobStoreIndexShardSnapshots(blobs, shardContainer, shardGen).v1();
+        return buildBlobStoreIndexShardSnapshots(indexId, shardId, blobs, shardContainer, shardGen).v1();
     }
 
     /**
      * Loads all available snapshots in the repository using the given {@code generation} or falling back to trying to determine it from
      * the given list of blobs in the shard container.
      *
+     * @param indexId    {@link IndexId} identifying the corresponding index
+     * @param shardId    The 0-based shard id, see also {@link ShardId#id()}
      * @param blobs      list of blobs in repository
      * @param generation shard generation or {@code null} in case there was no shard generation tracked in the {@link RepositoryData} for
      *                   this shard because its snapshot was created in a version older than
@@ -3800,6 +3872,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
     private Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> buildBlobStoreIndexShardSnapshots(
+        IndexId indexId,
+        int shardId,
         Set<String> blobs,
         BlobContainer shardContainer,
         @Nullable ShardGeneration generation
@@ -3808,13 +3882,110 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
                 return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, ShardGenerations.NEW_SHARD_GEN);
             }
-            return new Tuple<>(
-                INDEX_SHARD_SNAPSHOTS_FORMAT.read(metadata.name(), shardContainer, generation.getGenerationUUID(), namedXContentRegistry),
-                generation
-            );
+            try {
+                return new Tuple<>(
+                    INDEX_SHARD_SNAPSHOTS_FORMAT.read(
+                        metadata.name(),
+                        shardContainer,
+                        generation.getGenerationUUID(),
+                        namedXContentRegistry
+                    ),
+                    generation
+                );
+            } catch (NoSuchFileException noSuchFileException) {
+                // Master may have concurrently mutated the shard generation. This can happen when master fails over
+                // which is "expected". We do not need to apply the following workaround for missing file in this case.
+                final RepositoryData currentRepositoryData;
+                try {
+                    final long latestGeneration = latestIndexBlobId();
+                    currentRepositoryData = getRepositoryData(latestGeneration);
+                } catch (Exception e) {
+                    noSuchFileException.addSuppressed(e);
+                    throw noSuchFileException;
+                }
+                final ShardGeneration latestShardGen = currentRepositoryData.shardGenerations().getShardGen(indexId, shardId);
+                if (latestShardGen == null || latestShardGen.equals(generation) == false) {
+                    throw noSuchFileException;
+                }
+
+                // This shouldn't happen (absent an external force deleting blobs from the repo) but in practice we've found bugs in the way
+                // we manipulate shard generation UUIDs under concurrent snapshot load which can lead to incorrectly deleting a referenced
+                // shard-level `index-UUID` blob during finalization. We definitely want to treat this as a test failure (see the `assert`
+                // below), but in production it is rather poor UX to leave this shard in a state where it permanently cannot take any new
+                // snapshots. Especially if we got into this state because of a bug. Thus we fall back to reconstructing the contents of the
+                // missing blob from all available shard-level snapshot metadata blobs.
+                //
+                // Note that if a shard-level snapshot metadata blob is also missing when executing this fallback then we'll lose track of,
+                // and eventually delete, the corresponding data blobs. We haven't seen any bugs that can lead to missing shard-level
+                // metadata blobs, and any such bug would prevent the shard snapshot from being restored anyway so there's no point in
+                // keeping hold of its data blobs.
+                try {
+                    final var message = Strings.format(
+                        "index %s shard generation [%s] in [%s][%s] not found - falling back to reading all shard snapshots",
+                        indexId,
+                        generation,
+                        metadata.name(),
+                        shardContainer.path()
+                    );
+                    logger.error(message, noSuchFileException);
+                    assert BlobStoreIndexShardSnapshots.areIntegrityAssertionsEnabled() == false
+                        : new AssertionError(message, noSuchFileException);
+
+                    final var shardSnapshotBlobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_PREFIX);
+                    var blobStoreIndexShardSnapshots = BlobStoreIndexShardSnapshots.EMPTY;
+                    final var messageBuilder = new StringBuilder();
+                    final var shardSnapshotBlobNameLengthBeforeExt = SNAPSHOT_PREFIX.length() + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH;
+                    final var shardSnapshotBlobNameLength = shardSnapshotBlobNameLengthBeforeExt + METADATA_BLOB_NAME_SUFFIX.length();
+                    for (final var shardSnapshotBlobName : shardSnapshotBlobs.keySet()) {
+                        if (shardSnapshotBlobName.startsWith(SNAPSHOT_PREFIX)
+                            && shardSnapshotBlobName.endsWith(METADATA_BLOB_NAME_SUFFIX)
+                            && shardSnapshotBlobName.length() == shardSnapshotBlobNameLength) {
+                            final var shardSnapshot = INDEX_SHARD_SNAPSHOT_FORMAT.read(
+                                metadata.name(),
+                                shardContainer,
+                                shardSnapshotBlobName.substring(SNAPSHOT_PREFIX.length(), shardSnapshotBlobNameLengthBeforeExt),
+                                namedXContentRegistry
+                            );
+                            blobStoreIndexShardSnapshots = blobStoreIndexShardSnapshots.withAddedSnapshot(
+                                new SnapshotFiles(shardSnapshot.snapshot(), shardSnapshot.indexFiles(), null)
+                            );
+                            if (messageBuilder.length() > 0) {
+                                messageBuilder.append(", ");
+                            }
+                            messageBuilder.append(shardSnapshotBlobName);
+                        } else {
+                            throw new IllegalStateException(
+                                Strings.format(
+                                    "unexpected shard snapshot blob [%s] found in [%s][%s]",
+                                    shardSnapshotBlobName,
+                                    metadata.name(),
+                                    shardContainer.path()
+                                )
+                            );
+                        }
+                    }
+                    logger.error(
+                        "read shard snapshots [{}] due to missing shard generation [{}] for index {} in [{}][{}]",
+                        messageBuilder,
+                        generation,
+                        indexId,
+                        metadata.name(),
+                        shardContainer.path()
+                    );
+                    return new Tuple<>(blobStoreIndexShardSnapshots, generation);
+                } catch (Exception fallbackException) {
+                    logger.error(
+                        Strings.format("failed while reading all shard snapshots from [%s][%s]", metadata.name(), shardContainer.path()),
+                        fallbackException
+                    );
+                    noSuchFileException.addSuppressed(fallbackException);
+                    throw noSuchFileException;
+                }
+            }
+        } else {
+            final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+            return new Tuple<>(legacyIndex.v1(), new ShardGeneration(legacyIndex.v2()));
         }
-        final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
-        return new Tuple<>(legacyIndex.v1(), new ShardGeneration(legacyIndex.v2()));
     }
 
     /**
@@ -3835,7 +4006,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
             return new Tuple<>(shardSnapshots, latest);
         } else if (blobs.stream()
-            .anyMatch(b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(INDEX_FILE_PREFIX) || b.startsWith(UPLOADED_DATA_BLOB_PREFIX))) {
+            .anyMatch(
+                b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(SNAPSHOT_INDEX_PREFIX) || b.startsWith(UPLOADED_DATA_BLOB_PREFIX)
+            )) {
                 logger.warn(
                     "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]"
                 );
@@ -3857,7 +4030,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final String file = fileInfo.physicalName();
         try (
             Releasable ignored = context.withCommitRef();
-            IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())
+            IndexInput indexInput = store.openVerifyingInput(file, IOContext.READ, fileInfo.metadata())
         ) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
@@ -3942,5 +4115,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 suitable for use with Elasticsearch snapshots. See [%s] for further information.""",
             ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS
         );
+    }
+
+    public static final String READ_ONLY_USAGE_STATS_NAME = "read_only";
+    public static final String READ_WRITE_USAGE_STATS_NAME = "read_write";
+
+    @Override
+    public final Set<String> getUsageFeatures() {
+        final var extraUsageFeatures = getExtraUsageFeatures();
+        assert extraUsageFeatures.contains(READ_ONLY_USAGE_STATS_NAME) == false : extraUsageFeatures;
+        assert extraUsageFeatures.contains(READ_WRITE_USAGE_STATS_NAME) == false : extraUsageFeatures;
+        return Set.copyOf(
+            Stream.concat(Stream.of(isReadOnly() ? READ_ONLY_USAGE_STATS_NAME : READ_WRITE_USAGE_STATS_NAME), extraUsageFeatures.stream())
+                .toList()
+        );
+    }
+
+    /**
+     * All blob-store repositories include the counts of read-only and read-write repositories in their telemetry. This method returns other
+     * features of the repositories in use.
+     *
+     * @return a set of the names of the extra features that this repository instance uses, for reporting in the cluster stats for telemetry
+     *         collection.
+     */
+    protected Set<String> getExtraUsageFeatures() {
+        return Set.of();
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,7 +50,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -75,6 +73,8 @@ import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends AbstractStatementParserTests {
+
+    private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
 
     public void testRowCommand() {
         assertEquals(
@@ -313,7 +313,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
-        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
+        var query = "inlinestats b = min(a) by c, d.e";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            return;
+        }
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -325,12 +330,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("d.e")
                 )
             ),
-            processingCommand("inlinestats b = min(a) by c, d.e")
+            processingCommand(query)
         );
     }
 
     public void testInlineStatsWithoutGroups() {
-        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
+        var query = "inlinestats min(a), c = 1";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            return;
+        }
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -341,7 +351,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "c", integer(1))
                 )
             ),
-            processingCommand("inlinestats min(a), c = 1")
+            processingCommand(query)
         );
     }
 
@@ -389,6 +399,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testStringAsLookupIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"foo\" ON j");
         assertStringAsLookupIndexPattern("test-*", """
             ROW x = 1 | LOOKUP "test-*" ON j
@@ -440,6 +451,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidQuotingAsMetricsIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectError("METRICS \"foo", ": token recognition error at: '\"foo'");
         expectError("METRICS \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
         expectError("METRICS \"\"\"foo", ": token recognition error at: '\"'");
@@ -456,6 +468,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidQuotingAsLookupIndexPattern() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         expectError("ROW x = 1 | LOOKUP \"foo ON j", ": token recognition error at: '\"foo ON j'");
         expectError("ROW x = 1 | LOOKUP \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
 
@@ -791,6 +804,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:22: Invalid GROK pattern [%{NUMBER:foo} %{WORD:foo}]:"
                 + " the attribute [foo] is defined multiple times with different types"
         );
+
+        expectError(
+            "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
+            "line 1:18: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
+        );
     }
 
     public void testLikeRLike() {
@@ -810,6 +828,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("from a | where foo like 12", "mismatched input '12'");
         expectError("from a | where foo rlike 12", "mismatched input '12'");
+
+        expectError(
+            "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
+            "line 1:17: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+                + "[Invalid sequence - escape character is not followed by special wildcard char]"
+        );
     }
 
     public void testEnrich() {
@@ -967,17 +991,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.child().fold(), is(11));
     }
 
-    public void testMatchCommand() throws IOException {
-        assumeTrue("Match command available just for snapshots", Build.current().isSnapshot());
-        String queryString = "field: value";
-        assertEquals(
-            new Filter(EMPTY, PROCESSING_CMD_INPUT, new StringQueryPredicate(EMPTY, queryString, null)),
-            processingCommand("match \"" + queryString + "\"")
-        );
-
-        expectError("from a | match an unquoted string", "mismatched input 'an' expecting QUOTED_STRING");
-    }
-
     public void testMissingInputParams() {
         expectError("row x = ?, y = ?", List.of(new QueryParam(null, 1, INTEGER)), "Not enough actual parameters 1");
     }
@@ -1014,7 +1027,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "Unknown query parameter [n2], did you mean any of [n3, n1]?"
         );
 
-        expectError("from test | where x < ?_1", List.of(new QueryParam("_1", 5, INTEGER)), "extraneous input '_1' expecting <EOF>");
+        expectError("from test | where x < ?@1", List.of(new QueryParam("@1", 5, INTEGER)), "extraneous input '@1' expecting <EOF>");
 
         expectError("from test | where x < ?#1", List.of(new QueryParam("#1", 5, INTEGER)), "token recognition error at: '#'");
 
@@ -1023,6 +1036,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(new QueryParam("n_1", 5, INTEGER), new QueryParam("n_2", 5, INTEGER)),
             "extraneous input '?' expecting <EOF>"
         );
+
+        expectError("from test | where x < ?Å", List.of(new QueryParam("Å", 5, INTEGER)), "line 1:24: token recognition error at: 'Å'");
+
+        expectError("from test | eval x = ?Å", List.of(new QueryParam("Å", 5, INTEGER)), "line 1:23: token recognition error at: 'Å'");
     }
 
     public void testPositionalParams() {
@@ -1065,12 +1082,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
-            "from test | where x < ?0 and y < ?2",
-            List.of(new QueryParam(null, 5, INTEGER)),
-            "No parameter is defined for position 2, did you mean position 1"
-        );
-
-        expectError(
             "from test | where x < ?0",
             List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, 10, INTEGER)),
             "No parameter is defined for position 0, did you mean any position between 1 and 2?"
@@ -1102,7 +1113,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
+        plan = statement("from test | where x < ?_n1 |  limit 10", new QueryParams(List.of(new QueryParam("_n1", 5, INTEGER))));
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Filter.class));
+        w = (Filter) limit.children().get(0);
+        assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
+        assertThat(limit.children().get(0).children().size(), equalTo(1));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+
         plan = statement("from test | where x < ?1 |  limit 10", new QueryParams(List.of(new QueryParam(null, 5, INTEGER))));
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Filter.class));
+        w = (Filter) limit.children().get(0);
+        assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
+        assertThat(limit.children().get(0).children().size(), equalTo(1));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement("from test | where x < ?__1 |  limit 10", new QueryParams(List.of(new QueryParam("__1", 5, INTEGER))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1157,8 +1192,46 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement(
+            "from test | where x < ?_n1 | eval y = ?_n2 + ?_n3 |  limit 10",
+            new QueryParams(
+                List.of(new QueryParam("_n1", 5, INTEGER), new QueryParam("_n2", -1, INTEGER), new QueryParam("_n3", 100, INTEGER))
+            )
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) limit.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  limit 10",
             new QueryParams(List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER)))
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) limit.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(5));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement(
+            "from test | where x < ?_1 | eval y = ?_2 + ?_1 |  limit 10",
+            new QueryParams(List.of(new QueryParam("_1", 5, INTEGER), new QueryParam("_2", -1, INTEGER)))
         );
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
@@ -1227,9 +1300,54 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
         plan = statement(
+            "from test | where x < ?_n1 | eval y = ?_n2 + ?_n3 |  stats count(?_n4) by z",
+            new QueryParams(
+                List.of(
+                    new QueryParam("_n1", 5, INTEGER),
+                    new QueryParam("_n2", -1, INTEGER),
+                    new QueryParam("_n3", 100, INTEGER),
+                    new QueryParam("_n4", "*", KEYWORD)
+                )
+            )
+        );
+        assertThat(plan, instanceOf(Aggregate.class));
+        agg = (Aggregate) plan;
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(agg.child(), instanceOf(Eval.class));
+        assertThat(agg.children().size(), equalTo(1));
+        assertThat(agg.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) agg.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  stats count(?3) by z",
             new QueryParams(
                 List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER), new QueryParam(null, "*", KEYWORD))
+            )
+        );
+        assertThat(plan, instanceOf(Aggregate.class));
+        agg = (Aggregate) plan;
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(agg.child(), instanceOf(Eval.class));
+        assertThat(agg.children().size(), equalTo(1));
+        assertThat(agg.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) agg.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(5));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
+
+        plan = statement(
+            "from test | where x < ?_1 | eval y = ?_2 + ?_1 |  stats count(?_3) by z",
+            new QueryParams(
+                List.of(new QueryParam("_1", 5, INTEGER), new QueryParam("_2", -1, INTEGER), new QueryParam("_3", "*", KEYWORD))
             )
         );
         assertThat(plan, instanceOf(Aggregate.class));
@@ -1261,11 +1379,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
-            "from test | where x < ?1 | eval y = ?n2 + ?n3 |  limit ?n4",
+            "from test | where x < ? | eval y = ?_n2 + ?n3 |  limit ?_4",
+            List.of(
+                new QueryParam("n1", 5, INTEGER),
+                new QueryParam("_n2", -1, INTEGER),
+                new QueryParam("n3", 100, INTEGER),
+                new QueryParam("n4", 10, INTEGER)
+            ),
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of named and anonymous"
+        );
+
+        expectError(
+            "from test | where x < ?1 | eval y = ?n2 + ?_n3 |  limit ?n4",
             List.of(
                 new QueryParam("n1", 5, INTEGER),
                 new QueryParam("n2", -1, INTEGER),
-                new QueryParam("n3", 100, INTEGER),
+                new QueryParam("_n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
             "Inconsistent parameter declaration, "
@@ -1273,16 +1403,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
-            "from test | where x < ? | eval y = ?2 + ?n3 |  limit ?n4",
+            "from test | where x < ? | eval y = ?2 + ?n3 |  limit ?_n4",
             List.of(
                 new QueryParam("n1", 5, INTEGER),
                 new QueryParam("n2", -1, INTEGER),
                 new QueryParam("n3", 100, INTEGER),
-                new QueryParam("n4", 10, INTEGER)
+                new QueryParam("_n4", 10, INTEGER)
             ),
             "Inconsistent parameter declaration, "
                 + "use one of positional, named or anonymous params but not a combination of positional and anonymous"
         );
+    }
+
+    public void testIntervalParam() {
+        LogicalPlan stm = statement(
+            "row x = ?1::datetime | eval y = ?1::datetime + ?2::date_period",
+            new QueryParams(List.of(new QueryParam("datetime", "2024-01-01", KEYWORD), new QueryParam("date_period", "3 days", KEYWORD)))
+        );
+        assertThat(stm, instanceOf(Eval.class));
+        Eval eval = (Eval) stm;
+        assertThat(eval.fields().size(), is(1));
+
+        NamedExpression field = eval.fields().get(0);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo("2024-01-01"));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
     }
 
     public void testFieldContainingDotsAndNumbers() {
@@ -1309,9 +1455,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsIndexPattern(String string, String statement) {
-        if (Build.current().isProductionRelease() && statement.contains("METRIC")) {
-            var e = expectThrows(IllegalArgumentException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("METRICS command currently requires a snapshot build"));
+        if (Build.current().isSnapshot() == false && statement.contains("METRIC")) {
+            var e = expectThrows(ParsingException.class, () -> statement(statement));
+            assertThat(e.getMessage(), containsString("mismatched input 'METRICS' expecting {"));
             return;
         }
         LogicalPlan from = statement(statement);
@@ -1321,7 +1467,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(statement));
             assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
             return;
@@ -1389,9 +1535,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP t ON j";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(query));
-            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = statement(query);
@@ -1531,13 +1677,37 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testInvalidAlias() {
+        expectError("row Å = 1", "line 1:5: token recognition error at: 'Å'");
+        expectError("from test | eval Å = 1", "line 1:18: token recognition error at: 'Å'");
+        expectError("from test | where Å == 1", "line 1:19: token recognition error at: 'Å'");
+        expectError("from test | keep Å", "line 1:18: token recognition error at: 'Å'");
+        expectError("from test | drop Å", "line 1:18: token recognition error at: 'Å'");
+        expectError("from test | sort Å", "line 1:18: token recognition error at: 'Å'");
+        expectError("from test | rename Å as A", "line 1:20: token recognition error at: 'Å'");
+        expectError("from test | rename A as Å", "line 1:25: token recognition error at: 'Å'");
+        expectError("from test | rename Å as Å", "line 1:20: token recognition error at: 'Å'");
+        expectError("from test | stats Å = count(*)", "line 1:19: token recognition error at: 'Å'");
+        expectError("from test | stats count(Å)", "line 1:25: token recognition error at: 'Å'");
+        expectError("from test | eval A = coalesce(Å, null)", "line 1:31: token recognition error at: 'Å'");
+        expectError("from test | eval A = coalesce(\"Å\", Å)", "line 1:36: token recognition error at: 'Å'");
+    }
+
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null);
+        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, metadata, IndexMode.TIME_SERIES, null);
+        return new UnresolvedRelation(
+            EMPTY,
+            new TableIdentifier(EMPTY, null, index),
+            false,
+            metadata,
+            IndexMode.TIME_SERIES,
+            null,
+            "FROM TS"
+        );
     }
 
     public void testMetricWithGroupKeyAsAgg() {
@@ -1547,7 +1717,4 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
     }
-
-    private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
-
 }

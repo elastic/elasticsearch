@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -12,6 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -105,7 +108,7 @@ public enum IndexMode {
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
+            return DocumentDimensions.Noop.INSTANCE;
         }
 
         @Override
@@ -279,7 +282,7 @@ public enum IndexMode {
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
+            return DocumentDimensions.Noop.INSTANCE;
         }
 
         @Override
@@ -492,6 +495,25 @@ public enum IndexMode {
                     + "]"
             );
         };
+    }
+
+    public static IndexMode readFrom(StreamInput in) throws IOException {
+        int mode = in.readByte();
+        return switch (mode) {
+            case 0 -> STANDARD;
+            case 1 -> TIME_SERIES;
+            case 2 -> LOGSDB;
+            default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
+        };
+    }
+
+    public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
+        final int code = switch (indexMode) {
+            case STANDARD -> 0;
+            case TIME_SERIES -> 1;
+            case LOGSDB -> 2;
+        };
+        out.writeByte((byte) code);
     }
 
     @Override

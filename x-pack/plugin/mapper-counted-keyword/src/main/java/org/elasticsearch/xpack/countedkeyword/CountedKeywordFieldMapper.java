@@ -155,10 +155,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                             return 0; // Unknown
                         }
 
-                        @Override
-                        public void close() {
-                            // nothing to close
-                        }
                     };
                 }
 
@@ -307,8 +303,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     meta.getValue(),
                     countFieldMapper.fieldType()
                 ),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 countFieldMapper
             );
         }
@@ -323,11 +318,10 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         BinaryFieldMapper countFieldMapper
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
     }

@@ -146,7 +146,7 @@ public abstract class AsyncOperator implements Operator {
         Exception e = failureCollector.getFailure();
         if (e != null) {
             discardPages();
-            throw ExceptionsHelper.convertToElastic(e);
+            throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 

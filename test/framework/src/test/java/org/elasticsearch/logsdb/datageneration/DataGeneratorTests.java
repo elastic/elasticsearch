@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration;
@@ -15,6 +16,7 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,6 +44,7 @@ public class DataGeneratorTests extends ESTestCase {
     public void testDataGeneratorProducesValidMappingAndDocument() throws IOException {
         // Make sure objects, nested objects and all field types are covered.
         var testChildFieldGenerator = new DataSourceResponse.ChildFieldGenerator() {
+            private boolean dynamicSubObjectCovered = false;
             private boolean subObjectCovered = false;
             private boolean nestedCovered = false;
             private int generatedFields = 0;
@@ -50,6 +53,16 @@ public class DataGeneratorTests extends ESTestCase {
             public int generateChildFieldCount() {
                 // Make sure to generate enough fields to go through all field types.
                 return 20;
+            }
+
+            @Override
+            public boolean generateDynamicSubObject() {
+                if (dynamicSubObjectCovered == false) {
+                    dynamicSubObjectCovered = true;
+                    return true;
+                }
+
+                return false;
             }
 
             @Override
@@ -88,7 +101,24 @@ public class DataGeneratorTests extends ESTestCase {
 
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                return new DataSourceResponse.FieldTypeGenerator(() -> FieldType.values()[generatedFields++ % FieldType.values().length]);
+                if (request.dynamicMapping() == DynamicMapping.FORBIDDEN || request.dynamicMapping() == DynamicMapping.SUPPORTED) {
+                    return new DataSourceResponse.FieldTypeGenerator(
+                        () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
+                            FieldType.values()[generatedFields++ % FieldType.values().length],
+                            false
+                        )
+                    );
+                }
+
+                return new DataSourceResponse.FieldTypeGenerator(() -> {
+                    var fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
+                    // Does not really work with dynamic mapping.
+                    if (fieldType == FieldType.UNSIGNED_LONG) {
+                        fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
+                    }
+
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, true);
+                });
             }
         };
 
@@ -113,13 +143,18 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorStressTest() throws IOException {
-        // Let's generate 1000000 fields to test an extreme case (2 levels of objects + 1 leaf level with 100 fields per object).
+        // Let's generate 125000 fields to test an extreme case (2 levels of objects + 1 leaf level with 50 fields per object).
         var testChildFieldGenerator = new DataSourceResponse.ChildFieldGenerator() {
             private int generatedFields = 0;
 
             @Override
             public int generateChildFieldCount() {
-                return 100;
+                return 50;
+            }
+
+            @Override
+            public boolean generateDynamicSubObject() {
+                return false;
             }
 
             @Override
@@ -151,7 +186,9 @@ public class DataGeneratorTests extends ESTestCase {
 
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                return new DataSourceResponse.FieldTypeGenerator(() -> FieldType.LONG);
+                return new DataSourceResponse.FieldTypeGenerator(
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false)
+                );
             }
         };
 

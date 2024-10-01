@@ -64,14 +64,20 @@ public class BigArrayVectorTests extends SerializationTestCase {
             if (positionCount > 1) {
                 assertLookup(
                     vector.asBlock(),
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                    positions(blockFactory, 0, 1, new int[] { 0, 1 }),
+                    List.of(List.of(values[0]), List.of(values[1]), List.of(values[0], values[1]))
                 );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, vector.asBlock());
             assertSerialization(block);
             assertThat(vector.toString(), containsString("BooleanBigArrayVector[positions=" + positionCount));
+            try (ToMask mask = block.toMask()) {
+                assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                for (int p = 0; p < values.length; p++) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(values[p]));
+                }
+            }
         }
     }
 
@@ -104,8 +110,8 @@ public class BigArrayVectorTests extends SerializationTestCase {
             if (positionCount > 1) {
                 assertLookup(
                     vector.asBlock(),
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                    positions(blockFactory, 0, 1, new int[] { 0, 1 }),
+                    List.of(List.of(values[0]), List.of(values[1]), List.of(values[0], values[1]))
                 );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
@@ -146,8 +152,8 @@ public class BigArrayVectorTests extends SerializationTestCase {
             if (positionCount > 1) {
                 assertLookup(
                     vector.asBlock(),
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                    positions(blockFactory, 0, 1, new int[] { 0, 1 }),
+                    List.of(List.of(values[0]), List.of(values[1]), List.of(values[0], values[1]))
                 );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
@@ -186,8 +192,8 @@ public class BigArrayVectorTests extends SerializationTestCase {
             if (positionCount > 1) {
                 assertLookup(
                     vector.asBlock(),
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                    positions(blockFactory, 0, 1, new int[] { 0, 1 }),
+                    List.of(List.of(values[0]), List.of(values[1]), List.of(values[0], values[1]))
                 );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));

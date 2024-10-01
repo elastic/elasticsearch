@@ -98,6 +98,7 @@ public class Constants {
         "cluster:admin/snapshot/restore",
         "cluster:admin/snapshot/status",
         "cluster:admin/snapshot/status[nodes]",
+        "cluster:admin/repository/verify_integrity",
         "cluster:admin/features/get",
         "cluster:admin/features/reset",
         "cluster:admin/tasks/cancel",

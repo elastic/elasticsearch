@@ -50,6 +50,14 @@ is the unique identifier of the {infer} endpoint is `elser_embeddings`.
 You don't need to download and deploy the ELSER model upfront, the API request
 above will download the model if it's not downloaded yet and then deploy it.
 
+[NOTE]
+====
+You might see a 502 bad gateway error in the response when using the {kib} Console.
+This error usually just reflects a timeout, while the model downloads in the background.
+You can check the download progress in the {ml-app} UI.
+If using the Python client, you can set the `timeout` parameter to a higher value.
+====
+
 // end::elser[]
 
 // tag::hugging-face[]
@@ -178,6 +186,30 @@ Also, when using this model the recommended similarity measure to use in the
 
 // end::azure-ai-studio[]
 
+// tag::google-vertex-ai[]
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/google_vertex_ai_embeddings <1>
+{
+    "service": "googlevertexai",
+    "service_settings": {
+        "service_account_json": "<service_account_json>", <2>
+        "model_id": "text-embedding-004", <3>
+        "location": "<location>", <4>
+        "project_id": "<project_id>" <5>
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `text_embedding` per the path. `google_vertex_ai_embeddings` is the unique identifier of the {infer} endpoint (its `inference_id`).
+<2> A valid service account in JSON format for the Google Vertex AI API.
+<3> For the list of the available models, refer to the https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api[Text embeddings API] page.
+<4> The name of the location to use for the {infer} task. Refer to https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations[Generative AI on Vertex AI locations] for available locations.
+<5> The name of the project to use for the {infer} task. 
+
+// end::google-vertex-ai[]
+
 // tag::mistral[]
 
 [source,console]
@@ -223,3 +255,32 @@ PUT _inference/text_embedding/amazon_bedrock_embeddings <1>
 <6> The model ID or ARN of the model to use.
 
 // end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/alibabacloud_ai_search_embeddings <1>
+{
+    "service": "alibabacloud-ai-search",
+    "service_settings": {
+        "api_key": "<api_key>", <2>
+        "service_id": "<service_id>", <3>
+        "host": "<host>", <4>
+        "workspace": "<workspace>" <5>
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `text_embedding` in the path and the `inference_id` which is the unique identifier of the {infer} endpoint is `alibabacloud_ai_search_embeddings`.
+<2> The API key for accessing the AlibabaCloud AI Search API. You can find your API keys in
+your AlibabaCloud account under the
+https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[API keys section]. You need to provide
+your API key only once. The <<get-inference-api>> does not return your API
+key.
+<3> The AlibabaCloud AI Search embeddings model name, for example `ops-text-embedding-zh-001`.
+<4> The name our your AlibabaCloud AI Search host address.
+<5> The name our your AlibabaCloud AI Search workspace.
+
+// end::alibabacloud-ai-search[]
+

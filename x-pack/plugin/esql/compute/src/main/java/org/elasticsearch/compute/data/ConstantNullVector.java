@@ -55,6 +55,12 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public ConstantNullBlock keepMask(BooleanVector mask) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public ReleasableIterator<ConstantNullBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");

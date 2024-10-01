@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -58,7 +59,6 @@ import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResul
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.suggest.SortBy;
@@ -463,10 +463,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 topDocs = Lucene.EMPTY_TOP_DOCS;
             } else if (rank) {
                 int nDocs = randomIntBetween(0, searchHitsSize);
-                TestRankDoc[] rankDocs = new TestRankDoc[nDocs];
+                RankDoc[] rankDocs = new RankDoc[nDocs];
                 for (int i = 0; i < nDocs; i++) {
                     float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
-                    rankDocs[i] = new TestRankDoc(i, score, shardIndex);
+                    rankDocs[i] = new RankDoc(i, score, shardIndex);
                     maxScore = Math.max(score, maxScore);
                 }
                 querySearchResult.setRankShardResult(new TestRankShardResult(rankDocs));

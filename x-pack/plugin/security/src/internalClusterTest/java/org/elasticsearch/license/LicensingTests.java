@@ -158,7 +158,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         assertElasticsearchSecurityException(() -> client.admin().indices().prepareStats().get());
         assertElasticsearchSecurityException(() -> client.admin().cluster().prepareClusterStats().get());
-        assertElasticsearchSecurityException(() -> client.admin().cluster().prepareHealth().get());
+        assertElasticsearchSecurityException(() -> client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get());
         assertElasticsearchSecurityException(() -> client.admin().cluster().prepareNodesStats().get());
 
         enableLicensing(randomFrom(License.OperationMode.values()));
@@ -172,7 +172,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(indices, notNullValue());
         assertThat(indices.getIndexCount(), greaterThanOrEqualTo(2));
 
-        ClusterHealthResponse clusterIndexHealth = client.admin().cluster().prepareHealth().get();
+        ClusterHealthResponse clusterIndexHealth = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertThat(clusterIndexHealth, notNullValue());
 
         NodesStatsResponse nodeStats = client.admin().cluster().prepareNodesStats().get();

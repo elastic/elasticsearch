@@ -145,7 +145,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -3442,15 +3441,12 @@ public class ApiKeyServiceTests extends ESTestCase {
                 Authentication.newApiKeyAuthentication(authenticationResult, "node01"),
                 threadContext
             );
-            final CompletableFuture<Authentication> authFuture = new CompletableFuture<>();
-            securityContext.executeAfterRewritingAuthentication((c) -> {
-                try {
-                    authFuture.complete(authenticationContextSerializer.readFromContext(threadContext));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }, version);
-            return authFuture.get();
+            return safeAwait(
+                l -> securityContext.executeAfterRewritingAuthentication(
+                    c -> ActionListener.completeWith(l, () -> authenticationContextSerializer.readFromContext(threadContext)),
+                    version
+                )
+            );
         }
 
         public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Authentication authentication)

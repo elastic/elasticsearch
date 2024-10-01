@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
@@ -60,6 +61,16 @@ public enum ChunkedToXContentHelper {
             map,
             entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder.field(entry.getKey()), params)
         );
+    }
+
+    /**
+     * Like xContentFragmentValuesMap, but allows the underlying XContent object to define its own "name" with startObject(string)
+     * and endObject, rather than assuming that the key in the map should be the name in the XContent output.
+     * @param name name to use in the XContent for the outer object wrapping the map being rendered to XContent
+     * @param map map being rendered to XContent
+     */
+    public static Iterator<ToXContent> xContentFragmentValuesMapCreateOwnName(String name, Map<String, ? extends ToXContent> map) {
+        return map(name, map, entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder, params));
     }
 
     public static Iterator<ToXContent> field(String name, boolean value) {

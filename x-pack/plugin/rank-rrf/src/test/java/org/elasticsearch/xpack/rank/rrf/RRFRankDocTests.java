@@ -71,4 +71,9 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
         }
         return mutated;
     }
+
+    public void testExplain() {
+        RRFRankDoc instance = createTestRRFRankDoc();
+        assertEquals(instance.explain().toString(), instance.explain().toString());
+    }
 }

@@ -3,7 +3,7 @@
 === `STATS ... BY`
 
 The `STATS ... BY` processing command groups rows according to a common value
-and calculate one or more aggregated values over the grouped rows.
+and calculates one or more aggregated values over the grouped rows.
 
 **Syntax**
 
@@ -40,6 +40,10 @@ over the entire dataset.
 The following <<esql-agg-functions,aggregation functions>> are supported:
 
 include::../functions/aggregation-functions.asciidoc[tag=agg_list]
+
+The following <<esql-group-functions,grouping functions>> are supported:
+
+include::../functions/grouping-functions.asciidoc[tag=group_list]
 
 NOTE: `STATS` without any groups is much much faster than adding a group.
 

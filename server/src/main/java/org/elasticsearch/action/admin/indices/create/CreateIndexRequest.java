@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -67,8 +68,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private boolean initializeFailureStore;
 
     private Settings settings = Settings.EMPTY;
+    public static final String EMPTY_MAPPINGS = "{}";
 
-    private String mappings = "{}";
+    private String mappings = EMPTY_MAPPINGS;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -284,8 +286,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        // wrap it in a type map if its not
-        if (source.size() != 1 || source.containsKey(type) == false) {
+        if (source.isEmpty()) {
+            // If no source is provided we return empty mappings
+            return mapping(EMPTY_MAPPINGS);
+        } else if (source.size() != 1 || source.containsKey(type) == false) {
+            // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
         } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
             // if it has a different type name, then unwrap and rewrap with _doc

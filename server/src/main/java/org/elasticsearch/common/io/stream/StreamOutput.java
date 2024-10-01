@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -1015,10 +1016,31 @@ public abstract class StreamOutput extends OutputStream {
         writeOptionalArray(StreamOutput::writeWriteable, array);
     }
 
+    /**
+     * Writes a boolean value indicating whether the given object is {@code null}, followed by the object's serialization if it is not
+     * {@code null}.
+     *
+     * @see StreamInput#readOptionalWriteable
+     */
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
             writeable.writeTo(this);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
+    /**
+     * Writes a boolean value indicating whether the given object is {@code null}, followed by the object's serialization if it is not
+     * {@code null}.
+     *
+     * @see StreamInput#readOptional
+     */
+    public <T> void writeOptional(Writer<T> writer, @Nullable T maybeItem) throws IOException {
+        if (maybeItem != null) {
+            writeBoolean(true);
+            writer.write(this, maybeItem);
         } else {
             writeBoolean(false);
         }

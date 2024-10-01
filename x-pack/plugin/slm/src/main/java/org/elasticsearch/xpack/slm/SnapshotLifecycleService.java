@@ -20,10 +20,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
-import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
@@ -45,7 +46,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
  * task according to the policy's schedule.
  */
 public class SnapshotLifecycleService implements Closeable, ClusterStateListener {
-
+    public static final NodeFeature INTERVAL_SCHEDULE = new NodeFeature("slm.interval_schedule");
     private static final Logger logger = LogManager.getLogger(SnapshotLifecycleService.class);
     private static final String JOB_PATTERN_SUFFIX = "-\\d+$";
 
@@ -193,15 +194,13 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         // is identical to an existing job (meaning the version has not changed) then this does
         // not reschedule it.
         scheduledTasks.computeIfAbsent(jobId, id -> {
-            final SchedulerEngine.Job job = new SchedulerEngine.Job(
-                jobId,
-                new CronSchedule(snapshotLifecyclePolicy.getPolicy().getSchedule())
-            );
             if (existingJobsFoundAndCancelled) {
                 logger.info("rescheduling updated snapshot lifecycle job [{}]", jobId);
             } else {
                 logger.info("scheduling snapshot lifecycle job [{}]", jobId);
             }
+
+            final SchedulerEngine.Job job = snapshotLifecyclePolicy.buildSchedulerJob(jobId);
             scheduler.add(job);
             return job;
         });
@@ -249,7 +248,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      */
     public static void validateMinimumInterval(final SnapshotLifecyclePolicy lifecycle, final ClusterState state) {
         TimeValue minimum = LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING.get(state.metadata().settings());
-        TimeValue next = lifecycle.calculateNextInterval();
+        TimeValue next = lifecycle.calculateNextInterval(Clock.systemUTC());
         if (next.duration() > 0 && minimum.duration() > 0 && next.millis() < minimum.millis()) {
             throw new IllegalArgumentException(
                 "invalid schedule ["
@@ -258,6 +257,18 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                     + "schedule would be too frequent, executing more than every ["
                     + minimum.getStringRep()
                     + "]"
+            );
+        }
+    }
+
+    /**
+     * Validate that interval schedule feature is not supported by all nodes
+     * @throws IllegalArgumentException if is interval expression but interval schedule not supported
+     */
+    public static void validateIntervalScheduleSupport(String schedule, FeatureService featureService, ClusterState state) {
+        if (SnapshotLifecyclePolicy.isIntervalSchedule(schedule) && featureService.clusterHasFeature(state, INTERVAL_SCHEDULE) == false) {
+            throw new IllegalArgumentException(
+                "Unable to use slm interval schedules in mixed-clusters with nodes that do not support feature " + INTERVAL_SCHEDULE.id()
             );
         }
     }

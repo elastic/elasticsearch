@@ -1,0 +1,84 @@
+example
+required_capability: fn_mv_median_absolute_deviation
+
+// tag::example[]
+ROW values = [0, 2, 5, 6]
+| EVAL median_absolute_deviation = MV_MEDIAN_ABSOLUTE_DEVIATION(values), median = MV_MEDIAN(values)
+// end::example[]
+;
+
+// tag::example-result[]
+values:integer | median_absolute_deviation:integer | median:integer
+[0, 2, 5, 6]   | 2                                 | 3
+// end::example-result[]
+;
+
+fromIndex
+required_capability: fn_mv_median_absolute_deviation
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10007, 10009)
+| SORT emp_no ASC
+| EVAL
+    int = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change.int),
+    long = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change.long),
+    double = MV_MEDIAN_ABSOLUTE_DEVIATION(salary_change)
+| KEEP emp_no, salary_change, int, long, double
+;
+
+emp_no:integer | salary_change:double | int:integer | long:long | double:double
+10001          | 1.19                 | 0           | 0         | 0
+10002          | [-7.23, 11.17]       | 9           | 9         | 9.2
+10007          | [-7.06,0.57,1.99]    | 1           | 1         | 1.42
+10009          | null                 | null        | null      | null
+;
+
+allTypes
+required_capability: fn_mv_median_absolute_deviation
+
+ROW x = [0, 2, 5, 6]
+| EVAL
+    int = MV_MEDIAN_ABSOLUTE_DEVIATION(x::INTEGER),
+    long = MV_MEDIAN_ABSOLUTE_DEVIATION(x::LONG),
+    double = MV_MEDIAN_ABSOLUTE_DEVIATION(x::DOUBLE),
+    ul = MV_MEDIAN_ABSOLUTE_DEVIATION(x::UNSIGNED_LONG)
+| KEEP int, long, double, ul
+;
+
+int:integer | long:long | double:double | ul:unsigned_long
+2           | 2         | 2             | 2
+;
+
+multipleExpressions
+required_capability: fn_mv_median_absolute_deviation
+
+ROW x = [0, 2, 5, 6]
+| EVAL
+    MV_MEDIAN_ABSOLUTE_DEVIATION(x),
+    a = MV_MEDIAN_ABSOLUTE_DEVIATION(x),
+    b = MV_MEDIAN_ABSOLUTE_DEVIATION(TO_DOUBLE([2, 5])),
+    c = MV_MEDIAN_ABSOLUTE_DEVIATION(CASE(true, x, [0, 1]))
+;
+
+x:integer    | MV_MEDIAN_ABSOLUTE_DEVIATION(x):integer | a:integer | b:double | c:integer
+[0, 2, 5, 6] | 2                                       | 2         | 1.5      | 2
+;
+
+nullsAndFolds
+required_capability: fn_mv_median_absolute_deviation
+
+ROW x = [0, 2, 5, 6], single = 300
+| EVAL evalNull = null / 2, evalValue = 31 + 1
+| LIMIT 1
+| EVAL
+    a = MV_MEDIAN_ABSOLUTE_DEVIATION(x),
+    b = MV_MEDIAN_ABSOLUTE_DEVIATION(single),
+    c = MV_MEDIAN_ABSOLUTE_DEVIATION(null),
+    d = MV_MEDIAN_ABSOLUTE_DEVIATION(evalNull),
+    e = MV_MEDIAN_ABSOLUTE_DEVIATION(evalValue)
+| KEEP a, b, c, d, e
+;
+
+a:integer | b:integer | c:null | d:integer | e:integer
+2         | 0         | null   | null      | 0
+;

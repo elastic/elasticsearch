@@ -28,7 +28,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
@@ -43,8 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL;
@@ -152,6 +149,7 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         Model model,
         @Nullable String query,
         List<String> inputs,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -239,31 +237,6 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
     private void checkCompatibleTaskType(TaskType taskType) {
         if (TaskType.SPARSE_EMBEDDING.isAnyOrSame(taskType) == false) {
             throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
-        }
-    }
-
-    @Override
-    public void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
-        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
-            if (response.getResources().count() < 1) {
-                delegate.onResponse(Boolean.FALSE);
-            } else {
-                delegate.onResponse(Boolean.TRUE);
-            }
-        });
-
-        if (model instanceof ElserInternalModel elserModel) {
-            String modelId = elserModel.getServiceSettings().modelId();
-            GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
-            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
-        } else {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "Can not download model automatically for ["
-                        + model.getConfigurations().getInferenceEntityId()
-                        + "] you may need to download it through the trained models API or with eland."
-                )
-            );
         }
     }
 

@@ -21,8 +21,6 @@ apply plugin: 'elasticsearch.dra-artifacts'
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
 
-
-
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
   // is only used to fetch the `tini` binary, when building the Iron Bank docker image
@@ -131,7 +129,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
     'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 2.0' : 'Elastic-License-2.0',
-    'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : (base == DockerBase.UBI ? 'microdnf' : 'apt-get'),
+    'package_manager'    : base.packageManager,
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",
@@ -182,21 +180,12 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
         from projectDir.resolve("src/docker/config")
       }
     }
-
     from(projectDir.resolve("src/docker/Dockerfile")) {
       expand(varExpansions)
       filter SquashNewlinesFilter
     }
   }
 }
-//
-//def createAndSetWritable(Object... locations) {
-//  locations.each { location ->
-//    File file = file(location)
-//    file.mkdirs()
-//    file.setWritable(true, false)
-//  }
-//}
 
 tasks.register("copyNodeKeyMaterial", Sync) {
   def certsDir = file("build/certs")
@@ -526,6 +515,8 @@ subprojects { Project subProject ->
       base = DockerBase.CLOUD_ESS
     } else if (subProject.name.contains('cloud-')) {
       base = DockerBase.CLOUD
+    } else if (subProject.name.contains('wolfi-')) {
+      base = DockerBase.WOLFI
     }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
@@ -533,7 +524,8 @@ subprojects { Project subProject ->
       (base == DockerBase.IRON_BANK ? 'ironbank.tar' :
         (base == DockerBase.CLOUD ? 'cloud.tar' :
           (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
-            'docker.tar')))
+            (base == DockerBase.WOLFI ? 'wolfi.tar' :
+              'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')

@@ -1,134 +1,60 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb.qa;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.logsdb.datageneration.DataGenerator;
-import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.FieldType;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
 
 /**
  * Challenge test (see {@link StandardVersusLogsIndexModeChallengeRestIT}) that uses randomly generated
  * mapping and documents in order to cover more code paths and permutations.
  */
 public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
-    private final boolean fullyDynamicMapping;
-    private final boolean subobjectsDisabled;
-
-    private final DataGenerator dataGenerator;
+    protected final DataGenerationHelper dataGenerationHelper;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
+        this(new DataGenerationHelper());
+    }
+
+    protected StandardVersusLogsIndexModeRandomDataChallengeRestIT(DataGenerationHelper dataGenerationHelper) {
         super();
-        this.fullyDynamicMapping = randomBoolean();
-        this.subobjectsDisabled = randomBoolean();
-
-        var specificationBuilder = DataGeneratorSpecification.builder();
-        if (subobjectsDisabled) {
-            specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
-        }
-        this.dataGenerator = new DataGenerator(specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
-            @Override
-            public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                // Unsigned long is not used with dynamic mapping
-                // since it can initially look like long
-                // but later fail to parse once big values arrive.
-                // Double is not used since it maps to float with dynamic mapping
-                // resulting in precision loss compared to original source.
-                var excluded = fullyDynamicMapping ? List.of(FieldType.DOUBLE, FieldType.SCALED_FLOAT, FieldType.UNSIGNED_LONG) : List.of();
-                return new DataSourceResponse.FieldTypeGenerator(
-                    () -> randomValueOtherThanMany(excluded::contains, () -> randomFrom(FieldType.values()))
-                );
-            }
-
-            public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
-                if (subobjectsDisabled == false) {
-                    // Use default behavior
-                    return null;
-                }
-
-                assert request.isNested() == false;
-
-                // "enabled: false" is not compatible with subobjects: false
-                // "runtime: false/strict/runtime" is not compatible with subobjects: false
-                return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
-                    var parameters = new HashMap<String, Object>();
-                    if (ESTestCase.randomBoolean()) {
-                        parameters.put("dynamic", "true");
-                    }
-                    if (ESTestCase.randomBoolean()) {
-                        parameters.put("enabled", "true");
-                    }
-
-                    return parameters;
-                });
-            }
-        })).withPredefinedFields(List.of(new PredefinedField("host.name", FieldType.KEYWORD))).build());
+        this.dataGenerationHelper = dataGenerationHelper;
     }
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        if (fullyDynamicMapping == false) {
-            dataGenerator.writeMapping(builder);
-        } else {
-            // We want dynamic mapping, but we need host.name to be a keyword instead of text to support aggregations.
-            builder.startObject()
-                .startObject("properties")
-
-                .startObject("host.name")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .endObject()
-                .endObject();
-        }
+        dataGenerationHelper.standardMapping(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        if (fullyDynamicMapping == false) {
-            if (subobjectsDisabled) {
-                dataGenerator.writeMapping(builder, b -> builder.field("subobjects", false));
-            } else {
-                dataGenerator.writeMapping(builder);
-            }
-        } else {
-            builder.startObject();
-            if (subobjectsDisabled) {
-                builder.field("subobjects", false);
-            }
-            builder.endObject();
-        }
+        dataGenerationHelper.logsDbMapping(builder);
+    }
+
+    @Override
+    public void contenderSettings(Settings.Builder builder) {
+        super.contenderSettings(builder);
+        dataGenerationHelper.logsDbSettings(builder);
     }
 
     @Override
     protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {
         var document = XContentFactory.jsonBuilder();
-        dataGenerator.generateDocument(document, doc -> {
+        dataGenerationHelper.getDataGenerator().generateDocument(document, doc -> {
             doc.field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp));
-            // Needed for terms query
-            doc.field("method", randomFrom("put", "post", "get"));
-            // We can generate this but we would get "too many buckets"
-            doc.field("memory_usage_bytes", randomLongBetween(1000, 2000));
         });
 
         return document;

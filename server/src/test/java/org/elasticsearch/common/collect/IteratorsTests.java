@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.collect;
@@ -27,6 +28,10 @@ import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
@@ -240,6 +245,25 @@ public class IteratorsTests extends ESTestCase {
             expectThrows(AssertionError.class, () -> Iterators.filter(inputIterator, i -> predicateCalled.compareAndSet(false, true)));
             assertFalse(predicateCalled.get());
         }
+    }
+
+    public void testLimit() {
+        var result = Iterators.limit(Collections.emptyIterator(), 10);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
+
+        var values = List.of(1, 2, 3);
+        result = Iterators.limit(values.iterator(), 10);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2, 3));
+
+        result = Iterators.limit(values.iterator(), 2);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2));
+
+        result = Iterators.limit(values.iterator(), 0);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
     }
 
     public void testFailFast() {

@@ -41,6 +41,9 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     IntBlock filter(int... positions);
 
     @Override
+    IntBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override

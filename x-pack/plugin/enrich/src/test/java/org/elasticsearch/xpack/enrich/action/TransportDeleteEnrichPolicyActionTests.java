@@ -136,7 +136,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), destructiveRequiresName)
                 .build();
-            assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings));
+            assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings));
         }
 
         createIndex(EnrichPolicy.getIndexName(name, 1001));
@@ -174,7 +174,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         if (destructiveRequiresName) {
             Settings settings = Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()).build();
-            assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings));
+            assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings));
         }
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);

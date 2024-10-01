@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
@@ -162,6 +163,37 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
             }
             if (standardRetriever.sortBuilders != null) {
                 assertThat(source.sorts().size(), equalTo(standardRetriever.sortBuilders.size()));
+            }
+        }
+    }
+
+    public void testIsCompound() {
+        StandardRetrieverBuilder standardRetriever = createTestInstance();
+        assertFalse(standardRetriever.isCompound());
+    }
+
+    public void testTopDocsQuery() throws IOException {
+        StandardRetrieverBuilder standardRetriever = createTestInstance();
+        final int preFilters = standardRetriever.preFilterQueryBuilders.size();
+        if (standardRetriever.queryBuilder == null) {
+            if (preFilters > 0) {
+                expectThrows(IllegalArgumentException.class, standardRetriever::topDocsQuery);
+            }
+        } else {
+            QueryBuilder topDocsQuery = standardRetriever.topDocsQuery();
+            assertNotNull(topDocsQuery);
+            if (preFilters > 0) {
+                assertThat(topDocsQuery, instanceOf(BoolQueryBuilder.class));
+                assertThat(((BoolQueryBuilder) topDocsQuery).filter().size(), equalTo(1 + preFilters));
+                assertThat(((BoolQueryBuilder) topDocsQuery).filter().get(0), instanceOf(standardRetriever.queryBuilder.getClass()));
+                for (int i = 0; i < preFilters; i++) {
+                    assertThat(
+                        ((BoolQueryBuilder) topDocsQuery).filter().get(i + 1),
+                        instanceOf(standardRetriever.preFilterQueryBuilders.get(i).getClass())
+                    );
+                }
+            } else {
+                assertThat(topDocsQuery, instanceOf(standardRetriever.queryBuilder.getClass()));
             }
         }
     }

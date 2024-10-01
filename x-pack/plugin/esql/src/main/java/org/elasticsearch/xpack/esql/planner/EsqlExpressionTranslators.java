@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.geometry.Geometry;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -84,8 +85,16 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.StringQueries(),
         new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
+        new FullTextFunctions(),
         new Scalars()
     );
+
+    public static class FullTextFunctions extends ExpressionTranslator<FullTextFunction> {
+        @Override
+        protected Query asQuery(FullTextFunction fullTextFunction, TranslatorHandler handler) {
+            return fullTextFunction.asQuery();
+        }
+    }
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
         Query translation = null;
@@ -370,7 +379,7 @@ public final class EsqlExpressionTranslators {
             return doTranslate(bc, handler);
         }
 
-        public static void checkSpatialRelatesFunction(Expression constantExpression, ShapeField.QueryRelation queryRelation) {
+        public static void checkSpatialRelatesFunction(Expression constantExpression, ShapeRelation queryRelation) {
             Check.isTrue(
                 constantExpression.foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [ST_{}]",

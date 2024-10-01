@@ -17,6 +17,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -55,11 +56,14 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
             .nodes(3)
+            .module("x-pack-autoscaling")
             .module("x-pack-esql")
             .module("x-pack-enrich")
+            .module("x-pack-ml")
             .module("ingest-common")
             .apply(commonClusterConfig)
             .setting("remote_cluster.port", "0")
+            .setting("xpack.ml.enabled", "false")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
@@ -72,10 +76,13 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
+            .module("x-pack-autoscaling")
             .module("x-pack-esql")
             .module("x-pack-enrich")
+            .module("x-pack-ml")
             .module("ingest-common")
             .apply(commonClusterConfig)
+            .setting("xpack.ml.enabled", "false")
             .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
@@ -347,21 +354,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | LIMIT 10"""));
         assertRemoteAndLocalResults(response);
 
-        // query remote cluster only - but also include employees2 which the user does not have access to
-        response = performRequestWithRemoteSearchUser(esqlRequest("""
-            FROM my_remote_cluster:employees,my_remote_cluster:employees2
-            | SORT emp_id ASC
-            | LIMIT 2
-            | KEEP emp_id, department"""));
-        assertRemoteOnlyResults(response); // same as above since the user only has access to employees
-
-        // query remote and local cluster - but also include employees2 which the user does not have access to
-        response = performRequestWithRemoteSearchUser(esqlRequest("""
-            FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
-            | SORT emp_id ASC
-            | LIMIT 10"""));
-        assertRemoteAndLocalResults(response); // same as above since the user only has access to employees
-
         // update role to include both employees and employees2 for the remote cluster
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -618,6 +610,37 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     + "this action is granted by the index privileges [read,read_cross_cluster,all]"
             )
         );
+
+        // query remote cluster only - but also include employees2 which the user does not have access to
+        error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department""")); });
+
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
+                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+            )
+        );
+
+        // query remote and local cluster - but also include employees2 which the user does not have access to
+        error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
+            | SORT emp_id ASC
+            | LIMIT 10""")); });
+
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
+                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -841,7 +864,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             }""");
         assertOK(adminClient().performRequest(putRoleRequest));
         // query `employees2`
-        for (String index : List.of("*:employees2", "*:employee*", "*:employee*,*:alias-employees,*:employees3")) {
+        for (String index : List.of("*:employees2", "*:employee*")) {
             Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
             Response response = performRequestWithRemoteSearchUser(request);
             assertOK(response);
@@ -849,15 +872,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             List<?> ids = (List<?>) responseAsMap.get("values");
             assertThat(ids, equalTo(List.of(List.of("11"), List.of("13"))));
         }
-        // query `alias-engineering`
-        for (var index : List.of("*:alias*", "*:alias*", "*:alias*,my*:employees1", "*:alias*,my*:employees3")) {
-            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
-            Response response = performRequestWithRemoteSearchUser(request);
-            assertOK(response);
-            Map<String, Object> responseAsMap = entityAsMap(response);
-            List<?> ids = (List<?>) responseAsMap.get("values");
-            assertThat(ids, equalTo(List.of(List.of("1"), List.of("7"))));
-        }
+
         // query `employees2` and `alias-engineering`
         for (var index : List.of("*:employees2,*:alias-engineering", "*:emp*,*:alias-engineering", "*:emp*,my*:alias*")) {
             Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
@@ -874,6 +889,30 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(error.getMessage(), containsString(" Unknown index [" + index + "]"));
         }
+
+        for (var index : List.of(
+            Tuple.tuple("*:employee*,*:alias-employees,*:employees3", "alias-employees,employees3"),
+            Tuple.tuple("*:alias*,my*:employees1", "employees1"),
+            Tuple.tuple("*:alias*,my*:employees3", "employees3")
+        )) {
+            Request request = esqlRequest("FROM " + index.v1() + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                error.getMessage(),
+                containsString("unauthorized for user [remote_search_user] with assigned roles [remote_search]")
+            );
+            assertThat(error.getMessage(), containsString("user [test_user] on indices [" + index.v2() + "]"));
+        }
+
+        // query `alias-engineering`
+        Request request = esqlRequest("FROM *:alias* | KEEP emp_id | SORT emp_id | LIMIT 100");
+        Response response = performRequestWithRemoteSearchUser(request);
+        assertOK(response);
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> ids = (List<?>) responseAsMap.get("values");
+        assertThat(ids, equalTo(List.of(List.of("1"), List.of("7"))));
+
         removeAliases();
     }
 

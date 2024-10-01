@@ -11,7 +11,7 @@ apache-compress = "org.apache.commons:commons-compress:1.26.1"
 apache-rat = "org.apache.rat:apache-rat:0.11"
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
 asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
-bytebuddy = "net.bytebuddy:byte-buddy:1.12.10"
+bytebuddy = "net.bytebuddy:byte-buddy:1.14.12"
 checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
 commons-codec = "commons-codec:commons-codec:1.11"
 commmons-io = "commons-io:commons-io:2.2"
@@ -44,6 +44,6 @@ snakeyaml = { group = "org.yaml", name = "snakeyaml", version = { strictly = "2.
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }
 spock-platform = { group = "org.spockframework", name="spock-bom", version.ref="spock" }
-spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.22.0"
+spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.25.0"
 wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"

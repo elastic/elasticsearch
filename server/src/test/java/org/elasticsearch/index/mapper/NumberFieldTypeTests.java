@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -160,6 +161,47 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
             e2.getMessage()
         );
+    }
+
+    private record OutOfRangeTermQueryTestCase(NumberType type, Object value) {}
+
+    public void testTermQueryWithOutOfRangeValues() {
+        List<OutOfRangeTermQueryTestCase> testCases = List.of(
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, "128"),
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, 128),
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, -129),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, "32768"),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, 32768),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, -32769),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, "2147483648"),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, 2147483648L),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, -2147483649L),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, "9223372036854775808"),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, new BigInteger("9223372036854775808")),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, new BigInteger("-9223372036854775809")),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, "65520"),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, 65520f),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, -65520f),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.NEGATIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, "3.4028235E39"),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, 3.4028235E39d),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, -3.4028235E39d),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.NEGATIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, "1.7976931348623157E309"),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309")),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, new BigDecimal("-1.7976931348623157E309")),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.NEGATIVE_INFINITY)
+        );
+
+        for (OutOfRangeTermQueryTestCase testCase : testCases) {
+            assertTrue(testCase.type.termQuery("field", testCase.value, randomBoolean()) instanceof MatchNoDocsQuery);
+        }
     }
 
     public void testRangeQueryWithNegativeBounds() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search;
 
@@ -111,9 +112,9 @@ import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.TestRankBuilder;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -504,9 +505,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                         // we know we have just 1 query, so return all the docs from it
                                         return new TestRankShardResult(
                                             Arrays.stream(rankResults.get(0).scoreDocs)
-                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                 .limit(rankWindowSize())
-                                                .toArray(TestRankDoc[]::new)
+                                                .toArray(RankDoc[]::new)
                                         );
                                     }
                                 };
@@ -553,7 +554,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             queryResult = (QuerySearchResult) queryPhaseResults.get();
 
             // these are the matched docs from the query phase
-            final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
+            final RankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
 
             // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
             List<Integer> topRankWindowSizeDocs = randomNonEmptySubsetOf(Arrays.stream(queryRankDocs).map(x -> x.doc).toList());
@@ -709,18 +710,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -741,9 +742,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };
@@ -868,9 +869,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                         // we know we have just 1 query, so return all the docs from it
                                         return new TestRankShardResult(
                                             Arrays.stream(rankResults.get(0).scoreDocs)
-                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                 .limit(rankWindowSize())
-                                                .toArray(TestRankDoc[]::new)
+                                                .toArray(RankDoc[]::new)
                                         );
                                     }
                                 };
@@ -969,18 +970,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -1001,9 +1002,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };
@@ -1097,18 +1098,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -1129,9 +1130,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };
@@ -1548,7 +1549,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.setScrollIds(clearScrollIds);
-        client().clearScroll(clearScrollRequest);
+        client().clearScroll(clearScrollRequest).get();
 
         for (int i = 0; i < clearScrollIds.size(); i++) {
             client().prepareSearch("index").setSize(1).setScroll(TimeValue.timeValueMinutes(1)).get().decRef();
@@ -2719,7 +2720,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             try {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(SEARCH_WORKER_THREADS_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
@@ -2730,7 +2731,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 // reset original default setting
                 client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(SEARCH_WORKER_THREADS_ENABLED.getKey()).build())
                     .get();
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
@@ -2741,13 +2742,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Verify that a single slice is created for requests that don't support parallel collection, while computation
-     * is still offloaded to the worker threads. Also ensure multiple slices are created for requests that do support
+     * Verify that a single slice is created for requests that don't support parallel collection, while an executor is still
+     * provided to the searcher to parallelize other operations. Also ensure multiple slices are created for requests that do support
      * parallel collection.
      */
     public void testSlicingBehaviourForParallelCollection() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY);
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
         final int configuredMaxPoolSize = 10;
         executor.setMaximumPoolSize(configuredMaxPoolSize); // We set this explicitly to be independent of CPU cores.
         int numDocs = randomIntBetween(50, 100);
@@ -2798,7 +2799,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertBusy(
                         () -> assertEquals(
                             "DFS supports parallel collection, so the number of slices should be > 1.",
-                            expectedSlices,
+                            expectedSlices - 1, // one slice executes on the calling thread
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2828,7 +2829,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertBusy(
                         () -> assertEquals(
                             "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
-                            expectedSlices,
+                            expectedSlices - 1, // one slice executes on the calling thread
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2837,13 +2838,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.FETCH, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
+                    assertNull(searcher.getExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
                         () -> assertEquals(
-                            "The number of slices should be 1 as FETCH does not support parallel collection.",
-                            1,
+                            "The number of slices should be 1 as FETCH does not support parallel collection and thus runs on the calling"
+                                + " thread.",
+                            0,
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2852,13 +2854,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.NONE, true)) {
                     ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
+                    assertNull(searcher.getExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
                         () -> assertEquals(
                             "The number of slices should be 1 as NONE does not support parallel collection.",
-                            1,
+                            0, // zero since one slice executes on the calling thread
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2868,20 +2870,20 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             try {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
                 {
                     try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true)) {
                         ContextIndexSearcher searcher = searchContext.searcher();
-                        assertNotNull(searcher.getExecutor());
+                        assertNull(searcher.getExecutor());
                         final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                         searcher.search(termQuery, new TotalHitCountCollectorManager());
                         assertBusy(
                             () -> assertEquals(
                                 "The number of slices should be 1 when QUERY parallel collection is disabled.",
-                                1,
+                                0, // zero since one slice executes on the calling thread
                                 executor.getCompletedTaskCount() - priorExecutorTaskCount
                             )
                         );
@@ -2891,7 +2893,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 // Reset to the original default setting and check to ensure it takes effect.
                 client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
                     .get();
                 {
@@ -2918,7 +2920,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertBusy(
                             () -> assertEquals(
                                 "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
-                                expectedSlices,
+                                expectedSlices - 1, // one slice executes on the calling thread
                                 executor.getCompletedTaskCount() - priorExecutorTaskCount
                             )
                         );

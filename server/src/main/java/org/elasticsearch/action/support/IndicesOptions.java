@@ -520,6 +520,11 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -537,6 +542,11 @@ public record IndicesOptions(
                 .allowClosedIndices(true)
                 .allowSelectors(true)
                 .ignoreThrottled(false)
+        )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)
+                .build()
         )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.builder()
@@ -556,6 +566,11 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
+        )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -573,6 +588,11 @@ public record IndicesOptions(
                 .allowClosedIndices(true)
                 .allowSelectors(true)
                 .ignoreThrottled(false)
+        )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
         )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
@@ -592,6 +612,11 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
+        )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -604,6 +629,11 @@ public record IndicesOptions(
                 .allowClosedIndices(true)
                 .allowSelectors(true)
                 .ignoreThrottled(false)
+        )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
         )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
@@ -623,6 +653,11 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -635,6 +670,11 @@ public record IndicesOptions(
                 .allowClosedIndices(true)
                 .allowSelectors(true)
                 .ignoreThrottled(false)
+        )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
         )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_FAILURE_STORE = IndicesOptions.builder()
@@ -654,6 +694,11 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)
+                .build()
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -666,6 +711,11 @@ public record IndicesOptions(
                 .allowClosedIndices(true)
                 .allowSelectors(true)
                 .ignoreThrottled(false)
+        )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)
+                .build()
         )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_FAILURE_STORE = IndicesOptions.builder()
@@ -685,6 +735,11 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)
+                .build()
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -702,6 +757,11 @@ public record IndicesOptions(
                 .allowAliasToMultipleIndices(true)
                 .allowSelectors(true)
                 .ignoreThrottled(false)
+        )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)
+                .build()
         )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.builder()
@@ -721,6 +781,11 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -739,7 +804,13 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .allowAliasToMultipleIndices(true)
         )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
+        )
         .build();
+    // TODO: Most users of these options will probably want to not support selectors
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
@@ -756,6 +827,11 @@ public record IndicesOptions(
                 .allowClosedIndices(false)
                 .allowSelectors(true)
                 .ignoreThrottled(false)
+        )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
         )
         .build();
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
@@ -774,6 +850,11 @@ public record IndicesOptions(
                 .allowAliasToMultipleIndices(true)
                 .allowSelectors(true)
                 .ignoreThrottled(false)
+        )
+        .selectorOptions(
+            SelectorOptions.builder()
+                .setDefaultSelectors(IndexComponentSelector.DATA)
+                .build()
         )
         .build();
 

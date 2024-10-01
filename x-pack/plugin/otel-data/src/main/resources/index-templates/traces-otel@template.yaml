@@ -12,7 +12,6 @@ composed_of:
   - traces@settings
   - otel@mappings
   - traces-otel@mappings
-  - semconv-attribute-to-ecs@mappings
   - semconv-resource-to-ecs@mappings
   - traces@custom
   - traces-otel@custom

@@ -173,9 +173,7 @@ public class AzureOpenAiService extends SenderService {
 
         ChunkingSettings chunkingSettings = null;
         if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-            );
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
         return createModelFromPersistent(
@@ -196,9 +194,7 @@ public class AzureOpenAiService extends SenderService {
 
         ChunkingSettings chunkingSettings = null;
         if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-            );
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
         return createModelFromPersistent(

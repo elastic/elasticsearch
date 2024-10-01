@@ -330,7 +330,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -362,7 +361,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -393,7 +391,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }

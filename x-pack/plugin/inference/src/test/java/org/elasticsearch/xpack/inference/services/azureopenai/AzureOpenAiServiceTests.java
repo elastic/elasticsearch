@@ -145,7 +145,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -174,7 +174,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getAzureOpenAiSecretSettingsMap("secret", null)
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -204,7 +203,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                     getAzureOpenAiRequestTaskSettingsMap("user"),
                     getAzureOpenAiSecretSettingsMap("secret", null)
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }

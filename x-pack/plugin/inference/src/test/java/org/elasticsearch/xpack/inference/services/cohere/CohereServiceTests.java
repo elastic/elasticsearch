@@ -149,7 +149,7 @@ public class CohereServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 MatcherAssert.assertThat(e.getMessage(), containsString("Model configuration contains settings"));
             });
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
@@ -181,7 +181,6 @@ public class CohereServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelListener
             );
 
@@ -216,7 +215,6 @@ public class CohereServiceTests extends ESTestCase {
                     getTaskSettingsMap(InputType.INGEST, CohereTruncation.START),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelListener
             );
 

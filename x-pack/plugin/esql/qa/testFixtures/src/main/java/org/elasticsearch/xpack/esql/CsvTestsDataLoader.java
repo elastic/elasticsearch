@@ -81,6 +81,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
     private static final TestsDataset BOOKS = new TestsDataset("books");
+    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text");
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -112,7 +113,8 @@ public class CsvTestsDataLoader {
         Map.entry(K8S.indexName, K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
-        Map.entry(BOOKS.indexName, BOOKS)
+        Map.entry(BOOKS.indexName, BOOKS),
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

@@ -1,0 +1,8 @@
+{
+  "properties": {
+    "quote": {
+      "type": "semantic_text",
+      "inference_id": "my_inference_id"
+    }
+  }
+}

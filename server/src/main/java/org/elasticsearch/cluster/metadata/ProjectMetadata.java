@@ -1031,27 +1031,30 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             .orElse(Collections.emptyMap());
     }
 
+    // TODO: remove this method:
     public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
-        if (indexTemplate.getDataStreamTemplate() == null) {
-            return false;
-        }
-
-        var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
-        // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
-        var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
-        var indexMode = rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
-        if (indexMode == IndexMode.TIME_SERIES) {
+        var indexModeFromTemplate = retrieveIndexModeFromTemplate(indexTemplate);
+        if (indexModeFromTemplate == IndexMode.TIME_SERIES) {
             // No need to check for the existence of index.routing_path here, because index.mode=time_series can't be specified without it.
             // Setting validation takes care of this.
             // Also no need to validate that the fields defined in index.routing_path are keyword fields with time_series_dimension
             // attribute enabled. This is validated elsewhere (DocumentMapper).
             return true;
         }
-
         // in a followup change: check the existence of keyword fields of type keyword and time_series_dimension attribute enabled in
         // the template. In this case the index.routing_path setting can be generated from the mapping.
-
         return false;
+    }
+
+    public IndexMode retrieveIndexModeFromTemplate(ComposableIndexTemplate indexTemplate) {
+        if (indexTemplate.getDataStreamTemplate() == null) {
+            return null;
+        }
+
+        var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
+        // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
+        var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
+        return rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
     }
 
     /**

@@ -17,8 +17,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.DENSE_VECTOR_INDEX_TYPE_TELEMETRY;
-
 /**
  * Holds enhanced stats about a dense vector mapped field.
  */
@@ -45,13 +43,6 @@ public final class DenseVectorFieldStats extends FieldStats {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         assert false : "writeTo should not be called on DenseVectorFieldStats";
-        super.writeTo(out);
-        out.writeVInt(indexedVectorCount);
-        out.writeVInt(indexedVectorDimMin);
-        out.writeVInt(indexedVectorDimMax);
-        if (out.getTransportVersion().onOrAfter(DENSE_VECTOR_INDEX_TYPE_TELEMETRY)) {
-            out.writeMap(vectorIndexTypeCount, StreamOutput::writeString, StreamOutput::writeVInt);
-        }
     }
 
     @Override
@@ -61,23 +52,17 @@ public final class DenseVectorFieldStats extends FieldStats {
         builder.field("indexed_vector_dim_max", indexedVectorDimMax);
         if (vectorIndexTypeCount.isEmpty() == false) {
             builder.startObject("vector_index_type_count");
-            for (Map.Entry<String, Integer> entry : vectorIndexTypeCount.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            builder.mapContents(vectorIndexTypeCount);
             builder.endObject();
         }
         if (vectorSimilarityTypeCount.isEmpty() == false) {
             builder.startObject("vector_similarity_type_count");
-            for (Map.Entry<String, Integer> entry : vectorSimilarityTypeCount.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            builder.mapContents(vectorSimilarityTypeCount);
             builder.endObject();
         }
         if (vectorElementTypeCount.isEmpty() == false) {
             builder.startObject("vector_element_type_count");
-            for (Map.Entry<String, Integer> entry : vectorElementTypeCount.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            builder.mapContents(vectorElementTypeCount);
             builder.endObject();
         }
     }

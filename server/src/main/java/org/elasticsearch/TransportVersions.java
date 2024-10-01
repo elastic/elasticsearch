@@ -231,7 +231,6 @@ public class TransportVersions {
     public static final TransportVersion CCS_REMOTE_TELEMETRY_STATS = def(8_755_00_0);
     public static final TransportVersion ESQL_CCS_EXECUTION_INFO = def(8_756_00_0);
     public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_757_00_0);
-    public static final TransportVersion DENSE_VECTOR_INDEX_TYPE_TELEMETRY = def(8_758_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

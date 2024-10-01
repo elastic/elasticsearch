@@ -60,8 +60,13 @@ setup:
 ---
 "Field mapping stats with field details":
   - requires:
-      cluster_features: [ "gte_v8.16.0" ]
-      reason: "More detailed cluster mappings stats for dense vector was added in 8.16"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "verbose-dense-vector-mapping-stats"
+      reason: "Capability required to run test"
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }
   - match: { indices.mappings.field_types.0.name: dense_vector }

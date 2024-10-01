@@ -56,11 +56,11 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page, BooleanVector mask) {
-    if (mask.isConstant()) {
-      if (mask.getBoolean(0) == false) {
-        // Entire page masked away
-        return;
-      }
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
       // No masking
       DoubleBlock block = page.getBlock(channels.get(0));
       DoubleVector vector = block.asVector();
@@ -89,11 +89,11 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vector, BooleanVector mask) {
+    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      state.seen(true);
       state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vector.getDouble(i)));
     }
   }

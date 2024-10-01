@@ -23,6 +23,7 @@ abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable
             throw new IllegalStateException("can't increase refCount on already released object [" + this + "]");
         }
         references++;
+        // System.err.println(this + ": inc " + references);
     }
 
     @Override
@@ -41,6 +42,7 @@ abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable
         }
 
         references--;
+        // System.err.println(this + ": dec " + references);
 
         if (references <= 0) {
             closeInternal();

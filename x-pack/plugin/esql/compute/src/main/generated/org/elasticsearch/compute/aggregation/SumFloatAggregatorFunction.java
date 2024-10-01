@@ -59,11 +59,11 @@ public final class SumFloatAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page, BooleanVector mask) {
-    if (mask.isConstant()) {
-      if (mask.getBoolean(0) == false) {
-        // Entire page masked away
-        return;
-      }
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
       // No masking
       FloatBlock block = page.getBlock(channels.get(0));
       FloatVector vector = block.asVector();
@@ -92,11 +92,11 @@ public final class SumFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector vector, BooleanVector mask) {
+    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      state.seen(true);
       SumFloatAggregator.combine(state, vector.getFloat(i));
     }
   }

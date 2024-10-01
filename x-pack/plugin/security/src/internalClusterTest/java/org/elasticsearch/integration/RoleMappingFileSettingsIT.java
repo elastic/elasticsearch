@@ -272,6 +272,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         // cluster-state role mappings are retrievable by the role mapping action since they are treated as reserved role mappings and need
         // to be surfaced via API for BWC
         assertGetResponseHasMappings("everyone_kibana", "everyone_fleet");
+        // assert filtering by name works
+        assertGetResponseHasMappings("everyone_kibana");
+        assertGetResponseHasMappings("everyone_fleet");
 
         // role mappings (with the same names) cannot be modified via API calls since they are reserved
         expectThrows(

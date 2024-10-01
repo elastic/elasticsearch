@@ -324,26 +324,17 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
-        innerGetRoleMappings(
-            names,
-            listener.delegateFailureAndWrap((l, mappings) -> l.onResponse(reservedRoleMappings.mergeWithReserved(mappings)))
-        );
-    }
-
-    /**
-     * Retrieves one or more mappings from the index.
-     * If <code>names</code> is <code>null</code> or {@link Set#isEmpty empty}, then this retrieves all mappings.
-     * Otherwise it retrieves the specified mappings by name.
-     */
-    private void innerGetRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
+        // TODO clean up the redundancy
         if (enabled == false) {
-            listener.onResponse(List.of());
+            listener.onResponse(reservedRoleMappings.mergeWithReserved(List.of()));
         } else if (names == null || names.isEmpty()) {
-            getMappings(listener);
+            getMappings(listener.safeMap(reservedRoleMappings::mergeWithReserved));
         } else {
-            // TODO make sure order in which we are filtering is as expected... i.e., name filter happens _after_ mergeWithReserved is
-            // called... listeners upon listeners...
-            getMappings(listener.safeMap(mappings -> mappings.stream().filter(m -> names.contains(m.getName())).toList()));
+            getMappings(
+                listener.safeMap(
+                    mappings -> reservedRoleMappings.mergeWithReserved(mappings).stream().filter(m -> names.contains(m.getName())).toList()
+                )
+            );
         }
     }
 

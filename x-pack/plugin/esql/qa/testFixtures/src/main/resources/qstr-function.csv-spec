@@ -174,8 +174,6 @@ book_no:keyword | title:text | _score:double
 2675            | The Lord of the Rings - Boxed Set | 5.5166754722595215
 ;
 
-#stats/sort/drop/rename/dissect/grok/enrich/mvexpand
-
 singleQstrScoringEval
 required_capability: metadata_score
 required_capability: qstr_function

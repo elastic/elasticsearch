@@ -19,8 +19,8 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -137,9 +137,9 @@ public class ScoringLuceneTopNSourceOperatorTests extends LuceneTopNSourceOperat
             } else {
                 assertThat(page.getPositionCount(), equalTo(maxPageSize));
             }
-            FloatBlock sBlock = page.getBlock(1);
+            DoubleBlock sBlock = page.getBlock(1);
             for (int p = 0; p < page.getPositionCount(); p++) {
-                assertThat(sBlock.getFloat(sBlock.getFirstValueIndex(p)), equalTo(1.0f));
+                assertThat(sBlock.getDouble(sBlock.getFirstValueIndex(p)), equalTo(1.0d));
                 expectedS++;
             }
         }

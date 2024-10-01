@@ -69,6 +69,20 @@ public abstract class RemoteClusterAware {
     }
 
     /**
+     * @param indexExpression expects a single index expression at a time (not a csv list of expression)
+     * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
+     */
+    public static String parseClusterAlias(String indexExpression) {
+        assert indexExpression != null : "Must not pass null indexExpression";
+        String[] parts = splitIndexName(indexExpression.trim());
+        if (parts[0] == null) {
+            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        } else {
+            return parts[0];
+        }
+    }
+
+    /**
      * Split the index name into remote cluster alias and index name.
      * The index expression is assumed to be individual index (no commas) but can contain `-`, wildcards,
      * datemath, remote cluster name and any other syntax permissible in index expression component.

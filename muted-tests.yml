@@ -266,9 +266,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testLimitedPrivilege
   issue: https://github.com/elastic/elasticsearch/issues/113419
-- class: org.elasticsearch.index.mapper.extras.TokenCountFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/113427
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {categorize.Categorize}
   issue: https://github.com/elastic/elasticsearch/issues/113428
@@ -281,12 +278,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJobsWithIndexNameOption
   issue: https://github.com/elastic/elasticsearch/issues/113528
-- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
-  method: test {p0=dot_prefix/10_basic/Deprecated index template with a dot prefix index pattern}
-  issue: https://github.com/elastic/elasticsearch/issues/113529
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}
-  issue: https://github.com/elastic/elasticsearch/issues/113537
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5WithTrainedModelAndInference
   issue: https://github.com/elastic/elasticsearch/issues/113565
@@ -302,18 +293,12 @@ tests:
 - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
   method: testSearchAndMSearch
   issue: https://github.com/elastic/elasticsearch/issues/113593
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date_nanos.Date_nanos to date nanos, index version SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113632
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/101458
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
-  issue: https://github.com/elastic/elasticsearch/issues/113648
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJobs_GivenMultipleJobs
   issue: https://github.com/elastic/elasticsearch/issues/113654
@@ -326,6 +311,34 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
   method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
   issue: https://github.com/elastic/elasticsearch/issues/113659
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113721
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113722
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
+  issue: https://github.com/elastic/elasticsearch/issues/113661
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/112980
+- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/113753
+- class: org.elasticsearch.action.admin.cluster.stats.ClusterStatsRemoteIT
+  method: testRemoteClusterStats
+  issue: https://github.com/elastic/elasticsearch/issues/113822
+- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
+  method: testNonGzippedDatabase
+  issue: https://github.com/elastic/elasticsearch/issues/113821
+- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
+  method: testGzippedDatabase
+  issue: https://github.com/elastic/elasticsearch/issues/113752
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/more than 1}
+  issue: https://github.com/elastic/elasticsearch/issues/113841
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/nested}
+  issue: https://github.com/elastic/elasticsearch/issues/113842
 
 # Examples:
 #

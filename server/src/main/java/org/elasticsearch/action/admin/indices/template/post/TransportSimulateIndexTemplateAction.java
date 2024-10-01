@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -284,6 +285,13 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 templateSettings,
                 mappings
             );
+            for (String settingName : result.keySet()) {
+                if (additionalSettings.keys().contains(settingName)) {
+                    var name = provider.getClass().getSimpleName();
+                    var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
+                    throw new IllegalArgumentException(message);
+                }
+            }
             dummySettings.put(result);
             additionalSettings.put(result);
         }

@@ -988,7 +988,6 @@ public class MetadataCreateIndexService {
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
             final boolean timeSeriesTemplate = Optional.of(request)
@@ -998,19 +997,26 @@ public class MetadataCreateIndexService {
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
+            final Settings.Builder additionalIndexSettings = Settings.builder();
             final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
             for (IndexSettingProvider provider : indexSettingProviders) {
-                additionalIndexSettings.put(
-                    provider.getAdditionalIndexSettings(
-                        request.index(),
-                        request.dataStreamName(),
-                        timeSeriesTemplate,
-                        currentState.getMetadata(),
-                        resolvedAt,
-                        templateAndRequestSettings,
-                        combinedTemplateMappings
-                    )
+                var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                    request.index(),
+                    request.dataStreamName(),
+                    timeSeriesTemplate,
+                    currentState.getMetadata(),
+                    resolvedAt,
+                    templateAndRequestSettings,
+                    combinedTemplateMappings
                 );
+                for (String settingName : newAdditionalSettings.keySet()) {
+                    if (additionalIndexSettings.keys().contains(settingName)) {
+                        var name = provider.getClass().getSimpleName();
+                        var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
+                        throw new IllegalArgumentException(message);
+                    }
+                }
+                additionalIndexSettings.put(newAdditionalSettings);
             }
 
             // For all the explicit settings, we go through the template and request level settings

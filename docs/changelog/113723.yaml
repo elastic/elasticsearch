@@ -1,0 +1,6 @@
+pr: 113723
+summary: Fix max file size check to use `getMaxFileSize`
+area: Infra/Core
+type: bug
+issues:
+ - 113705

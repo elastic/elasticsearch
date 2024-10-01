@@ -30,15 +30,52 @@ public class IndexingPressure {
         Setting.Property.NodeScope
     );
 
+    // TODO: Remove once it is no longer needed for BWC
+    public static final Setting<ByteSizeValue> SPLIT_BULK_THRESHOLD = Setting.memorySizeSetting(
+        "indexing_pressure.memory.split_bulk_threshold",
+        "8.5%",
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> MAX_COORDINATING_BYTES = Setting.memorySizeSetting(
+        "indexing_pressure.memory.coordinating.limit",
+        MAX_INDEXING_BYTES,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> MAX_PRIMARY_BYTES = Setting.memorySizeSetting(
+        "indexing_pressure.memory.primary.limit",
+        MAX_INDEXING_BYTES,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> MAX_REPLICA_BYTES = Setting.memorySizeSetting(
+        "indexing_pressure.memory.replica.limit",
+        (s) -> ByteSizeValue.ofBytes((long) (MAX_PRIMARY_BYTES.get(s).getBytes() * 1.5)).toString(),
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<ByteSizeValue> SPLIT_BULK_HIGH_WATERMARK = Setting.memorySizeSetting(
         "indexing_pressure.memory.split_bulk.watermark.high",
-        "8.5%",
+        "7.5%",
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SPLIT_BULK_HIGH_WATERMARK_SIZE = Setting.byteSizeSetting(
+        "indexing_pressure.memory.split_bulk.watermark.high.bulk_size",
+        ByteSizeValue.ofMb(1),
         Setting.Property.NodeScope
     );
 
     public static final Setting<ByteSizeValue> SPLIT_BULK_LOW_WATERMARK = Setting.memorySizeSetting(
         "indexing_pressure.memory.split_bulk.watermark.low",
         "5.0%",
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SPLIT_BULK_LOW_WATERMARK_SIZE = Setting.byteSizeSetting(
+        "indexing_pressure.memory.split_bulk.watermark.low.bulk_size",
+        ByteSizeValue.ofMb(4),
         Setting.Property.NodeScope
     );
 
@@ -68,16 +105,18 @@ public class IndexingPressure {
     private final AtomicLong replicaRejections = new AtomicLong(0);
     private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
-    private final long primaryAndCoordinatingLimits;
     private final long highWatermark;
     private final long lowWatermark;
+    private final long coordinatingLimits;
+    private final long primaryLimits;
     private final long replicaLimits;
 
     public IndexingPressure(Settings settings) {
-        this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
         this.highWatermark = SPLIT_BULK_HIGH_WATERMARK.get(settings).getBytes();
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
-        this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
+        this.coordinatingLimits = MAX_COORDINATING_BYTES.get(settings).getBytes();
+        this.primaryLimits = MAX_PRIMARY_BYTES.get(settings).getBytes();
+        this.replicaLimits = MAX_REPLICA_BYTES.get(settings).getBytes();
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {
@@ -96,7 +135,7 @@ public class IndexingPressure {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
-        if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
+        if (forceExecution == false && totalBytes > coordinatingLimits) {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -115,8 +154,8 @@ public class IndexingPressure {
                     + "coordinating_operation_bytes="
                     + bytes
                     + ", "
-                    + "max_coordinating_and_primary_bytes="
-                    + primaryAndCoordinatingLimits
+                    + "max_coordinating_bytes="
+                    + coordinatingLimits
                     + "]",
                 false
             );
@@ -151,7 +190,7 @@ public class IndexingPressure {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
-        if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
+        if (forceExecution == false && totalBytes > primaryLimits) {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -171,8 +210,8 @@ public class IndexingPressure {
                     + "primary_operation_bytes="
                     + bytes
                     + ", "
-                    + "max_coordinating_and_primary_bytes="
-                    + primaryAndCoordinatingLimits
+                    + "max_primary_bytes="
+                    + primaryLimits
                     + "]",
                 false
             );
@@ -229,6 +268,7 @@ public class IndexingPressure {
     }
 
     public IndexingPressureStats stats() {
+        // TODO: Fix stats
         return new IndexingPressureStats(
             totalCombinedCoordinatingAndPrimaryBytes.get(),
             totalCoordinatingBytes.get(),
@@ -241,7 +281,7 @@ public class IndexingPressure {
             coordinatingRejections.get(),
             primaryRejections.get(),
             replicaRejections.get(),
-            primaryAndCoordinatingLimits,
+            coordinatingLimits,
             totalCoordinatingOps.get(),
             totalPrimaryOps.get(),
             totalReplicaOps.get(),

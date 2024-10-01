@@ -1661,6 +1661,10 @@ public class Setting<T> implements ToXContentObject {
         return memorySizeSetting(key, defaultValue.toString(), properties);
     }
 
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
+        return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
     /**
      * Creates a setting which specifies a memory size. This can either be
      * specified as an absolute bytes value or as a percentage of the heap

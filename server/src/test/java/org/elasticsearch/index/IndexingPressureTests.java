@@ -10,14 +10,28 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 public class IndexingPressureTests extends ESTestCase {
 
-    private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB").build();
+    private final Settings settings = Settings.builder()
+        .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "10KB")
+        .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), "12KB")
+        .put(IndexingPressure.MAX_REPLICA_BYTES.getKey(), "15KB")
+        .build();
+
+    public void testMemoryLimitSettingsFallbackToOldSingleLimitSetting() {
+        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "20KB").build();
+
+        assertThat(IndexingPressure.MAX_COORDINATING_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(20)));
+        assertThat(IndexingPressure.MAX_PRIMARY_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(20)));
+        assertThat(IndexingPressure.MAX_REPLICA_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(30)));
+    }
 
     public void testMemoryBytesAndOpsMarkedAndReleased() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
@@ -95,7 +109,7 @@ public class IndexingPressureTests extends ESTestCase {
                 assertEquals(1, stats.getCoordinatingRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
             } else {
-                expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markPrimaryOperationStarted(1, 1024 * 2, false));
+                expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markPrimaryOperationStarted(1, 1024 * 4, false));
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getPrimaryRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());

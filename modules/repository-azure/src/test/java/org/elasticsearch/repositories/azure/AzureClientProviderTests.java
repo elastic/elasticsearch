@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class AzureClientProviderTests extends ESTestCase {
-    private static final AzureClientProvider.SuccessfulRequestHandler EMPTY_CONSUMER = (purpose, method, url) -> {};
+    private static final AzureClientProvider.RequestMetricsHandler EMPTY_CONSUMER = (purpose, method, url, retries) -> {};
 
     private ThreadPool threadPool;
     private AzureClientProvider azureClientProvider;

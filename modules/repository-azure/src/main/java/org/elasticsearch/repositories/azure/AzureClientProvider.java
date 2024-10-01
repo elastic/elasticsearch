@@ -24,6 +24,7 @@ import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
+import com.azure.core.http.HttpPipelinePosition;
 import com.azure.core.http.HttpRequest;
 import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
@@ -57,6 +59,8 @@ import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_E
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME;
 
 class AzureClientProvider extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(AzureClientProvider.class);
+
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
@@ -160,7 +164,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         LocationMode locationMode,
         RequestRetryOptions retryOptions,
         ProxyOptions proxyOptions,
-        SuccessfulRequestHandler successfulRequestHandler,
+        RequestMetricsHandler requestMetricsHandler,
         OperationPurpose purpose
     ) {
         if (closed) {
@@ -189,8 +193,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             builder.credential(credentialBuilder.build());
         }
 
-        if (successfulRequestHandler != null) {
-            builder.addPolicy(new SuccessfulRequestTracker(purpose, successfulRequestHandler));
+        if (requestMetricsHandler != null) {
+            builder.addPolicy(new RequestMetricsTracker(purpose, requestMetricsHandler));
+            builder.addPolicy(RetryMetricsTracker.INSTANCE);
         }
 
         if (locationMode.isSecondary()) {
@@ -259,38 +264,133 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {}
 
-    private static final class SuccessfulRequestTracker implements HttpPipelinePolicy {
-        private static final Logger logger = LogManager.getLogger(SuccessfulRequestTracker.class);
-        private final OperationPurpose purpose;
-        private final SuccessfulRequestHandler onSuccessfulRequest;
+    public static class RequestMetrics {
+        private volatile long timeToResponseInMillis;
+        private volatile int requestCount;
+        private volatile int errorCount;
+        private volatile int throttleCount;
+        private volatile int statusCode;
 
-        private SuccessfulRequestTracker(OperationPurpose purpose, SuccessfulRequestHandler onSuccessfulRequest) {
+        public int getRequestCount() {
+            return requestCount;
+        }
+
+        public int getErrorCount() {
+            return errorCount;
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        public int getThrottleCount() {
+            return throttleCount;
+        }
+
+        public long getTimeToResponseInMillis() {
+            return timeToResponseInMillis;
+        }
+
+        @Override
+        public String toString() {
+            return "RequestMetrics{"
+                + "timeToResponseInMillis="
+                + timeToResponseInMillis
+                + ", requestCount="
+                + requestCount
+                + ", errorCount="
+                + errorCount
+                + ", throttleCount="
+                + throttleCount
+                + ", statusCode="
+                + statusCode
+                + '}';
+        }
+    }
+
+    private enum RetryMetricsTracker implements HttpPipelinePolicy {
+        INSTANCE;
+
+        @Override
+        public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
+            RequestMetrics metrics = (RequestMetrics) context.getData(RequestMetricsTracker.ES_REQUEST_METRICS_CONTEXT_KEY)
+                .orElseGet(() -> {
+                    String errorMessage = "No metrics object associated with request " + context.getHttpRequest();
+                    assert false : errorMessage;
+                    throw new IllegalStateException(errorMessage);
+                });
+            metrics.requestCount++;
+            return next.process().doOnError(throwable -> {
+                logger.warn("Got on error in RetryCounter", throwable);
+                metrics.errorCount++;
+            }).doOnSuccess(response -> {
+                logger.info(
+                    "Got on success in RetryCounter: statusCode={}, request={} {}",
+                    response.getStatusCode(),
+                    context.getHttpRequest().getHttpMethod(),
+                    context.getHttpRequest().getUrl()
+                );
+                if (response.getStatusCode() == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                    metrics.throttleCount++;
+                }
+            });
+        }
+
+        @Override
+        public HttpPipelinePosition getPipelinePosition() {
+            return HttpPipelinePosition.PER_RETRY;
+        }
+    }
+
+    private static final class RequestMetricsTracker implements HttpPipelinePolicy {
+        private static final String ES_REQUEST_METRICS_CONTEXT_KEY = "_es_azure_repo_request_stats";
+        private static final Logger logger = LogManager.getLogger(RequestMetricsTracker.class);
+        private final OperationPurpose purpose;
+        private final RequestMetricsHandler onSuccessfulRequest;
+
+        private RequestMetricsTracker(OperationPurpose purpose, RequestMetricsHandler onSuccessfulRequest) {
             this.purpose = purpose;
             this.onSuccessfulRequest = onSuccessfulRequest;
         }
 
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
-            return next.process().doOnSuccess(httpResponse -> trackSuccessfulRequest(context.getHttpRequest(), httpResponse));
+            RequestMetrics requestMetrics = new RequestMetrics();
+            long requestStartTimeInMillis = System.currentTimeMillis();
+            context.setData(ES_REQUEST_METRICS_CONTEXT_KEY, requestMetrics);
+            return next.process().doOnSuccess((httpResponse) -> {
+                logger.info("Doing on success: statusCode={}", httpResponse.getStatusCode());
+                requestMetrics.statusCode = httpResponse.getStatusCode();
+                requestMetrics.timeToResponseInMillis = System.currentTimeMillis() - requestStartTimeInMillis;
+                trackCompletedRequest(context.getHttpRequest(), requestMetrics);
+            }).doOnError(throwable -> {
+                logger.warn("Doing on error", throwable);
+                trackCompletedRequest(context.getHttpRequest(), requestMetrics);
+            });
         }
 
-        private void trackSuccessfulRequest(HttpRequest httpRequest, HttpResponse httpResponse) {
+        private void trackCompletedRequest(HttpRequest httpRequest, RequestMetrics requestMetrics) {
             HttpMethod method = httpRequest.getHttpMethod();
-            if (httpResponse != null && method != null && httpResponse.getStatusCode() > 199 && httpResponse.getStatusCode() <= 299) {
+            if (method != null) {
                 try {
-                    onSuccessfulRequest.onSuccessfulRequest(purpose, method, httpRequest.getUrl());
+                    onSuccessfulRequest.requestCompleted(purpose, method, httpRequest.getUrl(), requestMetrics);
                 } catch (Exception e) {
                     logger.warn("Unable to notify a successful request", e);
                 }
             }
         }
+
+        @Override
+        public HttpPipelinePosition getPipelinePosition() {
+            return HttpPipelinePosition.PER_CALL;
+        }
     }
 
     /**
-     * The {@link SuccessfulRequestTracker} calls this when a request completes successfully
+     * The {@link RequestMetricsTracker} calls this when a request completes
      */
-    interface SuccessfulRequestHandler {
+    interface RequestMetricsHandler {
 
-        void onSuccessfulRequest(OperationPurpose purpose, HttpMethod method, URL url);
+        void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics requestStats);
     }
 }

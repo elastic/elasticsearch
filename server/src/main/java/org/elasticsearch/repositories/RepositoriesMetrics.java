@@ -9,9 +9,13 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+
+import java.util.Map;
 
 public record RepositoriesMetrics(
     MeterRegistry meterRegistry,
@@ -61,4 +65,25 @@ public record RepositoriesMetrics(
             )
         );
     }
+
+    /**
+     * Create the map of attributes we expect to see on repository metrics
+     */
+    public static Map<String, Object> createAttributesMap(
+        RepositoryMetadata repositoryMetadata,
+        OperationPurpose purpose,
+        String operation
+    ) {
+        return Map.of(
+            "repo_type",
+            repositoryMetadata.type(),
+            "repo_name",
+            repositoryMetadata.name(),
+            "operation",
+            operation,
+            "purpose",
+            purpose.getKey()
+        );
+    }
+
 }

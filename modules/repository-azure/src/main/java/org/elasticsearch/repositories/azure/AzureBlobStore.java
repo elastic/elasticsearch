@@ -60,6 +60,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
 import org.elasticsearch.rest.RestStatus;
@@ -89,8 +90,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -102,8 +103,9 @@ public class AzureBlobStore implements BlobStore {
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
 
     private final AzureStorageService service;
-
     private final BigArrays bigArrays;
+    private final RepositoriesMetrics repositoriesMetrics;
+    private final RepositoryMetadata repositoryMetadata;
 
     private final String clientName;
     private final String container;
@@ -111,13 +113,20 @@ public class AzureBlobStore implements BlobStore {
     private final ByteSizeValue maxSinglePartUploadSize;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
-    private final AzureClientProvider.SuccessfulRequestHandler statsConsumer;
+    private final AzureClientProvider.RequestMetricsHandler statsConsumer;
 
-    public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, BigArrays bigArrays) {
+    public AzureBlobStore(
+        RepositoryMetadata metadata,
+        AzureStorageService service,
+        BigArrays bigArrays,
+        RepositoriesMetrics repositoriesMetrics
+    ) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
         this.bigArrays = bigArrays;
+        this.repositoriesMetrics = repositoriesMetrics;
+        this.repositoryMetadata = metadata;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
@@ -125,23 +134,23 @@ public class AzureBlobStore implements BlobStore {
         List<RequestStatsCollector> requestStatsCollectors = List.of(
             RequestStatsCollector.create(
                 (httpMethod, url) -> httpMethod == HttpMethod.HEAD,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB_PROPERTIES, purpose)
+                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB_PROPERTIES, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 (httpMethod, url) -> httpMethod == HttpMethod.GET && isListRequest(httpMethod, url) == false,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB, purpose)
+                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 AzureBlobStore::isListRequest,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.LIST_BLOBS, purpose)
+                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.LIST_BLOBS, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 AzureBlobStore::isPutBlockRequest,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK, purpose)
+                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 AzureBlobStore::isPutBlockListRequest,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK_LIST, purpose)
+                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK_LIST, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
@@ -150,11 +159,11 @@ public class AzureBlobStore implements BlobStore {
                 (httpMethod, url) -> httpMethod == HttpMethod.PUT
                     && isPutBlockRequest(httpMethod, url) == false
                     && isPutBlockListRequest(httpMethod, url) == false,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOB, purpose)
+                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOB, purpose, metrics)
             )
         );
 
-        this.statsConsumer = (purpose, httpMethod, url) -> {
+        this.statsConsumer = (purpose, httpMethod, url, metrics) -> {
             try {
                 URI uri = url.toURI();
                 String path = uri.getPath() == null ? "" : uri.getPath();
@@ -169,7 +178,7 @@ public class AzureBlobStore implements BlobStore {
 
             for (RequestStatsCollector requestStatsCollector : requestStatsCollectors) {
                 if (requestStatsCollector.shouldConsumeRequestInfo(httpMethod, url)) {
-                    requestStatsCollector.consumeHttpRequestInfo(purpose);
+                    requestStatsCollector.consumeHttpRequestInfo(purpose, metrics);
                     return;
                 }
             }
@@ -700,28 +709,73 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    private static class StatsCollectors {
-        final Map<StatsKey, LongAdder> collectors = new ConcurrentHashMap<>();
+    private class StatsCollectors {
+        final Map<StatsKey, OperationMetrics> collectors = new ConcurrentHashMap<>();
 
         Map<String, Long> statsMap(boolean stateless) {
             if (stateless) {
                 return collectors.entrySet()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().sum()));
+                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().count()));
             } else {
                 Map<String, Long> normalisedStats = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, o -> 0L));
                 collectors.forEach(
                     (key, value) -> normalisedStats.compute(
                         key.operation.getKey(),
-                        (k, current) -> Objects.requireNonNull(current) + value.sum()
+                        (k, current) -> Objects.requireNonNull(current) + value.count()
                     )
                 );
                 return Map.copyOf(normalisedStats);
             }
         }
 
-        public void onSuccessfulRequest(Operation operation, OperationPurpose purpose) {
-            collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new LongAdder()).increment();
+        public void onSuccessfulRequest(Operation operation, OperationPurpose purpose, AzureClientProvider.RequestMetrics requestMetrics) {
+            collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new OperationMetrics(operation, purpose))
+                .onOccurrence(requestMetrics);
+        }
+    }
+
+    private class OperationMetrics {
+
+        private final LongAdder counter;
+        private final Map<String, Object> attributes;
+
+        private OperationMetrics(Operation operation, OperationPurpose purpose) {
+            this.counter = new LongAdder();
+            this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
+        }
+
+        public void onOccurrence(AzureClientProvider.RequestMetrics requestMetrics) {
+            counter.add(requestMetrics.getRequestCount());
+
+            repositoriesMetrics.operationCounter().incrementBy(1, attributes);
+            if (requestMetrics.getStatusCode() <= 199 || requestMetrics.getStatusCode() > 299) {
+                repositoriesMetrics.unsuccessfulOperationCounter().incrementBy(1, attributes);
+            }
+
+            if (requestMetrics.getErrorCount() > 0) {
+                repositoriesMetrics.exceptionCounter().incrementBy(requestMetrics.getErrorCount(), attributes);
+                repositoriesMetrics.exceptionHistogram().record(requestMetrics.getErrorCount(), attributes);
+            }
+
+            if (requestMetrics.getThrottleCount() > 0) {
+                repositoriesMetrics.throttleCounter().incrementBy(requestMetrics.getThrottleCount(), attributes);
+                repositoriesMetrics.throttleHistogram().record(requestMetrics.getThrottleCount(), attributes);
+            }
+
+            // range not satisfied is not retried, so we count them by checking the final response
+            if (requestMetrics.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                repositoriesMetrics.requestRangeNotSatisfiedExceptionCounter().incrementBy(1, attributes);
+            }
+
+            // There will be no time to response recorded for requests that end in an error
+            if (requestMetrics.getTimeToResponseInMillis() > 0) {
+                repositoriesMetrics.httpRequestTimeInMillisHistogram().record(requestMetrics.getTimeToResponseInMillis(), attributes);
+            }
+        }
+
+        public long count() {
+            return counter.sum();
         }
     }
 
@@ -848,14 +902,20 @@ public class AzureBlobStore implements BlobStore {
 
     private static class RequestStatsCollector {
         private final BiPredicate<HttpMethod, URL> filter;
-        private final Consumer<OperationPurpose> onHttpRequest;
+        private final BiConsumer<OperationPurpose, AzureClientProvider.RequestMetrics> onHttpRequest;
 
-        private RequestStatsCollector(BiPredicate<HttpMethod, URL> filter, Consumer<OperationPurpose> onHttpRequest) {
+        private RequestStatsCollector(
+            BiPredicate<HttpMethod, URL> filter,
+            BiConsumer<OperationPurpose, AzureClientProvider.RequestMetrics> onHttpRequest
+        ) {
             this.filter = filter;
             this.onHttpRequest = onHttpRequest;
         }
 
-        static RequestStatsCollector create(BiPredicate<HttpMethod, URL> filter, Consumer<OperationPurpose> consumer) {
+        static RequestStatsCollector create(
+            BiPredicate<HttpMethod, URL> filter,
+            BiConsumer<OperationPurpose, AzureClientProvider.RequestMetrics> consumer
+        ) {
             return new RequestStatsCollector(filter, consumer);
         }
 
@@ -863,8 +923,8 @@ public class AzureBlobStore implements BlobStore {
             return filter.test(httpMethod, url);
         }
 
-        private void consumeHttpRequestInfo(OperationPurpose operationPurpose) {
-            onHttpRequest.accept(operationPurpose);
+        private void consumeHttpRequestInfo(OperationPurpose operationPurpose, AzureClientProvider.RequestMetrics requestMetrics) {
+            onHttpRequest.accept(operationPurpose, requestMetrics);
         }
     }
 

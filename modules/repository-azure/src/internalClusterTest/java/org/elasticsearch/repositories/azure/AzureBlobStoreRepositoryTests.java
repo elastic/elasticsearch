@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.is;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
-    private static final String DEFAULT_ACCOUNT_NAME = "account";
+    protected static final String DEFAULT_ACCOUNT_NAME = "account";
 
     @Override
     protected String repositoryType() {

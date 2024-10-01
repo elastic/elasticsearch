@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -423,7 +424,8 @@ public class CsvTests extends ESTestCase {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)),
             mapper,
             TEST_VERIFIER,
-            new PlanningMetrics()
+            new PlanningMetrics(),
+            null
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 
@@ -431,6 +433,7 @@ public class CsvTests extends ESTestCase {
 
         session.executeOptimizedPlan(
             new EsqlQueryRequest(),
+            new EsqlExecutionInfo(),
             runPhase(bigArrays, physicalOperationProviders),
             session.optimizedPlan(analyzed),
             listener.delegateFailureAndWrap(
@@ -567,6 +570,6 @@ public class CsvTests extends ESTestCase {
             }
         };
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of())));
+        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), null)));
     }
 }

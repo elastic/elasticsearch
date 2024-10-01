@@ -78,11 +78,15 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
 fi
 
 if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
-  DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
-  export DOCKER_REGISTRY_USERNAME
+  if which docker > /dev/null 2>&1; then
+    DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+    export DOCKER_REGISTRY_USERNAME
 
-  DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
-  export DOCKER_REGISTRY_PASSWORD
+    DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+    export DOCKER_REGISTRY_PASSWORD
+
+    docker login --username "$DOCKER_REGISTRY_USERNAME" --password "$DOCKER_REGISTRY_PASSWORD" docker.elastic.co
+  fi
 fi
 
 if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then

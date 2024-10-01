@@ -1698,6 +1698,9 @@ public class MetadataIndexTemplateService {
             return null;
         }
         DataStreamOptions current = dataStreamOptionsList.getLast();
+        if (current.failureStore() != null && current.failureStore().isNullified()) {
+            return DataStreamOptions.EMPTY;
+        }
         return current;
     }
 

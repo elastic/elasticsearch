@@ -1665,8 +1665,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
         // Composable Z: "data_stream_options": { "failure_store": null}
-        // Result: "data_stream_options": { "failure_store": null}
-        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), nullifiedFaiureStore, nullifiedFaiureStore);
+        // Result: "data_stream_options": {}
+        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), nullifiedFaiureStore, DataStreamOptions.EMPTY);
     }
 
     private ClusterState addComponentTemplate(

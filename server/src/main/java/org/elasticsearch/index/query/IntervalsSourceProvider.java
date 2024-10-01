@@ -14,11 +14,13 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -77,10 +79,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return Wildcard.fromXContent(parser);
             case "fuzzy":
                 return Fuzzy.fromXContent(parser);
+            case "regexp":
+                return Regexp.fromXContent(parser);
+            case "range":
+                return Range.fromXContent(parser);
         }
         throw new ParsingException(
             parser.getTokenLocation(),
-            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix, wildcard]"
+            "Unknown interval type ["
+                + parser.currentName()
+                + "], expecting one of [match, any_of, all_of, prefix, wildcard, regexp, range]"
         );
     }
 
@@ -747,6 +755,129 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    public static class Regexp extends IntervalsSourceProvider implements VersionedNamedWriteable {
+
+        public static final String NAME = "regexp";
+
+        private final String pattern;
+        private final String analyzer;
+        private final String useField;
+
+        public Regexp(String pattern, String analyzer, String useField) {
+            this.pattern = pattern;
+            this.analyzer = analyzer;
+            this.useField = useField;
+        }
+
+        public Regexp(StreamInput in) throws IOException {
+            this.pattern = in.readString();
+            this.analyzer = in.readOptionalString();
+            this.useField = in.readOptionalString();
+        }
+
+        @Override
+        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+            NamedAnalyzer analyzer = null;
+            if (this.analyzer != null) {
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
+            }
+            if (useField != null) {
+                fieldType = context.getFieldType(useField);
+                assert fieldType != null;
+            }
+            if (analyzer == null) {
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
+            }
+            BytesRef normalizedPattern = analyzer.normalize(fieldType.name(), pattern);
+            IntervalsSource source = fieldType.regexpIntervals(normalizedPattern, context);
+            if (useField != null) {
+                source = Intervals.fixField(useField, source);
+            }
+            return source;
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Regexp regexp = (Regexp) o;
+            return Objects.equals(pattern, regexp.pattern)
+                && Objects.equals(analyzer, regexp.analyzer)
+                && Objects.equals(useField, regexp.useField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern, analyzer, useField);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(pattern);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalString(useField);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field("pattern", pattern);
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Regexp, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String term = (String) args[0];
+            String analyzer = (String) args[1];
+            String useField = (String) args[2];
+            return new Regexp(term, analyzer, useField);
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("pattern"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+        }
+
+        public static Regexp fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        String getPattern() {
+            return pattern;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
+        }
+    }
+
     public static class Fuzzy extends IntervalsSourceProvider {
 
         public static final String NAME = "fuzzy";
@@ -897,6 +1028,190 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         Fuzziness getFuzziness() {
             return fuzziness;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
+        }
+    }
+
+    public static class Range extends IntervalsSourceProvider implements VersionedNamedWriteable {
+
+        public static final String NAME = "range";
+
+        private final String lowerTerm;
+        private final String upperTerm;
+        private final boolean includeLower;
+        private final boolean includeUpper;
+        private final String analyzer;
+        private final String useField;
+
+        public Range(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, String analyzer, String useField) {
+            this.lowerTerm = lowerTerm;
+            this.upperTerm = upperTerm;
+            this.includeLower = includeLower;
+            this.includeUpper = includeUpper;
+            this.analyzer = analyzer;
+            this.useField = useField;
+        }
+
+        public Range(StreamInput in) throws IOException {
+            this.lowerTerm = in.readString();
+            this.upperTerm = in.readString();
+            this.includeLower = in.readBoolean();
+            this.includeUpper = in.readBoolean();
+            this.analyzer = in.readOptionalString();
+            this.useField = in.readOptionalString();
+        }
+
+        @Override
+        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+            NamedAnalyzer analyzer = null;
+            if (this.analyzer != null) {
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
+            }
+            if (useField != null) {
+                fieldType = context.getFieldType(useField);
+                assert fieldType != null;
+            }
+            if (analyzer == null) {
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
+            }
+            BytesRef normalizedLowerTerm = analyzer.normalize(fieldType.name(), lowerTerm);
+            BytesRef normalizedUpperTerm = analyzer.normalize(fieldType.name(), upperTerm);
+
+            IntervalsSource source = fieldType.rangeIntervals(
+                normalizedLowerTerm,
+                normalizedUpperTerm,
+                includeLower,
+                includeUpper,
+                context
+            );
+            if (useField != null) {
+                source = Intervals.fixField(useField, source);
+            }
+            return source;
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Range range = (Range) o;
+            return includeLower == range.includeLower
+                && includeUpper == range.includeUpper
+                && Objects.equals(lowerTerm, range.lowerTerm)
+                && Objects.equals(upperTerm, range.upperTerm)
+                && Objects.equals(analyzer, range.analyzer)
+                && Objects.equals(useField, range.useField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(lowerTerm, upperTerm, includeLower, includeUpper, analyzer, useField);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(lowerTerm);
+            out.writeString(upperTerm);
+            out.writeBoolean(includeLower);
+            out.writeBoolean(includeUpper);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalString(useField);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            if (includeLower) {
+                builder.field("gte", lowerTerm);
+            } else {
+                builder.field("gt", lowerTerm);
+            }
+            if (includeUpper) {
+                builder.field("lte", upperTerm);
+            } else {
+                builder.field("lt", upperTerm);
+            }
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Range, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String gte = (String) args[0];
+            String gt = (String) args[1];
+            String lte = (String) args[2];
+            String lt = (String) args[3];
+            if ((gte == null && gt == null) || (gte != null && gt != null)) {
+                throw new IllegalArgumentException("Either [gte] or [gt], one of them must be provided");
+            }
+            if ((lte == null && lt == null) || (lte != null && lt != null)) {
+                throw new IllegalArgumentException("Either [lte] or [lt], one of them must be provided");
+            }
+            boolean includeLower = gte != null ? true : false;
+            String lowerTerm = gte != null ? gte : gt;
+            boolean includeUpper = lte != null ? true : false;
+            String upperTerm = lte != null ? lte : lt;
+            String analyzer = (String) args[4];
+            String useField = (String) args[5];
+            return new Range(lowerTerm, upperTerm, includeLower, includeUpper, analyzer, useField);
+        });
+
+        static {
+            PARSER.declareString(optionalConstructorArg(), new ParseField("gte"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("gt"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("lte"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("lt"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+        }
+
+        public static Range fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        String getLowerTerm() {
+            return lowerTerm;
+        }
+
+        String getUpperTerm() {
+            return upperTerm;
+        }
+
+        boolean getIncludeLower() {
+            return includeLower;
+        }
+
+        boolean getIncludeUpper() {
+            return includeUpper;
         }
 
         String getAnalyzer() {

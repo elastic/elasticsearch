@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -87,7 +88,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new TokenCountFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
     }
 
@@ -135,14 +136,8 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
 
-    protected TokenCountFieldMapper(
-        String simpleName,
-        MappedFieldType defaultFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, defaultFieldType, multiFields, copyTo);
+    protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, defaultFieldType, builderParams);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
         this.nullValue = builder.nullValue.getValue();

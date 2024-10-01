@@ -10,9 +10,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
@@ -119,16 +116,6 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     @Override
     public String unresolvedMessage() {
         return unresolvedMsg;
-    }
-
-    @Override
-    public AttributeSet references() {
-        AttributeSet refs = super.references();
-        if (indexMode == IndexMode.TIME_SERIES) {
-            refs = new AttributeSet(refs);
-            refs.add(new UnresolvedAttribute(source(), MetadataAttribute.TIMESTAMP_FIELD));
-        }
-        return refs;
     }
 
     @Override

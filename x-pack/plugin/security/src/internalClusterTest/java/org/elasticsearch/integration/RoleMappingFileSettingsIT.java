@@ -229,7 +229,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).get();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
@@ -251,7 +251,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             equalTo("50mb")
         );
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
         );
         assertEquals(
@@ -300,7 +300,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
         ).get();
 
         assertNull(
@@ -384,7 +384,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
         ).get();
 
         assertNull(
@@ -440,8 +440,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             assertFalse(response.hasMappings());
 
             // cluster state settings are also applied
-            var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get()))
-                .get();
+            var clusterStateResponse = clusterAdmin().state(
+                new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
+            ).get();
             assertThat(
                 clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
                 equalTo("50mb")

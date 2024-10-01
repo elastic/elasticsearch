@@ -1,15 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 
@@ -22,7 +27,11 @@ import java.util.Iterator;
  * through factory method params, providing one optimized for performance (e.g. MergingDigest or HybridDigest) by default, or optionally one
  * that produces highly accurate results regardless of input size but its construction over the sample population takes 2x-10x longer.
  */
-public class TDigestState {
+public class TDigestState implements Releasable {
+
+    protected static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
+
+    private final CircuitBreaker breaker;
 
     private final double compression;
 
@@ -47,13 +56,22 @@ public class TDigestState {
     private final Type type;
 
     /**
+     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
+     *             Please use the {@link #create(CircuitBreaker, double)} method instead on new usages.
+     */
+    @Deprecated
+    public static TDigestState createWithoutCircuitBreaking(double compression) {
+        return create(DEFAULT_NOOP_BREAKER, compression);
+    }
+
+    /**
      * Default factory for TDigestState. The underlying {@link org.elasticsearch.tdigest.TDigest} implementation is optimized for
      * performance, potentially providing slightly inaccurate results compared to other, substantially slower implementations.
      * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
      * @return a TDigestState object that's optimized for performance
      */
-    public static TDigestState create(double compression) {
-        return new TDigestState(Type.defaultValue(), compression);
+    public static TDigestState create(CircuitBreaker breaker, double compression) {
+        return new TDigestState(breaker, Type.defaultValue(), compression);
     }
 
     /**
@@ -61,8 +79,17 @@ public class TDigestState {
      * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
      * @return a TDigestState object that's optimized for performance
      */
-    public static TDigestState createOptimizedForAccuracy(double compression) {
-        return new TDigestState(Type.valueForHighAccuracy(), compression);
+    static TDigestState createOptimizedForAccuracy(CircuitBreaker breaker, double compression) {
+        return new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+    }
+
+    /**
+     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
+     *             Please use the {@link #create(CircuitBreaker, double, TDigestExecutionHint)} method instead on new usages.
+     */
+    @Deprecated
+    public static TDigestState createWithoutCircuitBreaking(double compression, TDigestExecutionHint executionHint) {
+        return create(DEFAULT_NOOP_BREAKER, compression, executionHint);
     }
 
     /**
@@ -73,10 +100,10 @@ public class TDigestState {
      * @param executionHint controls which implementation is used; accepted values are 'high_accuracy' and '' (default)
      * @return a TDigestState object
      */
-    public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+    public static TDigestState create(CircuitBreaker breaker, double compression, TDigestExecutionHint executionHint) {
         return switch (executionHint) {
-            case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
-            case DEFAULT -> create(compression);
+            case HIGH_ACCURACY -> createOptimizedForAccuracy(breaker, compression);
+            case DEFAULT -> create(breaker, compression);
         };
     }
 
@@ -87,15 +114,17 @@ public class TDigestState {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(state.type, state.compression);
+        return new TDigestState(state.breaker, state.type, state.compression);
     }
 
-    protected TDigestState(Type type, double compression) {
+    protected TDigestState(CircuitBreaker breaker, Type type, double compression) {
+        this.breaker = breaker;
+        var arrays = new MemoryTrackingTDigestArrays(breaker);
         tdigest = switch (type) {
-            case HYBRID -> TDigest.createHybridDigest(compression);
-            case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
-            case SORTING -> TDigest.createSortingDigest();
-            case MERGING -> TDigest.createMergingDigest(compression);
+            case HYBRID -> TDigest.createHybridDigest(arrays, compression);
+            case AVL_TREE -> TDigest.createAvlTreeDigest(arrays, compression);
+            case SORTING -> TDigest.createSortingDigest(arrays);
+            case MERGING -> TDigest.createMergingDigest(arrays, compression);
         };
         this.type = type;
         this.compression = compression;
@@ -119,15 +148,24 @@ public class TDigestState {
         }
     }
 
+    /**
+     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
+     *             Please use the {@link #read(CircuitBreaker, StreamInput)} method instead on new usages.
+     */
+    @Deprecated
     public static TDigestState read(StreamInput in) throws IOException {
+        return read(DEFAULT_NOOP_BREAKER, in);
+    }
+
+    public static TDigestState read(CircuitBreaker breaker, StreamInput in) throws IOException {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            state = new TDigestState(Type.valueOf(in.readString()), compression);
+            state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
             size = in.readVLong();
         } else {
-            state = new TDigestState(Type.valueForHighAccuracy(), compression);
+            state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
         }
         int n = in.readVInt();
         if (size > 0) {
@@ -239,5 +277,10 @@ public class TDigestState {
 
     public final double getMax() {
         return tdigest.getMax();
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(tdigest);
     }
 }

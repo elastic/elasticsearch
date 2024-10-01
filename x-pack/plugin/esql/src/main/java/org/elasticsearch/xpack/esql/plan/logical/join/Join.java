@@ -77,6 +77,11 @@ public class Join extends BinaryPlan {
     }
 
     @Override
+    protected AttributeSet computeReferences() {
+        return Expressions.references(config.leftFields()).combine(Expressions.references(config.rightFields()));
+    }
+
+    @Override
     protected NodeInfo<Join> info() {
         // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
         // expressions and references.

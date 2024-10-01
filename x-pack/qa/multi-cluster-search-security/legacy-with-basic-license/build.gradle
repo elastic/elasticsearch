@@ -23,11 +23,14 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
+  module ':x-pack:plugin:autoscaling'
   module ':x-pack:plugin:esql-core'
   module ':x-pack:plugin:esql'
+  module ':x-pack:plugin:ml'
   module ':modules:ingest-common'
   module ':x-pack:plugin:enrich'
   user username: "test_user", password: "x-pack-test-password"
+  setting 'xpack.ml.enabled', 'false'
 }
 
 def queryingCluster = testClusters.register('querying-cluster') {
@@ -38,13 +41,15 @@ def queryingCluster = testClusters.register('querying-cluster') {
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
+  module ':x-pack:plugin:autoscaling'
   module ':x-pack:plugin:esql-core'
   module ':x-pack:plugin:esql'
+  module ':x-pack:plugin:ml'
   module ':modules:ingest-common'
   module ':x-pack:plugin:enrich'
   setting 'cluster.remote.connections_per_cluster', "1"
   user username: "test_user", password: "x-pack-test-password"
-
+  setting 'xpack.ml.enabled', 'false'
   setting 'cluster.remote.my_remote_cluster.skip_unavailable', 'false'
   if (proxyMode) {
     setting 'cluster.remote.my_remote_cluster.mode', 'proxy'

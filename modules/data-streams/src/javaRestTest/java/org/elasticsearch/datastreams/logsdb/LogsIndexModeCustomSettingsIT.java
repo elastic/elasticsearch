@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb;
@@ -11,6 +12,7 @@ package org.elasticsearch.datastreams.logsdb;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.Before;
@@ -35,6 +37,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
+        .setting("xpack.otel_data.registry.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
         .build();
@@ -94,10 +97,15 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(type, equalTo("date"));
     }
 
-    public void testConfigureStoredSource() throws IOException {
+    public void testConfigureStoredSourceBeforeIndexCreation() throws IOException {
         var storedSourceMapping = """
             {
               "template": {
+                "settings": {
+                  "index": {
+                    "mode": "logsdb"
+                  }
+                },
                 "mappings": {
                   "_source": {
                     "mode": "stored"
@@ -109,15 +117,32 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         Exception e = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", storedSourceMapping));
         assertThat(
             e.getMessage(),
-            containsString("updating component template [logs@custom] results in invalid composable template [logs]")
+            containsString("Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source")
         );
-        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
+        assertThat(e.getMessage(), containsString("mapper_parsing_exception"));
 
         assertOK(createDataStream(client, "logs-custom-dev"));
 
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("synthetic"));
+    }
+
+    public void testConfigureStoredSourceWhenIndexIsCreated() throws IOException {
+        var storedSourceMapping = """
+            {
+              "template": {
+                "mappings": {
+                  "_source": {
+                    "mode": "stored"
+                  }
+                }
+              }
+            }""";
+
+        assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
+        ResponseException e = expectThrows(ResponseException.class, () -> createDataStream(client, "logs-custom-dev"));
+        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
     }
 
     public void testOverrideIndexCodec() throws IOException {
@@ -283,33 +308,53 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(ignoreDynamicBeyondLimitIndexSetting, equalTo("false"));
     }
 
-    public void testAddNonCompatibleMapping() throws IOException {
-        var nonCompatibleMappingAdditionTemplate = """
-            {
-              "template": {
-                "mappings": {
-                  "properties": {
-                    "bomb": {
-                      "type": "ip",
-                      "doc_values": false
+    public void testIgnoreMalformedSetting() throws IOException {
+        // with default template
+        {
+            assertOK(createDataStream(client, "logs-test-1"));
+            String logsIndex1 = getDataStreamBackingIndex(client, "logs-test-1", 0);
+            assertThat(getSetting(client, logsIndex1, "index.mapping.ignore_malformed"), equalTo("true"));
+            for (String newValue : List.of("false", "true")) {
+                closeIndex(logsIndex1);
+                updateIndexSettings(logsIndex1, Settings.builder().put("index.mapping.ignore_malformed", newValue));
+                assertThat(getSetting(client, logsIndex1, "index.mapping.ignore_malformed"), equalTo(newValue));
+            }
+        }
+        // with override template
+        {
+            var template = """
+                {
+                  "template": {
+                    "settings": {
+                      "index": {
+                        "mapping": {
+                          "ignore_malformed": "false"
+                        }
+                      }
                     }
                   }
-                }
-              }
-            }""";
-
-        Exception e = assertThrows(
-            ResponseException.class,
-            () -> putComponentTemplate(client, "logs@custom", nonCompatibleMappingAdditionTemplate)
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("updating component template [logs@custom] results in invalid composable template [logs]")
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("field [bomb] of type [ip] doesn't support synthetic source because it doesn't have doc values")
-        );
+                }""";
+            assertOK(putComponentTemplate(client, "logs@custom", template));
+            assertOK(createDataStream(client, "logs-custom-dev"));
+            String index = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
+            assertThat(getSetting(client, index, "index.mapping.ignore_malformed"), equalTo("false"));
+            for (String newValue : List.of("true", "false")) {
+                closeIndex(index);
+                updateIndexSettings(index, Settings.builder().put("index.mapping.ignore_malformed", newValue));
+                assertThat(getSetting(client, index, "index.mapping.ignore_malformed"), equalTo(newValue));
+            }
+        }
+        // standard index
+        {
+            String index = "test-index";
+            createIndex(index);
+            assertThat(getSetting(client, index, "index.mapping.ignore_malformed"), equalTo("false"));
+            for (String newValue : List.of("false", "true")) {
+                closeIndex(index);
+                updateIndexSettings(index, Settings.builder().put("index.mapping.ignore_malformed", newValue));
+                assertThat(getSetting(client, index, "index.mapping.ignore_malformed"), equalTo(newValue));
+            }
+        }
     }
 
     private static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {

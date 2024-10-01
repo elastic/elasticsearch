@@ -19,10 +19,12 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
+
 import java.util.AbstractCollection;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 
 /**
@@ -31,17 +33,20 @@ import java.util.Iterator;
  * samples, at the expense of allocating much more memory.
  */
 public class SortingDigest extends AbstractTDigest {
-
     // Tracks all samples. Gets sorted on quantile and cdf calls.
-    final ArrayList<Double> values = new ArrayList<>();
+    final TDigestDoubleArray values;
 
     // Indicates if all values have been sorted.
     private boolean isSorted = true;
 
+    public SortingDigest(TDigestArrays arrays) {
+        values = arrays.newDoubleArray(0);
+    }
+
     @Override
     public void add(double x, long w) {
         checkValue(x);
-        isSorted = isSorted && (values.isEmpty() || values.get(values.size() - 1) <= x);
+        isSorted = isSorted && (values.size() == 0 || values.get(values.size() - 1) <= x);
         for (int i = 0; i < w; i++) {
             values.add(x);
         }
@@ -52,7 +57,7 @@ public class SortingDigest extends AbstractTDigest {
     @Override
     public void compress() {
         if (isSorted == false) {
-            Collections.sort(values);
+            values.sort();
             isSorted = true;
         }
     }
@@ -132,5 +137,10 @@ public class SortingDigest extends AbstractTDigest {
     @Override
     public int byteSize() {
         return values.size() * 8;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(values);
     }
 }

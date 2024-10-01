@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.LogicalPlanDependencyCheck;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class LogicalVerifier {
 
-    private static final LogicalPlanDependencyCheck DEPENDENCY_CHECK = new LogicalPlanDependencyCheck();
+    private static final PlanConsistencyChecker<LogicalPlan> DEPENDENCY_CHECK = new PlanConsistencyChecker<>();
     public static final LogicalVerifier INSTANCE = new LogicalVerifier();
 
     private LogicalVerifier() {}

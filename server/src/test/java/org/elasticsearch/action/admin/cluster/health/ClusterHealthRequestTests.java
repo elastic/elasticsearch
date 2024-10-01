@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -42,12 +43,12 @@ public class ClusterHealthRequestTests extends ESTestCase {
     }
 
     public void testRequestReturnsHiddenIndicesByDefault() {
-        final ClusterHealthRequest defaultRequest = new ClusterHealthRequest();
+        final ClusterHealthRequest defaultRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         assertTrue(defaultRequest.indicesOptions().expandWildcardsHidden());
     }
 
     private ClusterHealthRequest randomRequest() {
-        ClusterHealthRequest request = new ClusterHealthRequest();
+        ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         request.waitForStatus(randomFrom(ClusterHealthStatus.values()));
         request.waitForNodes(randomFrom("", "<", "<=", ">", ">=") + between(0, 1000));
         request.waitForNoInitializingShards(randomBoolean());

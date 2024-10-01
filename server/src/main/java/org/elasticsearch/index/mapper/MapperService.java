@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -21,7 +22,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -125,7 +125,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         "index.mapping.total_fields.ignore_dynamic_beyond_limit",
         false,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
@@ -147,19 +148,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         0,
         Property.Dynamic,
         Property.IndexScope
-    );
-    /**
-     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
-     * TODO: Remove in 9.0
-     */
-    @Deprecated
-    @UpdateForV9
-    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting(
-        "index.mapper.dynamic",
-        true,
-        Property.Dynamic,
-        Property.IndexScope,
-        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     private final IndexAnalyzers indexAnalyzers;

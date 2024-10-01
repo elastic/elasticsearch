@@ -116,7 +116,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 nullValue.get(),
                 meta.get()
             );
-            return new PointFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new PointFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
 
     }
@@ -128,19 +128,17 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     public PointFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         CartesianPointParser parser,
         Builder builder
     ) {
         super(
             simpleName,
             mappedFieldType,
-            multiFields,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.ignoreZValue.get(),
             builder.nullValue.get(),
-            copyTo,
             parser
         );
         this.builder = builder;

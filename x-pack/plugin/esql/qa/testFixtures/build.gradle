@@ -2,16 +2,18 @@ apply plugin: 'elasticsearch.java'
 apply plugin: org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 
 dependencies {
-    implementation project(':x-pack:plugin:esql:compute')
-    implementation project(':x-pack:plugin:esql')
-    compileOnly project(path: xpackModule('core'))
-    implementation project(":libs:elasticsearch-x-content")
-    implementation project(':client:rest')
-    implementation project(':libs:elasticsearch-logging')
-    implementation project(':test:framework')
-    api(testArtifact(project(xpackModule('esql-core'))))
-    implementation project(':server')
-    implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
+  implementation project(':x-pack:plugin:esql:compute')
+  implementation project(':x-pack:plugin:esql')
+  compileOnly project(path: xpackModule('core'))
+  implementation project(":libs:elasticsearch-x-content")
+  implementation project(':client:rest')
+  implementation project(':libs:elasticsearch-logging')
+  implementation project(':test:framework')
+  api(testArtifact(project(xpackModule('esql-core'))))
+  implementation project(':server')
+  implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
 /**

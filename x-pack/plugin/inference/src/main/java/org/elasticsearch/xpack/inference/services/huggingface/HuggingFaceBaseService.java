@@ -16,15 +16,13 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -49,7 +47,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -119,7 +116,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
     @Override
     public void doInfer(
         Model model,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -134,19 +131,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
         var action = huggingFaceModel.accept(actionCreator);
-        action.execute(new DocumentsOnlyInput(input), timeout, listener);
-    }
-
-    @Override
-    protected void doInfer(
-        Model model,
-        String query,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        throw new UnsupportedOperationException("Hugging Face service does not support inference with query input");
+        action.execute(inputs, timeout, listener);
     }
 }

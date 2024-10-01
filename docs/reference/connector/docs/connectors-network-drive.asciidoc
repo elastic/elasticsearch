@@ -1,0 +1,533 @@
+[#es-connectors-network-drive]
+=== Elastic network drive connector reference
+++++
+<titleabbrev>Network drive</titleabbrev>
+++++
+
+// Attributes used in this file:
+:service-name: Network drive
+:service-name-stub: network_drive
+
+The _Elastic network drive connector_ is a <<es-connectors,connector>> for network drive data sources.
+This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
+
+View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+.Choose your connector reference
+*******************************
+Are you using a managed connector on Elastic Cloud or a self-managed connector? Expand the documentation based on your deployment method.
+*******************************
+
+// //////// //// //// //// //// //// //// ////////
+// ////////   NATIVE CONNECTOR REFERENCE   ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-network-drive-native-connector-reference]
+==== *Elastic managed connector reference*
+
+.View *Elastic managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-network-drive-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a *managed connector* on Elastic Cloud, as of *8.9.1*.
+
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
+
+[discrete#es-connectors-network-drive-usage]
+===== Usage
+
+To use this connector natively in Elastic Cloud, see <<es-native-connectors>>.
+
+[discrete#es-connectors-network-drive-configuration]
+===== Configuration
+
+The following configuration fields are required to set up the connector:
+
+Username::
+The username of the account for the network drive.
+The user must have at least **read** permissions for the folder path provided.
+
+Password::
+The password of the account to be used for crawling the network drive.
+
+IP address::
+The server IP address where the network drive is hosted.
+Default value is `127.0.0.1`.
+
+Port::
+The server port where the network drive service is available.
+Default value is `445`.
+
+Path::
+** The network drive path the connector will crawl to fetch files.
+This is the name of the folder shared via SMB.
+The connector uses the Python https://github.com/jborean93/smbprotocol[`smbprotocol`^] library which supports both *SMB v2* and *v3*.
+** Accepts only one path— parent folders can be specified to widen the scope.
+** The drive path should use *forward slashes* as path separators.
+Example:
++
+* `admin/bin`
+
+Enable document level security::
+Toggle to enable document level security (DLS). When enabled:
+* Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+* Access control syncs will fetch users' access control lists and store them in a separate index.
+Default value is `false`.
++
+[TIP]
+====
+Refer to <<es-connectors-network-drive-dls, Document level security>> for more information, including prerequisites and limitations.
+====
+
+Identity mappings::
+Path to a CSV file containing user and group SIDs (For Linux Network Drive).
++
+File should be formatted as follows:
++
+* Fields separated by semicolons (`;`)
+* Three fields per line: `Username;User-SID;Group-SIDs`
+* Group-SIDs are comma-separated and optional.
++
+*Example* with one username, user-sid and no group:
++
+[source,text]
+----
+user1;S-1;
+----
++
+*Example* with one username, user-sid and two groups:
++
+[source,text]
+----
+user1;S-1;S-11,S-22
+----
+
+[discrete#es-connectors-network-drive-documents-syncs]
+===== Documents and syncs
+
+The connector syncs folders as separate documents in Elasticsearch.
+The following fields will be added for the document type `folder`:
+
+* `create_time`
+* `title`
+* `path`
+* `modified`
+* `time`
+* `id`
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Permissions are not synced by default.
+You must first enable <<es-connectors-network-drive-client-dls,DLS>>.
+Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
+====
+
+[discrete#es-connectors-network-drive-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-network-drive-dls]
+===== Document level security
+
+Document Level Security (DLS) enables you to restrict access to documents based on a user's permissions.
+DLS facilitates the syncing of folder and file permissions, including both user and group level permissions.
+
+[NOTE]
+====
+**Note:** Refer to <<es-dls-e2e-guide,DLS in Search Applications>> to learn how to search data with DLS enabled, when building a search application.
+====
+
+[discrete#es-connectors-network-drive-dls-availability]
+====== Availability
+
+* The present version of Network Drive connector offers DLS support for Windows network drives only.
+* To fetch users and groups in a Windows network drive, account credentials added in the connector configuration should have access to the Powershell of the Windows Server where the network drive is hosted.
+
+[discrete#es-connectors-network-drive-sync-rules]
+===== Sync rules
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#es-connectors-network-drive-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+Advanced sync rules for this connector use *glob patterns*.
+
+1. Each rule must contains a glob pattern. This pattern is then matched against all the available folder paths inside the configured drive path.
+2. The pattern must begin with the `drive_path` field configured in the connector.
+3. If the pattern matches any available folder paths, the contents directly within those folders will be fetched.
+
+The following sections provide examples of advanced sync rules for this connector.
+
+[discrete#es-connectors-network-drive-indexing-files-and-folders-recursively-within-folders]
+======= Indexing files and folders recursively within folders
+
+[source,js]
+----
+[
+  {
+    "pattern": "Folder-shared/a/mock/**"
+  },
+  {
+    "pattern": "Folder-shared/b/alpha/**"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-network-drive-indexing-files-and-folders-directly-inside-folder]
+======= Indexing files and folders directly inside folder
+
+[source,js]
+----
+[
+  {
+    "pattern": "Folder-shared/a/b/test"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-network-drive-indexing-files-and-folders-directly-inside-a-set-of-folders]
+======= Indexing files and folders directly inside a set of folders
+
+[source,js]
+----
+[
+  {
+    "pattern": "Folder-shared/org/*/all-tests/test[135]"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-network-drive-excluding-files-and-folders-that-match-a-pattern]
+======= Excluding files and folders that match a pattern
+
+[source,js]
+----
+[
+  {
+    "pattern": "Folder-shared/**/all-tests/test[!7]"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-network-drive-content-extraction]
+===== Content extraction
+
+See <<es-connectors-content-extraction>>.
+
+[discrete#es-connectors-network-drive-known-issues]
+===== Known issues
+
+There are no known issues for this connector.
+
+See <<es-connectors-known-issues>> for any issues affecting all connectors.
+
+[discrete#es-connectors-network-drive-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-network-drive-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE     ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-network-drive-connector-client-reference]
+==== *Self-managed connector*
+
+.View *self-managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-network-drive-client-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.6.0+*.
+
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
+
+[discrete#es-connectors-network-drive-client-usage]
+===== Usage
+
+To use this connector as a *self-managed connector*, see <<es-build-connector>>For additional usage operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-network-drive-client-configuration]
+===== Configuration
+
+[TIP]
+====
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/network_drive.py[connector source code^].
+These are set in the `get_default_configuration` function definition.
+
+These configurable fields will be rendered with their respective *labels* in the Kibana UI.
+Once connected, you'll be able to update these values in Kibana.
+====
+
+The following configuration fields are required to set up the connector:
+
+`username`::
+The username of the account for the network drive.
+The user must have at least **read** permissions for the folder path provided.
+
+`password`::
+The password of the account to be used for crawling the network drive.
+
+`server_ip`::
+The server IP address where the network drive is hosted.
+Default value is `127.0.0.1`.
+
+`server_port`::
+The server port where the network drive service is available.
+Default value is `445`.
+
+`drive_path`::
+** The network drive path the connector will crawl to fetch files.
+This is the name of the folder shared via SMB.
+The connector uses the Python https://github.com/jborean93/smbprotocol[`smbprotocol`^] library which supports both *SMB v2* and *v3*.
+** Accepts only one path— parent folders can be specified to widen the scope.
+** The drive path should use *forward slashes* as path separators.
+Example:
++
+* `admin/bin`
+
+`use_document_level_security`::
+Toggle to enable document level security (DLS). When enabled:
+* Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+* Access control syncs will fetch users' access control lists and store them in a separate index.
++
+[TIP]
+====
+Refer to <<es-connectors-network-drive-client-dls, Document level security>> for more information, including prerequisites and limitations.
+====
+
+`drive_type`::
+The type of network drive to be crawled.
+The following options are available:
++
+* `Windows`
+* `Linux`
+
+`identity_mappings`::
+Path to a CSV file containing user and group SIDs (For Linux Network Drive).
++
+File should be formatted as follows:
++
+* Fields separated by semicolons (`;`)
+* Three fields per line: `Username;User-SID;Group-SIDs`
+* Group-SIDs are comma-separated and optional.
++
+*Example* with one username, user-sid and no group:
++
+[source,text]
+----
+user1;S-1;
+----
++
+*Example* with one username, user-sid and two groups:
++
+[source,text]
+----
+user1;S-1;S-11,S-22
+----
+
+[discrete#es-connectors-network-drive-client-docker]
+===== Deployment using Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#es-connectors-network-drive-client-documents-syncs]
+===== Documents and syncs
+
+The connector syncs folders as separate documents in Elasticsearch.
+The following fields will be added for the document type `folder`:
+
+* `create_time`
+* `title`
+* `path`
+* `modified`
+* `time`
+* `id`
+
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted
+* Permissions are not synced by default.
+You must first enable <<es-connectors-network-drive-client-dls,DLS>>.
+Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
+====
+
+[discrete#es-connectors-network-drive-client-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-network-drive-client-dls]
+===== Document level security
+
+Document Level Security (DLS) enables you to restrict access to documents based on a user's permissions.
+DLS facilitates the syncing of folder and file permissions, including both user and group level permissions.
+
+[NOTE]
+====
+**Note:** Refer to <<es-dls-e2e-guide,DLS in Search Applications>> to learn how to search data with DLS enabled, when building a search application.
+====
+
+[discrete#es-connectors-network-drive-client-dls-availability]
+====== Availability
+
+* The Network Drive self-managed connector offers DLS support for both Windows and Linux network drives.
+* To fetch users and groups in a Windows network drive, account credentials added in the connector configuration should have access to the Powershell of the Windows Server where the network drive is hosted.
+
+[discrete#es-connectors-network-drive-client-sync-rules]
+===== Sync rules
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#es-connectors-network-drive-client-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+Advanced sync rules for this connector use *glob patterns*.
+
+1. Each rule must contains a glob pattern. This pattern is then matched against all the available folder paths inside the configured drive path.
+2. The pattern must begin with the `drive_path` field configured in the connector.
+3. If the pattern matches any available folder paths, the contents directly within those folders will be fetched.
+
+The following sections provide examples of advanced sync rules for this connector.
+
+[discrete#es-connectors-network-drive-client-indexing-files-and-folders-recursively-within-folders]
+======= Indexing files and folders recursively within folders
+
+[source,js]
+----
+[
+  {
+    "pattern": "Folder-shared/a/mock/**"
+  },
+  {
+    "pattern": "Folder-shared/b/alpha/**"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-folder]
+======= Indexing files and folders directly inside folder
+
+[source,js]
+----
+[
+  {
+    "pattern": "Folder-shared/a/b/test"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-a-set-of-folders]
+======= Indexing files and folders directly inside a set of folders
+
+[source,js]
+----
+[
+  {
+    "pattern": "Folder-shared/org/*/all-tests/test[135]"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-pattern]
+======= Excluding files and folders that match a pattern
+
+[source,js]
+----
+[
+  {
+    "pattern": "Folder-shared/**/all-tests/test[!7]"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-network-drive-client-content-extraction]
+===== Content extraction
+
+See <<es-connectors-content-extraction>>.
+
+[discrete#es-connectors-network-drive-client-tests]
+===== End-to-end tests
+
+The connector framework enables operators to run functional tests against a real data source.
+Refer to <<es-build-connector-testing>> for more details.
+
+To execute a functional test for the Network Drive self-managed connector, run the following command:
+
+[source,shell]
+----
+$ make ftest NAME=network_drive
+----
+
+By default, this will use a medium-sized dataset.
+For faster tests add the `DATA_SIZE=small` flag:
+
+[source,shell]
+----
+make ftest NAME=network_drive DATA_SIZE=small
+----
+
+[discrete#es-connectors-network-drive-client-known-issues]
+===== Known issues
+
+There are no known issues for this connector.
+
+See <<es-connectors-known-issues>> for any issues affecting all connectors.
+
+[discrete#es-connectors-network-drive-client-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-network-drive-client-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+// Closing the collapsible section 
+===============

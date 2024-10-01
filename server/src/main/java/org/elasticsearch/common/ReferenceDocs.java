@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -43,6 +44,7 @@ public enum ReferenceDocs {
     UNSTABLE_CLUSTER_TROUBLESHOOTING,
     LAGGING_NODE_TROUBLESHOOTING,
     SHARD_LOCK_TROUBLESHOOTING,
+    NETWORK_DISCONNECT_TROUBLESHOOTING,
     CONCURRENT_REPOSITORY_WRITERS,
     ARCHIVE_INDICES,
     HTTP_TRACER,
@@ -59,7 +61,6 @@ public enum ReferenceDocs {
     BOOTSTRAP_CHECK_SYSTEM_CALL_FILTER,
     BOOTSTRAP_CHECK_ONERROR_AND_ONOUTOFMEMORYERROR,
     BOOTSTRAP_CHECK_EARLY_ACCESS,
-    BOOTSTRAP_CHECK_G1GC,
     BOOTSTRAP_CHECK_ALL_PERMISSION,
     BOOTSTRAP_CHECK_DISCOVERY_CONFIGURATION,
     BOOTSTRAP_CHECKS,
@@ -117,6 +118,15 @@ public enum ReferenceDocs {
             if (iterator.hasNext()) {
                 throw new IllegalStateException("found unexpected extra value: " + iterator.next());
             }
+
+            // We must only link to anchors with fixed IDs (defined by [[fragment-name]] in the docs) because auto-generated fragment IDs
+            // depend on the heading text and are too easy to break inadvertently. Auto-generated fragment IDs begin with an underscore.
+            for (final var entry : result.entrySet()) {
+                if (entry.getValue().startsWith("_") || entry.getValue().contains("#_")) {
+                    throw new IllegalStateException("found auto-generated fragment ID at " + entry.getKey());
+                }
+            }
+
             return result;
         }
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -15,7 +16,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -25,6 +28,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
@@ -39,6 +43,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
@@ -49,6 +54,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -85,7 +91,9 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 new ActionFilters(Set.of()),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                indicesService
+                indicesService,
+                NamedXContentRegistry.EMPTY,
+                new IndexSettingProviders(Set.of())
             );
         }
     }
@@ -125,9 +133,9 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testIndexData() {
+    public void testIndexData() throws IOException {
         Task task = mock(Task.class); // unused
-        BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
+        BulkRequest bulkRequest = new SimulateBulkRequest(null, null);
         int bulkItemCount = randomIntBetween(0, 200);
         for (int i = 0; i < bulkItemCount; i++) {
             Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
@@ -198,17 +206,23 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
 
     public void testIndexDataWithValidation() throws IOException {
         /*
-         * This test makes sure that we validate mappings if we're indexing into an index that exists. It simulates 3 cases:
-         * (1) An indexing request to a nonexistent index (the index is not in the cluster state)
-         * (2) An indexing request to an index with non-strict mappings, or an index request that is valid with respect to the mappings
+         * This test makes sure that we validate mappings. It simulates 7 cases:
+         * (1) An indexing request to an index with non-strict mappings, or an index request that is valid with respect to the mappings
          *     (the index is in the cluster state, but our mock indicesService.withTempIndexService() does not throw an exception)
-         * (3) An indexing request that is invalid with respect to the mappings (the index is in the cluster state, and our mock
+         * (2) An indexing request that is invalid with respect to the mappings (the index is in the cluster state, and our mock
          * indicesService.withTempIndexService() throws an exception)
+         * (3) An indexing request to a nonexistent index that matches a V1 template and is valid with respect to the mappings
+         * (4) An indexing request to a nonexistent index that matches a V1 template and is invalid with respect to the mappings
+         * (5) An indexing request to a nonexistent index that matches a V2 template and is valid with respect to the mappings
+         * (6) An indexing request to a nonexistent index that matches a V2 template and is invalid with respect to the mappings
+         * (7) An indexing request to a nonexistent index that matches no templates
          */
         Task task = mock(Task.class); // unused
-        BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
+        BulkRequest bulkRequest = new SimulateBulkRequest(null, null);
         int bulkItemCount = randomIntBetween(0, 200);
         Map<String, IndexMetadata> indicesMap = new HashMap<>();
+        Map<String, IndexTemplateMetadata> v1Templates = new HashMap<>();
+        Map<String, ComposableIndexTemplate> v2Templates = new HashMap<>();
         Metadata.Builder metadataBuilder = new Metadata.Builder();
         Set<String> indicesWithInvalidMappings = new HashSet<>();
         for (int i = 0; i < bulkItemCount; i++) {
@@ -221,23 +235,43 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             bulkRequest.add(indexRequest);
             // Now we randomly decide what we're going to simulate with requests to this index:
             String indexName = indexRequest.index();
-            switch (between(0, 2)) {
+            switch (between(0, 6)) {
                 case 0 -> {
-                    // Index does not exist, so we don't put it in the indicesMap
-                }
-                case 1 -> {
                     // Indices that have non-strict mappings, or we're sending valid requests for their mappings
                     indicesMap.put(indexName, newIndexMetadata(indexName));
                 }
-                case 2 -> {
-                    // Indices that we'll pretend to have sent invalid requests to
+                case 1 -> {
+                    // // Indices that we'll pretend to have sent invalid requests to
                     indicesWithInvalidMappings.add(indexName);
                     indicesMap.put(indexName, newIndexMetadata(indexName));
+                }
+                case 2 -> {
+                    // Index does not exist, but matches a V1 template
+                    v1Templates.put(indexName, newV1Template(indexName));
+                }
+                case 3 -> {
+                    // Index does not exist, but matches a V1 template
+                    v1Templates.put(indexName, newV1Template(indexName));
+                    indicesWithInvalidMappings.add(indexName);
+                }
+                case 4 -> {
+                    // Index does not exist, but matches a V2 template
+                    v2Templates.put(indexName, newV2Template(indexName));
+                }
+                case 5 -> {
+                    // Index does not exist, but matches a V2 template
+                    v2Templates.put(indexName, newV2Template(indexName));
+                    indicesWithInvalidMappings.add(indexName);
+                }
+                case 6 -> {
+                    // Index does not exist, and matches no template
                 }
                 default -> throw new AssertionError("Illegal branch");
             }
         }
         metadataBuilder.indices(indicesMap);
+        metadataBuilder.templates(v1Templates);
+        metadataBuilder.indexTemplates(v2Templates);
         ClusterServiceUtils.setState(clusterService, new ClusterState.Builder(clusterService.state()).metadata(metadataBuilder));
         AtomicBoolean onResponseCalled = new AtomicBoolean(false);
         ActionListener<BulkResponse> listener = new ActionListener<>() {
@@ -324,7 +358,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 fail(e, "Unexpected error");
             }
         };
-        when(indicesService.withTempIndexService(any(), any())).thenAnswer((Answer<Exception>) invocation -> {
+        when(indicesService.withTempIndexService(any(), any())).thenAnswer((Answer<?>) invocation -> {
             IndexMetadata imd = invocation.getArgument(0);
             if (indicesWithInvalidMappings.contains(imd.getIndex().getName())) {
                 throw new ElasticsearchException("invalid mapping");
@@ -345,6 +379,14 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         return new IndexMetadata.Builder(indexName).settings(dummyIndexSettings).build();
+    }
+
+    private IndexTemplateMetadata newV1Template(String indexName) {
+        return new IndexTemplateMetadata.Builder(indexName).patterns(List.of(indexName)).build();
+    }
+
+    private ComposableIndexTemplate newV2Template(String indexName) {
+        return ComposableIndexTemplate.builder().indexPatterns(List.of(indexName)).build();
     }
 
     private String convertMapToJsonString(Map<String, ?> map) throws IOException {

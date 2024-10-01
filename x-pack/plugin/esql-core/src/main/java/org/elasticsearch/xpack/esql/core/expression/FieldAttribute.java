@@ -30,9 +30,6 @@ import java.util.Objects;
  * - nestedParent - if nested, what's the parent (which might not be the immediate one)
  */
 public class FieldAttribute extends TypedAttribute {
-    // TODO: This constant should not be used if possible; use .synthetic()
-    // https://github.com/elastic/elasticsearch/issues/105821
-    public static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -52,6 +49,10 @@ public class FieldAttribute extends TypedAttribute {
         this(source, parent, name, field, Nullability.TRUE, null, false);
     }
 
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, boolean synthetic) {
+        this(source, parent, name, field, Nullability.TRUE, null, synthetic);
+    }
+
     public FieldAttribute(
         Source source,
         FieldAttribute parent,
@@ -64,7 +65,11 @@ public class FieldAttribute extends TypedAttribute {
         this(source, parent, name, field.getDataType(), field, nullability, id, synthetic);
     }
 
-    public FieldAttribute(
+    /**
+     * Used only for testing. Do not use this otherwise, as an explicitly set type will be ignored the next time this FieldAttribute is
+     * {@link FieldAttribute#clone}d.
+     */
+    FieldAttribute(
         Source source,
         FieldAttribute parent,
         String name,
@@ -147,28 +152,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(
-            this,
-            (source, parent1, name, type, field1, qualifier, nullability, id, synthetic) -> new FieldAttribute(
-                source,
-                parent1,
-                name,
-                type,
-                field1,
-                qualifier,
-                nullability,
-                id,
-                synthetic
-            ),
-            parent,
-            name(),
-            dataType(),
-            field,
-            (String) null,
-            nullable(),
-            id(),
-            synthetic()
-        );
+        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, (String) null, nullable(), id(), synthetic());
     }
 
     public FieldAttribute parent() {
@@ -185,9 +169,9 @@ public class FieldAttribute extends TypedAttribute {
     public String fieldName() {
         // Before 8.15, the field name was the same as the attribute's name.
         // On later versions, the attribute can be renamed when creating synthetic attributes.
-        // TODO: We should use synthetic() to check for that case.
-        // https://github.com/elastic/elasticsearch/issues/105821
-        if (name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
+        // Because until 8.15, we couldn't set `synthetic` to true due to a bug, in that version such FieldAttributes are marked by their
+        // name starting with `$$`.
+        if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
             return name();
         }
         return Strings.hasText(path) ? path + "." + field.getName() : field.getName();
@@ -211,7 +195,13 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+        // Ignore `type`, this must be the same as the field's type.
         return new FieldAttribute(source, parent, name, field, nullability, id, synthetic);
+    }
+
+    @Override
+    public Attribute withDataType(DataType type) {
+        throw new UnsupportedOperationException("FieldAttribute obtains its type from the contained EsField.");
     }
 
     @Override

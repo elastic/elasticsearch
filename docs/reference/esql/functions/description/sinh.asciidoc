@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
+Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of a number.

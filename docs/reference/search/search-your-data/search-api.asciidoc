@@ -173,7 +173,7 @@ GET /my-index-000001/_search
       "script": {
         "source":
         """emit(doc['@timestamp'].value.dayOfWeekEnum
-        .getDisplayName(TextStyle.FULL, Locale.ROOT))"""
+        .getDisplayName(TextStyle.FULL, Locale.ENGLISH))"""
       }
     }
   },
@@ -530,3 +530,5 @@ include::retrieve-inner-hits.asciidoc[]
 include::search-shard-routing.asciidoc[]
 include::search-using-query-rules.asciidoc[]
 include::search-template.asciidoc[]
+include::retrievers-overview.asciidoc[]
+

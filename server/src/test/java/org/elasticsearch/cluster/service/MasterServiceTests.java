@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -14,7 +15,9 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +28,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -33,7 +35,6 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.Lifecycle;
@@ -525,7 +526,7 @@ public class MasterServiceTests extends ESTestCase {
                     fail();
                 }
             });
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
@@ -1570,7 +1571,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 masterService.submitUnbatchedStateUpdateTask(
                     "test2",
-                    new AckedClusterStateUpdateTask(ackedRequest(TimeValue.ZERO, null), null) {
+                    new AckedClusterStateUpdateTask(ackedRequest(TimeValue.ZERO, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT), null) {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             return ClusterState.builder(currentState).build();
@@ -1622,7 +1623,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 masterService.submitUnbatchedStateUpdateTask(
                     "test2",
-                    new AckedClusterStateUpdateTask(ackedRequest(ackTimeout, null), null) {
+                    new AckedClusterStateUpdateTask(ackedRequest(ackTimeout, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT), null) {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             threadPool.getThreadContext().addResponseHeader(responseHeaderName, responseHeaderValue);
@@ -1677,7 +1678,10 @@ public class MasterServiceTests extends ESTestCase {
 
                 masterService.submitUnbatchedStateUpdateTask(
                     "test2",
-                    new AckedClusterStateUpdateTask(ackedRequest(TimeValue.MINUS_ONE, null), null) {
+                    new AckedClusterStateUpdateTask(
+                        ackedRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT),
+                        null
+                    ) {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             return ClusterState.builder(currentState).build();
@@ -2607,16 +2611,6 @@ public class MasterServiceTests extends ESTestCase {
                 b -> b.version(randomFrom(currentState.metadata().version() - 1, currentState.metadata().version() + 1))
             )
         );
-
-        runVersionNumberProtectionTest(
-            currentState -> ClusterState.builder(currentState)
-                .routingTable(
-                    RoutingTable.builder(currentState.routingTable())
-                        .version(randomFrom(currentState.routingTable().version() - 1, currentState.routingTable().version() + 1))
-                        .build()
-                )
-                .build()
-        );
     }
 
     private void runVersionNumberProtectionTest(UnaryOperator<ClusterState> updateOperator) {
@@ -2666,20 +2660,15 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     /**
-     * Returns a plain {@link AckedRequest} that does not implement any functionality outside of the timeout getters.
+     * Returns a plain {@link AcknowledgedRequest} that does not implement any functionality outside of the timeout getters.
      */
-    public static AckedRequest ackedRequest(TimeValue ackTimeout, TimeValue masterNodeTimeout) {
-        return new AckedRequest() {
-            @Override
-            public TimeValue ackTimeout() {
-                return ackTimeout;
+    public static AcknowledgedRequest<?> ackedRequest(TimeValue ackTimeout, TimeValue masterNodeTimeout) {
+        class BareAcknowledgedRequest extends AcknowledgedRequest<BareAcknowledgedRequest> {
+            BareAcknowledgedRequest() {
+                super(masterNodeTimeout, ackTimeout);
             }
-
-            @Override
-            public TimeValue masterNodeTimeout() {
-                return masterNodeTimeout;
-            }
-        };
+        }
+        return new BareAcknowledgedRequest();
     }
 
     /**

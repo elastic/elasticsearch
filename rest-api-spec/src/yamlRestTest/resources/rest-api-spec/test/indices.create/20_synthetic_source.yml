@@ -1,23 +1,3 @@
-invalid:
-  - requires:
-      cluster_features: ["gte_v8.3.0"]
-      reason: introduced in 8.3.0
-
-  - do:
-      catch: bad_request
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              kwd:
-                type: boolean
-                doc_values: false
-
-
----
 object with unmapped fields:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]
@@ -447,260 +427,6 @@ mixed disabled and enabled objects:
 
 
 ---
-object array:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              id:
-                type: integer
-              regular:
-                properties:
-                  span:
-                    properties:
-                      id:
-                        type: keyword
-                  trace:
-                    properties:
-                      id:
-                        type: keyword
-              stored:
-                store_array_source: true
-                properties:
-                  span:
-                    properties:
-                      id:
-                        type: keyword
-                  trace:
-                    properties:
-                      id:
-                        type: keyword
-
-  - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{  "id": 1, "regular": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
-          - '{ "create": { } }'
-          - '{  "id": 2, "stored": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
-
-  - do:
-      search:
-        index: test
-        sort: id
-
-  - length: { hits.hits.0._source.regular: 2 }
-  - match: { hits.hits.0._source.regular.span.id: "1" }
-  - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
-
-  - length: { hits.hits.1._source.stored: 2 }
-  - match: { hits.hits.1._source.stored.0.trace.id: a  }
-  - match: { hits.hits.1._source.stored.0.span.id: "1"  }
-  - match: { hits.hits.1._source.stored.1.trace.id: b }
-  - match: { hits.hits.1._source.stored.1.span.id: "1" }
-
-
----
-object array within array:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              stored:
-                store_array_source: true
-                properties:
-                  path:
-                    store_array_source: true
-                    properties:
-                      to:
-                        properties:
-                          trace:
-                            type: keyword
-
-  - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{ "stored": [ { "path": [{ "to": { "trace": "A" } }, { "to": { "trace": "B" } } ] }, { "path": { "to": { "trace": "C" } } } ] }'
-
-  - do:
-      search:
-        index: test
-
-  - length: { hits.hits.0._source.stored: 2 }
-  - match: { hits.hits.0._source.stored.0.path.0.to.trace: A }
-  - match: { hits.hits.0._source.stored.0.path.1.to.trace: B }
-  - match: { hits.hits.0._source.stored.1.path.to.trace: C }
-
-
----
-no object array:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              stored:
-                store_array_source: true
-                properties:
-                  span:
-                    properties:
-                      id:
-                        type: keyword
-                  trace:
-                    properties:
-                      id:
-                        type: keyword
-
-  - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{ "stored": { "trace": { "id": "a" }, "span": { "id": "b" } } }'
-
-  - do:
-      search:
-        index: test
-
-  - match: { hits.hits.0._source.stored.trace.id: a  }
-  - match: { hits.hits.0._source.stored.span.id: b  }
-
-
----
-field ordering in object array:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              a:
-                type: keyword
-              b:
-                store_array_source: true
-                properties:
-                  aa:
-                    type: keyword
-                  bb:
-                    type: keyword
-              c:
-                type: keyword
-              d:
-                store_array_source: true
-                properties:
-                  aa:
-                    type: keyword
-                  bb:
-                    type: keyword
-
-  - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{ "c": 1, "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ], "a": 2, "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ] }'
-
-  - do:
-      search:
-        index: test
-
-  - length: { hits.hits.0._source: 4 }
-  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": "1", "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
-
-
----
-nested object array next to other fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              a:
-                type: keyword
-              b:
-                properties:
-                  c:
-                    store_array_source: true
-                    properties:
-                      aa:
-                        type: keyword
-                      bb:
-                        type: keyword
-                  d:
-                    properties:
-                      aa:
-                        type: keyword
-                      bb:
-                        type: keyword
-                  e:
-                    type: keyword
-              f:
-                type: keyword
-
-  - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{ "a": 1, "b": { "c": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ], "d": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "e": 1000 }, "f": 2000 }'
-
-  - do:
-      search:
-        index: test
-
-  - match: { hits.hits.0._source.a: "1" }
-  - match: { hits.hits.0._source.b.c:  [{ "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 }] }
-  - match: { hits.hits.0._source.b.d.aa: [ "200", "300" ] }
-  - match: { hits.hits.0._source.b.d.bb: [ "100", "400" ] }
-  - match: { hits.hits.0._source.b.e: "1000" }
-  - match: { hits.hits.0._source.f: "2000" }
-
-
----
 object with dynamic override:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]
@@ -827,6 +553,7 @@ object array in object with dynamic override:
         body:
           - '{ "create": { } }'
           - '{ "path_no": [ { "some_int": 10 }, {"name": "foo"} ], "path_runtime": [ { "some_int": 20 }, {"name": "bar"} ], "name": "baz" }'
+  - match: { errors: false }
 
   - do:
       search:
@@ -1158,99 +885,6 @@ doubly nested object:
 
 
 ---
-nested object with stored array:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              name:
-                type: keyword
-              nested_array_regular:
-                type: nested
-              nested_array_stored:
-                type: nested
-                store_array_source: true
-
-  - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{ "name": "A", "nested_array_regular": [ { "b": [ { "c": 10 }, { "c": 100 } ] }, { "b": [ { "c": 20 }, { "c": 200 } ] } ] }'
-          - '{ "create": { } }'
-          - '{ "name": "B", "nested_array_stored": [ { "b": [ { "c": 10 }, { "c": 100 } ] }, { "b": [ { "c": 20 }, { "c": 200 } ] } ] }'
-
-  - match: { errors: false }
-
-  - do:
-      search:
-        index: test
-        sort: name
-  - match:  { hits.total.value: 2 }
-  - match:  { hits.hits.0._source.name: A }
-  - match: { hits.hits.0._source.nested_array_regular.0.b.c: [ 10, 100] }
-  - match: { hits.hits.0._source.nested_array_regular.1.b.c: [ 20, 200] }
-  - match: { hits.hits.1._source.name: B }
-  - match: { hits.hits.1._source.nested_array_stored.0.b.0.c: 10 }
-  - match: { hits.hits.1._source.nested_array_stored.0.b.1.c: 100 }
-  - match: { hits.hits.1._source.nested_array_stored.1.b.0.c: 20 }
-  - match: { hits.hits.1._source.nested_array_stored.1.b.1.c: 200 }
-
----
-empty nested object sorted as a first document:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            index:
-              sort.field: "name"
-              sort.order: "asc"
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              name:
-                type: keyword
-              nested:
-                type: nested
-
-  - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{ "name": "B", "nested": { "a": "b" } }'
-          - '{ "create": { } }'
-          - '{ "name": "A" }'
-
-  - match: { errors: false }
-
-  - do:
-      search:
-        index: test
-        sort: name
-
-  - match:  { hits.total.value: 2 }
-  - match: { hits.hits.0._source.name: A }
-  - match: { hits.hits.1._source.name: B }
-  - match: { hits.hits.1._source.nested.a: "b" }
-
----
 subobjects auto:
   - requires:
       cluster_features: ["mapper.subobjects_auto"]
@@ -1339,32 +973,71 @@ subobjects auto:
   - match: { hits.hits.3._source.auto_obj.foo\.bar: 400 }
 
 ---
-# 112156
-stored field under object with store_array_source:
+synthetic_source with copy_to:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix"]
-      reason: requires bug fix to be implemented
+      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
+      reason: requires copy_to support in synthetic source
 
   - do:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              sort.field: "name"
-              sort.order: "asc"
           mappings:
             _source:
               mode: synthetic
             properties:
-              name:
+              number:
+                type: integer
+                copy_to: number_copy
+              number_copy:
                 type: keyword
-              obj:
-                store_array_source: true
-                properties:
-                  foo:
-                    type: keyword
-                    store: true
+              boolean:
+                type: boolean
+                copy_to: boolean_copy
+              boolean_copy:
+                type: keyword
+              keyword:
+                type: keyword
+                copy_to: keyword_copy
+              keyword_copy:
+                type: keyword
+              date:
+                type: date
+                copy_to: date_copy
+              date_copy:
+                type: keyword
+              text:
+                type: text
+                copy_to: text_copy
+              text_copy:
+                type: keyword
+              ip:
+                type: ip
+                copy_to: ip_copy
+              ip_copy:
+                type: keyword
+              ip_range:
+                type: ip_range
+                copy_to: ip_range_copy
+              ip_range_copy:
+                type: keyword
+              geo_point:
+                type: geo_point
+                copy_to: geo_point_copy
+              geo_point_copy:
+                type: keyword
+              binary:
+                type: binary
+                copy_to: binary_copy
+              binary_copy:
+                type: keyword
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 10
+                copy_to: scaled_float_copy
+              scaled_float_copy:
+                type: keyword
+
 
   - do:
       bulk:
@@ -1372,19 +1045,927 @@ stored field under object with store_array_source:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{ "name": "B", "obj": null }'
-          - '{ "create": { } }'
-          - '{ "name": "A", "obj": [ { "foo": "hello_from_the_other_side" } ] }'
+          - >-
+            {
+              "number": 100,
+              "boolean": false,
+              "keyword": "hello_keyword",
+              "date": "2015-01-01T12:10:30Z",
+              "text": "hello_text",
+              "match_only_text": "hello_match_only_text",
+              "ip": "192.168.1.1",
+              "ip_range": "10.0.0.0/24",
+              "geo_point": "POINT (-71.34 41.12)",
+              "binary": "aGVsbG8gY3VyaW91cyBwZXJzb24=",
+              "scaled_float": 1.5
+            }
 
   - match: { errors: false }
 
   - do:
       search:
         index: test
-        sort: name
+        body:
+          fields: ["number_copy", "boolean_copy", "keyword_copy", "date_copy", "text_copy", "ip_copy", "ip_range_copy", "geo_point_copy", "binary_copy", "scaled_float_copy"]
 
-  - match:  { hits.total.value: 2 }
-  - match: { hits.hits.0._source.name: A }
-  - match: { hits.hits.0._source.obj: [ { "foo": "hello_from_the_other_side" } ] }
-  - match: { hits.hits.1._source.name: B }
-  - match: { hits.hits.1._source.obj: null }
+  - match: { hits.hits.0._source.number: 100 }
+  - match: { hits.hits.0._source.number_copy: null }
+  - match: { hits.hits.0.fields.number_copy.0: "100" }
+
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.boolean_copy: null }
+  - match: { hits.hits.0.fields.boolean_copy.0: "false" }
+
+  - match: { hits.hits.0._source.keyword: "hello_keyword" }
+  - match: { hits.hits.0._source.keyword_copy: null }
+  - match: { hits.hits.0.fields.keyword_copy.0: "hello_keyword" }
+
+  - match: { hits.hits.0._source.date: "2015-01-01T12:10:30Z" }
+  - match: { hits.hits.0._source.date_copy: null }
+  - match: { hits.hits.0.fields.date_copy.0: "2015-01-01T12:10:30Z" }
+
+  - match: { hits.hits.0._source.text: "hello_text" }
+  - match: { hits.hits.0._source.text_copy: null }
+  - match: { hits.hits.0.fields.text_copy.0: "hello_text" }
+
+  - match: { hits.hits.0._source.ip: "192.168.1.1" }
+  - match: { hits.hits.0._source.ip_copy: null }
+  - match: { hits.hits.0.fields.ip_copy.0: "192.168.1.1" }
+
+  - match: { hits.hits.0._source.ip_range: "10.0.0.0/24" }
+  - match: { hits.hits.0._source.ip_range_copy: null }
+  - match: { hits.hits.0.fields.ip_range_copy.0: "10.0.0.0/24" }
+
+  - match: { hits.hits.0._source.geo_point: "POINT (-71.34 41.12)" }
+  - match: { hits.hits.0._source.geo_point_copy: null }
+  - match: { hits.hits.0.fields.geo_point_copy.0: "POINT (-71.34 41.12)" }
+
+  - match: { hits.hits.0._source.binary: "aGVsbG8gY3VyaW91cyBwZXJzb24=" }
+  - match: { hits.hits.0._source.binary_copy: null }
+  - match: { hits.hits.0.fields.binary_copy.0: "aGVsbG8gY3VyaW91cyBwZXJzb24=" }
+
+  - match: { hits.hits.0._source.scaled_float: 1.5 }
+  - match: { hits.hits.0._source.scaled_float_copy: null }
+  - match: { hits.hits.0.fields.scaled_float_copy.0: "1.5" }
+
+---
+synthetic_source with disabled doc_values:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
+      reason: requires disabled doc_values support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              number:
+                type: integer
+                doc_values: false
+              boolean:
+                type: boolean
+                doc_values: false
+              keyword:
+                type: keyword
+                doc_values: false
+              date:
+                type: date
+                doc_values: false
+              ip:
+                type: ip
+                doc_values: false
+              ip_range:
+                type: ip_range
+                doc_values: false
+              flattened:
+                type: flattened
+                doc_values: false
+              geo_point:
+                type: geo_point
+                doc_values: false
+              binary:
+                type: binary
+                doc_values: false
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 10
+                doc_values: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - >-
+            {
+              "number": 100,
+              "boolean": false,
+              "keyword": "hello_keyword",
+              "date": "2015-01-01T12:10:30Z",
+              "ip": "192.168.1.1",
+              "ip_range": "10.0.0.0/24",
+              "flattened": { "f": "hey" },
+              "geo_point": "POINT (-71.34 41.12)",
+              "binary": "aGVsbG8gY3VyaW91cyBwZXJzb24=",
+              "scaled_float": 1.5
+            }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.hits.0._source.number: 100 }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.keyword: "hello_keyword" }
+  - match: { hits.hits.0._source.date: "2015-01-01T12:10:30Z" }
+  - match: { hits.hits.0._source.ip: "192.168.1.1" }
+  - match: { hits.hits.0._source.ip_range: "10.0.0.0/24" }
+  - match: { hits.hits.0._source.flattened.f: "hey" }
+  - match: { hits.hits.0._source.geo_point: "POINT (-71.34 41.12)" }
+  - match: { hits.hits.0._source.binary: "aGVsbG8gY3VyaW91cyBwZXJzb24=" }
+  - match: { hits.hits.0._source.scaled_float: 1.5 }
+
+---
+fallback synthetic_source for text field:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
+      reason: requires disabled doc_values support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              text:
+                type: text
+                store: false
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          text: [ "world", "hello", "world" ]
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        text: [ "world", "hello", "world" ]
+
+---
+synthetic_source with copy_to and ignored values:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                ignore_above: 1
+                copy_to: copy
+              long:
+                type: long
+                ignore_malformed: true
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+          long: "world"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["55", "66"]
+          long: ["77", "88"]
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+        long: "world"
+  - match: { hits.hits.0.fields.copy: ["hello", "world"] }
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["55", "66"]
+        long: ["77", "88"]
+  - match: { hits.hits.1.fields.copy: ["55", "66", "77", "88"] }
+
+---
+synthetic_source with copy_to field having values in source:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          copy: "world"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["5", "6"]
+          copy: ["7", "8"]
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+        copy: "world"
+  - match: { hits.hits.0.fields.copy: ["hello", "world"] }
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["5", "6"]
+        copy: ["7", "8"]
+  - match: { hits.hits.1.fields.copy: ["5", "6", "7", "8"] }
+
+---
+synthetic_source with ignored source field using copy_to:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                doc_values: false
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          copy: "world"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["5", "6"]
+          copy: ["7", "8"]
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+        copy: "world"
+  - match: { hits.hits.0.fields.copy: ["hello", "world"] }
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["5", "6"]
+        copy: ["7", "8"]
+  - match: { hits.hits.1.fields.copy: ["5", "6", "7", "8"] }
+
+---
+synthetic_source with copy_to field from dynamic template having values in source:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            dynamic_templates:
+              - copy_template:
+                  match: "k"
+                  mapping:
+                    type: keyword
+                    copy_to: copy
+            properties:
+              name:
+                type: keyword
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          copy: "world"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          k: ["5", "6"]
+
+  - do:
+      index:
+        index: test
+        id: 4
+        refresh: true
+        body:
+          name: "D"
+          k: ["5", "6"]
+          copy: ["7", "8"]
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+  - match: { hits.hits.0.fields.copy: ["hello"] }
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: "hello"
+        copy: "world"
+  - match: { hits.hits.1.fields.copy: ["hello", "world"] }
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        k: ["5", "6"]
+  - match: { hits.hits.2.fields.copy: ["5", "6"] }
+
+  - match:
+      hits.hits.3._source:
+        name: "D"
+        k: ["5", "6"]
+        copy: ["7", "8"]
+  - match: { hits.hits.3.fields.copy: ["5", "6", "7", "8"] }
+
+---
+synthetic_source with copy_to and invalid values for copy:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
+      reason: requires copy_to support in synthetic source
+      test_runner_features: "contains"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              p:
+                type: long_range
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          p:
+            gte: 10
+
+  - match: { error.type: "document_parsing_exception" }
+  - contains: { error.reason: "Copy-to currently only works for value-type fields" }
+
+---
+synthetic_source with copy_to pointing inside object:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              my_values:
+                properties:
+                  k:
+                    type: keyword
+                    ignore_above: 1
+                    copy_to: c.copy
+                  long:
+                    type: long
+                    copy_to: c.copy
+              c:
+                properties:
+                  copy:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          my_values:
+            k: "hello"
+            long: 100
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          my_values:
+            k: ["55", "66"]
+            long: [77, 88]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          my_values:
+            k: "hello"
+            long: 100
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        my_values:
+          k: "hello"
+          long: 100
+  - match:
+      hits.hits.0.fields:
+        c.copy: [ "100", "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        my_values:
+          k: ["55", "66"]
+          long: [77, 88]
+  - match:
+      hits.hits.1.fields:
+        c.copy: ["55", "66", "77", "88"]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        my_values:
+          k: "hello"
+          long: 100
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+          c.copy: [ "100", "hello", "zap" ]
+
+---
+synthetic_source with copy_to pointing to ambiguous field:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing to ambiguous field and subobjects false:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            subobjects: false
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            subobjects: auto
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing at dynamic field:
+  - requires:
+      test_runner_features: contains
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                copy_to: c.copy
+              c:
+                properties:
+                  f:
+                    type: float
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["55", "66"]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          k: "hello"
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy.keyword" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+  - match:
+      hits.hits.0.fields:
+        c.copy.keyword: [ "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["55", "66"]
+  - match:
+      hits.hits.1.fields:
+        c.copy.keyword: [ "55", "66" ]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        k: "hello"
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+        c.copy.keyword: [ "hello", "zap" ]
+
+---
+synthetic_source with copy_to pointing inside dynamic object:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                copy_to: c.copy
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["55", "66"]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          k: "hello"
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy.keyword" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+  - match:
+      hits.hits.0.fields:
+        c.copy.keyword: [ "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["55", "66"]
+  - match:
+      hits.hits.1.fields:
+        c.copy.keyword: [ "55", "66" ]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        k: "hello"
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+        c.copy.keyword: [ "hello", "zap" ]
+

@@ -59,7 +59,7 @@ public class EsField implements Writeable {
         this.isAlias = isAlias;
     }
 
-    protected EsField(StreamInput in) throws IOException {
+    public EsField(StreamInput in) throws IOException {
         this.name = in.readString();
         this.esDataType = readDataType(in);
         this.properties = in.readImmutableMap(EsField::readFrom);
@@ -97,7 +97,7 @@ public class EsField implements Writeable {
     /**
      * This needs to be overridden by subclasses for specific serialization
      */
-    protected void writeContent(StreamOutput out) throws IOException {
+    public void writeContent(StreamOutput out) throws IOException {
         out.writeString(name);
         esDataType.writeTo(out);
         out.writeMap(properties, (o, x) -> x.writeTo(out));

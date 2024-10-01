@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.function;
@@ -15,10 +16,13 @@ import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptTermStats;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.IntSupplier;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
@@ -45,6 +49,8 @@ public class ScriptScoreFunction extends ScoreFunction {
     private final int shardId;
     private final String indexName;
 
+    private BiFunction<LeafReaderContext, IntSupplier, ScriptTermStats> termStatsFactory;
+
     public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, SearchLookup lookup, String indexName, int shardId) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
@@ -61,6 +67,12 @@ public class ScriptScoreFunction extends ScoreFunction {
         leafScript.setScorer(scorer);
         leafScript._setIndexName(indexName);
         leafScript._setShard(shardId);
+
+        if (script.needs_termStats()) {
+            assert termStatsFactory != null;
+            leafScript._setTermStats(termStatsFactory.apply(ctx, scorer::docID));
+        }
+
         return new LeafScoreFunction() {
 
             private double score(int docId, float subQueryScore, ScoreScript.ExplanationHolder holder) throws IOException {
@@ -109,6 +121,14 @@ public class ScriptScoreFunction extends ScoreFunction {
     @Override
     public boolean needsScores() {
         return script.needs_score();
+    }
+
+    public boolean needsTermStats() {
+        return script.needs_termStats();
+    }
+
+    public void setTermStatsFactory(BiFunction<LeafReaderContext, IntSupplier, ScriptTermStats> termStatsFactory) {
+        this.termStatsFactory = termStatsFactory;
     }
 
     @Override

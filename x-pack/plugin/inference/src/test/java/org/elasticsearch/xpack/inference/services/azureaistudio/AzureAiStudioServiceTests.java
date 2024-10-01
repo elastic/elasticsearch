@@ -56,7 +56,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -120,7 +119,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getEmbeddingsTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -148,7 +146,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -172,7 +169,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -198,7 +194,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -220,7 +216,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -243,7 +239,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -269,7 +265,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -295,7 +291,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -321,7 +317,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -347,7 +343,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -373,7 +369,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -391,7 +387,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -412,7 +408,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -437,7 +433,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -506,7 +502,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -825,6 +820,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 mockModel,
                 null,
                 List.of(""),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -897,6 +893,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.INGEST,
@@ -934,38 +931,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testInfer_ThrowsWhenQueryIsPresent() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testChatCompletionResultJson));
-
-            var model = AzureAiStudioChatCompletionModelTests.createModel(
-                "id",
-                getUrl(webServer),
-                AzureAiStudioProvider.OPENAI,
-                AzureAiStudioEndpointType.TOKEN,
-                "apikey"
-            );
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            UnsupportedOperationException exception = expectThrows(
-                UnsupportedOperationException.class,
-                () -> service.infer(
-                    model,
-                    "should throw",
-                    List.of("abc"),
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
-            );
-
-            assertThat(exception.getMessage(), is("Azure AI Studio service does not support inference with query input"));
-        }
-    }
-
     public void testInfer_WithChatCompletionModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -985,6 +950,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("abc"),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1035,6 +1001,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("abc"),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -59,11 +60,7 @@ final class SystemJvmOptions {
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
-                /*
-                 * Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
-                 * parsing will break in an incompatible way for some date patterns and locales.
-                 */
-                "-Djava.locale.providers=SPI,COMPAT",
+                "-Djava.locale.providers=CLDR",
                 maybeEnableNativeAccess(),
                 maybeOverrideDockerCgroup(distroType),
                 maybeSetActiveProcessorCount(nodeSettings),

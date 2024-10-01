@@ -32,14 +32,17 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.createDefaultRetrySettings;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -452,6 +455,56 @@ public class RetryingHttpSenderTests extends ESTestCase {
         assertThat(thrownException.getSuppressed().length, is(0));
         verify(httpClient, times(1)).send(any(), any(), any());
         verifyNoMoreInteractions(httpClient);
+    }
+
+    public void testStream() throws IOException {
+        var httpClient = mock(HttpClient.class);
+        Flow.Publisher<HttpResult> publisher = mock();
+        doAnswer(ans -> {
+            ActionListener<Flow.Publisher<HttpResult>> listener = ans.getArgument(2);
+            listener.onResponse(publisher);
+            return null;
+        }).when(httpClient).stream(any(), any(), any());
+
+        var retrier = createRetrier(httpClient);
+
+        ActionListener<InferenceServiceResults> listener = mock();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
+        executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, listener), 0);
+
+        verify(httpClient, times(1)).stream(any(), any(), any());
+        verifyNoMoreInteractions(httpClient);
+        verify(publisher, only()).subscribe(any(StreamingResponseHandler.class));
+    }
+
+    public void testStream_ResponseHandlerDoesNotHandleStreams() throws IOException {
+        var httpClient = mock(HttpClient.class);
+        doAnswer(ans -> {
+            ActionListener<HttpResult> listener = ans.getArgument(2);
+            listener.onResponse(new HttpResult(mock(), new byte[0]));
+            return null;
+        }).when(httpClient).send(any(), any(), any());
+
+        var expectedResponse = mock(InferenceServiceResults.class);
+
+        var retrier = createRetrier(httpClient);
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.parseResult(any(), any())).thenReturn(expectedResponse);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(false);
+        executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, listener), 0);
+
+        var actualResponse = listener.actionGet(TIMEOUT);
+
+        verify(httpClient, times(1)).send(any(), any(), any());
+        verifyNoMoreInteractions(httpClient);
+        assertThat(actualResponse, sameInstance(expectedResponse));
     }
 
     public void testSend_DoesNotRetryIndefinitely() throws IOException {

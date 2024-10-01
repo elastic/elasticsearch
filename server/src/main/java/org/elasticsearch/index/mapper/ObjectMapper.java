@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -44,6 +45,7 @@ public class ObjectMapper extends Mapper {
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
     static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto");
+    static final NodeFeature SUBOBJECTS_AUTO_FIXES = new NodeFeature("mapper.subobjects_auto_fixes");
 
     /**
      * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
@@ -807,6 +809,42 @@ public class ObjectMapper extends Mapper {
 
     }
 
+    ObjectMapper findParentMapper(String leafFieldPath) {
+        var pathComponents = leafFieldPath.split("\\.");
+        int startPathComponent = 0;
+
+        ObjectMapper current = this;
+        String pathInCurrent = leafFieldPath;
+
+        while (current != null) {
+            if (current.mappers.containsKey(pathInCurrent)) {
+                return current;
+            }
+
+            // Go one level down if possible
+            var parent = current;
+            current = null;
+
+            var childMapperName = new StringBuilder();
+            for (int i = startPathComponent; i < pathComponents.length - 1; i++) {
+                if (childMapperName.isEmpty() == false) {
+                    childMapperName.append(".");
+                }
+                childMapperName.append(pathComponents[i]);
+
+                var childMapper = parent.mappers.get(childMapperName.toString());
+                if (childMapper instanceof ObjectMapper objectMapper) {
+                    current = objectMapper;
+                    startPathComponent = i + 1;
+                    pathInCurrent = pathInCurrent.substring(childMapperName.length() + 1);
+                    break;
+                }
+            }
+        }
+
+        return null;
+    }
+
     protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers, boolean isFragment) {
         var fields = mappers.sorted(Comparator.comparing(Mapper::fullPath))
             .map(Mapper::syntheticFieldLoader)
@@ -827,10 +865,18 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
         private final boolean isFragment;
+
         private boolean storedFieldLoadersHaveValues;
         private boolean docValuesLoadersHaveValues;
         private boolean ignoredValuesPresent;
         private List<IgnoredSourceFieldMapper.NameValue> ignoredValues;
+        // If this loader has anything to write.
+        // In special cases this can be false even if doc values loaders or stored field loaders
+        // have values.
+        // F.e. objects that only contain fields that are destinations of copy_to.
+        private boolean writersHaveValues;
+        // Use an ordered map between field names and writers to order writing by field name.
+        private TreeMap<String, FieldWriter> currentWriters;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {
             this.fields = fields;
@@ -841,18 +887,9 @@ public class ObjectMapper extends Mapper {
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
             return fields.stream()
                 .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders)
-                .map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
-                    @Override
-                    public void advanceToDoc(int docId) {
-                        storedFieldLoadersHaveValues = false;
-                        e.getValue().advanceToDoc(docId);
-                    }
-
-                    @Override
-                    public void load(List<Object> newValues) {
-                        storedFieldLoadersHaveValues = true;
-                        e.getValue().load(newValues);
-                    }
+                .map(e -> Map.entry(e.getKey(), newValues -> {
+                    storedFieldLoadersHaveValues = true;
+                    e.getValue().load(newValues);
                 }));
         }
 
@@ -880,8 +917,6 @@ public class ObjectMapper extends Mapper {
 
             @Override
             public boolean advanceToDoc(int docId) throws IOException {
-                docValuesLoadersHaveValues = false;
-
                 boolean anyLeafHasDocValues = false;
                 for (DocValuesLoader docValueLoader : loaders) {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
@@ -893,8 +928,54 @@ public class ObjectMapper extends Mapper {
         }
 
         @Override
+        public void prepare() {
+            if ((storedFieldLoadersHaveValues || docValuesLoadersHaveValues || ignoredValuesPresent) == false) {
+                writersHaveValues = false;
+                return;
+            }
+
+            for (var loader : fields) {
+                // Currently this logic is only relevant for object loaders.
+                if (loader instanceof ObjectMapper.SyntheticSourceFieldLoader objectSyntheticFieldLoader) {
+                    objectSyntheticFieldLoader.prepare();
+                }
+            }
+
+            currentWriters = new TreeMap<>();
+
+            if (ignoredValues != null && ignoredValues.isEmpty() == false) {
+                for (IgnoredSourceFieldMapper.NameValue value : ignoredValues) {
+                    if (value.hasValue()) {
+                        writersHaveValues |= true;
+                    }
+
+                    var existing = currentWriters.get(value.name());
+                    if (existing == null) {
+                        currentWriters.put(value.name(), new FieldWriter.IgnoredSource(value));
+                    } else if (existing instanceof FieldWriter.IgnoredSource isw) {
+                        isw.mergeWith(value);
+                    }
+                }
+            }
+
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                if (field.hasValue()) {
+                    if (currentWriters.containsKey(field.fieldName()) == false) {
+                        writersHaveValues |= true;
+                        currentWriters.put(field.fieldName(), new FieldWriter.FieldLoader(field));
+                    } else {
+                        // Skip if the field source is stored separately, to avoid double-printing.
+                        // Make sure to reset the state of loader so that values stored inside will not
+                        // be used after this document is finished.
+                        field.reset();
+                    }
+                }
+            }
+        }
+
+        @Override
         public boolean hasValue() {
-            return storedFieldLoadersHaveValues || docValuesLoadersHaveValues || ignoredValuesPresent;
+            return writersHaveValues;
         }
 
         @Override
@@ -902,12 +983,13 @@ public class ObjectMapper extends Mapper {
             if (hasValue() == false) {
                 return;
             }
+
             if (isRoot() && isEnabled() == false) {
                 // If the root object mapper is disabled, it is expected to contain
                 // the source encapsulated within a single ignored source value.
                 assert ignoredValues.size() == 1 : ignoredValues.size();
                 XContentDataHelper.decodeAndWrite(b, ignoredValues.get(0).value());
-                ignoredValues = null;
+                softReset();
                 return;
             }
 
@@ -917,42 +999,39 @@ public class ObjectMapper extends Mapper {
                 b.startObject(leafName());
             }
 
-            if (ignoredValues != null && ignoredValues.isEmpty() == false) {
-                // Use an ordered map between field names and writer functions, to order writing by field name.
-                Map<String, FieldWriter> orderedFields = new TreeMap<>();
-                for (IgnoredSourceFieldMapper.NameValue value : ignoredValues) {
-                    var existing = orderedFields.get(value.name());
-                    if (existing == null) {
-                        orderedFields.put(value.name(), new FieldWriter.IgnoredSource(value));
-                    } else if (existing instanceof FieldWriter.IgnoredSource isw) {
-                        isw.mergeWith(value);
-                    }
-                }
-                for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    if (field.hasValue()) {
-                        // Skip if the field source is stored separately, to avoid double-printing.
-                        orderedFields.computeIfAbsent(field.fieldName(), k -> new FieldWriter.FieldLoader(field));
-                    }
-                }
-
-                for (var writer : orderedFields.values()) {
+            for (var writer : currentWriters.values()) {
+                if (writer.hasValue()) {
                     writer.writeTo(b);
                 }
-                ignoredValues = null;
-            } else {
-                for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    if (field.hasValue()) {
-                        field.write(b);
-                    }
-                }
             }
+
             b.endObject();
+            softReset();
+        }
+
+        /**
+         * reset() is expensive since it will descend the hierarchy and reset the loader
+         * of every field.
+         * We perform a reset of a child field inside write() only when it is needed.
+         * We know that either write() or reset() was called for every field,
+         * so in the end of write() we can do this soft reset only.
+         */
+        private void softReset() {
+            storedFieldLoadersHaveValues = false;
+            docValuesLoadersHaveValues = false;
+            ignoredValuesPresent = false;
+            ignoredValues = null;
+            writersHaveValues = false;
+        }
+
+        @Override
+        public void reset() {
+            softReset();
+            fields.forEach(SourceLoader.SyntheticFieldLoader::reset);
         }
 
         @Override
         public boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
-            ignoredValuesPresent = false;
-
             if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
                 return false;
             }
@@ -972,34 +1051,49 @@ public class ObjectMapper extends Mapper {
         interface FieldWriter {
             void writeTo(XContentBuilder builder) throws IOException;
 
+            boolean hasValue();
+
             record FieldLoader(SourceLoader.SyntheticFieldLoader loader) implements FieldWriter {
                 @Override
                 public void writeTo(XContentBuilder builder) throws IOException {
                     loader.write(builder);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return loader.hasValue();
                 }
             }
 
             class IgnoredSource implements FieldWriter {
                 private final String fieldName;
                 private final String leafName;
-                private final List<BytesRef> values;
+                private final List<BytesRef> encodedValues;
 
                 IgnoredSource(IgnoredSourceFieldMapper.NameValue initialValue) {
                     this.fieldName = initialValue.name();
                     this.leafName = initialValue.getFieldName();
-                    this.values = new ArrayList<>();
-                    this.values.add(initialValue.value());
+                    this.encodedValues = new ArrayList<>();
+                    if (initialValue.hasValue()) {
+                        this.encodedValues.add(initialValue.value());
+                    }
                 }
 
                 @Override
                 public void writeTo(XContentBuilder builder) throws IOException {
-                    XContentDataHelper.writeMerged(builder, leafName, values);
+                    XContentDataHelper.writeMerged(builder, leafName, encodedValues);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return encodedValues.isEmpty() == false;
                 }
 
                 public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue nameValue) {
                     assert Objects.equals(nameValue.name(), fieldName) : "IgnoredSource is merged with wrong field data";
-
-                    values.add(nameValue.value());
+                    if (nameValue.hasValue()) {
+                        encodedValues.add(nameValue.value());
+                    }
                     return this;
                 }
             }

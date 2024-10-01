@@ -98,7 +98,11 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             Settings.Builder decommissionAlertSetting = Settings.builder().put(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey(), true);
             client.admin()
                 .cluster()
-                .prepareUpdateSettings()
+                .prepareUpdateSettings(
+                    request.masterNodeTimeout(),
+                    /* TODO expose separate ack timeout? use masterNodeTimeout() for now */
+                    request.masterNodeTimeout()
+                )
                 .setPersistentSettings(decommissionAlertSetting)
                 .execute(completeOnManagementThread(listener));
         } catch (Exception e) {

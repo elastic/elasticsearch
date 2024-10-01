@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -92,7 +93,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     mkdirs(test.getWorkingDir().toPath().resolve("temp").toFile());
 
                     // TODO remove once jvm.options are added to test system properties
-                    test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                    test.systemProperty("java.locale.providers", "CLDR");
                 }
             });
             test.getJvmArgumentProviders().add(nonInputProperties);
@@ -107,6 +108,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "-Djava.security.manager=allow",
+                "-Dtests.testfeatures.enabled=true",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",

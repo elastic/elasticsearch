@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -1372,7 +1373,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:test", new StringMessageRequest("", 10), noopResponseHandler);
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:testError" which returns an error
@@ -1419,7 +1420,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             ////////////////////////////////////////////////////////////////////////
             // tests for excluded action type "internal:testNotSeen"
@@ -1466,7 +1467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             submitRequest(serviceA, nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler).get();
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
@@ -3368,7 +3369,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "stuck threads logging",
                 ThreadWatchdog.class.getCanonicalName(),
                 Level.WARN,
-                "the following threads are active but did not make progress in the preceding [5s]: [" + threadName + "]"
+                "the following threads are active but did not make progress in the preceding [5s]: [*" + threadName + "*]"
             )
         );
         safeAwait(barrier);
@@ -3506,9 +3507,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         DiscoveryNode node,
         ConnectionProfile connectionProfile
     ) {
-        return asInstanceOf(
+        return safeAwaitFailure(
             ConnectTransportException.class,
-            safeAwaitFailure(Releasable.class, listener -> service.connectToNode(node, connectionProfile, listener))
+            Releasable.class,
+            listener -> service.connectToNode(node, connectionProfile, listener)
         );
     }
 
@@ -3531,9 +3533,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         DiscoveryNode node,
         ConnectionProfile connectionProfile
     ) {
-        return asInstanceOf(
+        return safeAwaitFailure(
             ConnectTransportException.class,
-            safeAwaitFailure(Transport.Connection.class, listener -> service.openConnection(node, connectionProfile, listener))
+            Transport.Connection.class,
+            listener -> service.openConnection(node, connectionProfile, listener)
         );
     }
 

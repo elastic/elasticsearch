@@ -23,9 +23,9 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
@@ -102,7 +102,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     public void testGetModel() throws Exception {
-        assumeTrue("Only if 'inference_adaptive_allocations' feature flag is enabled", AdaptiveAllocationsFeatureFlag.isEnabled());
         String inferenceEntityId = "test-get-model";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
@@ -119,7 +118,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
 
-        var elserService = new ElserInternalService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
+        var elserService = new ElserInternalService(
+            new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class), mock(ThreadPool.class))
+        );
         ElserInternalModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
             modelHolder.get().inferenceEntityId(),
             modelHolder.get().taskType(),

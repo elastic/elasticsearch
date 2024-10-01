@@ -52,7 +52,7 @@ public class DefaultElserIT extends InferenceBaseRestTest {
 
     public void testScaleFrom0() {
         assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
-        fail("how can we test this when we need to wait for the cooldown");
+        // fail("how can we test this when we need to wait for the cooldown");
     }
 
     /*

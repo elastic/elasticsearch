@@ -37,10 +37,12 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        assertThat(getAllModels, hasSize(9));
+        int numModels = DefaultElserFeatureFlag.isEnabled() ? 10 : 9;
+        assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
-        assertThat(getSparseModels, hasSize(5));
+        int numSparseModels = DefaultElserFeatureFlag.isEnabled() ? 6 : 5;
+        assertThat(getSparseModels, hasSize(numSparseModels));
         for (var sparseModel : getSparseModels) {
             assertEquals("sparse_embedding", sparseModel.get("task_type"));
         }

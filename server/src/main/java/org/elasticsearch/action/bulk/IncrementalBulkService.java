@@ -173,13 +173,7 @@ public class IncrementalBulkService {
         }
 
         private boolean shouldBackOff() {
-            if (indexingPressure.lowWatermarkCrossed() && currentBulkSize > 4 * 1024 * 1024) {
-                return true;
-            } else if (indexingPressure.highWatermarkCrossed()) {
-                return true;
-            } else {
-                return false;
-            }
+            return indexingPressure.shouldSplitBulk(currentBulkSize);
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {

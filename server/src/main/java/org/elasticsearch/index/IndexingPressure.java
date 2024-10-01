@@ -105,15 +105,19 @@ public class IndexingPressure {
     private final AtomicLong replicaRejections = new AtomicLong(0);
     private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
-    private final long highWatermark;
     private final long lowWatermark;
+    private final long lowWatermarkSize;
+    private final long highWatermark;
+    private final long highWatermarkSize;
     private final long coordinatingLimits;
     private final long primaryLimits;
     private final long replicaLimits;
 
     public IndexingPressure(Settings settings) {
-        this.highWatermark = SPLIT_BULK_HIGH_WATERMARK.get(settings).getBytes();
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
+        this.lowWatermarkSize = SPLIT_BULK_LOW_WATERMARK_SIZE.get(settings).getBytes();
+        this.highWatermark = SPLIT_BULK_HIGH_WATERMARK.get(settings).getBytes();
+        this.highWatermarkSize = SPLIT_BULK_HIGH_WATERMARK_SIZE.get(settings).getBytes();
         this.coordinatingLimits = MAX_COORDINATING_BYTES.get(settings).getBytes();
         this.primaryLimits = MAX_PRIMARY_BYTES.get(settings).getBytes();
         this.replicaLimits = MAX_REPLICA_BYTES.get(settings).getBytes();
@@ -259,16 +263,13 @@ public class IndexingPressure {
         });
     }
 
-    public boolean highWatermarkCrossed() {
-        return currentCombinedCoordinatingAndPrimaryBytes.get() >= highWatermark;
-    }
-
-    public boolean lowWatermarkCrossed() {
-        return currentCombinedCoordinatingAndPrimaryBytes.get() >= lowWatermark;
+    public boolean shouldSplitBulk(long size) {
+        long currentUsage = (currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get());
+        return (currentUsage >= lowWatermark && size >= lowWatermarkSize) || (currentUsage >= highWatermark && size >= highWatermarkSize);
     }
 
     public IndexingPressureStats stats() {
-        // TODO: Fix stats
+        // TODO: Update stats with new primary/replica/coordinating limits and add throttling stats
         return new IndexingPressureStats(
             totalCombinedCoordinatingAndPrimaryBytes.get(),
             totalCoordinatingBytes.get(),

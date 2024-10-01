@@ -62,7 +62,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "512B")
+            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B")
+            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1024B")
+            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "2KB")
+            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1B")
             .build();
     }
 
@@ -142,7 +145,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
-    public void testIncrementalBulkRequestMemoryBackOff() throws Exception {
+    public void testIncrementalBulkLowWatermarkBackOff() throws Exception {
         String index = "test";
         createIndex(index);
 
@@ -157,7 +160,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = indexRequest(index);
         long total = indexRequest.ramBytesUsed();
-        while (total < 512) {
+        while (total < 1024) {
             refCounted.incRef();
             handler.addItems(List.of(indexRequest), refCounted::decRef, () -> nextPage.set(true));
             assertTrue(nextPage.get());
@@ -177,6 +180,57 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         BulkResponse bulkResponse = future.actionGet();
         assertNoFailures(bulkResponse);
+        assertFalse(refCounted.hasReferences());
+    }
+
+    public void testIncrementalBulkHighWatermarkBackOff() throws Exception {
+        String index = "test";
+        createIndex(index);
+
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+        AtomicBoolean nextPage = new AtomicBoolean(false);
+
+        ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
+        for (int i = 0; i < 3; ++i) {
+            ArrayList<DocWriteRequest<?>> requests = new ArrayList<>();
+            add512BRequests(requests, index);
+            IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+            handlers.add(handler);
+            refCounted.incRef();
+            handler.addItems(requests, refCounted::decRef, () -> nextPage.set(true));
+            assertTrue(nextPage.get());
+            nextPage.set(false);
+
+        }
+
+        ArrayList<DocWriteRequest<?>> requests = new ArrayList<>();
+        add512BRequests(requests, index);
+
+        CountDownLatch finishLatch = new CountDownLatch(1);
+        blockWritePool(threadPool, finishLatch);
+        IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+        refCounted.incRef();
+        handler.addItems(requests, refCounted::decRef, () -> nextPage.set(true));
+        assertFalse(nextPage.get());
+        finishLatch.countDown();
+
+        handlers.add(handler);
+
+        for (IncrementalBulkService.Handler h : handlers) {
+            refCounted.incRef();
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            h.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+            BulkResponse bulkResponse = future.actionGet();
+            assertNoFailures(bulkResponse);
+        }
+
+        assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
+        refCounted.decRef();
         assertFalse(refCounted.hasReferences());
     }
 
@@ -536,6 +590,15 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         BulkResponse bulkResponse = future.actionGet();
         assertFalse(refCounted.hasReferences());
         return bulkResponse;
+    }
+
+    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests1, String index) {
+        long total = 0;
+        while (total < 512) {
+            IndexRequest indexRequest = indexRequest(index);
+            requests1.add(indexRequest);
+            total += indexRequest.ramBytesUsed();
+        }
     }
 
     private static IndexRequest indexRequest(String index) {

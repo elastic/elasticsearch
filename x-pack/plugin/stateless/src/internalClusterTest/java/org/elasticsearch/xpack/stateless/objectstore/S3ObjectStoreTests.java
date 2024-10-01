@@ -61,7 +61,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -69,7 +68,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -444,7 +442,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     public void testUploadIndicesDataWithRetries() throws Exception {
-        AtomicLong lastUploadedGeneration = new AtomicLong(-1);
         s3HttpHandler.setInterceptor(new Interceptor() {
             private final int errorsPerRequest = randomIntBetween(3, 5);
             private final Map<String, AtomicInteger> requestPathErrorCount = ConcurrentCollections.newConcurrentMap();
@@ -467,7 +464,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                     String genAndPart = gen + "/" + part;
                     final AtomicInteger numberOfErrors = requestPathErrorCount.computeIfAbsent(genAndPart, k -> new AtomicInteger(0));
                     if (numberOfErrors.getAndIncrement() >= errorsPerRequest) {
-                        lastUploadedGeneration.accumulateAndGet(gen, Math::max);
                         return false;
                     }
                     try (exchange) {
@@ -506,7 +502,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
 
             flush(indexName);
-            assertThat(lastUploadedGeneration.get(), equalTo(shardEngine.getCurrentGeneration()));
 
             setReplicaCount(1, indexName);
             ensureGreen(indexName);

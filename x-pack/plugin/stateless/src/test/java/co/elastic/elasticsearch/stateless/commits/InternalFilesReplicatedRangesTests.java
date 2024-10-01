@@ -79,10 +79,8 @@ public class InternalFilesReplicatedRangesTests extends AbstractXContentSerializ
         });
 
         assertThat(
-            new InternalFilesReplicatedRanges(entries).getReplicatedPosition(
-                randomLongBetween(position.get(), Long.MAX_VALUE),
-                randomNonNegativeInt()
-            ),
+            InternalFilesReplicatedRanges.from(entries)
+                .getReplicatedPosition(randomLongBetween(position.get(), Long.MAX_VALUE), randomNonNegativeInt()),
             equalTo(-1L)
         );
     }
@@ -102,13 +100,13 @@ public class InternalFilesReplicatedRangesTests extends AbstractXContentSerializ
             .sum();
 
         assertThat(
-            new InternalFilesReplicatedRanges(entries).getReplicatedPosition(target.position(), target.length()),
+            InternalFilesReplicatedRanges.from(entries).getReplicatedPosition(target.position(), target.length()),
             equalTo(targetReplicatedContentPosition)
         );
     }
 
     public void testWhenRequestingSubRangeOfReplicatedContent() {
-        var headers = new InternalFilesReplicatedRanges(
+        var headers = InternalFilesReplicatedRanges.from(
             List.of(
                 // file 1 header
                 new InternalFileReplicatedRange(0, (short) 1024),

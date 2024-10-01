@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -48,11 +50,12 @@ public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> re
     implements
         ToXContentFragment {
 
-    public static InternalFilesReplicatedRanges EMPTY = new InternalFilesReplicatedRanges(List.of(), 0L);
+    public static final short REPLICATED_CONTENT_HEADER_SIZE = BlobCacheBufferedIndexInput.BUFFER_SIZE;
+    public static final short REPLICATED_CONTENT_FOOTER_SIZE = (short) CodecUtil.footerLength();
+    public static final short REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE = (short) (REPLICATED_CONTENT_HEADER_SIZE
+        + REPLICATED_CONTENT_FOOTER_SIZE);
 
-    public InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> replicatedRanges) {
-        this(replicatedRanges, dataSizeInBytes(replicatedRanges));
-    }
+    public static InternalFilesReplicatedRanges EMPTY = new InternalFilesReplicatedRanges(List.of(), 0L);
 
     public InternalFilesReplicatedRanges {
         assert replicatedRanges != null;
@@ -61,8 +64,8 @@ public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> re
     }
 
     public static InternalFilesReplicatedRanges from(List<InternalFileReplicatedRange> replicatedRanges) {
-        return replicatedRanges != null && replicatedRanges.size() > 0
-            ? new InternalFilesReplicatedRanges(replicatedRanges)
+        return replicatedRanges != null && replicatedRanges.isEmpty() == false
+            ? new InternalFilesReplicatedRanges(replicatedRanges, dataSizeInBytes(replicatedRanges))
             : InternalFilesReplicatedRanges.EMPTY;
     }
 

@@ -2,7 +2,8 @@ pr: 113482
 summary: The 'persian' analyzer has stemmer by default
 area: Analysis
 type: breaking
-issues: []
+issues:
+- 113050
 breaking:
   title: The 'persian' analyzer has stemmer by default
   area: Analysis

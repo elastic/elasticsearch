@@ -370,11 +370,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            args -> new DataStreamTemplate(
-                args[0] != null && (boolean) args[0],
-                args[1] != null && (boolean) args[1],
-                DataStream.isFailureStoreFeatureFlagEnabled() && args[2] != null && (boolean) args[2]
-            )
+            args -> new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1])
         );
 
         static {
@@ -387,20 +383,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         private final boolean hidden;
         private final boolean allowCustomRouting;
-        private final boolean failureStore;
 
         public DataStreamTemplate() {
-            this(false, false, false);
+            this(false, false);
         }
 
         public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
-            this(hidden, allowCustomRouting, false);
-        }
-
-        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting, boolean failureStore) {
             this.hidden = hidden;
             this.allowCustomRouting = allowCustomRouting;
-            this.failureStore = failureStore;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
@@ -418,10 +408,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
             }
-            if (in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-                failureStore = in.readBoolean();
-            } else {
-                failureStore = false;
+            if (in.getTransportVersion()
+                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+                in.readBoolean();
             }
         }
 
@@ -451,10 +440,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return allowCustomRouting;
         }
 
-        public boolean hasFailureStore() {
-            return failureStore;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
@@ -465,8 +450,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 // See comment in constructor.
                 out.writeBoolean(false);
             }
-            if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-                out.writeBoolean(failureStore);
+            if (out.getTransportVersion()
+                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+                out.writeBoolean(false);
             }
         }
 
@@ -475,9 +461,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                builder.field(FAILURE_STORE.getPreferredName(), failureStore);
-            }
             builder.endObject();
             return builder;
         }
@@ -487,12 +470,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting && failureStore == that.failureStore;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden, allowCustomRouting, failureStore);
+            return Objects.hash(hidden, allowCustomRouting);
         }
     }
 

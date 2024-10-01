@@ -59,7 +59,8 @@ public class FetchSourcePhaseBenchmark {
         fetchContext = FetchSourceContext.of(
             true,
             Strings.splitStringByCommaToArray(includes),
-            Strings.splitStringByCommaToArray(excludes)
+            Strings.splitStringByCommaToArray(excludes),
+            true  // Include vectors so that mappings are not required when filter() is called
         );
         includesSet = Set.of(fetchContext.includes());
         excludesSet = Set.of(fetchContext.excludes());

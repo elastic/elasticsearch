@@ -61,7 +61,8 @@ public class SourceFilteringBenchmark {
         FetchSourceContext fetchContext = FetchSourceContext.of(
             true,
             Strings.splitStringByCommaToArray(includes),
-            Strings.splitStringByCommaToArray(excludes)
+            Strings.splitStringByCommaToArray(excludes),
+            true  // Include vectors so that mappings are not required when filter() is called
         );
         filter = fetchContext.filter();
     }

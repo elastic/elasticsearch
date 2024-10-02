@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -123,8 +122,8 @@ public class StartsWith extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return new StartsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(prefix));
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return new StartsWithEvaluator.Factory(source(), toEvaluator.toEvaluator(str), toEvaluator.toEvaluator(prefix));
     }
 
     Expression str() {

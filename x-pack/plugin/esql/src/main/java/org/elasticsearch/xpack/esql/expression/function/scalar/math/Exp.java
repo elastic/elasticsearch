@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Returns the value of e raised to the power of tbe number specified as parameter
@@ -58,10 +57,8 @@ public class Exp extends UnaryScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
-        var field = toEvaluator.apply(field());
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var field = toEvaluator.toEvaluator(field());
         var fieldType = field().dataType();
 
         if (fieldType == DataType.DOUBLE) {

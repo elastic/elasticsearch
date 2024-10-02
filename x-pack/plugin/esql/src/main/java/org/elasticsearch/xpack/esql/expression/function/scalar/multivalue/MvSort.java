@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -146,9 +145,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         boolean ordering = true;
         if (isValidOrder() == false) {
             throw new IllegalArgumentException(
@@ -168,7 +165,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSort.EvaluatorFactory(
-                toEvaluator.apply(field),
+                toEvaluator.toEvaluator(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeBoolean((BooleanBlock) fieldBlock).sortToBlock(
                     blockFactory,
@@ -177,7 +174,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 ElementType.BOOLEAN
             );
             case BYTES_REF -> new MvSort.EvaluatorFactory(
-                toEvaluator.apply(field),
+                toEvaluator.toEvaluator(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeBytesRef((BytesRefBlock) fieldBlock).sortToBlock(
                     blockFactory,
@@ -186,7 +183,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 ElementType.BYTES_REF
             );
             case INT -> new MvSort.EvaluatorFactory(
-                toEvaluator.apply(field),
+                toEvaluator.toEvaluator(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeInt((IntBlock) fieldBlock).sortToBlock(
                     blockFactory,
@@ -195,7 +192,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 ElementType.INT
             );
             case LONG -> new MvSort.EvaluatorFactory(
-                toEvaluator.apply(field),
+                toEvaluator.toEvaluator(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeLong((LongBlock) fieldBlock).sortToBlock(
                     blockFactory,
@@ -204,7 +201,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 ElementType.LONG
             );
             case DOUBLE -> new MvSort.EvaluatorFactory(
-                toEvaluator.apply(field),
+                toEvaluator.toEvaluator(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeDouble((DoubleBlock) fieldBlock).sortToBlock(
                     blockFactory,

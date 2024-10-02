@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -95,13 +94,13 @@ public class Left extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new LeftEvaluator.Factory(
             source(),
             context -> new BytesRef(),
             context -> new UnicodeUtil.UTF8CodePoint(),
-            toEvaluator.apply(str),
-            toEvaluator.apply(length)
+            toEvaluator.toEvaluator(str),
+            toEvaluator.toEvaluator(length)
         );
     }
 

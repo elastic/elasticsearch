@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -146,9 +145,9 @@ public class Replace extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var strEval = toEvaluator.apply(str);
-        var newStrEval = toEvaluator.apply(newStr);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var strEval = toEvaluator.toEvaluator(str);
+        var newStrEval = toEvaluator.toEvaluator(newStr);
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
             Pattern regexPattern;
@@ -163,7 +162,7 @@ public class Replace extends EsqlScalarFunction {
             return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
         }
 
-        var regexEval = toEvaluator.apply(regex);
+        var regexEval = toEvaluator.toEvaluator(regex);
         return new ReplaceEvaluator.Factory(source(), strEval, regexEval, newStrEval);
     }
 

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -69,8 +68,8 @@ public final class Trim extends UnaryScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var field = toEvaluator.apply(field());
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var field = toEvaluator.toEvaluator(field());
         return new TrimEvaluator.Factory(source(), field);
     }
 

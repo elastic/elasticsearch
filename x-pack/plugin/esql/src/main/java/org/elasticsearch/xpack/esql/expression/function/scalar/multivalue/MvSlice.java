@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -178,9 +177,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (start.foldable() && end.foldable()) {
             int startOffset = stringToInt(String.valueOf(start.fold()));
             int endOffset = stringToInt(String.valueOf(end.fold()));
@@ -189,33 +186,33 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSliceBooleanEvaluator.Factory(
                 source(),
-                toEvaluator.apply(field),
-                toEvaluator.apply(start),
-                toEvaluator.apply(end)
+                toEvaluator.toEvaluator(field),
+                toEvaluator.toEvaluator(start),
+                toEvaluator.toEvaluator(end)
             );
             case BYTES_REF -> new MvSliceBytesRefEvaluator.Factory(
                 source(),
-                toEvaluator.apply(field),
-                toEvaluator.apply(start),
-                toEvaluator.apply(end)
+                toEvaluator.toEvaluator(field),
+                toEvaluator.toEvaluator(start),
+                toEvaluator.toEvaluator(end)
             );
             case DOUBLE -> new MvSliceDoubleEvaluator.Factory(
                 source(),
-                toEvaluator.apply(field),
-                toEvaluator.apply(start),
-                toEvaluator.apply(end)
+                toEvaluator.toEvaluator(field),
+                toEvaluator.toEvaluator(start),
+                toEvaluator.toEvaluator(end)
             );
             case INT -> new MvSliceIntEvaluator.Factory(
                 source(),
-                toEvaluator.apply(field),
-                toEvaluator.apply(start),
-                toEvaluator.apply(end)
+                toEvaluator.toEvaluator(field),
+                toEvaluator.toEvaluator(start),
+                toEvaluator.toEvaluator(end)
             );
             case LONG -> new MvSliceLongEvaluator.Factory(
                 source(),
-                toEvaluator.apply(field),
-                toEvaluator.apply(start),
-                toEvaluator.apply(end)
+                toEvaluator.toEvaluator(field),
+                toEvaluator.toEvaluator(start),
+                toEvaluator.toEvaluator(end)
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());

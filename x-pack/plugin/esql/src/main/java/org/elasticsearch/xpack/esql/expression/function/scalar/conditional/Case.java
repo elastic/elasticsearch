@@ -50,8 +50,8 @@ public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
 
     record Condition(Expression condition, Expression value) {
-        ConditionEvaluatorSupplier toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-            return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
+        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
+            return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.toEvaluator(condition), toEvaluator.toEvaluator(value));
         }
     }
 
@@ -311,9 +311,9 @@ public final class Case extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
-        ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
+        ExpressionEvaluator.Factory elseValueFactory = toEvaluator.toEvaluator(elseValue);
         ElementType resultType = PlannerUtils.toElementType(dataType());
 
         if (conditionsFactories.size() == 1

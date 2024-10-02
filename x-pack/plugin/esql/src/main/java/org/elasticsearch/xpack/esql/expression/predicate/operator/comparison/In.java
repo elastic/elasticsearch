@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -213,20 +212,18 @@ public class In extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var commonType = commonType();
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
         if (commonType.isNumeric()) {
-            lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
+            lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.toEvaluator(value));
             factories = list.stream()
-                .map(e -> Cast.cast(source(), e.dataType(), commonType, toEvaluator.apply(e)))
+                .map(e -> Cast.cast(source(), e.dataType(), commonType, toEvaluator.toEvaluator(e)))
                 .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         } else {
-            lhs = toEvaluator.apply(value);
-            factories = list.stream().map(e -> toEvaluator.apply(e)).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            lhs = toEvaluator.toEvaluator(value);
+            factories = list.stream().map(toEvaluator::toEvaluator).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         }
 
         if (commonType == BOOLEAN) {
@@ -247,7 +244,7 @@ public class In extends EsqlScalarFunction {
             || commonType == VERSION
             || commonType == UNSUPPORTED
             || DataType.isSpatial(commonType)) {
-            return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
+            return new InBytesRefEvaluator.Factory(source(), toEvaluator.toEvaluator(value), factories);
         }
         if (commonType == NULL) {
             return EvalOperator.CONSTANT_NULL_FACTORY;

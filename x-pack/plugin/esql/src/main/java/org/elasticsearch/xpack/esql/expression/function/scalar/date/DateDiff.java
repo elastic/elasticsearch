@@ -37,7 +37,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -227,9 +226,9 @@ public class DateDiff extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        ExpressionEvaluator.Factory startTimestampEvaluator = toEvaluator.apply(startTimestamp);
-        ExpressionEvaluator.Factory endTimestampEvaluator = toEvaluator.apply(endTimestamp);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ExpressionEvaluator.Factory startTimestampEvaluator = toEvaluator.toEvaluator(startTimestamp);
+        ExpressionEvaluator.Factory endTimestampEvaluator = toEvaluator.toEvaluator(endTimestamp);
 
         if (unit.foldable()) {
             try {
@@ -239,7 +238,7 @@ public class DateDiff extends EsqlScalarFunction {
                 throw new InvalidArgumentException("invalid unit format for [{}]: {}", sourceText(), e.getMessage());
             }
         }
-        ExpressionEvaluator.Factory unitEvaluator = toEvaluator.apply(unit);
+        ExpressionEvaluator.Factory unitEvaluator = toEvaluator.toEvaluator(unit);
         return new DateDiffEvaluator.Factory(source(), unitEvaluator, startTimestampEvaluator, endTimestampEvaluator);
     }
 

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
@@ -72,10 +71,8 @@ public class StX extends UnaryScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
-        return new StXFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return new StXFromWKBEvaluator.Factory(toEvaluator.toEvaluator(field()), source());
     }
 
     @Override

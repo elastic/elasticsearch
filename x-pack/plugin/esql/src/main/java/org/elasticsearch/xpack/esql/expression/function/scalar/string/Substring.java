@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -180,13 +179,13 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var strFactory = toEvaluator.apply(str);
-        var startFactory = toEvaluator.apply(start);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var strFactory = toEvaluator.toEvaluator(str);
+        var startFactory = toEvaluator.toEvaluator(start);
         if (length == null) {
             return new SubstringNoLengthEvaluator.Factory(source(), strFactory, startFactory);
         }
-        var lengthFactory = toEvaluator.apply(length);
+        var lengthFactory = toEvaluator.toEvaluator(length);
         return new SubstringEvaluator.Factory(source(), strFactory, startFactory, lengthFactory);
     }
 

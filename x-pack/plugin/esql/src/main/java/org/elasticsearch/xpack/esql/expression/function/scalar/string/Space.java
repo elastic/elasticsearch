@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -111,16 +110,16 @@ public class Space extends UnaryScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.foldable()) {
             Object folded = field.fold();
             if (folded instanceof Integer num) {
                 checkNumber(num);
-                return toEvaluator.apply(new Literal(source(), " ".repeat(num), KEYWORD));
+                return toEvaluator.toEvaluator(new Literal(source(), " ".repeat(num), KEYWORD));
             }
         }
 
-        ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(field);
+        ExpressionEvaluator.Factory numberExpr = toEvaluator.toEvaluator(field);
         return new SpaceEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "space"), numberExpr);
     }
 

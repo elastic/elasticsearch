@@ -20,7 +20,6 @@ import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.Collection;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
@@ -159,7 +158,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (dataType() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;
@@ -172,7 +171,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
                 temporalAmountArgument = left();
             }
 
-            return datetimes.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
+            return datetimes.apply(source(), toEvaluator.toEvaluator(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else {
             return super.toEvaluator(toEvaluator);
         }

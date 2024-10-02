@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -120,10 +119,10 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var ipEvaluatorSupplier = toEvaluator.apply(ipField);
-        var prefixLengthV4EvaluatorSupplier = toEvaluator.apply(prefixLengthV4Field);
-        var prefixLengthV6EvaluatorSupplier = toEvaluator.apply(prefixLengthV6Field);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var ipEvaluatorSupplier = toEvaluator.toEvaluator(ipField);
+        var prefixLengthV4EvaluatorSupplier = toEvaluator.toEvaluator(prefixLengthV4Field);
+        var prefixLengthV6EvaluatorSupplier = toEvaluator.toEvaluator(prefixLengthV6Field);
 
         return new IpPrefixEvaluator.Factory(
             source(),

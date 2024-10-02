@@ -45,11 +45,11 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId, tsid, timestamp), plan.query());
         } else {
             // extract and pass _score metadata attribute, if present
-            Attribute scoring = null;
+            MetadataAttribute scoring = null;
             for (Attribute attr : plan.output()) {
                 String name = attr.name();
-                if (name.equals(MetadataAttribute.SCORE)) {
-                    scoring = attr;
+                if (attr instanceof MetadataAttribute metadataAttribute && name.equals(MetadataAttribute.SCORE)) {
+                    scoring = metadataAttribute;
                     break;
                 }
             }

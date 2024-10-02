@@ -17,6 +17,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -136,8 +137,7 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
 
         ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             this.shardContext = shardContext;
-            int numHits = limit;
-            collector = new TopFieldCollectorManager(sort, numHits, limit).newCollector();
+            collector = new TopFieldCollectorManager(sort, ArrayUtil.MAX_ARRAY_LENGTH - 1, limit).newCollector();
         }
 
         @Override

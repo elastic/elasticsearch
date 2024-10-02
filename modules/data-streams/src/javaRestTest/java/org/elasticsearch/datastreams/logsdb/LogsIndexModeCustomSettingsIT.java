@@ -37,6 +37,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
+        .setting("xpack.otel_data.registry.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
         .build();

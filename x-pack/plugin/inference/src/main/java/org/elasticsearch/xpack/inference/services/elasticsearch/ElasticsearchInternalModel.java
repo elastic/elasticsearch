@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
@@ -56,4 +57,9 @@ public abstract class ElasticsearchInternalModel extends Model {
         Model model,
         ActionListener<Boolean> listener
     );
+
+    @Override
+    public String toString() {
+        return Strings.toString(this.getConfigurations());
+    }
 }

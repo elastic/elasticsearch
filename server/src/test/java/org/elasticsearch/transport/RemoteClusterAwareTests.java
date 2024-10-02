@@ -157,8 +157,37 @@ public class RemoteClusterAwareTests extends ESTestCase {
         );
     }
 
-    public void testIndexHasWildcard() {
-        // inputs with a csv based multi-index expression are not allowed in RemoteClusterAware.indexHasWildcard
+    public void testIsRemoteIndexExpression() {
+        String[] localIndexExpressions = new String[] {
+            "*",
+            "foo",
+            "foo*",
+            "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
+            "-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
+            "-foo",
+            "-foo*" };
+        for (String localIndexExpression : localIndexExpressions) {
+            assertFalse(localIndexExpression, RemoteClusterAware.isRemoteIndexExpression(localIndexExpression));
+        }
+
+        String[] remoteIndexExpressions = new String[] {
+            "*:*",
+            "*:logs",
+            "cluster:foo",
+            "cluster:foo*",
+            "c*:foo",
+            "cluster:<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
+            "cluster:-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
+            "-cluster:*",
+            "cluster:-foo",
+            "cluster:-foo*", };
+        for (String remoteIndexExpression : remoteIndexExpressions) {
+            assertTrue(remoteIndexExpression, RemoteClusterAware.isRemoteIndexExpression(remoteIndexExpression));
+        }
+    }
+
+    public void testIsConcreteIndexName() {
+        // inputs with a csv based multi-index expression are not allowed in RemoteClusterAware.isConcreteIndexName
         String[] invalidInputs = new String[] {
             "*,*:*",
             "foo,*:logs",
@@ -167,24 +196,11 @@ public class RemoteClusterAwareTests extends ESTestCase {
             "cluster:foo,*:bar*",
             "cluster:foo,*:bar*", };
         for (String invalidInput : invalidInputs) {
-            expectThrows(AssertionError.class, invalidInput, () -> RemoteClusterAware.indexHasWildcard(invalidInput));
+            expectThrows(AssertionError.class, invalidInput, () -> RemoteClusterAware.isConcreteIndexName(invalidInput));
         }
 
-        String[] inputsNoWildcard = new String[] {
-            "myindex",
-            ".async-search",
-            "cluster*:index1",
-            "*:index1",
+        String[] notConcrete = new String[] {
             "*:-index1",
-            "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
-            "cluster1:<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
-            "-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|00:00}}>",
-            "cluster2:-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>" };
-        for (String input : inputsNoWildcard) {
-            assertFalse(input, RemoteClusterAware.indexHasWildcard(input));
-        }
-
-        String[] inputsWithWildcard = new String[] {
             "logs-*",
             "my*index",
             "my*index*",
@@ -193,9 +209,18 @@ public class RemoteClusterAwareTests extends ESTestCase {
             "cluster2:*",
             "*:*",
             "remote*:logs*",
-            "remote1:-logs*" };
-        for (String input : inputsWithWildcard) {
-            assertTrue(input, RemoteClusterAware.indexHasWildcard(input));
+            "remote1:-logs*",
+            "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
+            "cluster1:<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
+            "-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|00:00}}>",
+            "cluster2:-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>" };
+        for (String input : notConcrete) {
+            assertFalse(input, RemoteClusterAware.isConcreteIndexName(input));
+        }
+
+        String[] concrete = new String[] { ".async-search", "cluster*:index1", "cluster1:index1", "*:index1", "myindex" };
+        for (String input : concrete) {
+            assertTrue(input, RemoteClusterAware.isConcreteIndexName(input));
         }
     }
 

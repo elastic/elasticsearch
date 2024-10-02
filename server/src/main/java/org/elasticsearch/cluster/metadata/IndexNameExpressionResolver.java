@@ -1754,7 +1754,7 @@ public class IndexNameExpressionResolver {
                 return;
             }
             for (String index : indexExpressions) {
-                if (RemoteClusterAware.isRemoteIndexName(index)) {
+                if (RemoteClusterAware.isRemoteIndexExpression(index)) {
                     failOnRemoteIndicesNotIgnoringUnavailable(indexExpressions);
                 }
             }
@@ -1763,7 +1763,7 @@ public class IndexNameExpressionResolver {
         private static void failOnRemoteIndicesNotIgnoringUnavailable(List<String> indexExpressions) {
             List<String> crossClusterIndices = new ArrayList<>();
             for (String index : indexExpressions) {
-                if (RemoteClusterAware.isRemoteIndexName(index)) {
+                if (RemoteClusterAware.isRemoteIndexExpression(index)) {
                     crossClusterIndices.add(index);
                 }
             }

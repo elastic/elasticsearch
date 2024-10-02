@@ -58,7 +58,7 @@ public abstract class RemoteClusterAware {
      * The index name is assumed to be individual index (no commas) but can contain `-`, wildcards,
      * datemath, remote cluster name and any other syntax permissible in index expression component.
      */
-    public static boolean isRemoteIndexName(String indexExpression) {
+    public static boolean isRemoteIndexExpression(String indexExpression) {
         if (indexExpression.isEmpty() || indexExpression.charAt(0) == '<' || indexExpression.startsWith("-<")) {
             // This is date math, but even if it is not, the remote can't start with '<'.
             // Thus, whatever it is, this is definitely not a remote index.
@@ -107,18 +107,33 @@ public abstract class RemoteClusterAware {
     }
 
     /**
-     *
      * @param indexExpression The index expression is assumed to be an individual index (no commas) but can
      *                        contain `-`, wildcards, datemath, a remote cluster alias prefix and any other
      *                        syntax permissible in index expression component.
-     * @return true if the index portion (not the cluster alias portion) has a wildcard '*' character.
+     * @return true if:
+     *   - the expression is not an index exclusion (does not start with a "-")
+     *   - the expression is not an cluster exclusion (does not start with a "-")
+     *   - the index is not a date math expression
+     *   - the index does not have a wildcard '*' character.
      */
-    public static boolean indexHasWildcard(String indexExpression) {
+    public static boolean isConcreteIndexName(String indexExpression) {
+        if (indexExpression.isEmpty()) {
+            return false;
+        }
         String[] split = splitIndexName(indexExpression);
-        assert split[0] == null || split[0].contains(",") == false : "Should only be a single index expression but was: " + indexExpression;
-        assert ((split[1].charAt(0) != '<' && split[1].startsWith("-<") == false) && split[1].contains(",")) == false
-            : "Should only be a single index expression but was not date math and index has comma: " + indexExpression;
-        return split[1].contains("*");
+        String clusterAlias = split[0];
+        String indexName = split[1];
+        assert clusterAlias == null || clusterAlias.contains(",") == false
+            : "Should only be a single index expression but was: " + indexExpression;
+        assert ((indexName.charAt(0) != '<' && indexName.startsWith("-<") == false) && indexName.contains(",")) == false
+            : "Should only be a single index expression but comma is present in indexExpression: " + indexExpression;
+        if (clusterAlias != null && clusterAlias.charAt(0) == '-') {
+            return false;
+        }
+        if (indexName.charAt(0) == '-' || indexName.charAt(0) == '<') {
+            return false;
+        }
+        return indexName.contains("*") == false;
     }
 
     /**

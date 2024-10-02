@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -18,11 +20,13 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -266,13 +270,24 @@ public class EsqlSession {
     }
 
     // visible for testing
-    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo executionInfo, Set<String> unavailableClusters) {
-        for (String clusterAlias : unavailableClusters) {
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo execInfo, Map<String, FieldCapabilitiesFailure> unavailable) {
+        for (Map.Entry<String, FieldCapabilitiesFailure> entry : unavailable.entrySet()) {
+            String clusterAlias = entry.getKey();
+            boolean skipUnavailable = execInfo.getCluster(clusterAlias).isSkipUnavailable();
+            RemoteTransportException e = new RemoteTransportException(
+                Strings.format("Remote cluster [%s] (with setting skip_unavailable=%s) is not available", clusterAlias, skipUnavailable),
+                entry.getValue().getException()
             );
-            // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_un=false
+            if (skipUnavailable) {
+                execInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
+                        .setFailures(List.of(new ShardSearchFailure(e)))
+                        .build()
+                );
+            } else {
+                throw e;
+            }
         }
     }
 
@@ -285,12 +300,26 @@ public class EsqlSession {
         }
         Set<String> clustersRequested = executionInfo.clusterAliases();
         Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
+        clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters().keySet());
+
         /*
-         * These are clusters in the original request that are not present in the field-caps response. They were
-         * specified with an index or indices that do not exist, so the search on that cluster is done.
-         * Mark it as SKIPPED with 0 shards searched and took=0.
+         * These are clusters in the original request that are not present in the field-caps response and did not have a
+         * failure indicating that the cluster was unavailable. They were specified with an index or indices that do not exist,
+         * so the search on that cluster is done.
+         * If the scenario is not fatal, mark the cluster as SKIPPED with 0 shards searched and took=0. The scenario is
+         * fatal if the cluster is marked with skip_unavailable=false and the index provided was concrete (had no wildcard).
          */
         for (String c : clustersWithNoMatchingIndices) {
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(c);
+            if (cluster.isSkipUnavailable() == false && clientRequestedConcreteIndex(cluster.getIndexExpression())) {
+                String alias = cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
+                    ? "local"
+                    : cluster.getClusterAlias();
+                throw new IndexNotFoundException(
+                    Strings.format("No matching index was found on [%s] cluster (with setting skip_unavailable=false)", alias),
+                    cluster.getIndexExpression()
+                );
+            }
             executionInfo.swapCluster(
                 c,
                 (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
@@ -299,9 +328,20 @@ public class EsqlSession {
                     .setSuccessfulShards(0)
                     .setSkippedShards(0)
                     .setFailedShards(0)
+                    .setFailures(List.of(new ShardSearchFailure(new IndexNotFoundException(v.getIndexExpression()))))
                     .build()
             );
         }
+    }
+
+    private static boolean clientRequestedConcreteIndex(String indexExpression) {
+        String[] expressions = Strings.commaDelimitedListToStringArray(indexExpression);
+        for (String expression : expressions) {
+            if (RemoteClusterAware.isConcreteIndexName(expression)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void preAnalyzeIndices(

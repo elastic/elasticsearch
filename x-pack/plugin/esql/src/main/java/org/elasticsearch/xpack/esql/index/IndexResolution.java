@@ -6,27 +6,28 @@
  */
 package org.elasticsearch.xpack.esql.index;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public final class IndexResolution {
 
-    public static IndexResolution valid(EsIndex index, Set<String> unavailableClusters) {
+    public static IndexResolution valid(EsIndex index, Map<String, FieldCapabilitiesFailure> unavailableClusters) {
         Objects.requireNonNull(index, "index must not be null if it was found");
         Objects.requireNonNull(unavailableClusters, "unavailableClusters must not be null");
         return new IndexResolution(index, null, unavailableClusters);
     }
 
     public static IndexResolution valid(EsIndex index) {
-        return valid(index, Collections.emptySet());
+        return valid(index, Collections.emptyMap());
     }
 
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new IndexResolution(null, invalid, Collections.emptySet());
+        return new IndexResolution(null, invalid, Collections.emptyMap());
     }
 
     public static IndexResolution notFound(String name) {
@@ -39,9 +40,9 @@ public final class IndexResolution {
     private final String invalid;
 
     // remote clusters included in the user's index expression that could not be connected to
-    private final Set<String> unavailableClusters;
+    private final Map<String, FieldCapabilitiesFailure> unavailableClusters;
 
-    private IndexResolution(EsIndex index, @Nullable String invalid, Set<String> unavailableClusters) {
+    private IndexResolution(EsIndex index, @Nullable String invalid, Map<String, FieldCapabilitiesFailure> unavailableClusters) {
         this.index = index;
         this.invalid = invalid;
         this.unavailableClusters = unavailableClusters;
@@ -70,7 +71,7 @@ public final class IndexResolution {
         return invalid == null;
     }
 
-    public Set<String> getUnavailableClusters() {
+    public Map<String, FieldCapabilitiesFailure> getUnavailableClusters() {
         return unavailableClusters;
     }
 

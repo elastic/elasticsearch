@@ -55,6 +55,6 @@ public class SearchRequestCacheDisablingInterceptor implements RequestIntercepto
 
     // package private for test
     static boolean hasRemoteIndices(SearchRequest request) {
-        return Arrays.stream(request.indices()).anyMatch(RemoteClusterAware::isRemoteIndexName);
+        return Arrays.stream(request.indices()).anyMatch(RemoteClusterAware::isRemoteIndexExpression);
     }
 }

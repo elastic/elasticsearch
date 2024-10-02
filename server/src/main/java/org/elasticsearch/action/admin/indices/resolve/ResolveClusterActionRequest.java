@@ -165,7 +165,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     boolean localIndicesPresent(String[] indices) {
         for (String index : indices) {
-            if (RemoteClusterAware.isRemoteIndexName(index) == false) {
+            if (RemoteClusterAware.isRemoteIndexExpression(index) == false) {
                 return true;
             }
         }

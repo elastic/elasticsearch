@@ -388,6 +388,6 @@ public final class StringUtils {
     }
 
     public static boolean isQualified(String indexWildcard) {
-        return RemoteClusterAware.isRemoteIndexName(indexWildcard);
+        return RemoteClusterAware.isRemoteIndexExpression(indexWildcard);
     }
 }

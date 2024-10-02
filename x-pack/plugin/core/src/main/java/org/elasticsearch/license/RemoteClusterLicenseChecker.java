@@ -239,7 +239,7 @@ public final class RemoteClusterLicenseChecker {
      * @return true if the collection of indices contains a remote index, otherwise false
      */
     public static boolean isRemoteIndex(final String index) {
-        return RemoteClusterAware.isRemoteIndexName(index);
+        return RemoteClusterAware.isRemoteIndexExpression(index);
     }
 
     /**

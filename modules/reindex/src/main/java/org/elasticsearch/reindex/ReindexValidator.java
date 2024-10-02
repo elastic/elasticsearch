@@ -159,7 +159,7 @@ public class ReindexValidator {
         // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
         // expression, e.g., cluster0:index-name
         return new SearchRequest(source).indices(
-            Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexName(name) == false).toArray(String[]::new)
+            Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexExpression(name) == false).toArray(String[]::new)
         );
     }
 }

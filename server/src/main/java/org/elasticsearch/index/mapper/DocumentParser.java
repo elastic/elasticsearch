@@ -135,7 +135,7 @@ public final class DocumentParser {
                         new IgnoredSourceFieldMapper.NameValue(
                             MapperService.SINGLE_MAPPING_NAME,
                             0,
-                            XContentDataHelper.encodeToken(context.parser()),
+                            context.encodeFlattenedToken(),
                             context.doc()
                         )
                     );
@@ -236,7 +236,7 @@ public final class DocumentParser {
             var leaf = fields.get(fullName);  // There may be multiple matches for array elements, don't use #remove.
             if (leaf != null) {
                 parser.nextToken();  // Advance the parser to the value to be read.
-                result.add(leaf.cloneWithValue(XContentDataHelper.encodeToken(parser)));
+                result.add(leaf.cloneWithValue(context.encodeFlattenedToken()));
                 parser.nextToken();  // Skip the token ending the value.
                 fieldName = null;
             }
@@ -402,7 +402,7 @@ public final class DocumentParser {
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
                         context.parent().fullPath().lastIndexOf(currentFieldName),
-                        XContentDataHelper.encodeToken(parser),
+                        context.encodeFlattenedToken(),
                         context.doc()
                     )
                 );
@@ -651,22 +651,13 @@ public final class DocumentParser {
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
             if (context.canAddIgnoredField()) {
-                // Don't expand dots while storing the object.
-                // It is possible that it is not fully normalized (e.g. has dotted names like obj.field)
-                // which is a valid document but it is not a valid json when parsed with expanded dots
-                // due to duplicate keys.
-                // F.e. { "a.b": "b", "a.c": "c" } will be transformed into { "a": { "b": "b" }, "a": { "c": "c" } }
-                context.path().setWithinLeafObject(true);
-
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
-
-                context.path().setWithinLeafObject(false);
             } else {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
@@ -750,7 +741,7 @@ public final class DocumentParser {
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
             } else {
@@ -768,7 +759,7 @@ public final class DocumentParser {
                             IgnoredSourceFieldMapper.NameValue.fromContext(
                                 context,
                                 context.path().pathAsText(currentFieldName),
-                                XContentDataHelper.encodeToken(context.parser())
+                                context.encodeFlattenedToken()
                             )
                         );
                     } catch (IOException e) {
@@ -828,7 +819,7 @@ public final class DocumentParser {
             } else if (mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
                     context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken())
                     );
                     return;
                 }
@@ -943,7 +934,7 @@ public final class DocumentParser {
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
             }
@@ -954,7 +945,7 @@ public final class DocumentParser {
                 IgnoredSourceFieldMapper.NameValue.fromContext(
                     context,
                     context.path().pathAsText(currentFieldName),
-                    XContentDataHelper.encodeToken(context.parser())
+                    context.encodeFlattenedToken()
                 )
             );
         }
@@ -1053,7 +1044,7 @@ public final class DocumentParser {
                 if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
                     try {
                         context.addIgnoredField(
-                            IgnoredSourceFieldMapper.NameValue.fromContext(context, path, XContentDataHelper.encodeToken(context.parser()))
+                            IgnoredSourceFieldMapper.NameValue.fromContext(context, path, context.encodeFlattenedToken())
                         );
                     } catch (IOException e) {
                         throw new IllegalArgumentException(

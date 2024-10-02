@@ -1,8 +1,15 @@
 pr: 113967
 summary: "ESQL: Entirely remove META FUNCTIONS"
 area: ES|QL
-type: deprecation
+type: breaking
 issues: []
+breaking:
+  title: "ESQL: Entirely remove META FUNCTIONS"
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
 deprecation:
   title: "ESQL: Entirely remove META FUNCTIONS"
   area: ES|QL

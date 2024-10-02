@@ -1,7 +1,7 @@
 ---
 version: ${xpack.oteldata.template.version}
 _meta:
-  description: Aliases from OpenTelemetry SemConv fields to ECS (and some non-ECS) fields
+  description: Aliases from OpenTelemetry SemConv resource attribute fields to ECS (and some non-ECS) fields
   managed: true
 template:
   mappings:

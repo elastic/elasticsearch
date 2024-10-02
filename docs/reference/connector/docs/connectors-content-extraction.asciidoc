@@ -282,7 +282,7 @@ $ docker run \
   --network "elastic" \
   --tty \
   --rm \
-  docker.elastic.co/enterprise-search/elastic-connectors:$CONNECTOR_CLIENT_VERSION \
+  docker.elastic.co/integrations/elastic-connectors:$CONNECTOR_CLIENT_VERSION \
   /app/bin/elastic-ingest \
   -c /config/config.yml
 ----

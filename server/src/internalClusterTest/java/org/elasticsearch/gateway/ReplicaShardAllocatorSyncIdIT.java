@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.hasSize;
  * that the {@link ReplicaShardAllocator} prefers copies with matching sync_id.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@UpdateForV9    // remove this test in v9
+@UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)    // remove this test in v9
 public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
 
     private static final AtomicBoolean allowFlush = new AtomicBoolean();

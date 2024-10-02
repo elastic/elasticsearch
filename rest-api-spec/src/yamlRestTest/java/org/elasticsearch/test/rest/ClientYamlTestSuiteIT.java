@@ -42,7 +42,7 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         super(testCandidate);
     }
 
-    @UpdateForV9 // remove restCompat check
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove restCompat check
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         String restCompatProperty = System.getProperty("tests.restCompat");

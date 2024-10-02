@@ -32,7 +32,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
         super(NAME);
     }
 
-    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // this can be replaced with TransportRequest.Empty in v9
     public static class NodeRequest extends TransportRequest {
 
         public NodeRequest() {}

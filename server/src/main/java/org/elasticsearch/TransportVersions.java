@@ -50,7 +50,7 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
-    @UpdateForV9 // remove the transport versions with which v9 will not need to interact
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_0_1 = def(7_00_01_99);
@@ -230,6 +230,7 @@ public class TransportVersions {
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS = def(8_754_00_0);
     public static final TransportVersion CCS_REMOTE_TELEMETRY_STATS = def(8_755_00_0);
     public static final TransportVersion ESQL_CCS_EXECUTION_INFO = def(8_756_00_0);
+    public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_757_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -288,7 +289,7 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     // This needs to be bumped to the 8.last
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 

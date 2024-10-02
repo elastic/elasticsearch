@@ -118,7 +118,7 @@ public class FilterPathBasedFilter extends TokenFilter {
      */
     @Override
     public boolean includeEmptyArray(boolean contentsFiltered) {
-        return !inclusive && !contentsFiltered;
+        return inclusive == false && contentsFiltered == false;
     }
 
     /**
@@ -128,7 +128,7 @@ public class FilterPathBasedFilter extends TokenFilter {
      */
     @Override
     public boolean includeEmptyObject(boolean contentsFiltered) {
-        return !inclusive && !contentsFiltered;
+        return inclusive == false && contentsFiltered == false;
     }
 
     @Override

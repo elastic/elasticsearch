@@ -112,6 +112,24 @@ public class DateFormattersTests extends ESTestCase {
 
         assertThat(DateFormatters.from(dateFormatter.parse("2016")), equalTo(ZonedDateTime.of(2015, 12, 27, 0, 0, 0, 0, ZoneOffset.UTC)));
         assertThat(DateFormatters.from(dateFormatter.parse("2015")), equalTo(ZonedDateTime.of(2014, 12, 28, 0, 0, 0, 0, ZoneOffset.UTC)));
+
+        // the built-in formats use different week definitions (ISO instead of locale)
+        dateFormatter = DateFormatters.forPattern("weekyear_week");
+
+        assertThat(
+            DateFormatters.from(dateFormatter.parse("2016-W01")),
+            equalTo(ZonedDateTime.of(2016, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC))
+        );
+
+        assertThat(
+            DateFormatters.from(dateFormatter.parse("2015-W01")),
+            equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC))
+        );
+
+        dateFormatter = DateFormatters.forPattern("weekyear");
+
+        assertThat(DateFormatters.from(dateFormatter.parse("2016")), equalTo(ZonedDateTime.of(2016, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC)));
+        assertThat(DateFormatters.from(dateFormatter.parse("2015")), equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC)));
     }
 
     public void testEpochMillisParser() {

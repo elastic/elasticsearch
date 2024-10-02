@@ -29,7 +29,6 @@ RUN chown root.root /opt/plugins/archive/*
 RUN chmod 0444 /opt/plugins/archive/*
 
 FROM ${base_image}
-RUN echo "${docker_base}"
 <% if (docker_base == "wolfi_ess") { %>
 USER root
 

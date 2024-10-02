@@ -1,6 +1,6 @@
 pr: 113975
 summary: JDK locale database change
-area: Analysis
+area: Mapping
 type: breaking
 issues: []
 breaking:

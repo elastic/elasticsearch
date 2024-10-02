@@ -440,6 +440,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
             return new SourceLoader.Synthetic(
+                null,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(null),
                 mapperMetrics.sourceFieldMetrics()
             );

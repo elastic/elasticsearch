@@ -114,22 +114,25 @@ public interface SourceLoader {
      * Reconstructs {@code _source} from doc values anf stored fields.
      */
     class Synthetic implements SourceLoader {
+        private final SourceFilter filter;
         private final Supplier<SyntheticFieldLoader> syntheticFieldLoaderLeafSupplier;
         private final Set<String> requiredStoredFields;
         private final SourceFieldMetrics metrics;
 
         /**
          * Creates a {@link SourceLoader} to reconstruct {@code _source} from doc values anf stored fields.
+         * @param filter An optional filter to include/exclude fields.
          * @param fieldLoaderSupplier A supplier to create {@link SyntheticFieldLoader}, one for each leaf.
          * @param metrics Metrics for profiling.
          */
-        public Synthetic(Supplier<SyntheticFieldLoader> fieldLoaderSupplier, SourceFieldMetrics metrics) {
+        public Synthetic(@Nullable SourceFilter filter, Supplier<SyntheticFieldLoader> fieldLoaderSupplier, SourceFieldMetrics metrics) {
             this.syntheticFieldLoaderLeafSupplier = fieldLoaderSupplier;
             this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()
                 .storedFieldLoaders()
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
             this.metrics = metrics;
+            this.filter = filter;
         }
 
         @Override
@@ -145,7 +148,7 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(new SyntheticLeaf(loader, loader.docValuesLoader(reader, docIdsInLeaf)), metrics);
+            return new LeafWithMetrics(new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf)), metrics);
         }
 
         private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {
@@ -174,11 +177,13 @@ public interface SourceLoader {
         }
 
         private static class SyntheticLeaf implements Leaf {
+            private final SourceFilter filter;
             private final SyntheticFieldLoader loader;
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
             private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
 
-            private SyntheticLeaf(SyntheticFieldLoader loader, SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+            private SyntheticLeaf(SourceFilter filter, SyntheticFieldLoader loader, SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+                this.filter = filter;
                 this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
                 this.storedFieldLoaders = Map.copyOf(
@@ -210,6 +215,9 @@ public interface SourceLoader {
                                 objectsWithIgnoredFields = new HashMap<>();
                             }
                             IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                            if (filter != null && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
+                                continue;
+                            }
                             objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
                         }
                     }

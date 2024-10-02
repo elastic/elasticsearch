@@ -974,9 +974,6 @@ public class ObjectMapper extends Mapper {
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
                 for (IgnoredSourceFieldMapper.NameValue value : ignoredValues) {
-                    if (filter != null && filter.isPathFiltered(value.name(), XContentDataHelper.isEncodedObject(value.value()))) {
-                        continue;
-                    }
                     if (value.hasValue()) {
                         writersHaveValues |= true;
                     }

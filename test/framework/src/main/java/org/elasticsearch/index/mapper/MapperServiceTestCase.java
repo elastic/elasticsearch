@@ -858,14 +858,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return syntheticSource(mapper, null, reader, docId);
     }
 
-    protected static String syntheticSource(DocumentMapper mapper, SourceFilter sourceFilter, IndexReader reader, int docId)
+    protected static String syntheticSource(DocumentMapper mapper, SourceFilter filter, IndexReader reader, int docId)
         throws IOException {
         LeafReader leafReader = getOnlyLeafReader(reader);
 
         final String synthetic1;
         final XContent xContent;
         {
-            SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), sourceFilter, SourceFieldMetrics.NOOP);
+            SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), filter, SourceFieldMetrics.NOOP);
             var source = provider.getSource(leafReader.getContext(), docId);
             synthetic1 = source.internalSourceRef().utf8ToString();
             xContent = source.sourceContentType().xContent();
@@ -875,7 +875,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         {
             int[] docIds = new int[] { docId };
             SourceLoader sourceLoader = new SourceLoader.Synthetic(
-                () -> mapper.mapping().syntheticFieldLoader(sourceFilter),
+                filter,
+                () -> mapper.mapping().syntheticFieldLoader(filter),
                 SourceFieldMetrics.NOOP
             );
             var sourceLeafLoader = sourceLoader.leaf(getOnlyLeafReader(reader), docIds);

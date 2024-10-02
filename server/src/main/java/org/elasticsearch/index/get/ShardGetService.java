@@ -308,6 +308,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
             ? new SourceLoader.Synthetic(
+                fetchSourceContext.filter(),
                 () -> mappingLookup.getMapping().syntheticFieldLoader(fetchSourceContext.filter()),
                 mapperMetrics.sourceFieldMetrics()
             )

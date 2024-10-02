@@ -501,7 +501,7 @@ public final class MappingLookup {
      */
     public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
         if (isSourceSynthetic()) {
-            return new SourceLoader.Synthetic(() -> mapping.syntheticFieldLoader(filter), metrics);
+            return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics);
         }
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }

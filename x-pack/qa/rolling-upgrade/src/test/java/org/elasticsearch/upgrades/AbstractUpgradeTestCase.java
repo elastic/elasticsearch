@@ -50,7 +50,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     @Deprecated(forRemoval = true)
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     // Tests should be reworked to rely on features from the current cluster (old, mixed or upgraded).
     // Version test against the original cluster will be removed
     protected static boolean isOriginalClusterVersionAtLeast(Version supportedVersion) {

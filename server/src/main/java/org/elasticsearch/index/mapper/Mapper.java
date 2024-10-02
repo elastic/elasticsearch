@@ -14,6 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -81,13 +83,20 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
     // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
     // Setting to SourceKeepMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
-    public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
+    public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting1(
         SourceKeepMode.class,
         "index.mapping.synthetic_source_keep",
-        SourceKeepMode.NONE,
+        settings -> {
+            var indexMode = IndexSettings.MODE.get(settings);
+            if (indexMode == IndexMode.LOGSDB) {
+                return SourceKeepMode.ARRAYS.toString();
+            } else {
+                return SourceKeepMode.NONE.toString();
+            }
+        },
         value -> {
             if (value == SourceKeepMode.ALL) {
-                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value.toString() + "]");
+                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value + "]");
             }
         },
         Setting.Property.IndexScope,

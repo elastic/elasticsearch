@@ -600,3 +600,44 @@ end time not allowed in logs mode:
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "[index.time_series.end_time] requires [index.mode=time_series]" }
+
+---
+synthetic_source_keep defaults:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            index:
+              mode: logsdb
+
+  - do:
+      indices.create:
+        index: test2
+
+
+  - do:
+      indices.get_settings:
+        index: test1
+        include_defaults: true
+
+  - is_true: test
+  - match: { test.settings.index.mode: "logsdb" }
+  - match: { test.settings.index.mapping.synthetic_source_keep: "arrays" }
+
+  - do:
+      indices.get_settings:
+        index: test1
+        include_defaults: true
+
+  - is_true: test
+  - match: { test.settings.index.mode: "logsdb" }
+  - match: { test.settings.index.mapping.synthetic_source_keep: "none" }

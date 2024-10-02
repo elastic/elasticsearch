@@ -115,6 +115,10 @@ public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> re
         return builder;
     }
 
+    public boolean isEmpty() {
+        return replicatedRanges.isEmpty();
+    }
+
     public record InternalFileReplicatedRange(long position, short length)
         implements
             Writeable,

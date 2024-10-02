@@ -22,6 +22,7 @@ package co.elastic.elasticsearch.stateless.cache.reader;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -314,45 +315,48 @@ public class CacheBlobReaderTests extends ESTestCase {
             try (
                 var blobCacheIndexInput = new BlobCacheIndexInput(
                     "fileName",
-                    sharedCacheService.getCacheFile(
-                        new FileCacheKey(shardId, getPrimaryTerm(), virtualBatchedCompoundCommit.getBlobName()),
-                        virtualBatchedCompoundCommit.getTotalSizeInBytes()
-                    ),
                     randomIOContext(),
-                    cacheBlobReaderService.getCacheBlobReader(
-                        shardId,
-                        (term) -> indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(term),
-                        virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()),
-                        new MutableObjectStoreUploadTracker() {
-                            @Override
-                            public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
-                                assert false : "unexpected call to this method";
-                            }
+                    new CacheFileReader(
+                        sharedCacheService.getCacheFile(
+                            new FileCacheKey(shardId, getPrimaryTerm(), virtualBatchedCompoundCommit.getBlobName()),
+                            virtualBatchedCompoundCommit.getTotalSizeInBytes()
+                        ),
+                        cacheBlobReaderService.getCacheBlobReader(
+                            shardId,
+                            (term) -> indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(term),
+                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()),
+                            new MutableObjectStoreUploadTracker() {
+                                @Override
+                                public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
+                                    assert false : "unexpected call to this method";
+                                }
 
-                            @Override
-                            public void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
-                                assert false : "unexpected call to this method";
-                            }
+                                @Override
+                                public void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
+                                    assert false : "unexpected call to this method";
+                                }
 
-                            @Override
-                            public UploadInfo getLatestUploadInfo(PrimaryTermAndGeneration bccTermAndGen) {
-                                return new ObjectStoreUploadTracker.UploadInfo() {
-                                    @Override
-                                    public boolean isUploaded() {
-                                        return false;
-                                    }
+                                @Override
+                                public UploadInfo getLatestUploadInfo(PrimaryTermAndGeneration bccTermAndGen) {
+                                    return new ObjectStoreUploadTracker.UploadInfo() {
+                                        @Override
+                                        public boolean isUploaded() {
+                                            return false;
+                                        }
 
-                                    @Override
-                                    public String preferredNodeId() {
-                                        return null;
-                                    }
-                                };
-                            }
-                        },
-                        bytesReadFromObjectStore -> {},
-                        bytesReadFromIndexing -> {},
-                        BlobCacheMetrics.CachePopulationReason.CacheMiss,
-                        threadPool.executor(SHARD_READ_THREAD_POOL)
+                                        @Override
+                                        public String preferredNodeId() {
+                                            return null;
+                                        }
+                                    };
+                                }
+                            },
+                            bytesReadFromObjectStore -> {},
+                            bytesReadFromIndexing -> {},
+                            BlobCacheMetrics.CachePopulationReason.CacheMiss,
+                            threadPool.executor(SHARD_READ_THREAD_POOL)
+                        ),
+                        new BlobFileRanges(getLastInternalLocation().getValue())
                     ),
                     null,
                     1,
@@ -692,8 +696,9 @@ public class CacheBlobReaderTests extends ESTestCase {
             );
             final var cacheFile = node.sharedCacheService.getCacheFile(fileCacheKey, regionSize);
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(internalLocation.getValue());
+            final var cacheFileReader = new CacheFileReader(cacheFile, cacheBlobReader, new BlobFileRanges(internalLocation.getValue()));
             final long availableDataLength = BlobCacheUtils.toPageAlignedSize(vbccSize);
-            try (var searchInput = new BlobCacheIndexInput("region", cacheFile, IOContext.DEFAULT, cacheBlobReader, null, regionSize, 0)) {
+            try (var searchInput = new BlobCacheIndexInput("region", IOContext.DEFAULT, cacheFileReader, null, regionSize, 0)) {
                 // Read a byte beyond the available data length will trigger the last gap to be filled
                 searchInput.readByte(randomLongBetween(availableDataLength, regionSize - 1L));
                 assertBusy(() -> {

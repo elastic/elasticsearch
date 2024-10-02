@@ -310,25 +310,39 @@ public class IndexDirectory extends ByteSizeDirectory {
      *
      * @param recoveryCommit the base commit point from which recovery will proceed.
      */
+    @Deprecated(forRemoval = true)
     public void updateRecoveryCommit(StatelessCompoundCommit recoveryCommit) {
-        recoveryCommitMetadataNodeEphemeralId.set(recoveryCommit.nodeEphemeralId());
-        recoveryCommitTranslogRecoveryStartFile.set(recoveryCommit.translogRecoveryStartFile());
+        updateRecoveryCommit(
+            recoveryCommit.generation(),
+            recoveryCommit.nodeEphemeralId(),
+            recoveryCommit.translogRecoveryStartFile(),
+            recoveryCommit.sizeInBytes(),
+            Maps.transformValues(recoveryCommit.commitFiles(), BlobFileRanges::new)
+        );
+    }
+
+    /**
+     * Updates the metadata required for recovery operations. This method is invoked prior to the recovery process
+     * to ensure that all necessary information is available for replaying operations from the transaction log (translog) if needed.
+     */
+    public void updateRecoveryCommit(
+        long generation,
+        String nodeEphemeralId,
+        long translogRecoveryStartFile,
+        long dataSetSizeInBytes,
+        Map<String, BlobFileRanges> blobFileRanges
+    ) {
+        recoveryCommitMetadataNodeEphemeralId.set(nodeEphemeralId);
+        recoveryCommitTranslogRecoveryStartFile.set(translogRecoveryStartFile);
         try (var ignored = writeLock.acquire()) {
             assert localFiles.isEmpty();
-            recoveryCommit.commitFiles().keySet().forEach(file -> localFiles.putIfAbsent(file, new LocalFileRef(file) {
+            blobFileRanges.keySet().forEach(file -> localFiles.putIfAbsent(file, new LocalFileRef(file) {
                 @Override
                 protected void closeInternal() {
                     // skipping deletion, the file was not created locally
                 }
             }));
-            // TODO Build a map of BlobFileRanges that includes replicated ranges (ES-9344)
-            var blobFileRanges = Maps.transformValues(recoveryCommit.commitFiles(), BlobFileRanges::new);
-            updateCommit(
-                recoveryCommit.generation(),
-                recoveryCommit.getAllFilesSizeInBytes(),
-                recoveryCommit.commitFiles().keySet(),
-                blobFileRanges
-            );
+            updateCommit(generation, dataSetSizeInBytes, blobFileRanges.keySet(), blobFileRanges);
         }
     }
 

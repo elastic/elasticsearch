@@ -301,7 +301,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 nodeEphemeralId,
                 Collections.unmodifiableMap(commitFiles),
                 header.length + replicatedContentHeader.dataSizeInBytes() + internalFilesSize,
-                internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet())
+                internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
+                header.length,
+                replicatedContent.header()
             )
         );
         pendingCompoundCommits.add(pendingCompoundCommit);

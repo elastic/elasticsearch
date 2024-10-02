@@ -272,6 +272,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             );
     }
 
+    public boolean useReplicatedRanges() {
+        return useInternalFilesReplicatedContent;
+    }
+
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {
         RoutingTable routingTable = clusterService.state().routingTable();
         return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();

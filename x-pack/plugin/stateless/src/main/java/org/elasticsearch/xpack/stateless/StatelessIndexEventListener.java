@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.commits.BlobFileRanges.computeLastCommitBlobFileRanges;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
 class StatelessIndexEventListener implements IndexEventListener {
@@ -162,10 +163,26 @@ class StatelessIndexEventListener implements IndexEventListener {
             final Store store = indexShard.store();
             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
 
-            if (indexingShardState.latestCommit() != null) {
-                StatelessCompoundCommit lastCommit = indexingShardState.latestCommit().lastCompoundCommit();
-                indexDirectory.updateRecoveryCommit(lastCommit);
-                warmingService.warmCacheForShardRecovery("indexing", indexShard, lastCommit, indexDirectory.getBlobStoreCacheDirectory());
+            final var batchedCompoundCommit = indexingShardState.latestCommit();
+            if (batchedCompoundCommit != null) {
+                var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();
+                // Build a map of BlobFileRanges that includes replicated ranges (ES-9344)
+                var blobFileRanges = computeLastCommitBlobFileRanges(batchedCompoundCommit, statelessCommitService.useReplicatedRanges());
+                assert blobFileRanges.keySet().containsAll(recoveryCommit.commitFiles().keySet());
+
+                indexDirectory.updateRecoveryCommit(
+                    recoveryCommit.generation(),
+                    recoveryCommit.nodeEphemeralId(),
+                    recoveryCommit.translogRecoveryStartFile(),
+                    recoveryCommit.getAllFilesSizeInBytes(),
+                    blobFileRanges
+                );
+                warmingService.warmCacheForShardRecovery(
+                    "indexing",
+                    indexShard,
+                    recoveryCommit,
+                    indexDirectory.getBlobStoreCacheDirectory()
+                );
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -183,10 +200,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                 bootstrap(indexShard, store);
             }
 
-            if (indexingShardState.latestCommit() != null) {
+            if (batchedCompoundCommit != null) {
                 statelessCommitService.markRecoveredBcc(
                     indexShard.shardId(),
-                    indexingShardState.latestCommit(),
+                    batchedCompoundCommit,
                     indexingShardState.unreferencedBlobs()
                 );
             }

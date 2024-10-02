@@ -811,4 +811,40 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             exception.getMessage()
         );
     }
+
+    public void testFindParentMapper() {
+        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
+
+        var rootBuilder = new RootObjectMapper.Builder("_doc", Optional.empty());
+        rootBuilder.add(new KeywordFieldMapper.Builder("keyword", IndexVersion.current()));
+
+        var child = new ObjectMapper.Builder("child", Optional.empty());
+        child.add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()));
+        child.add(new KeywordFieldMapper.Builder("keyword.with.dot", IndexVersion.current()));
+        var secondLevelChild = new ObjectMapper.Builder("child2", Optional.empty());
+        secondLevelChild.add(new KeywordFieldMapper.Builder("keyword22", IndexVersion.current()));
+        child.add(secondLevelChild);
+        rootBuilder.add(child);
+
+        var childWithDot = new ObjectMapper.Builder("childwith.dot", Optional.empty());
+        childWithDot.add(new KeywordFieldMapper.Builder("keyword3", IndexVersion.current()));
+        childWithDot.add(new KeywordFieldMapper.Builder("keyword4.with.dot", IndexVersion.current()));
+        rootBuilder.add(childWithDot);
+
+        RootObjectMapper root = rootBuilder.build(rootContext);
+
+        assertEquals("_doc", root.findParentMapper("keyword").fullPath());
+        assertNull(root.findParentMapper("aa"));
+
+        assertEquals("child", root.findParentMapper("child.keyword2").fullPath());
+        assertEquals("child", root.findParentMapper("child.keyword.with.dot").fullPath());
+        assertNull(root.findParentMapper("child.long"));
+        assertNull(root.findParentMapper("child.long.hello"));
+        assertEquals("child.child2", root.findParentMapper("child.child2.keyword22").fullPath());
+
+        assertEquals("childwith.dot", root.findParentMapper("childwith.dot.keyword3").fullPath());
+        assertEquals("childwith.dot", root.findParentMapper("childwith.dot.keyword4.with.dot").fullPath());
+        assertNull(root.findParentMapper("childwith.dot.long"));
+        assertNull(root.findParentMapper("childwith.dot.long.hello"));
+    }
 }

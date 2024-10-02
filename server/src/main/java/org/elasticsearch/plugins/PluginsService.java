@@ -468,7 +468,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             );
         }
 
-        final ClassLoader parentLoader = PluginLoaderIndirection.createLoader(
+        final ClassLoader parentLoader = ExtendedPluginsClassLoader.create(
             getClass().getClassLoader(),
             extendedPlugins.stream().map(LoadedPlugin::loader).toList()
         );

@@ -170,7 +170,7 @@ final class AggregateMapper {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else if (Top.class.isAssignableFrom(clazz)) {
-            types = List.of("Boolean", "Int", "Long", "Double", "Ip");
+            types = List.of("Boolean", "Int", "Long", "Double", "Ip", "BytesRef");
         } else if (Rate.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
         } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {

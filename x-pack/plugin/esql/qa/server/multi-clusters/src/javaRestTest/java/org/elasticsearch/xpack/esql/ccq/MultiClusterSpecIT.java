@@ -112,6 +112,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         );
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats"));
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats_v2"));
+        assumeFalse(
+            "Skip META tests on mixed version clusters because we change it too quickly",
+            testCase.requiredCapabilities.contains("meta")
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

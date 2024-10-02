@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
@@ -41,8 +41,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-@UpdateForV9
-@AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
+@LuceneTestCase.AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase {
 
     @SuppressWarnings("deprecation")

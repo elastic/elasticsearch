@@ -43,7 +43,7 @@ public enum RegexpFlag {
      * We use the deprecated support in Lucene 10. Will be removed in Lucene 11
      * https://github.com/elastic/elasticsearch/issues/113465
      */
-    @UpdateForV10
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     COMPLEMENT(DEPRECATED_COMPLEMENT),
 
     /**

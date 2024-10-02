@@ -541,7 +541,7 @@ class NodeConstruction {
         return settingsModule;
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
     private static void addBwcSearchWorkerSettings(List<Setting<?>> additionalSettings) {
         // TODO remove the below settings, they are unused and only here to enable BwC for deployments that still use them
         additionalSettings.add(

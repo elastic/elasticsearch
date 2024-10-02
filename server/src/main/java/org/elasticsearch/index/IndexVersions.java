@@ -58,7 +58,7 @@ public class IndexVersions {
         }
     }
 
-    @UpdateForV9 // remove the index versions with which v9 will not need to interact
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
 
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, parseUnchecked("8.0.0"));
@@ -127,6 +127,8 @@ public class IndexVersions {
     public static final IndexVersion ENABLE_IGNORE_MALFORMED_LOGSDB = def(8_514_00_0, Version.LUCENE_9_11_1);
     public static final IndexVersion MERGE_ON_RECOVERY_VERSION = def(8_515_00_0, Version.LUCENE_9_11_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_12 = def(8_516_00_0, Version.LUCENE_9_12_0);
+    public static final IndexVersion ENABLE_IGNORE_ABOVE_LOGSDB = def(8_517_00_0, Version.LUCENE_9_12_0);
+
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_00_0, Version.LUCENE_10_0_0);
 
     /*
@@ -233,7 +235,7 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     // We can simplify this once we've removed all references to index versions earlier than MINIMUM_COMPATIBLE
     static Collection<IndexVersion> getAllVersions() {
         return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();

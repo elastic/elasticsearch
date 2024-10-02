@@ -120,6 +120,31 @@ public class ElserInternalServiceTests extends ESTestCase {
 
     }
 
+    public void testParseConfigWithoutModelId() {
+        Client mockClient = mock(Client.class);
+        when(mockClient.threadPool()).thenReturn(threadPool);
+        var service = createService(mockClient);
+
+        var settings = new HashMap<String, Object>();
+        settings.put(
+            ModelConfigurations.SERVICE_SETTINGS,
+            new HashMap<>(Map.of(ElserInternalServiceSettings.NUM_ALLOCATIONS, 1, ElserInternalServiceSettings.NUM_THREADS, 4))
+        );
+
+        var expectedModel = new ElserInternalModel(
+            "foo",
+            TaskType.SPARSE_EMBEDDING,
+            ElserInternalService.NAME,
+            new ElserInternalServiceSettings(1, 4, ".elser_model_2", null),
+            ElserMlNodeTaskSettings.DEFAULT
+        );
+
+        var modelVerificationListener = getModelVerificationListener(expectedModel);
+
+        service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, modelVerificationListener);
+
+    }
+
     public void testParseConfigLooseWithOldModelId() {
         var service = createService(mock(Client.class));
 

@@ -115,6 +115,18 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public boolean allTrue() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public boolean allFalse() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }

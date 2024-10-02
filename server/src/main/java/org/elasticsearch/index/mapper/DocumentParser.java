@@ -401,7 +401,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
-                        context.parent().fullPath().lastIndexOf(currentFieldName),
+                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
                         XContentDataHelper.encodeToken(parser),
                         context.doc()
                     )
@@ -803,27 +803,25 @@ public final class DocumentParser {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource()
                     || (context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS
-                        && objectMapper instanceof NestedObjectMapper == false)
-                    || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
+                        && objectMapper instanceof NestedObjectMapper == false));
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             boolean fieldWithStoredArraySource = mapper instanceof FieldMapper fieldMapper
                 && getSourceKeepMode(context, fieldMapper.sourceKeepMode()) != Mapper.SourceKeepMode.NONE;
-            boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
             if (objectRequiresStoringSource
                 || fieldWithFallbackSyntheticSource
-                || dynamicRuntimeContext
                 || fieldWithStoredArraySource
                 || copyToFieldHasValuesInDocument) {
                 context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
-            } else if (mapper instanceof ObjectMapper objectMapper
-                && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
-                    );
-                    return;
-                }
+            } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
+                // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
+                // get tracked through ignored source.
+                context.addIgnoredField(
+                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
+                );
+                return;
+            }
         }
 
         // In synthetic source, if any array element requires storing its source as-is, it takes precedence over

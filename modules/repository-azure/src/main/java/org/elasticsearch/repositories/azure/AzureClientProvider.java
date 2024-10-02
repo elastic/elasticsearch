@@ -265,7 +265,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     protected void doClose() {}
 
     static class RequestMetrics {
-        private volatile long timeToResponseInMillis;
+        private volatile long timeToResponseInMillis = -1;
         private volatile int requestCount;
         private volatile int errorCount;
         private volatile int throttleCount;
@@ -287,6 +287,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             return throttleCount;
         }
 
+        /**
+         * Time to response, or -1 if response was never received
+         */
         long getTimeToResponseInMillis() {
             return timeToResponseInMillis;
         }

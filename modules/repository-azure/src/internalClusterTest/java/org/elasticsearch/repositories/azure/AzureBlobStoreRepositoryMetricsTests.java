@@ -42,7 +42,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.repositories.azure.AbstractAzureServerTestCase.randomBlobContent;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
 public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreRepositoryTests {
@@ -103,12 +104,11 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         blobContainer.blobExists(purpose, blobName);
 
         // Correct metrics are recorded
-        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES, repository).assertMetricsRecorded(
-            numThrottles + 1,
-            numThrottles,
-            numThrottles,
-            MetricsAsserter.Result.Success
-        );
+        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES, repository).expectMetrics()
+            .withRequests(numThrottles + 1)
+            .withThrottles(numThrottles)
+            .withExceptions(numThrottles)
+            .forResult(MetricsAsserter.Result.Success);
     }
 
     public void testRangeNotSatisfiedAreCountedInMetrics() throws IOException {
@@ -129,12 +129,11 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         assertThrows(RequestedRangeNotSatisfiedException.class, () -> blobContainer.readBlob(purpose, blobName));
 
         // Correct metrics are recorded
-        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB, repository).assertMetricsRecorded(
-            1,
-            0,
-            1,
-            MetricsAsserter.Result.RangeNotSatisfied
-        );
+        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB, repository).expectMetrics()
+            .withRequests(1)
+            .withThrottles(0)
+            .withExceptions(1)
+            .forResult(MetricsAsserter.Result.RangeNotSatisfied);
     }
 
     public void testErrorResponsesAreCountedInMetrics() throws IOException {
@@ -163,12 +162,11 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         blobContainer.blobExists(purpose, blobName);
 
         // Correct metrics are recorded
-        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES, repository).assertMetricsRecorded(
-            numErrors + 1,
-            throttles.get(),
-            numErrors,
-            MetricsAsserter.Result.Success
-        );
+        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES, repository).expectMetrics()
+            .withRequests(numErrors + 1)
+            .withThrottles(throttles.get())
+            .withExceptions(numErrors)
+            .forResult(MetricsAsserter.Result.Success);
     }
 
     private void clearMetrics(String discoveryNode) {
@@ -205,26 +203,65 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             this.repository = repository;
         }
 
-        void assertMetricsRecorded(int expectedRequests, int expectedThrottles, int expectedExceptions, Result result) {
+        private class Expectations {
+            private int expectedRequests;
+            private int expectedThrottles;
+            private int expectedExceptions;
+
+            public Expectations withRequests(int expectedRequests) {
+                this.expectedRequests = expectedRequests;
+                return this;
+            }
+
+            public Expectations withThrottles(int expectedThrottles) {
+                this.expectedThrottles = expectedThrottles;
+                return this;
+            }
+
+            public Expectations withExceptions(int expectedExceptions) {
+                this.expectedExceptions = expectedExceptions;
+                return this;
+            }
+
+            public void forResult(Result result) {
+                assertMetricsRecorded(expectedRequests, expectedThrottles, expectedExceptions, result);
+            }
+        }
+
+        Expectations expectMetrics() {
+            return new Expectations();
+        }
+
+        private void assertMetricsRecorded(int expectedRequests, int expectedThrottles, int expectedExceptions, Result result) {
             assertCounterMetricRecorded(RepositoriesMetrics.METRIC_OPERATIONS_TOTAL, 1);
             assertCounterMetricRecorded(RepositoriesMetrics.METRIC_REQUESTS_TOTAL, expectedRequests);
 
             if (expectedThrottles > 0) {
                 assertCounterMetricRecorded(RepositoriesMetrics.METRIC_THROTTLES_TOTAL, expectedThrottles);
                 assertHistogramMetricRecorded(RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM, expectedThrottles);
+            } else {
+                assertNoCounterMetricRecorded(RepositoriesMetrics.METRIC_THROTTLES_TOTAL);
+                assertNoHistogramMetricsRecorded(RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM);
             }
 
             if (expectedExceptions > 0) {
                 assertCounterMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL, expectedExceptions);
                 assertHistogramMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM, expectedExceptions);
+            } else {
+                assertNoCounterMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL);
+                assertNoHistogramMetricsRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM);
             }
 
             if (result == Result.RangeNotSatisfied || result == Result.Failure) {
                 assertCounterMetricRecorded(RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, 1);
+            } else {
+                assertNoCounterMetricRecorded(RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL);
             }
 
             if (result == Result.RangeNotSatisfied) {
                 assertCounterMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL, 1);
+            } else {
+                assertNoCounterMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL);
             }
 
             assertTimeToResponseMetricRecorded();
@@ -234,14 +271,22 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             assertIntValueMetricRecorded(getTelemetryPlugin(dataNodeName).getLongCounterMeasurement(metricName), expectedValue);
         }
 
+        void assertNoCounterMetricRecorded(String metricName) {
+            assertThat(getTelemetryPlugin(dataNodeName).getLongCounterMeasurement(metricName), hasSize(0));
+        }
+
         void assertHistogramMetricRecorded(String metricName, int expectedValue) {
             assertIntValueMetricRecorded(getTelemetryPlugin(dataNodeName).getLongHistogramMeasurement(metricName), expectedValue);
+        }
+
+        void assertNoHistogramMetricsRecorded(String metricName) {
+            assertThat(getTelemetryPlugin(dataNodeName).getLongHistogramMeasurement(metricName), hasSize(0));
         }
 
         void assertTimeToResponseMetricRecorded() {
             assertMatchingMetricRecorded(
                 getTelemetryPlugin(dataNodeName).getLongHistogramMeasurement(RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM),
-                m -> assertThat(m.getLong(), greaterThan(0L))
+                m -> assertThat(m.getLong(), greaterThanOrEqualTo(0L))
             );
         }
 

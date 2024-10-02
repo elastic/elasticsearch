@@ -769,7 +769,7 @@ public class AzureBlobStore implements BlobStore {
             }
 
             // There will be no time to response recorded for requests with no response (e.g. cancelled etc.)
-            if (requestMetrics.getTimeToResponseInMillis() > 0) {
+            if (requestMetrics.getTimeToResponseInMillis() >= 0) {
                 repositoriesMetrics.httpRequestTimeInMillisHistogram().record(requestMetrics.getTimeToResponseInMillis(), attributes);
             }
         }

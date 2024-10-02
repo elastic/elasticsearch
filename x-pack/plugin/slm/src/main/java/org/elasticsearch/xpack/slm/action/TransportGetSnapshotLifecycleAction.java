@@ -68,7 +68,7 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
         final ClusterState state,
         final ActionListener<GetSnapshotLifecycleAction.Response> listener
     ) {
-        SnapshotLifecycleMetadata snapMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().getSingleProjectCustom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null) {
             if (request.getLifecycleIds().length == 0) {
                 listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));

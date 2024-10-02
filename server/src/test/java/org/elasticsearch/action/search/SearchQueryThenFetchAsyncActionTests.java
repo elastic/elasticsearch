@@ -261,7 +261,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testMinimumVersionSameAsNewVersion() throws Exception {
         var newVersion = VersionInformation.CURRENT;
         var oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), VersionUtils.getPreviousVersion()),
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -390,13 +390,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     public void testMinimumVersionSameAsOldVersion() throws Exception {
-        Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomVersionBetween(
-            random(),
-            Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(newVersion)
+        var newVersion = VersionInformation.CURRENT;
+        var oldVersion = new VersionInformation(
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
         );
-        Version minVersion = oldVersion;
+        Version minVersion = oldVersion.nodeVersion();
 
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,
@@ -538,13 +538,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {
-        Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomVersionBetween(
-            random(),
-            Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(newVersion)
+        var newVersion = VersionInformation.CURRENT;
+        var oldVersion = new VersionInformation(
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
         );
-        Version minVersion = newVersion;
+
+        Version minVersion = newVersion.nodeVersion();
 
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,

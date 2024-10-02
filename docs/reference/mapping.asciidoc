@@ -77,16 +77,18 @@ slower search performance.
 
 [discrete]
 [[mapping-combine-explicit-dynamic]]
-== Combine explicit and dynamic mappings
+== Managing and updating mappings
 
-Explicit mappings should almost always be defined at index creation, because
-you can't change mappings for fields that already contain data.
+Explicit mappings should be defined at index creation for fields you know in advance. 
+However, you can still add new fields to explicit mappings at any time, as your data evolves.
+Alternatively, you can allow dynamic mapping to automatically add new fields to the mapping.
 
-You can _update_ mappings for existing fields under certain conditions:
+You can also _update_ mappings for existing fields under certain conditions:
 
-* You can add new fields to an existing mapping.
+* You can add new fields to an existing mapping at any time.
 * You can change the mapping for fields that don't contain any data.
 * You can add new <<multi-fields,multi-fields>> for existing fields.
+
 
 [discrete]
 [[mapping-limit-settings]]

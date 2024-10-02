@@ -701,7 +701,7 @@ public final class IndexSettings {
     /**
      * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
      * or stored. If the length of the field’s content exceeds this limit, the field value will be ignored during indexing.
-     * This setting is  useful for `keyword`, `flattened`, and `wildcard` fields where very large values are undesirable.
+     * This setting is useful for `keyword`, `flattened`, and `wildcard` fields where very large values are undesirable.
      * It allows users to manage the size of indexed data by skipping fields with excessively long content. As an index-level
      * setting, it applies to all `keyword` and `wildcard` fields, as well as to keyword values within `flattened` fields.
      * When it comes to arrays, the `ignore_above` setting applies individually to each element of the array. If any element's
@@ -713,14 +713,30 @@ public final class IndexSettings {
      * <pre>
      * "index.mapping.ignore_above": 256
      * </pre>
+     * <p>
+     * NOTE: The value for `ignore_above` is the _character count_, but Lucene counts
+     * bytes. Here we set the limit to `32766 / 4 = 8191` since UTF-8 characters may
+     * occupy at most 4 bytes.
      */
+
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
-        Integer.MAX_VALUE,
+        IndexSettings::getIgnoreAboveDefaultValue,
         0,
+        Integer.MAX_VALUE,
         Property.IndexScope,
         Property.ServerlessPublic
     );
+
+    private static String getIgnoreAboveDefaultValue(final Settings settings) {
+        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
+            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)) {
+            return "8191";
+        } else {
+            return String.valueOf(Integer.MAX_VALUE);
+        }
+    }
+
     public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting");
 
     private final Index index;

@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -61,7 +60,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.VALID_ELSER_MODEL_IDS;
 
 public class ElasticsearchInternalService extends BaseElasticsearchInternalService {
 
@@ -120,11 +118,24 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                         "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is"
                             + " deprecated and will be removed in a future release. Please specify a model_id field."
                     );
-                    elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);            }
-            if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
+                    platformArch.accept(
+                        modelListener.delegateFailureAndWrap(
+                            (delegate, arch) -> elserCase(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                        )
+                    );
+                } else {
+                    throw new IllegalArgumentException("Error parsing service settings, model_id must be provided");
+                }
+            } else if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 platformArch.accept(
                     modelListener.delegateFailureAndWrap(
                         (delegate, arch) -> e5Case(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                    )
+                );
+            } else if (ElserModels.isValidModel(modelId)) {
+                platformArch.accept(
+                    modelListener.delegateFailureAndWrap(
+                        (delegate, arch) -> elserCase(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
                     )
                 );
             } else {
@@ -259,6 +270,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             // platform agnostic model is always compatible
             return true;
         }
+        return modelId.equals(
+            selectDefaultModelVariantBasedOnClusterArchitecture(
+                platformArchitectures,
+                MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
+                MULTILINGUAL_E5_SMALL_MODEL_ID
+            )
+        );
+    }
 
     private void elserCase(
         String inferenceEntityId,
@@ -294,6 +313,16 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 );
             }
         }
+
+        DEPRECATION_LOGGER.warn(
+            DeprecationCategory.API,
+            "inference_api_elser_service",
+            "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
+                + " [model_id] set to [{}] in the [service_settings]",
+            OLD_ELSER_SERVICE_NAME,
+            ElasticsearchInternalService.NAME,
+            defaultModelId
+        );
 
         if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, esServiceSettingsBuilder.getModelId())) {
             throw new IllegalArgumentException(

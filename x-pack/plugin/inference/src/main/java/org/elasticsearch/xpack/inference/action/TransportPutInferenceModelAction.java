@@ -19,9 +19,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -47,20 +44,17 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService.selectDefaultModelVariantBasedOnClusterArchitecture;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     PutInferenceModelAction.Request,
     PutInferenceModelAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutInferenceModelAction.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PutInferenceModelAction.class);
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -119,6 +113,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        if (List.of(OLD_ELSER_SERVICE_NAME, ElasticsearchInternalService.NAME).contains(serviceName)) {
+            // required for BWC of elser service in elasticsearch service TODO remove when elser service deprecated
+            requestAsMap.put(ModelConfigurations.SERVICE, serviceName);
+        }
         var service = serviceRegistry.getService(serviceName);
         if (service.isEmpty()) {
             listener.onFailure(new ElasticsearchStatusException("Unknown service [{}]", RestStatus.BAD_REQUEST, serviceName));
@@ -159,24 +157,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             );
             return;
         }
-
-                if (serviceName.equals(OLD_ELSER_SERVICE_NAME)) {
-                    String modelId = selectDefaultModelVariantBasedOnClusterArchitecture(
-                        architectures,
-                        ELSER_V2_MODEL_LINUX_X86,
-                        ELSER_V2_MODEL
-                    );
-
-                    DEPRECATION_LOGGER.warn(
-                        DeprecationCategory.API,
-                        "inference_api_elser_service",
-                        "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
-                            + " [model_id] set to [{}] in the [service_settings]",
-                        OLD_ELSER_SERVICE_NAME,
-                        ElasticsearchInternalService.NAME,
-                        modelId
-                    );
-                }
 
         parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, listener);
     }

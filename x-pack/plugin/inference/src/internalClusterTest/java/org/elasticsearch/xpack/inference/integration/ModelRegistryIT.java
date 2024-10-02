@@ -28,8 +28,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettingsTests;
 import org.junit.Before;
@@ -117,10 +117,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
 
-        var elserService = new ElserInternalService(
+        var elserService = new ElasticsearchInternalService(
             new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class), mock(ThreadPool.class))
         );
-        ElserInternalModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
+        ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfigWithSecrets(
             modelHolder.get().inferenceEntityId(),
             modelHolder.get().taskType(),
             modelHolder.get().settings(),

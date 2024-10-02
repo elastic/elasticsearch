@@ -212,12 +212,15 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
                 false // chunk
             );
 
-            var resultListener = ActionListener.<InferModelAction.Response>wrap(
-                inferenceResult -> listener.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults())),
-                exception -> maybeStartDeployment(esModel, exception, request, listener)
+            ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
             );
 
-            client.execute(InferModelAction.INSTANCE, request, resultListener);
+            var maybeDeployListener = mlResultsListener.delegateResponse(
+                (l, exception) -> maybeStartDeployment(esModel, exception, request, mlResultsListener)
+            );
+
+            client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
         } else {
             listener.onFailure(notElasticsearchModelException(model));
         }
@@ -253,33 +256,39 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
             return;
         }
 
-        var configUpdate = chunkingOptions != null
-            ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : new TokenizationConfigUpdate(null, null);
+        if (model instanceof ElasticsearchInternalModel esModel) {
+            var configUpdate = chunkingOptions != null
+                ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
+                : new TokenizationConfigUpdate(null, null);
 
-        var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
-            configUpdate,
-            inputs,
-            inputType,
-            timeout,
-            true // chunk
-        );
+            var request = buildInferenceRequest(
+                model.getConfigurations().getInferenceEntityId(),
+                configUpdate,
+                inputs,
+                inputType,
+                timeout,
+                true // chunk
+            );
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
+            ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
                 (l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getInferenceResults()))
-            )
-        );
+            );
+
+            var maybeDeployListener = mlResultsListener.delegateResponse(
+                (l, exception) -> maybeStartDeployment(esModel, exception, request, mlResultsListener)
+            );
+
+            client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
+        } else {
+            listener.onFailure(notElasticsearchModelException(model));
+        }
     }
 
     private void maybeStartDeployment(
         ElasticsearchInternalModel model,
         Exception e,
         InferModelAction.Request request,
-        ActionListener<InferenceServiceResults> listener
+        ActionListener<InferModelAction.Response> listener
     ) {
         if (DefaultElserFeatureFlag.isEnabled() == false) {
             listener.onFailure(e);
@@ -287,15 +296,10 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
         }
 
         if (isDefaultId(model.getInferenceEntityId()) && ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-            this.start(model, listener.delegateFailureAndWrap((l, started) -> {
-                client.execute(
-                    InferModelAction.INSTANCE,
-                    request,
-                    l.delegateFailureAndWrap(
-                        (l2, inferenceResult) -> listener.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
-                    )
-                );
-            }));
+            this.start(
+                model,
+                listener.delegateFailureAndWrap((l, started) -> { client.execute(InferModelAction.INSTANCE, request, listener); })
+            );
         } else {
             listener.onFailure(e);
         }

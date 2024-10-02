@@ -293,26 +293,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, meta(c));
     }
 
-    public void testMetaFunctions() {
-        Counters c = esql("meta functions |  stats  a = count(*) |  mv_expand a");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(1L, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(1L, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(0, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
-        assertEquals(1L, meta(c));
-    }
-
     public void testShowInfo() {
         Counters c = esql("show info |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c");
         assertEquals(0, dissect(c));

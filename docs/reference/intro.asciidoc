@@ -370,99 +370,126 @@ Does not yet support full-text search.
 | <<sql-apis,`_sql`>>
 
 | {kibana-ref}/kuery-query.html[Kibana Query Language (KQL)]
-| Kibana Query Language (KQL) is a text-based query language for filtering data when you access it through the {kib} UI.
+| {kib} Query Language (KQL) is a text-based query language for filtering data when you access it through the {kib} UI.
 | Use KQL to filter documents where a value for a field exists, matches a given value, or is within a given range.
 | N/A
 
 |===
 
 // New html page
-// TODO: this page won't live here long term
 [[scalability]]
-=== Plan for production
+=== Get ready for production
 
-{es} is built to be always available and to scale with your needs. It does this
-by being distributed by nature. You can add servers (nodes) to a cluster to
-increase capacity and {es} automatically distributes your data and query load
-across all of the available nodes. No need to overhaul your application, {es}
-knows how to balance multi-node clusters to provide scale and high availability.
-The more nodes, the merrier.
+Many teams rely on {es} to run their key services. To keep these services running, you can design your {es} deployment
+to keep {es} available, even in case of large-scale outages. To keep it running fast, you also can design your
+deployment to be responsive to production workloads.
 
-How does this work? Under the covers, an {es} index is really just a logical
-grouping of one or more physical shards, where each shard is actually a
-self-contained index. By distributing the documents in an index across multiple
-shards, and distributing those shards across multiple nodes, {es} can ensure
-redundancy, which both protects against hardware failures and increases
-query capacity as nodes are added to a cluster. As the cluster grows (or shrinks),
-{es} automatically migrates shards to rebalance the cluster.
+{es} is built to be always available and to scale with your needs. It does this using a distributed architecture.
+By distributing your cluster, you can keep Elastic online and responsive to requests.
 
-There are two types of shards: primaries and replicas. Each document in an index
-belongs to one primary shard. A replica shard is a copy of a primary shard.
-Replicas provide redundant copies of your data to protect against hardware
-failure and increase capacity to serve read requests
-like searching or retrieving a document.
+In case of failure, {es} offers tools for cross-cluster replication and cluster snapshots that can
+help you fall back or recover quickly. You can also use cross-cluster replication to serve requests based on the
+geographic location of your users and your resources.
 
-The number of primary shards in an index is fixed at the time that an index is
-created, but the number of replica shards can be changed at any time, without
-interrupting indexing or query operations.
+{es} also offers security and monitoring tools to help you keep your cluster highly available.
 
 [discrete]
-[[it-depends]]
-==== Shard size and number of shards
+[[use-multiple-nodes-shards]]
+==== Use multiple nodes and shards
 
-There are a number of performance considerations and trade offs with respect
-to shard size and the number of primary shards configured for an index. The more
-shards, the more overhead there is simply in maintaining those indices. The
-larger the shard size, the longer it takes to move shards around when {es}
-needs to rebalance a cluster.
+[NOTE]
+====
+Nodes and shards are what make {es} distributed and scalable.
 
-Querying lots of small shards makes the processing per shard faster, but more
-queries means more overhead, so querying a smaller
-number of larger shards might be faster. In short...it depends.
+These concepts aren’t essential if you’re just getting started. How you <<elasticsearch-intro-deploy,deploy {es}>> in production determines what you need to know:
 
-As a starting point:
+* *Self-managed {es}*: You are responsible for setting up and managing nodes, clusters, shards, and replicas. This includes
+managing the underlying infrastructure, scaling, and ensuring high availability through failover and backup strategies.
+* *Elastic Cloud*: Elastic can autoscale resources in response to workload changes. Choose from different deployment types
+to apply sensible defaults for your use case. A basic understanding of nodes, shards, and replicas is still important.
+* *Elastic Cloud Serverless*: You don’t need to worry about nodes, shards, or replicas. These resources are 100% automated
+on the serverless platform, which is designed to scale with your workload.
+====
 
-* Aim to keep the average shard size between a few GB and a few tens of GB. For
-  use cases with time-based data, it is common to see shards in the 20GB to 40GB
-  range.
+You can add servers (_nodes_) to a cluster to increase capacity, and {es} automatically distributes your data and query load
+across all of the available nodes.
 
-* Avoid the gazillion shards problem. The number of shards a node can hold is
-  proportional to the available heap space. As a general rule, the number of
-  shards per GB of heap space should be less than 20.
+Elastic is able to distribute your data across nodes by subdividing an index into _shards_. Each index in {es} is a grouping
+of one or more physical shards, where each shard is a self-contained Lucene index containing a subset of the documents in
+the index. By distributing the documents in an index across multiple shards, and distributing those shards across multiple
+nodes, {es} increases indexing and query capacity.
 
-The best way to determine the optimal configuration for your use case is
-through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[
-testing with your own data and queries].
+There are two types of shards: _primaries_ and _replicas_. Each document in an index belongs to one primary shard. A replica
+shard is a copy of a primary shard. Replicas maintain redundant copies of your data across the nodes in your cluster. 
+This protects against hardware failure and increases capacity to serve read requests like searching or retrieving a document.
+
+[TIP]
+====
+The number of primary shards in an index is fixed at the time that an index is created, but the number of replica shards can
+be changed at any time, without interrupting indexing or query operations.
+====
+
+Shard copies in your cluster are automatically balanced across nodes to provide scale and high availability. All nodes are
+aware of all the other nodes in the cluster and can forward client requests to the appropriate node. This allows {es}
+to distribute indexing and query load across the cluster.
+
+If you’re exploring {es} for the first time or working in a development environment, then you can use a cluster with a single node and create indices
+with only one shard. However, in a production environment, you should build a cluster with multiple nodes and indices
+with multiple shards to increase performance and resilience.
+
+// TODO - diagram
+
+To learn about optimizing the number and size of shards in your cluster, refer to <<size-your-shards,Size your shards>>. 
+To learn about how read and write operations are replicated across shards and shard copies, refer to <<docs-replication,Reading and writing documents>>.
+To adjust how shards are allocated and balanced across nodes, refer to <<shard-allocation-relocation-recovery,Shard allocation, relocation, and recovery>>.
 
 [discrete]
-[[disaster-ccr]]
-==== Disaster recovery
+[[ccr-disaster-recovery-geo-proximity]]
+==== CCR for disaster recovery and geo-proximity
 
-A cluster's nodes need good, reliable connections to each other. To provide
-better connections, you typically co-locate the nodes in the same data center or
-nearby data centers. However, to maintain high availability, you
-also need to avoid any single point of failure. In the event of a major outage
-in one location, servers in another location need to be able to take over. The
-answer? {ccr-cap} (CCR).
+To effectively distribute read and write operations across nodes, the nodes in a cluster need good, reliable connections
+to each other. To provide better connections, you typically co-locate the nodes in the same data center or nearby data centers.
 
-CCR provides a way to automatically synchronize indices from your primary cluster
-to a secondary remote cluster that can serve as a hot backup. If the primary
-cluster fails, the secondary cluster can take over. You can also use CCR to
-create secondary clusters to serve read requests in geo-proximity to your users.
+Co-locating nodes in a single location exposes you to the risk of a single outage taking your entire cluster offline. To
+maintain high availability, you can prepare a second cluster that can take over in case of disaster by implementing
+cross-cluster replication (CCR).
 
-{ccr-cap} is active-passive. The index on the primary cluster is
-the active leader index and handles all write requests. Indices replicated to
-secondary clusters are read-only followers.
+CCR provides a way to automatically synchronize indices from your primary cluster to a secondary remote cluster that
+can serve as a hot backup. If the primary cluster fails, the secondary cluster can take over.
+
+You can also use CCR to create secondary clusters to serve read requests in geo-proximity to your users.
+
+Learn more about <<xpack-ccr,cross-cluster replication>> and about <<high-availability-cluster-design,designing for resilience>>.
+
+[TIP]
+====
+You can also take <<snapshot-restore,snapshots>> of your cluster that can be restored in case of failure.
+====
 
 [discrete]
-[[admin]]
-==== Security, management, and monitoring
+[[security-and-monitoring]]
+==== Security and monitoring
 
-As with any enterprise system, you need tools to secure, manage, and
-monitor your {es} clusters. Security, monitoring, and administrative features
-that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
-as a control center for managing a cluster. Features like <<downsampling,
-downsampling>> and <<index-lifecycle-management, index lifecycle management>>
-help you intelligently manage your data over time.
+As with any enterprise system, you need tools to secure, manage, and monitor your {es} clusters. Security,
+monitoring, and administrative features that are integrated into {es} enable you to use {kibana-ref}/introduction.html[Kibana] as a
+control center for managing a cluster.
 
-Refer to <<monitor-elasticsearch-cluster>> for more information.
+<<secure-cluster,Learn about securing an {es} cluster>>.
+
+<<monitor-elasticsearch-cluster,Learn about monitoring your cluster>>.
+
+[discrete]
+[[cluster-design]]
+==== Cluster design
+
+{es} offers many options that allow you to configure your cluster to meet your organization’s goals, requirements,
+and restrictions. You can review the following guides to learn how to tune your cluster to meet your needs:
+
+* <<high-availability-cluster-design,Designing for resilience>>
+* <<tune-for-indexing-speed,Tune for indexing speed>>
+* <<tune-for-search-speed,Tune for search speed>>
+* <<tune-for-disk-usage,Tune for disk usage>>
+* <<use-elasticsearch-for-time-series-data,Tune for time series data>>
+
+Many {es} options come with different performance considerations and trade-offs. The best way to determine the
+optimal configuration for your use case is through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[testing with your own data and queries].

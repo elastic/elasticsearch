@@ -513,7 +513,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         // comma separated indices
-        // These fail because there is an invalid index name, and there is no index name with wildcard before it
+        // Invalid index names after removing exclusion fail, when there is no index name with wildcard before it
         for (String command : commands.keySet()) {
             if (command.contains("LOOKUP")) {
                 continue;
@@ -540,10 +540,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     commands.get(command),
                     "-indexpattern"
                 );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "indexpattern,-indexpattern"),
+                    statement(command, clusterString + "indexpattern, -indexpattern")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "indexpattern,-indexpattern"),
+                    statement(command, clusterString + "indexpattern, \"-indexpattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "indexpattern, -indexpattern"),
+                    statement(command, clusterString + "\"indexpattern, -indexpattern\"")
+                );
             }
         }
 
-        // The invalid index name, except invalid DateMath, are ignored if there is an index name with wildcard before it
+        // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
         for (String command : commands.keySet()) {
             if (command.contains("LOOKUP")) {
                 continue;

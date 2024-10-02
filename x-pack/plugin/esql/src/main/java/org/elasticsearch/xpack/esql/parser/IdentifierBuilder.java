@@ -54,11 +54,11 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     public String visitIndexPattern(List<EsqlBaseParser.IndexPatternContext> ctx) {
         List<String> patterns = new ArrayList<>(ctx.size());
-        Holder<Boolean> hasSeeStar = new Holder<>(false);
+        Holder<Boolean> hasSeenStar = new Holder<>(false);
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
-            hasSeeStar.set(indexPattern.contains(WILDCARD) || hasSeeStar.get());
-            validateIndexPattern(indexPattern, c, hasSeeStar.get());
+            hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
+            validateIndexPattern(indexPattern, c, hasSeenStar.get());
             patterns.add(
                 c.clusterString() != null ? c.clusterString().getText() + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern
             );
@@ -66,17 +66,17 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return Strings.collectionToDelimitedString(patterns, ",");
     }
 
-    private static void validateIndexPattern(String indexPattern, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeeStar) {
+    private static void validateIndexPattern(String indexPattern, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeenStar) {
         // multiple index names can be in the same double quote, e.g. indexPattern = "idx1, *, -idx2"
         String[] indices = indexPattern.split(",");
-        Holder<Boolean> hasExclusion = new Holder<>(false);
+        boolean hasExclusion = false;
         for (String index : indices) {
-            hasSeeStar = index.contains(WILDCARD) || hasSeeStar;
+            hasSeenStar = index.contains(WILDCARD) || hasSeenStar;
             index = index.replace(WILDCARD, "").strip();
             if (index.isBlank()) {
                 continue;
             }
-            hasExclusion.set(index.startsWith(EXCLUSION));
+            hasExclusion = index.startsWith(EXCLUSION);
             index = removeExclusion(index);
             String tempName;
             try {
@@ -87,13 +87,13 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 // throws exception if the DateMath expression is invalid, resolveDateMathExpression does not complain about exclusions
                 throw new ParsingException(e, source(ctx), e.getMessage());
             }
-            hasExclusion.set(tempName.startsWith(EXCLUSION) || hasExclusion.get());
+            hasExclusion = tempName.startsWith(EXCLUSION) || hasExclusion;
             index = tempName.equals(index) ? index : removeExclusion(tempName);
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(index, InvalidIndexNameException::new);
             } catch (InvalidIndexNameException e) {
                 // ignore invalid index name if it has exclusions and there is an index with wildcard before it
-                if (hasSeeStar && hasExclusion.get()) {
+                if (hasSeenStar && hasExclusion) {
                     continue;
                 }
                 throw new ParsingException(e, source(ctx), e.getMessage());

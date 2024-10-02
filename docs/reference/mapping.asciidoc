@@ -83,12 +83,14 @@ Explicit mappings should be defined at index creation for fields you know in adv
 However, you can still add new fields to explicit mappings at any time, as your data evolves.
 Alternatively, you can allow dynamic mapping to automatically add new fields to the mapping.
 
-You can also _update_ mappings for existing fields under certain conditions:
+You can't change mappings for fields that already contain data.
+These changes require <<docs-reindex,reindexing>>.
+
+However, you can _update_ mappings for existing fields under certain conditions:
 
 * You can add new fields to an existing mapping at any time.
 * You can change the mapping for fields that don't contain any data.
 * You can add new <<multi-fields,multi-fields>> for existing fields.
-
 
 [discrete]
 [[mapping-limit-settings]]

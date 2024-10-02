@@ -53,7 +53,7 @@ PUT /books
 
 A `200` response indicates the index was created successfully.
 
-.Expand to see example response
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
@@ -267,7 +267,7 @@ You should receive a response indicating there were no errors.
 When using dynamic mapping, {es} automatically creates mappings for new fields by default.
 The documents we've added so far have used dynamic mapping, because we didn't specify a mapping when creating the index.
 
-Add a new document to the `books` index with a field that doesn't exist, to see how dynamic mapping works.
+To see how dynamic mapping works, add a new document to the `books` index with a field that doesn't exist.
 
 [source,console]
 ----
@@ -277,11 +277,12 @@ POST /books/_doc
   "author": "F. Scott Fitzgerald",
   "release_date": "1925-04-10",
   "page_count": 180,
-  "new_field": "I'm a new field added dynamically" <1>
+  "language": "EN" <1>
 }
 ----
 // TEST[continued]
-<1> This field is dynamically added to the document.
+<1> The new field.
+
 View the mapping for the `books` index. The new field `new_field` has been added to the mapping with a `text` data type.
 
 [source,console]
@@ -526,7 +527,7 @@ GET books/_search
 === Step 5: Delete your indices (optional)
 
 When following along with examples, you might want to delete an index to start from scratch.
-You can delete indices using the <<indices-delete-index,`DELETE` index API>>.
+You can delete indices using the <<indices-delete-index,Delete index API>>.
 
 For example, run the following command to delete the indices created in this tutorial:
 

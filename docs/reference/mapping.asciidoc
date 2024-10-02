@@ -84,9 +84,9 @@ you can't change mappings for fields that already contain data.
 
 You can _update_ mappings for existing fields under certain conditions:
 
-. You can add new fields to an existing mapping.
-. You can change the mapping for fields that don't contain any data.
-. You can add new <<multi-fields,multi-fields>> for existing fields.
+* You can add new fields to an existing mapping.
+* You can change the mapping for fields that don't contain any data.
+* You can add new <<multi-fields,multi-fields>> for existing fields.
 
 [discrete]
 [[mapping-limit-settings]]

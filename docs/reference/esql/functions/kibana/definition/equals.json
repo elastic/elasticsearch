@@ -402,5 +402,6 @@
       "returnType" : "boolean"
     }
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

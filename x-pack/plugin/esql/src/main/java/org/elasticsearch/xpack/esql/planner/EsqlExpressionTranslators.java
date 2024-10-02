@@ -21,10 +21,12 @@ import org.elasticsearch.xpack.esql.planner.translator.IsNotNulls;
 import org.elasticsearch.xpack.esql.planner.translator.IsNulls;
 import org.elasticsearch.xpack.esql.planner.translator.Likes;
 import org.elasticsearch.xpack.esql.planner.translator.Matches;
+import org.elasticsearch.xpack.esql.planner.translator.MultiMatches;
 import org.elasticsearch.xpack.esql.planner.translator.Nots;
 import org.elasticsearch.xpack.esql.planner.translator.Ranges;
 import org.elasticsearch.xpack.esql.planner.translator.Scalars;
 import org.elasticsearch.xpack.esql.planner.translator.SpatialRelatesTranslator;
+import org.elasticsearch.xpack.esql.planner.translator.StringQueries;
 
 import java.util.List;
 
@@ -41,7 +43,9 @@ public final class EsqlExpressionTranslators {
         new IsNotNulls(),
         new Nots(),
         new Likes(),
+        new StringQueries(),
         new Matches(),
+        new MultiMatches(),
         new FullTextFunctions(),
         new Scalars()
     );

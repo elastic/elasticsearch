@@ -21,8 +21,10 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -38,6 +41,11 @@ import static org.elasticsearch.repositories.azure.AbstractAzureServerTestCase.r
 
 @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
 public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreRepositoryTests {
+
+    private static final Predicate<HttpExchange> GET_BLOB_REQUEST_PREDICATE = request -> GET_BLOB_PATTERN.test(
+        request.getRequestMethod() + " " + request.getRequestURI()
+    );
+    private static final int MAX_RETRIES = 3;
 
     private Queue<ErrorResponse> errorQueue = new ConcurrentLinkedQueue<>();
 
@@ -58,6 +66,13 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         return delegate;
     }
 
+    @After
+    public void checkErrorQueue() {
+        if (errorQueue.isEmpty() == false) {
+            fail("There were un-returned errors left in the queue, this is probably a broken test");
+        }
+    }
+
     private static BlobContainer getBlobContainer(String dataNodeName, String repository) {
         final var blobStoreRepository = (BlobStoreRepository) internalCluster().getInstance(RepositoriesService.class, dataNodeName)
             .repository(repository);
@@ -65,7 +80,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     }
 
     public void testRetriesAreCountedInMetrics() throws IOException {
-        int numThrottles = randomIntBetween(1, 2);
+        int numThrottles = randomIntBetween(1, MAX_RETRIES);
         final String repository = createRepository(randomRepositoryName());
         final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
         BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
@@ -125,22 +140,38 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
 
         // Queue up a range-not-satisfied error
-        errorQueue.offer(new ErrorResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED));
+        errorQueue.offer(new ErrorResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, null, GET_BLOB_REQUEST_PREDICATE));
 
         // Hit the API
-        assertThrows(IOException.class, () -> blobContainer.blobExists(purpose, blobName));
+        assertThrows(RequestedRangeNotSatisfiedException.class, () -> blobContainer.readBlob(purpose, blobName));
 
         assertCounterMetricRecorded(
             dataNodeName,
             RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL,
             purpose,
-            AzureBlobStore.Operation.GET_BLOB_PROPERTIES,
+            AzureBlobStore.Operation.GET_BLOB,
+            1
+        );
+
+        // Also tracked as an error
+        assertCounterMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB,
+            1
+        );
+        assertHistogramMetricRecorded(
+            dataNodeName,
+            RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM,
+            purpose,
+            AzureBlobStore.Operation.GET_BLOB,
             1
         );
     }
 
     public void testErrorResponsesAreCountedInMetrics() throws IOException {
-        final int numErrors = randomIntBetween(1, 3);
+        final int numErrors = randomIntBetween(1, MAX_RETRIES);
         final String repository = createRepository(randomRepositoryName());
         final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
         final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
@@ -247,10 +278,11 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            if (errorResponseQueue.isEmpty()) {
-                delegate.handle(exchange);
-            } else {
+            ErrorResponse nextError = errorResponseQueue.peek();
+            if (nextError != null && nextError.matchesRequest(exchange)) {
                 errorResponseQueue.poll().writeResponse(exchange);
+            } else {
+                delegate.handle(exchange);
             }
         }
 
@@ -264,14 +296,29 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
 
         private final RestStatus status;
         private final String responseBody;
+        private final Predicate<HttpExchange> forRequest;
 
         ErrorResponse(RestStatus status) {
             this(status, null);
         }
 
         ErrorResponse(RestStatus status, String responseBody) {
+            this(status, responseBody, req -> true);
+        }
+
+        /**
+         * Create an error response that only gets returned for requests that match the supplied predicate. Note
+         * that because the errors are stored in a queue this will prevent any subsequently queued errors from
+         * being returned until it returns.
+         */
+        ErrorResponse(RestStatus status, String responseBody, Predicate<HttpExchange> matchingRequest) {
             this.status = status;
             this.responseBody = responseBody;
+            this.forRequest = matchingRequest;
+        }
+
+        public boolean matchesRequest(HttpExchange exchange) {
+            return forRequest.test(exchange);
         }
 
         @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")

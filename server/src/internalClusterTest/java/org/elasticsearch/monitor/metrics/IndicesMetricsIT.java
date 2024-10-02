@@ -9,9 +9,12 @@
 
 package org.elasticsearch.monitor.metrics;
 
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
@@ -54,16 +57,28 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     }
 
     static final String STANDARD_INDEX_COUNT = "es.indices.standard.total";
+    static final String STANDARD_BYTES_SIZE = "es.indices.standard.size";
     static final String STANDARD_DOCS_COUNT = "es.indices.standard.docs.total";
-    static final String STANDARD_BYTES_SIZE = "es.indices.standard.bytes.total";
+    static final String STANDARD_QUERY_COUNT = "es.indices.standard.query.total";
+    static final String STANDARD_QUERY_TIME = "es.indices.standard.query.time";
+    static final String STANDARD_FETCH_COUNT = "es.indices.standard.fetch.total";
+    static final String STANDARD_FETCH_TIME = "es.indices.standard.fetch.time";
 
     static final String TIME_SERIES_INDEX_COUNT = "es.indices.time_series.total";
+    static final String TIME_SERIES_BYTES_SIZE = "es.indices.time_series.size";
     static final String TIME_SERIES_DOCS_COUNT = "es.indices.time_series.docs.total";
-    static final String TIME_SERIES_BYTES_SIZE = "es.indices.time_series.bytes.total";
+    static final String TIME_SERIES_QUERY_COUNT = "es.indices.time_series.query.total";
+    static final String TIME_SERIES_QUERY_TIME = "es.indices.time_series.query.time";
+    static final String TIME_SERIES_FETCH_COUNT = "es.indices.time_series.fetch.total";
+    static final String TIME_SERIES_FETCH_TIME = "es.indices.time_series.fetch.time";
 
     static final String LOGSDB_INDEX_COUNT = "es.indices.logsdb.total";
+    static final String LOGSDB_BYTES_SIZE = "es.indices.logsdb.size";
     static final String LOGSDB_DOCS_COUNT = "es.indices.logsdb.docs.total";
-    static final String LOGSDB_BYTES_SIZE = "es.indices.logsdb.bytes.total";
+    static final String LOGSDB_QUERY_COUNT = "es.indices.logsdb.query.total";
+    static final String LOGSDB_QUERY_TIME = "es.indices.logsdb.query.time";
+    static final String LOGSDB_FETCH_COUNT = "es.indices.logsdb.fetch.total";
+    static final String LOGSDB_FETCH_TIME = "es.indices.logsdb.fetch.time";
 
     public void testIndicesMetrics() {
         String node = internalCluster().startNode();
@@ -72,11 +87,13 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
+        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
         telemetry.resetMeter();
         long numStandardIndices = randomIntBetween(1, 5);
         long numStandardDocs = populateStandardIndices(numStandardIndices);
         collectThenAssertMetrics(
             telemetry,
+            MetricType.GAUGE,
             1,
             Map.of(
                 STANDARD_INDEX_COUNT,
@@ -106,6 +123,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         long numTimeSeriesDocs = populateTimeSeriesIndices(numTimeSeriesIndices);
         collectThenAssertMetrics(
             telemetry,
+            MetricType.GAUGE,
             2,
             Map.of(
                 STANDARD_INDEX_COUNT,
@@ -135,6 +153,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         long numLogsdbDocs = populateLogsdbIndices(numLogsdbIndices);
         collectThenAssertMetrics(
             telemetry,
+            MetricType.GAUGE,
             3,
             Map.of(
                 STANDARD_INDEX_COUNT,
@@ -159,13 +178,105 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 greaterThan(0L)
             )
         );
+        telemetry.resetMeter();
+
+        // search and fetch
+        client().prepareSearch("standard*").setSize(100).get().decRef();
+        var nodeStats1 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        collectThenAssertMetrics(
+            telemetry,
+            MetricType.COUNTER,
+            1,
+            Map.of(
+                STANDARD_QUERY_COUNT,
+                equalTo(numStandardIndices),
+                STANDARD_QUERY_TIME,
+                equalTo(nodeStats1.getQueryTimeInMillis()),
+                STANDARD_FETCH_COUNT,
+                equalTo(nodeStats1.getFetchCount()),
+                STANDARD_FETCH_TIME,
+                equalTo(nodeStats1.getFetchTimeInMillis()),
+
+                TIME_SERIES_QUERY_COUNT,
+                equalTo(0L),
+                TIME_SERIES_QUERY_TIME,
+                equalTo(0L),
+
+                LOGSDB_QUERY_COUNT,
+                equalTo(0L),
+                LOGSDB_QUERY_TIME,
+                equalTo(0L)
+            )
+        );
+
+        client().prepareSearch("time*").setSize(100).get().decRef();
+        var nodeStats2 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        collectThenAssertMetrics(
+            telemetry,
+            MetricType.COUNTER,
+            2,
+            Map.of(
+                STANDARD_QUERY_COUNT,
+                equalTo(numStandardIndices),
+                STANDARD_QUERY_TIME,
+                equalTo(nodeStats1.getQueryTimeInMillis()),
+
+                TIME_SERIES_QUERY_COUNT,
+                equalTo(numTimeSeriesIndices),
+                TIME_SERIES_QUERY_TIME,
+                equalTo(nodeStats2.getQueryTimeInMillis() - nodeStats1.getQueryTimeInMillis()),
+                TIME_SERIES_FETCH_COUNT,
+                equalTo(nodeStats2.getFetchCount() - nodeStats1.getFetchCount()),
+                TIME_SERIES_FETCH_TIME,
+                equalTo(nodeStats2.getFetchTimeInMillis() - nodeStats1.getFetchTimeInMillis()),
+
+                LOGSDB_QUERY_COUNT,
+                equalTo(0L),
+                LOGSDB_QUERY_TIME,
+                equalTo(0L)
+            )
+        );
+        client().prepareSearch("logs*").setSize(100).get().decRef();
+        var nodeStats3 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        collectThenAssertMetrics(
+            telemetry,
+            MetricType.COUNTER,
+            3,
+            Map.of(
+                STANDARD_QUERY_COUNT,
+                equalTo(numStandardIndices),
+                STANDARD_QUERY_TIME,
+                equalTo(nodeStats1.getQueryTimeInMillis()),
+
+                TIME_SERIES_QUERY_COUNT,
+                equalTo(numTimeSeriesIndices),
+                TIME_SERIES_QUERY_TIME,
+                equalTo(nodeStats2.getQueryTimeInMillis() - nodeStats1.getQueryTimeInMillis()),
+
+                LOGSDB_QUERY_COUNT,
+                equalTo(numLogsdbIndices),
+                LOGSDB_QUERY_TIME,
+                equalTo(nodeStats3.getQueryTimeInMillis() - nodeStats2.getQueryTimeInMillis()),
+                LOGSDB_FETCH_COUNT,
+                equalTo(nodeStats3.getFetchCount() - nodeStats2.getFetchCount()),
+                LOGSDB_FETCH_TIME,
+                equalTo(nodeStats3.getFetchTimeInMillis() - nodeStats2.getFetchTimeInMillis())
+            )
+        );
     }
 
-    void collectThenAssertMetrics(TestTelemetryPlugin telemetry, int times, Map<String, Matcher<Long>> matchers) {
+    enum MetricType {
+        COUNTER,
+        GAUGE
+    }
+
+    void collectThenAssertMetrics(TestTelemetryPlugin telemetry, MetricType metricType, int times, Map<String, Matcher<Long>> matchers) {
         telemetry.collect();
         for (Map.Entry<String, Matcher<Long>> e : matchers.entrySet()) {
             String name = e.getKey();
-            List<Measurement> measurements = telemetry.getLongGaugeMeasurement(name);
+            List<Measurement> measurements = metricType == MetricType.COUNTER
+                ? telemetry.getLongAsyncCounterMeasurement(name)
+                : telemetry.getLongGaugeMeasurement(name);
             assertThat(name, measurements, hasSize(times));
             assertThat(name, measurements.getLast().getLong(), e.getValue());
         }
@@ -175,7 +286,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         int totalDocs = 0;
         for (int i = 0; i < numIndices; i++) {
             String indexName = "standard-" + i;
-            createIndex(indexName);
+            createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
             int numDocs = between(1, 5);
             for (int d = 0; d < numDocs; d++) {
                 indexDoc(indexName, Integer.toString(d), "f", Integer.toString(d));
@@ -190,7 +301,11 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         int totalDocs = 0;
         for (int i = 0; i < numIndices; i++) {
             String indexName = "time_series-" + i;
-            Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
+            Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put("mode", "time_series")
+                .putList("routing_path", List.of("host"))
+                .build();
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
@@ -222,7 +337,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         int totalDocs = 0;
         for (int i = 0; i < numIndices; i++) {
             String indexName = "logsdb-" + i;
-            Settings settings = Settings.builder().put("mode", "logsdb").build();
+            Settings settings = Settings.builder().put("mode", "logsdb").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
             client().admin()
                 .indices()
                 .prepareCreate(indexName)

@@ -40,6 +40,7 @@ final class ESPolicy extends Policy {
     static final String UNTRUSTED_RESOURCE = "untrusted.policy";
 
     private static final String ALL_FILE_MASK = "read,readlink,write,delete,execute";
+    private static final AllPermission ALL_PERMISSION = new AllPermission();
 
     final Policy template;
     final Policy untrusted;
@@ -159,13 +160,14 @@ final class ESPolicy extends Policy {
 
     @SuppressForbidden(reason = "We get given an URL by the security infrastructure")
     private boolean canAccessSecuredFile(ProtectionDomain domain, FilePermission permission) {
-        if (domain == null) {
+        if (domain == null || domain.getCodeSource() == null || domain.getCodeSource().getLocation() == null) {
             return false;
         }
 
         // If the domain in question has AllPermission - only true of sources built into the JDK, as we prevent AllPermission from being
         // configured in Elasticsearch - then it has access to this file.
-        if (system.implies(domain, new AllPermission())) {
+
+        if (system.implies(domain, ALL_PERMISSION)) {
             return true;
         }
         URL location = domain.getCodeSource().getLocation();

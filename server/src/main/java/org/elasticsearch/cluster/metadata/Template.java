@@ -216,7 +216,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
                 out.writeOptionalWriteable(lifecycle);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
             out.writeOptionalWriteable(dataStreamOptions);
         }
     }

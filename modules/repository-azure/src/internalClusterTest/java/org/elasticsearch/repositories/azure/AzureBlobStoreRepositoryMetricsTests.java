@@ -11,7 +11,6 @@ package org.elasticsearch.repositories.azure;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -52,7 +51,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         Map<String, HttpHandler> httpHandlers = super.createHttpHandlers();
-        assert httpHandlers.size() == 1 : "This only works if there's a single handler";
+        assert httpHandlers.size() == 1 : "This assumes there's a single handler";
         return httpHandlers.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new ErrorInjectingAzureHttpHandler(errorQueue, e.getValue())));
@@ -153,7 +152,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             1
         );
 
-        // Also tracked as an error
+        // Also tracked as exceptions
         assertCounterMetricRecorded(
             dataNodeName,
             RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL,

@@ -134,23 +134,23 @@ public class AzureBlobStore implements BlobStore {
         List<RequestStatsCollector> requestStatsCollectors = List.of(
             RequestStatsCollector.create(
                 (httpMethod, url) -> httpMethod == HttpMethod.HEAD,
-                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB_PROPERTIES, purpose, metrics)
+                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.GET_BLOB_PROPERTIES, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 (httpMethod, url) -> httpMethod == HttpMethod.GET && isListRequest(httpMethod, url) == false,
-                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB, purpose, metrics)
+                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.GET_BLOB, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 AzureBlobStore::isListRequest,
-                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.LIST_BLOBS, purpose, metrics)
+                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.LIST_BLOBS, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 AzureBlobStore::isPutBlockRequest,
-                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK, purpose, metrics)
+                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.PUT_BLOCK, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 AzureBlobStore::isPutBlockListRequest,
-                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK_LIST, purpose, metrics)
+                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.PUT_BLOCK_LIST, purpose, metrics)
             ),
             RequestStatsCollector.create(
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
@@ -159,7 +159,7 @@ public class AzureBlobStore implements BlobStore {
                 (httpMethod, url) -> httpMethod == HttpMethod.PUT
                     && isPutBlockRequest(httpMethod, url) == false
                     && isPutBlockListRequest(httpMethod, url) == false,
-                (purpose, metrics) -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOB, purpose, metrics)
+                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.PUT_BLOB, purpose, metrics)
             )
         );
 
@@ -740,7 +740,7 @@ public class AzureBlobStore implements BlobStore {
             }
         }
 
-        public void onSuccessfulRequest(Operation operation, OperationPurpose purpose, AzureClientProvider.RequestMetrics requestMetrics) {
+        public void onRequestComplete(Operation operation, OperationPurpose purpose, AzureClientProvider.RequestMetrics requestMetrics) {
             collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new OperationMetrics(operation, purpose))
                 .onOccurrence(requestMetrics);
         }
@@ -760,12 +760,17 @@ public class AzureBlobStore implements BlobStore {
         public void onOccurrence(AzureClientProvider.RequestMetrics requestMetrics) {
             counter.add(requestMetrics.getRequestCount());
 
-            repositoriesMetrics.requestCounter().incrementBy(requestMetrics.getRequestCount(), attributes);
+            // range not satisfied is not retried, so we count them by checking the final response
+            if (requestMetrics.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                repositoriesMetrics.requestRangeNotSatisfiedExceptionCounter().incrementBy(1, attributes);
+            }
+
             repositoriesMetrics.operationCounter().incrementBy(1, attributes);
             if (requestMetrics.getStatusCode() <= 199 || requestMetrics.getStatusCode() > 299) {
                 repositoriesMetrics.unsuccessfulOperationCounter().incrementBy(1, attributes);
             }
 
+            repositoriesMetrics.requestCounter().incrementBy(requestMetrics.getRequestCount(), attributes);
             if (requestMetrics.getErrorCount() > 0) {
                 repositoriesMetrics.exceptionCounter().incrementBy(requestMetrics.getErrorCount(), attributes);
                 repositoriesMetrics.exceptionHistogram().record(requestMetrics.getErrorCount(), attributes);
@@ -776,12 +781,7 @@ public class AzureBlobStore implements BlobStore {
                 repositoriesMetrics.throttleHistogram().record(requestMetrics.getThrottleCount(), attributes);
             }
 
-            // range not satisfied is not retried, so we count them by checking the final response
-            if (requestMetrics.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
-                repositoriesMetrics.requestRangeNotSatisfiedExceptionCounter().incrementBy(1, attributes);
-            }
-
-            // There will be no time to response recorded for requests that end in an error
+            // There will be no time to response recorded for requests with no response (e.g. cancelled etc.)
             if (requestMetrics.getTimeToResponseInMillis() > 0) {
                 repositoriesMetrics.httpRequestTimeInMillisHistogram().record(requestMetrics.getTimeToResponseInMillis(), attributes);
             }

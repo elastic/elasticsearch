@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
-import org.elasticsearch.test.rest.TestResponseParsers;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;

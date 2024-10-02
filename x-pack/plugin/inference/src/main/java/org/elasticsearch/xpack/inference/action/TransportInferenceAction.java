@@ -80,15 +80,6 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 );
                 return;
             }
-            if (service.get().name().equals(OLD_ELSER_SERVICE_NAME)) {
-                DEPRECATION_LOGGER.warn(
-                    DeprecationCategory.API,
-                    "inference_api_elser_service",
-                    "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead.",
-                    OLD_ELSER_SERVICE_NAME,
-                    ElasticsearchInternalService.NAME
-                );
-            }
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // not the wildcard task type and not the model task type

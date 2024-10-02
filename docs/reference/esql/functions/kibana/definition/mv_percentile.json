@@ -170,5 +170,6 @@
   "examples" : [
     "ROW values = [5, 5, 10, 12, 5000]\n| EVAL p50 = MV_PERCENTILE(values, 50), median = MV_MEDIAN(values)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

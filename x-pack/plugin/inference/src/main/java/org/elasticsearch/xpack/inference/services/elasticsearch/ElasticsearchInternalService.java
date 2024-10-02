@@ -52,6 +52,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
@@ -81,6 +82,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         super(context);
     }
 
+    // for testing
+    ElasticsearchInternalService(
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        Consumer<ActionListener<Set<String>>> platformArch
+    ) {
+        super(context, platformArch);
+    }
+
     @Override
     protected EnumSet<TaskType> supportedTaskTypes() {
         return EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING);
@@ -91,7 +100,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> modelListener
     ) {
         try {
@@ -112,14 +120,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                         "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is"
                             + " deprecated and will be removed in a future release. Please specify a model_id field."
                     );
-                    elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
-                } else {
-                    throw new ValidationException().addValidationError("Error parsing request config, model id is missing");
-                }
-            } else if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
-                e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
-            } else if (VALID_ELSER_MODEL_IDS.contains(modelId)) {
-                elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
+                    elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);            }
+            if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
+                platformArch.accept(
+                    modelListener.delegateFailureAndWrap(
+                        (delegate, arch) -> e5Case(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                    )
+                );
             } else {
                 customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, modelListener);
             }
@@ -218,7 +225,15 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     ) {
         var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
 
-        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, esServiceSettingsBuilder.getModelId())) {
+        if (esServiceSettingsBuilder.getModelId() == null) {
+            esServiceSettingsBuilder.setModelId(
+                selectDefaultModelVariantBasedOnClusterArchitecture(
+                    platformArchitectures,
+                    MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
+                    MULTILINGUAL_E5_SMALL_MODEL_ID
+                )
+            );
+        } else if (modelVariantValidForArchitecture(platformArchitectures, esServiceSettingsBuilder.getModelId()) == false) {
             throw new IllegalArgumentException(
                 "Error parsing request config, model id does not match any models available on this platform. Was ["
                     + esServiceSettingsBuilder.getModelId()
@@ -238,6 +253,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             )
         );
     }
+
+    static boolean modelVariantValidForArchitecture(Set<String> platformArchitectures, String modelId) {
+        if (modelId.equals(MULTILINGUAL_E5_SMALL_MODEL_ID)) {
+            // platform agnostic model is always compatible
+            return true;
+        }
 
     private void elserCase(
         String inferenceEntityId,
@@ -306,7 +327,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
                 MULTILINGUAL_E5_SMALL_MODEL_ID
             )
-        ) && modelId.equals(MULTILINGUAL_E5_SMALL_MODEL_ID) == false;
+        );
     }
 
     @Override

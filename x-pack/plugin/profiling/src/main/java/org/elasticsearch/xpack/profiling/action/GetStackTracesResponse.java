@@ -30,10 +30,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     private final Map<String, StackFrame> stackFrames;
     @Nullable
     private final Map<String, String> executables;
-    @UpdateForV9 // remove this field - it is unused in Kibana
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     @Nullable
     private final Map<String, TraceEvent> stackTraceEvents;
-    @UpdateForV9 // remove this field - it is unused in Kibana
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final int totalFrames;
     private final double samplingRate;
     private final long totalSamples;

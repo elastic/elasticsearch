@@ -59,7 +59,6 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
         roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
-            // TODO make sure we handle cluster-state blocks appropriately since `getMappings(...)` access cluster-state under the hood
             // TODO add metadata marking these as originating from cluster-state/file-settings
             final List<ExpressionRoleMapping> clusterStateRoleMappings = toOrderedList(clusterStateRoleMapper.getMappings(names));
             if (clusterStateRoleMappings.isEmpty()) {

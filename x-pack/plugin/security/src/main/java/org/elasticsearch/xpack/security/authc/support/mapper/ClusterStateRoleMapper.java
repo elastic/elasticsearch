@@ -84,13 +84,7 @@ public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache im
     }
 
     public boolean hasMapping(String name) {
-        final Set<ExpressionRoleMapping> mappings = getMappings();
-        for (var mapping : mappings) {
-            if (mapping.getName().equals(name)) {
-                return true;
-            }
-        }
-        return false;
+        return getMappings().stream().map(ExpressionRoleMapping::getName).anyMatch(name::equals);
     }
 
     public Set<ExpressionRoleMapping> getMappings(@Nullable Set<String> names) {

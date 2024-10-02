@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.datastreams.options;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +28,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Sets the data stream options that was provided in the request to the requested data streams.
@@ -91,6 +94,15 @@ public class PutDataStreamOptionsAction {
             super(masterNodeTimeout, ackTimeout);
             this.names = names;
             this.options = new DataStreamOptions(failureStore);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException validationException = null;
+            if (options.failureStore() == null) {
+                validationException = addValidationError("At least one option needs to be provided", validationException);
+            }
+            return validationException;
         }
 
         public String[] getNames() {

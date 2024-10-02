@@ -67,9 +67,7 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
     @SuppressWarnings("unchecked")
     public void testEnableDisableFailureStore() throws IOException {
         {
-            Request disableRequest = new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME + "/_options");
-            disableRequest.setJsonEntity("{}");
-            assertAcknowledged(client().performRequest(disableRequest));
+            assertAcknowledged(client().performRequest(new Request("DELETE", "/_data_stream/" + DATA_STREAM_NAME + "/_options")));
             final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
             List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
             assertThat(dataStreams.size(), is(1));

@@ -59,8 +59,11 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycl
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.TransportDeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportGetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportPutDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.rest.RestDeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.rest.RestGetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.rest.RestPutDataStreamOptionsAction;
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
@@ -239,6 +242,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             actions.add(new ActionHandler<>(GetDataStreamOptionsAction.INSTANCE, TransportGetDataStreamOptionsAction.class));
             actions.add(new ActionHandler<>(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
+            actions.add(new ActionHandler<>(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
         }
         return actions;
     }
@@ -275,6 +279,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             handlers.add(new RestGetDataStreamOptionsAction());
             handlers.add(new RestPutDataStreamOptionsAction());
+            handlers.add(new RestDeleteDataStreamOptionsAction());
         }
         return handlers;
     }

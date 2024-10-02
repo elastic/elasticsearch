@@ -147,6 +147,22 @@ public class MetadataDataStreamsService {
     }
 
     /**
+     * Submits the task to remove the lifecycle from the requested data streams.
+     */
+    public void removeLifecycle(
+        List<String> dataStreamNames,
+        TimeValue ackTimeout,
+        TimeValue masterTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        updateLifecycleTaskQueue.submitTask(
+            "delete-lifecycle",
+            new UpdateLifecycleTask(dataStreamNames, null, ackTimeout, listener),
+            masterTimeout
+        );
+    }
+
+    /**
      * Submits the task to set the provided data stream options to the requested data streams.
      */
     public void setDataStreamOptions(
@@ -164,17 +180,17 @@ public class MetadataDataStreamsService {
     }
 
     /**
-     * Submits the task to remove the lifecycle from the requested data streams.
+     * Submits the task to remove the data stream options from the requested data streams.
      */
-    public void removeLifecycle(
+    public void removeDataStreamOptions(
         List<String> dataStreamNames,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        updateLifecycleTaskQueue.submitTask(
-            "delete-lifecycle",
-            new UpdateLifecycleTask(dataStreamNames, null, ackTimeout, listener),
+        updateOptionsTaskQueue.submitTask(
+            "delete-data-stream-options",
+            new UpdateOptionsTask(dataStreamNames, null, ackTimeout, listener),
             masterTimeout
         );
     }

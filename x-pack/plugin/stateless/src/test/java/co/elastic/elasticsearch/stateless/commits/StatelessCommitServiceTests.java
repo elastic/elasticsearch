@@ -1277,7 +1277,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
-            assert recoveryCommit.getGeneration() == indexingShardState.latestCommit().last().generation();
+            assert recoveryCommit.getGeneration() == indexingShardState.latestCommit().lastCompoundCommit().generation();
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
             commitService.getIndexEngineLocalReaderListenerForShard(shardId)
                 .onLocalReaderClosed(recoveryCommit.getGeneration(), Set.of(getPrimaryTermAndGenerationForCommit(mergedCommit)));
@@ -1408,7 +1408,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             StatelessCommitRef recoveryCommit = mergedCommit;
-            assert recoveryCommit.getGeneration() == indexingShardState.latestCommit().last().generation();
+            assert recoveryCommit.getGeneration() == indexingShardState.latestCommit().lastCompoundCommit().generation();
 
             // The search node is still using commit 9, that contains references to all previous commits;
             // therefore we should retain all commits.
@@ -1797,7 +1797,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
                         commitService.registerCommitForUnpromotableRecovery(
                             latestUploadedBcc != null ? latestUploadedBcc.primaryTermAndGeneration() : ZERO,
-                            latestUploadedBcc != null ? latestUploadedBcc.last().primaryTermAndGeneration() : ZERO,
+                            latestUploadedBcc != null ? latestUploadedBcc.lastCompoundCommit().primaryTermAndGeneration() : ZERO,
                             shardId,
                             searchState.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId(),
                             clusterState,

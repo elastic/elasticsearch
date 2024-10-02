@@ -66,20 +66,16 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     }
 
     public ShardId shardId() {
-        return compoundCommits.get(0).shardId();
+        return compoundCommits.getFirst().shardId();
     }
 
     public int size() {
         return compoundCommits.size();
     }
 
-    public StatelessCompoundCommit last() {
-        return compoundCommits.get(compoundCommits.size() - 1);
-    }
-
     @Override
     public StatelessCompoundCommit lastCompoundCommit() {
-        return last();
+        return compoundCommits.getLast();
     }
 
     public Set<String> getAllInternalFiles() {

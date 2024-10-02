@@ -244,7 +244,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             if (commit != null) {
                 dir.updateLatestUploadedBcc(commit.primaryTermAndGeneration());
                 dir.updateLatestCommitInfo(commit.primaryTermAndGeneration(), testHarness.clusterService.localNode().getId());
-                dir.updateCommit(commit.last());
+                dir.updateCommit(commit.lastCompoundCommit());
             }
 
             if (commitCount > 0) {

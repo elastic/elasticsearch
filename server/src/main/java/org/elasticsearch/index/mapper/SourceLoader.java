@@ -215,7 +215,8 @@ public interface SourceLoader {
                                 objectsWithIgnoredFields = new HashMap<>();
                             }
                             IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
-                            if (filter != null && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
+                            if (filter != null
+                                && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
                                 continue;
                             }
                             objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);

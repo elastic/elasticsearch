@@ -109,18 +109,18 @@ public class IndexingPressure {
     private final long lowWatermarkSize;
     private final long highWatermark;
     private final long highWatermarkSize;
-    private final long coordinatingLimits;
-    private final long primaryLimits;
-    private final long replicaLimits;
+    private final long coordinatingLimit;
+    private final long primaryLimit;
+    private final long replicaLimit;
 
     public IndexingPressure(Settings settings) {
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
         this.lowWatermarkSize = SPLIT_BULK_LOW_WATERMARK_SIZE.get(settings).getBytes();
         this.highWatermark = SPLIT_BULK_HIGH_WATERMARK.get(settings).getBytes();
         this.highWatermarkSize = SPLIT_BULK_HIGH_WATERMARK_SIZE.get(settings).getBytes();
-        this.coordinatingLimits = MAX_COORDINATING_BYTES.get(settings).getBytes();
-        this.primaryLimits = MAX_PRIMARY_BYTES.get(settings).getBytes();
-        this.replicaLimits = MAX_REPLICA_BYTES.get(settings).getBytes();
+        this.coordinatingLimit = MAX_COORDINATING_BYTES.get(settings).getBytes();
+        this.primaryLimit = MAX_PRIMARY_BYTES.get(settings).getBytes();
+        this.replicaLimit = MAX_REPLICA_BYTES.get(settings).getBytes();
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {
@@ -139,7 +139,7 @@ public class IndexingPressure {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
-        if (forceExecution == false && totalBytes > coordinatingLimits) {
+        if (forceExecution == false && totalBytes > coordinatingLimit) {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -159,7 +159,7 @@ public class IndexingPressure {
                     + bytes
                     + ", "
                     + "max_coordinating_bytes="
-                    + coordinatingLimits
+                    + coordinatingLimit
                     + "]",
                 false
             );
@@ -194,7 +194,7 @@ public class IndexingPressure {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
-        if (forceExecution == false && totalBytes > primaryLimits) {
+        if (forceExecution == false && totalBytes > primaryLimit) {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -215,7 +215,7 @@ public class IndexingPressure {
                     + bytes
                     + ", "
                     + "max_primary_bytes="
-                    + primaryLimits
+                    + primaryLimit
                     + "]",
                 false
             );
@@ -236,7 +236,7 @@ public class IndexingPressure {
 
     public Releasable markReplicaOperationStarted(int operations, long bytes, boolean forceExecution) {
         long replicaWriteBytes = this.currentReplicaBytes.addAndGet(bytes);
-        if (forceExecution == false && replicaWriteBytes > replicaLimits) {
+        if (forceExecution == false && replicaWriteBytes > replicaLimit) {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
             this.currentReplicaBytes.getAndAdd(-bytes);
             this.replicaRejections.getAndIncrement();
@@ -249,7 +249,7 @@ public class IndexingPressure {
                     + bytes
                     + ", "
                     + "max_replica_bytes="
-                    + replicaLimits
+                    + replicaLimit
                     + "]",
                 false
             );
@@ -282,7 +282,7 @@ public class IndexingPressure {
             coordinatingRejections.get(),
             primaryRejections.get(),
             replicaRejections.get(),
-            coordinatingLimits,
+            coordinatingLimit,
             totalCoordinatingOps.get(),
             totalPrimaryOps.get(),
             totalReplicaOps.get(),

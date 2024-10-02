@@ -150,7 +150,7 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        @UpdateForV9 // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
         IndexSettingDeprecatedInV7AndRemovedInV8,
 
         /**
@@ -639,7 +639,7 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            @UpdateForV9 // https://github.com/elastic/elasticsearch/issues/79666
+            @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/79666
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);

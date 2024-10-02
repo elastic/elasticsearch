@@ -59,7 +59,7 @@ public class DateFormatters {
      * Note that this property is sometimes set by {@code ESTestCase.setTestSysProps} to flip between implementations in tests,
      * to ensure both are fully tested
      */
-    @UpdateForV9    // evaluate if we need to deprecate/remove this
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // evaluate if we need to deprecate/remove this
     private static final boolean JAVA_TIME_PARSERS_ONLY = Booleans.parseBoolean(System.getProperty("es.datetime.java_time_parsers"), false);
 
     static {

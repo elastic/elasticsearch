@@ -28,7 +28,8 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-@UpdateForV9 // Remove the whole test suite (superseded by SystemIndexMappingUpdateServiceIT#testSystemIndexManagerUpgradesMappings)
+@UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+// Remove the whole test suite (superseded by SystemIndexMappingUpdateServiceIT#testSystemIndexManagerUpgradesMappings)
 public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
 
     public WatcherMappingUpdateIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

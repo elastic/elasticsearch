@@ -532,6 +532,16 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"bool_value":true,"int_value":[10,20,30]}""", syntheticSource);
     }
 
+    public void testIndexStoredArraySourceSingleElement() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("int_value").field("type", "integer").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> b.array("int_value", new int[] { 10 }));
+        assertEquals("{\"int_value\":10}", syntheticSource);
+        ParsedDocument doc = documentMapper.parse(source(syntheticSource));
+        assertNull(doc.rootDoc().getField("_ignored_source"));
+    }
+
     public void testFieldStoredArraySourceRootValueArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("int_value").field("type", "integer").field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "arrays").endObject();

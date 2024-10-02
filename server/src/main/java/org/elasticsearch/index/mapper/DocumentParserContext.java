@@ -295,6 +295,12 @@ public abstract class DocumentParserContext {
         }
     }
 
+    final void removeLastIgnoredField(String name) {
+        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
+            ignoredFieldValues.removeLast();
+        }
+    }
+
     /**
      * Return the collection of values for fields that have been ignored so far.
      */
@@ -320,10 +326,13 @@ public abstract class DocumentParserContext {
      * In both cases, a new parser sub-context gets created from the current {@link DocumentParserContext} and returned, indicating
      * that the source for the sub-context has been captured, to avoid double-storing parts of its contents to ignored source.
      */
-    public final DocumentParserContext addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource)
-        throws IOException {
+    public final DocumentParserContext addIgnoredFieldFromContext(
+        IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource,
+        boolean keepArraySource
+    ) throws IOException {
         if (canAddIgnoredField()) {
-            if (parentArrayField != null
+            if (keepArraySource
+                && parentArrayField != null
                 && parent != null
                 && parentArrayField.equals(parent.fullPath())
                 && parent instanceof NestedObjectMapper == false) {

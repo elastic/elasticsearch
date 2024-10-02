@@ -430,7 +430,8 @@ public final class DocumentParser {
                         context.parent().fullPath().lastIndexOf(context.parent().leafName()),
                         null,
                         context.doc()
-                    )
+                    ),
+                    false
                 );
                 token = context.parser().currentToken();
                 parser = context.parser();
@@ -570,7 +571,8 @@ public final class DocumentParser {
                         || getSourceKeepMode(context, fieldMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     context = context.addIgnoredFieldFromContext(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null),
+                        false
                     );
                     fieldMapper.parse(context);
                 } else {
@@ -671,7 +673,8 @@ public final class DocumentParser {
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
                 if (context.canAddIgnoredField()) {
                     context = context.addIgnoredFieldFromContext(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, context.path().pathAsText(currentFieldName), null)
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, context.path().pathAsText(currentFieldName), null),
+                        false
                     );
                 }
             } else {
@@ -799,6 +802,7 @@ public final class DocumentParser {
         String fullPath = context.path().pathAsText(arrayFieldName);
 
         // Check if we need to record the array source. This only applies to synthetic source.
+        boolean canRemoveSingleLeafElement = false;
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource()
@@ -811,12 +815,23 @@ public final class DocumentParser {
                 && getSourceKeepMode(context, fieldMapper.sourceKeepMode()) != Mapper.SourceKeepMode.NONE;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
+            boolean keepArraySource = (objectRequiresStoringSource
+                || (mapper instanceof FieldMapper fieldMapper
+                    && getSourceKeepMode(context, fieldMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS))
+                && copyToFieldHasValuesInDocument == false
+                && fieldWithFallbackSyntheticSource == false;
+            canRemoveSingleLeafElement = keepArraySource
+                && fieldWithFallbackSyntheticSource == false
+                && copyToFieldHasValuesInDocument == false;
             if (objectRequiresStoringSource
                 || fieldWithFallbackSyntheticSource
                 || dynamicRuntimeContext
                 || fieldWithStoredArraySource
                 || copyToFieldHasValuesInDocument) {
-                context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
+                context = context.addIgnoredFieldFromContext(
+                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null),
+                    keepArraySource
+                );
             } else if (mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
                     context.addIgnoredField(
@@ -833,10 +848,13 @@ public final class DocumentParser {
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
+        int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
+                elements = Integer.MAX_VALUE;
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
+                elements = Integer.MAX_VALUE;
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, lastFieldName);
@@ -844,8 +862,12 @@ public final class DocumentParser {
                 throwEOFOnParseArray(arrayFieldName, context);
             } else {
                 assert token.isValue();
+                elements++;
                 parseValue(context, lastFieldName);
             }
+        }
+        if (elements <= 1 && canRemoveSingleLeafElement) {
+            context.removeLastIgnoredField(fullPath);
         }
         postProcessDynamicArrayMapping(context, lastFieldName);
     }

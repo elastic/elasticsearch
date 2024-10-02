@@ -59,7 +59,7 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
             this.settings = in.readGenericMap();
         }
 
-        @UpdateForV9 // bwc no longer required
+        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // bwc no longer required
         private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
             super(masterNodeTimeout, ackTimeout);
             this.settings = in.readGenericMap();

@@ -57,5 +57,6 @@
     "ROW number = -1.0 \n| EVAL abs_number = ABS(number)",
     "FROM employees\n| KEEP first_name, last_name, height\n| EVAL abs_height = ABS(0.0 - height)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

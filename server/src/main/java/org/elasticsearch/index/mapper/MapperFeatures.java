@@ -49,4 +49,9 @@ public class MapperFeatures implements FeatureSpecification {
             FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT
         );
     }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX);
+    }
 }

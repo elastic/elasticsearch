@@ -4,13 +4,14 @@ name: updatecli-compose
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: "0 6 * * *"
 
 permissions:
   contents: read
 
 jobs:
   compose:
+    if: github.repository == 'elastic/elasticsearch'
     runs-on: ubuntu-latest
     permissions:
       contents: write

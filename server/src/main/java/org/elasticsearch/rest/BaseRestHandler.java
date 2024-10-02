@@ -154,7 +154,8 @@ public abstract class BaseRestHandler implements RestHandler {
     private boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
         if (supported != null) {
             final var supportedAndCommon = new TreeSet<>(supported);
-            supportedAndCommon.addAll(List.of("error_trace", "filter_path", "format", "pretty", "human"));
+            supportedAndCommon.add("error_trace");
+            supportedAndCommon.addAll(ALWAYS_SUPPORTED);
             supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
             final var consumed = new TreeSet<>(request.consumedParams());
             consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);

@@ -4174,6 +4174,95 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Plan:
      * <code>
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count],FINAL,[count{r}#17, seen{r}#18],null]
+     *   \_ExchangeExec[[count{r}#17, seen{r}#18],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[],[COUNT([2a][KEYWORD]) AS count]]
+     * \_Filter[distance{r}#4 lt 1000000[INTEGER] AND distance{r}#4 gt 10000[INTEGER]]
+     *   \_Eval[[
+     *       STDISTANCE(location{f}#13,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     *     ]]
+     *     \_EsRelation[airports][abbrev{f}#9, city{f}#15, city_location{f}#16, count..]]]
+     * </code>
+     * Optimized:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count],FINAL,[count{r}#17, seen{r}#18],8]
+     *   \_ExchangeExec[[count{r}#17, seen{r}#18],true]
+     *     \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count],INITIAL,[count{r}#31, seen{r}#32],8]
+     *       \_EvalExec[[
+     *           STDISTANCE(location{f}#13,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     *         ]]
+     *         \_FieldExtractExec[location{f}#13][]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{
+     *             "bool":{
+     *               "must":[
+     *                 {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                 {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *               ],"boost":1.0}}][_doc{f}#33], limit[], sort[] estimatedRowSize[33]
+     * </code>
+     */
+    public void testPushSpatialDistanceEvalWithSimpleStatsToSource() {
+        var query = """
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | WHERE distance < 1000000 AND distance > 10000
+            | STATS count=COUNT(*)
+            """;
+        var plan = this.physicalPlan(query, airports);
+        System.out.println(plan);
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var agg2 = as(fragment.fragment(), Aggregate.class);
+        var filter = as(agg2.child(), Filter.class);
+
+        // Validate the filter condition (two distance filters)
+        var and = as(filter.condition(), And.class);
+        for (Expression expression : and.arguments()) {
+            var comp = as(expression, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(and.left()) ? LessThan.class : GreaterThan.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            var distance = as(comp.left(), ReferenceAttribute.class);
+            assertThat(distance.name(), is("distance"));
+        }
+
+        // Validate the eval (calculating distance)
+        var eval = as(filter.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        as(eval.child(), EsRelation.class);
+
+        // Now optimize the plan
+        var optimized = optimizedPlan(plan);
+        System.out.println(optimized);
+        var topLimit = as(optimized, LimitExec.class);
+        var aggExec = as(topLimit.child(), AggregateExec.class);
+        var exchangeExec = as(aggExec.child(), ExchangeExec.class);
+        var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
+        // TODO: Remove the eval entirely, since the distance is no longer required after filter pushdown
+        // Right now we don't mark the distance field as doc-values, introducing a performance hit
+        // However, fixing this to doc-values is not as good as removing the EVAL entirely, which is a more sensible optimization
+        var evalExec = as(aggExec2.child(), EvalExec.class);
+        var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
+        assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(false));
+        var source = assertChildIsGeoPointExtract(evalExec, false);
+
+        // No sort is pushed down
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 1000000.0);
+    }
+
+    /**
+     * Plan:
+     * <code>
      * TopNExec[[Order[count{r}#10,DESC,FIRST], Order[country{f}#21,ASC,LAST]],1000[INTEGER],null]
      * \_AggregateExec[[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}#21],FINA
      * L,[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],null]
@@ -4270,6 +4359,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggExec = as(topLimit.child(), AggregateExec.class);
         var exchangeExec = as(aggExec.child(), ExchangeExec.class);
         var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
+        // TODO: Remove the eval entirely, since the distance is no longer required after filter pushdown
         var evalExec = as(aggExec2.child(), EvalExec.class);
         var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
         assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(true));

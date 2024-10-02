@@ -91,7 +91,7 @@ public class MemoryTrackingTDigestArraysTests extends ESTestCase {
             assertThat(target.size(), equalTo(targetArraySize));
             assertThat(source.size(), equalTo(sourceArraySize));
 
-            int value = randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE);
+            int value = randomInt();
             for (int i = 0; i < sourceArraySize; i++) {
                 source.set(i, value);
             }

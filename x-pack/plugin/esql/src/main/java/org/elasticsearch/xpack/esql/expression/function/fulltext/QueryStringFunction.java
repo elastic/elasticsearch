@@ -56,6 +56,11 @@ public class QueryStringFunction extends FullTextFunction {
     }
 
     @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
     public String functionName() {
         return "QSTR";
     }
@@ -73,11 +78,6 @@ public class QueryStringFunction extends FullTextFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, QueryStringFunction::new, query());
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
     }
 
 }

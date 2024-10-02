@@ -160,6 +160,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // TODO ES-9345 The test waits for warming to complete and then fails the object store accesses, but once ES-9345 is merged
+            // it will need to wait for the shard to be started for that.
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
         var indexNodeA = startIndexNode(cacheSettings);
 

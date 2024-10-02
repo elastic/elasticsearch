@@ -21,6 +21,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
@@ -54,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.hamcrest.Matchers.equalTo;
@@ -166,13 +168,16 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
             blobCacheIndexInputs.put(
                 new BlobCacheIndexInput(
                     fileName,
-                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, compoundFileName), allBytes.length),
                     randomIOContext(),
-                    new ObjectStoreCacheBlobReader(
-                        TestUtils.singleBlobContainer(fileName, allBytes),
-                        fileName,
-                        sharedBlobCacheService.getRangeSize(),
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                    new CacheFileReader(
+                        sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, compoundFileName), allBytes.length),
+                        new ObjectStoreCacheBlobReader(
+                            TestUtils.singleBlobContainer(fileName, allBytes),
+                            fileName,
+                            sharedBlobCacheService.getRangeSize(),
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        ),
+                        createBlobFileRanges(primaryTerm, primaryTerm, offset, checksumAndLength.length)
                     ),
                     null,
                     checksumAndLength.length,

@@ -19,8 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
 
 import org.apache.logging.log4j.LogManager;
@@ -52,18 +50,6 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
     private final long offset;
 
     public BlobCacheIndexInput(
-        String name,
-        StatelessSharedBlobCacheService.CacheFile cacheFile,
-        IOContext context,
-        CacheBlobReader cacheBlobReader,
-        Releasable releasable,
-        long length,
-        long offset
-    ) {
-        this(name, context, new CacheFileReader(cacheFile, cacheBlobReader), releasable, length, offset);
-    }
-
-    private BlobCacheIndexInput(
         String name,
         IOContext context,
         CacheFileReader cacheFileReader,

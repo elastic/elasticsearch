@@ -238,7 +238,7 @@ PUT idx_keep
 ----
 // TEST
 
-[source,console,id=synthetic-source-keep]
+[source,console,id=synthetic-source-keep-example]
 ----
 PUT idx_keep/_doc/1
 {

@@ -145,6 +145,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         final String blobName = "index-" + randomIdentifier();
         final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
+        clearMetrics(dataNodeName);
 
         // Queue some retryable error responses
         final int numErrors = randomIntBetween(1, MAX_RETRIES);
@@ -156,7 +157,6 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             }
             errorQueue.offer(new ErrorResponse(status));
         });
-        clearMetrics(dataNodeName);
 
         // Check that the blob exists
         blobContainer.blobExists(purpose, blobName);
@@ -167,6 +167,33 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             .withThrottles(throttles.get())
             .withExceptions(numErrors)
             .forResult(MetricsAsserter.Result.Success);
+    }
+
+    public void testRequestFailuresAreCountedInMetrics() {
+        final String repository = createRepository(randomRepositoryName());
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
+        clearMetrics(dataNodeName);
+
+        // Repeatedly cause a connection error to exhaust retries
+        IntStream.range(0, MAX_RETRIES + 1).forEach(i -> errorQueue.offer(new ErrorResponse(RestStatus.OK) {
+            @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
+            @Override
+            public void writeResponse(HttpExchange exchange) {
+                exchange.close();
+            }
+        }));
+
+        // Hit the API
+        OperationPurpose purpose = randomFrom(OperationPurpose.values());
+        assertThrows(IOException.class, () -> blobContainer.listBlobs(purpose));
+
+        // Correct metrics are recorded
+        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.LIST_BLOBS, repository).expectMetrics()
+            .withRequests(4)
+            .withThrottles(0)
+            .withExceptions(4)
+            .forResult(MetricsAsserter.Result.Exception);
     }
 
     private void clearMetrics(String discoveryNode) {
@@ -194,6 +221,24 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             Success,
             Failure,
             RangeNotSatisfied,
+            Exception
+        }
+
+        enum MetricType {
+            LongHistogram {
+                @Override
+                List<Measurement> getMeasurements(TestTelemetryPlugin testTelemetryPlugin, String name) {
+                    return testTelemetryPlugin.getLongHistogramMeasurement(name);
+                }
+            },
+            LongCounter {
+                @Override
+                List<Measurement> getMeasurements(TestTelemetryPlugin testTelemetryPlugin, String name) {
+                    return testTelemetryPlugin.getLongCounterMeasurement(name);
+                }
+            };
+
+            abstract List<Measurement> getMeasurements(TestTelemetryPlugin testTelemetryPlugin, String name);
         }
 
         private MetricsAsserter(String dataNodeName, OperationPurpose purpose, AzureBlobStore.Operation operation, String repository) {
@@ -233,68 +278,66 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         }
 
         private void assertMetricsRecorded(int expectedRequests, int expectedThrottles, int expectedExceptions, Result result) {
-            assertCounterMetricRecorded(RepositoriesMetrics.METRIC_OPERATIONS_TOTAL, 1);
-            assertCounterMetricRecorded(RepositoriesMetrics.METRIC_REQUESTS_TOTAL, expectedRequests);
+            assertIntMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_OPERATIONS_TOTAL, 1);
+            assertIntMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_REQUESTS_TOTAL, expectedRequests);
 
             if (expectedThrottles > 0) {
-                assertCounterMetricRecorded(RepositoriesMetrics.METRIC_THROTTLES_TOTAL, expectedThrottles);
-                assertHistogramMetricRecorded(RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM, expectedThrottles);
+                assertIntMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_THROTTLES_TOTAL, expectedThrottles);
+                assertIntMetricRecorded(MetricType.LongHistogram, RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM, expectedThrottles);
             } else {
-                assertNoCounterMetricRecorded(RepositoriesMetrics.METRIC_THROTTLES_TOTAL);
-                assertNoHistogramMetricsRecorded(RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM);
+                assertNoMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_THROTTLES_TOTAL);
+                assertNoMetricRecorded(MetricType.LongHistogram, RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM);
             }
 
             if (expectedExceptions > 0) {
-                assertCounterMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL, expectedExceptions);
-                assertHistogramMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM, expectedExceptions);
+                assertIntMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL, expectedExceptions);
+                assertIntMetricRecorded(MetricType.LongHistogram, RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM, expectedExceptions);
             } else {
-                assertNoCounterMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL);
-                assertNoHistogramMetricsRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM);
+                assertNoMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL);
+                assertNoMetricRecorded(MetricType.LongHistogram, RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM);
             }
 
-            if (result == Result.RangeNotSatisfied || result == Result.Failure) {
-                assertCounterMetricRecorded(RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, 1);
+            if (result == Result.RangeNotSatisfied || result == Result.Failure || result == Result.Exception) {
+                assertIntMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, 1);
             } else {
-                assertNoCounterMetricRecorded(RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL);
+                assertNoMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL);
             }
 
             if (result == Result.RangeNotSatisfied) {
-                assertCounterMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL, 1);
+                assertIntMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL, 1);
             } else {
-                assertNoCounterMetricRecorded(RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL);
+                assertNoMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL);
             }
 
-            assertTimeToResponseMetricRecorded();
+            if (result != Result.Exception) {
+                assertMatchingMetricRecorded(
+                    MetricType.LongHistogram,
+                    RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM,
+                    m -> assertThat("No request time metric found", m.getLong(), greaterThanOrEqualTo(0L))
+                );
+            } else {
+                assertNoMetricRecorded(MetricType.LongHistogram, RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM);
+            }
         }
 
-        void assertCounterMetricRecorded(String metricName, int expectedValue) {
-            assertIntValueMetricRecorded(getTelemetryPlugin(dataNodeName).getLongCounterMeasurement(metricName), expectedValue);
-        }
-
-        void assertNoCounterMetricRecorded(String metricName) {
-            assertThat(getTelemetryPlugin(dataNodeName).getLongCounterMeasurement(metricName), hasSize(0));
-        }
-
-        void assertHistogramMetricRecorded(String metricName, int expectedValue) {
-            assertIntValueMetricRecorded(getTelemetryPlugin(dataNodeName).getLongHistogramMeasurement(metricName), expectedValue);
-        }
-
-        void assertNoHistogramMetricsRecorded(String metricName) {
-            assertThat(getTelemetryPlugin(dataNodeName).getLongHistogramMeasurement(metricName), hasSize(0));
-        }
-
-        void assertTimeToResponseMetricRecorded() {
+        void assertIntMetricRecorded(MetricType metricType, String metricName, int expectedValue) {
             assertMatchingMetricRecorded(
-                getTelemetryPlugin(dataNodeName).getLongHistogramMeasurement(RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM),
-                m -> assertThat(m.getLong(), greaterThanOrEqualTo(0L))
+                metricType,
+                metricName,
+                measurement -> assertEquals("Unexpected value for " + metricType + " " + metricName, expectedValue, measurement.getLong())
             );
         }
 
-        private void assertIntValueMetricRecorded(List<Measurement> measurements, int expectedValue) {
-            assertMatchingMetricRecorded(measurements, m -> assertEquals(expectedValue, m.getLong()));
+        void assertNoMetricRecorded(MetricType metricType, String metricName) {
+            assertThat(
+                "Expected no values for " + metricType + " " + metricName,
+                metricType.getMeasurements(getTelemetryPlugin(dataNodeName), metricName),
+                hasSize(0)
+            );
         }
 
-        private void assertMatchingMetricRecorded(List<Measurement> measurements, Consumer<Measurement> assertion) {
+        void assertMatchingMetricRecorded(MetricType metricType, String metricName, Consumer<Measurement> assertion) {
+            List<Measurement> measurements = metricType.getMeasurements(getTelemetryPlugin(dataNodeName), metricName);
             Measurement measurement = measurements.stream()
                 .filter(
                     m -> m.attributes().get("operation").equals(operation.getKey())
@@ -305,7 +348,9 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
                 .findFirst()
                 .orElseThrow(
                     () -> new IllegalStateException(
-                        "No metric found with operation="
+                        "No metric found with name="
+                            + metricName
+                            + " and operation="
                             + operation.getKey()
                             + " and purpose="
                             + purpose.getKey()

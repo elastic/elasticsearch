@@ -35,7 +35,7 @@ import java.util.List;
  * @see BytesRefHash
  */
 public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
-    permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash, BytesRef3BlockHash, //
+    permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash, BytesRef2BlockHash, BytesRef3BlockHash, //
     NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash, TimeSeriesBlockHash {
 
     protected final BlockFactory blockFactory;
@@ -98,8 +98,19 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
         }
-        if (groups.size() == 3 && groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
-            return new BytesRef3BlockHash(blockFactory, groups.get(0).channel, groups.get(1).channel, groups.get(2).channel, emitBatchSize);
+        if (groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
+            switch (groups.size()) {
+                case 2:
+                    return new BytesRef2BlockHash(blockFactory, groups.get(0).channel, groups.get(1).channel, emitBatchSize);
+                case 3:
+                    return new BytesRef3BlockHash(
+                        blockFactory,
+                        groups.get(0).channel,
+                        groups.get(1).channel,
+                        groups.get(2).channel,
+                        emitBatchSize
+                    );
+            }
         }
         if (allowBrokenOptimizations && groups.size() == 2) {
             var g1 = groups.get(0);

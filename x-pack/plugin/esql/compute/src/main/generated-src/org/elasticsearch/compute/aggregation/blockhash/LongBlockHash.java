@@ -28,6 +28,7 @@ import java.util.BitSet;
 
 /**
  * Maps a {@link LongBlock} column to group ids.
+ * This class is generated. Do not edit it.
  */
 final class LongBlockHash extends BlockHash {
     private final int channel;

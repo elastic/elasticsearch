@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.Int3Hash;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -28,28 +28,24 @@ import java.util.Locale;
 /**
  * Maps three {@link BytesRefBlock}s to group ids.
  */
-final class BytesRef3BlockHash extends BlockHash {
+final class BytesRef2BlockHash extends BlockHash {
     private final int emitBatchSize;
     private final int channel1;
     private final int channel2;
-    private final int channel3;
     private final BytesRefBlockHash hash1;
     private final BytesRefBlockHash hash2;
-    private final BytesRefBlockHash hash3;
-    private final Int3Hash finalHash;
+    private final LongHash finalHash;
 
-    BytesRef3BlockHash(BlockFactory blockFactory, int channel1, int channel2, int channel3, int emitBatchSize) {
+    BytesRef2BlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
         super(blockFactory);
         this.emitBatchSize = emitBatchSize;
         this.channel1 = channel1;
         this.channel2 = channel2;
-        this.channel3 = channel3;
         boolean success = false;
         try {
             this.hash1 = new BytesRefBlockHash(channel1, blockFactory);
             this.hash2 = new BytesRefBlockHash(channel2, blockFactory);
-            this.hash3 = new BytesRefBlockHash(channel3, blockFactory);
-            this.finalHash = new Int3Hash(1, blockFactory.bigArrays());
+            this.finalHash = new LongHash(1, blockFactory.bigArrays());
             success = true;
         } finally {
             if (success == false) {
@@ -60,34 +56,32 @@ final class BytesRef3BlockHash extends BlockHash {
 
     @Override
     public void close() {
-        Releasables.close(hash1, hash2, hash3, finalHash);
+        Releasables.close(hash1, hash2, finalHash);
     }
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock b1 = page.getBlock(channel1);
         BytesRefBlock b2 = page.getBlock(channel2);
-        BytesRefBlock b3 = page.getBlock(channel3);
         BytesRefVector v1 = b1.asVector();
         BytesRefVector v2 = b2.asVector();
-        BytesRefVector v3 = b3.asVector();
-        if (v1 != null && v2 != null && v3 != null) {
-            addVectors(v1, v2, v3, addInput);
+        if (v1 != null && v2 != null) {
+            addVectors(v1, v2, addInput);
         } else {
-            try (IntBlock k1 = hash1.add(b1); IntBlock k2 = hash2.add(b2); IntBlock k3 = hash3.add(b3)) {
-                try (AddWork work = new AddWork(k1, k2, k3, addInput)) {
+            try (IntBlock k1 = hash1.add(b1); IntBlock k2 = hash2.add(b2)) {
+                try (AddWork work = new AddWork(k1, k2, addInput)) {
                     work.add();
                 }
             }
         }
     }
 
-    private void addVectors(BytesRefVector v1, BytesRefVector v2, BytesRefVector v3, GroupingAggregatorFunction.AddInput addInput) {
+    private void addVectors(BytesRefVector v1, BytesRefVector v2, GroupingAggregatorFunction.AddInput addInput) {
         final int positionCount = v1.getPositionCount();
         try (IntVector.FixedBuilder ordsBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
-            try (IntVector k1 = hash1.add(v1); IntVector k2 = hash2.add(v2); IntVector k3 = hash3.add(v3)) {
+            try (IntVector k1 = hash1.add(v1); IntVector k2 = hash2.add(v2)) {
                 for (int p = 0; p < positionCount; p++) {
-                    long ord = hashOrdToGroup(finalHash.add(k1.getInt(p), k2.getInt(p), k3.getInt(p)));
+                    long ord = ord(k1.getInt(p), k2.getInt(p));
                     ordsBuilder.appendInt(p, Math.toIntExact(ord));
                 }
             }
@@ -100,13 +94,11 @@ final class BytesRef3BlockHash extends BlockHash {
     private class AddWork extends AddPage {
         final IntBlock b1;
         final IntBlock b2;
-        final IntBlock b3;
 
-        AddWork(IntBlock b1, IntBlock b2, IntBlock b3, GroupingAggregatorFunction.AddInput addInput) {
+        AddWork(IntBlock b1, IntBlock b2, GroupingAggregatorFunction.AddInput addInput) {
             super(blockFactory, emitBatchSize, addInput);
             this.b1 = b1;
             this.b2 = b2;
-            this.b3 = b3;
         }
 
         void add() {
@@ -114,12 +106,10 @@ final class BytesRef3BlockHash extends BlockHash {
             for (int i = 0; i < positionCount; i++) {
                 int v1 = b1.getValueCount(i);
                 int v2 = b2.getValueCount(i);
-                int v3 = b3.getValueCount(i);
                 int first1 = b1.getFirstValueIndex(i);
                 int first2 = b2.getFirstValueIndex(i);
-                int first3 = b3.getFirstValueIndex(i);
-                if (v1 == 1 && v2 == 1 && v3 == 1) {
-                    long ord = hashOrdToGroup(finalHash.add(b1.getInt(first1), b2.getInt(first2), b3.getInt(first3)));
+                if (v1 == 1 && v2 == 1) {
+                    long ord = ord(b1.getInt(first1), b2.getInt(first2));
                     appendOrdSv(i, Math.toIntExact(ord));
                     continue;
                 }
@@ -127,17 +117,18 @@ final class BytesRef3BlockHash extends BlockHash {
                     int k1 = b1.getInt(first1 + i1);
                     for (int i2 = 0; i2 < v2; i2++) {
                         int k2 = b2.getInt(first2 + i2);
-                        for (int i3 = 0; i3 < v3; i3++) {
-                            int k3 = b3.getInt(first3 + i3);
-                            long ord = hashOrdToGroup(finalHash.add(k1, k2, k3));
-                            appendOrdInMv(i, Math.toIntExact(ord));
-                        }
+                        long ord = ord(k1, k2);
+                        appendOrdInMv(i, Math.toIntExact(ord));
                     }
                 }
                 finishMv();
             }
             flushRemaining();
         }
+    }
+
+    private long ord(int k1, int k2) {
+        return hashOrdToGroup(finalHash.add((long) k2 << 32 | k1));
     }
 
     @Override
@@ -150,11 +141,11 @@ final class BytesRef3BlockHash extends BlockHash {
         // TODO Build Ordinals blocks #114010
         final int positions = (int) finalHash.size();
         final BytesRef scratch = new BytesRef();
-        final BytesRefBlock[] outputBlocks = new BytesRefBlock[3];
+        final BytesRefBlock[] outputBlocks = new BytesRefBlock[2];
         try {
             try (BytesRefBlock.Builder b1 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k1 = finalHash.getKey1(i);
+                    int k1 = (int) (finalHash.get(i) & 0xffffL);
                     if (k1 == 0) {
                         b1.appendNull();
                     } else {
@@ -165,7 +156,7 @@ final class BytesRef3BlockHash extends BlockHash {
             }
             try (BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k2 = finalHash.getKey2(i);
+                    int k2 = (int) (finalHash.get(i) >>> 32);
                     if (k2 == 0) {
                         b2.appendNull();
                     } else {
@@ -173,17 +164,6 @@ final class BytesRef3BlockHash extends BlockHash {
                     }
                 }
                 outputBlocks[1] = b2.build();
-            }
-            try (BytesRefBlock.Builder b3 = blockFactory.newBytesRefBlockBuilder(positions)) {
-                for (int i = 0; i < positions; i++) {
-                    int k3 = finalHash.getKey3(i);
-                    if (k3 == 0) {
-                        b3.appendNull();
-                    } else {
-                        b3.appendBytesRef(hash3.hash.get(k3 - 1, scratch));
-                    }
-                }
-                outputBlocks[2] = b3.build();
             }
             return outputBlocks;
         } finally {
@@ -207,10 +187,9 @@ final class BytesRef3BlockHash extends BlockHash {
     public String toString() {
         return String.format(
             Locale.ROOT,
-            "BytesRef3BlockHash{keys=[channel1=%d, channel2=%d, channel3=%d], entries=%d}",
+            "BytesRef2BlockHash{keys=[channel1=%d, channel2=%d], entries=%d}",
             channel1,
             channel2,
-            channel3,
             finalHash.size()
         );
     }

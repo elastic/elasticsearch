@@ -28,6 +28,7 @@ import java.util.BitSet;
 
 /**
  * Maps a {@link DoubleBlock} column to group ids.
+ * This class is generated. Do not edit it.
  */
 final class DoubleBlockHash extends BlockHash {
     private final int channel;

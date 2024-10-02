@@ -259,5 +259,7 @@
   ],
   "examples" : [
     "ROW a = 1, b = 4, c = 3\n| WHERE c-a IN (3, b / 2, a)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

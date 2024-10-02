@@ -58,5 +58,6 @@
     "FROM employees\n| KEEP last_name\n| EVAL ln_sub = SUBSTRING(last_name, -3, 3)",
     "FROM employees\n| KEEP last_name\n| EVAL ln_sub = SUBSTRING(last_name, 2)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

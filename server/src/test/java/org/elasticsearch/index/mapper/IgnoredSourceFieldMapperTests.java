@@ -902,7 +902,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })).documentMapper();
-        // { "path": [ { "stored":[ { "leaf": 10 } ] }, { "stored": { "leaf": 20 } } ] }
         var syntheticSource = syntheticSource(documentMapper, b -> {
             b.startArray("path");
             {
@@ -925,6 +924,64 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals("""
             {"path":{"stored":[{"leaf":10},{"leaf":20}]}}""", syntheticSource);
+    }
+
+    public void testObjectArrayAndValueDisabledObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").startObject("properties");
+            {
+                b.startObject("regular");
+                {
+                    b.startObject("properties").startObject("leaf").field("type", "integer").endObject().endObject();
+                }
+                b.endObject();
+                b.startObject("disabled").field("type", "object").field("enabled", false);
+                {
+                    b.startObject("properties").startObject("leaf").field("type", "integer").endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().startArray("disabled").startObject().field("leaf", 10).endObject().endArray().endObject();
+                b.startObject().startObject("disabled").field("leaf", 20).endObject().endObject();
+                b.startObject().startArray("regular").startObject().field("leaf", 10).endObject().endArray().endObject();
+                b.startObject().startObject("regular").field("leaf", 20).endObject().endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"disabled":[{"leaf":10},{"leaf":20}],"regular":{"leaf":[10,20]}}}""", syntheticSource);
+    }
+
+    public void testObjectArrayAndValueNonDynamicObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").startObject("properties");
+            {
+                b.startObject("regular");
+                {
+                    b.startObject("properties").startObject("leaf").field("type", "integer").endObject().endObject();
+                }
+                b.endObject();
+                b.startObject("disabled").field("type", "object").field("dynamic", "false").endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().startArray("disabled").startObject().field("leaf", 10).endObject().endArray().endObject();
+                b.startObject().startObject("disabled").field("leaf", 20).endObject().endObject();
+                b.startObject().startArray("regular").startObject().field("leaf", 10).endObject().endArray().endObject();
+                b.startObject().startObject("regular").field("leaf", 20).endObject().endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"disabled":[{"leaf":10},{"leaf":20}],"regular":{"leaf":[10,20]}}}""", syntheticSource);
     }
 
     public void testDisabledObjectWithinHigherLevelArray() throws IOException {
@@ -1337,7 +1394,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals("""
-            {"path":[{"name":"foo"},{"name":"bar"}]}""", syntheticSource);
+            {"path":{"name":["foo","bar"]}}""", syntheticSource);
     }
 
     public void testNoDynamicObjectSimpleValueArray() throws IOException {
@@ -1365,7 +1422,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals("""
-            {"path":[{"to":{"foo":"A","bar":"B"}},{"to":{"foo":"C","bar":"D"}}]}""", syntheticSource);
+            {"path":{"to":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}}""", syntheticSource);
     }
 
     public void testRuntimeDynamicObjectSingleField() throws IOException {
@@ -1445,7 +1502,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals("""
-            {"path":[{"name":"foo"},{"name":"bar"}]}""", syntheticSource);
+            {"path":{"name":["foo","bar"]}}""", syntheticSource);
     }
 
     public void testRuntimeDynamicObjectSimpleValueArray() throws IOException {
@@ -1473,7 +1530,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals("""
-            {"path":[{"to":{"foo":"A","bar":"B"}},{"to":{"foo":"C","bar":"D"}}]}""", syntheticSource);
+            {"path":{"to":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}}""", syntheticSource);
     }
 
     public void testDisabledSubObjectWithNameOverlappingParentName() throws IOException {

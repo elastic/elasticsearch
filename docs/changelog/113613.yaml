@@ -3,4 +3,5 @@ summary: "Add `CircuitBreaker` to TDigest, Step 4: Take into account shallow cla
   \ size"
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+ - 113916

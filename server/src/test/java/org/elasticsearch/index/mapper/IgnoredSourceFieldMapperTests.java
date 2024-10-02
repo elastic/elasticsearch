@@ -1549,6 +1549,23 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("{\"path\":{\"at\":\"A\"}}", syntheticSource);
     }
 
+    public void testIgnoredObjectWithFlatFields() throws IOException {
+        DocumentMapper documentMapper = createMapperService(topMapping(b -> {
+            b.startObject("_source").field("mode", "synthetic").endObject();
+            b.field("dynamic", false);
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startObject("top");
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+        };
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"top\":{\"file.name\":\"A\",\"file.line\":10}}", syntheticSource);
+    }
+
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
         throws IOException {
         // We exclude ignored source field since in some cases it contains an exact copy of a part of document source.

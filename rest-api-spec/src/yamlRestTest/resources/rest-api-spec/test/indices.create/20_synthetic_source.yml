@@ -467,7 +467,7 @@ object with dynamic override:
   - match: { hits.hits.0._source.name: a }
   - match: { hits.hits.0._source.path_no.name: foo }
   - match: { hits.hits.0._source.path_no.some_int: 10 }
-  - match: { hits.hits.0._source.path_no.to.a.very.deeply.nested.field: A }
+  - match: { hits.hits.0._source.path_no.to: { a.very.deeply.nested.field: A } }
   - match: { hits.hits.0._source.path_runtime.name: bar }
   - match: { hits.hits.0._source.path_runtime.some_int: 20 }
   - match: { hits.hits.0._source.path_runtime.to.a.very.deeply.nested.field: B }

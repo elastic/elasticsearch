@@ -651,7 +651,13 @@ public final class DocumentParser {
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
             if (context.canAddIgnoredField()) {
-                // read everything up to end object and store it
+                // Don't expand dots while storing the object.
+                // It is possible that it is not fully normalized (e.g. has dotted names like obj.field)
+                // which is a valid document but it is not a valid json when parsed with expanded dots
+                // due to duplicate keys.
+                // F.e. { "a.b": "b", "a.c": "c" } will be transformed into { "a": { "b": "b" }, "a": { "c": "c" } }
+                context.path().setWithinLeafObject(true);
+
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -659,6 +665,8 @@ public final class DocumentParser {
                         XContentDataHelper.encodeToken(context.parser())
                     )
                 );
+
+                context.path().setWithinLeafObject(false);
             } else {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();

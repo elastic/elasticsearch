@@ -49,7 +49,7 @@ public class QueryStringFunction extends FullTextFunction {
             description = "Query string in Lucene query string format."
         ) Expression queryString
     ) {
-        super(source, queryString);
+        super(source, queryString, List.of(queryString));
     }
 
     private QueryStringFunction(StreamInput in) throws IOException {

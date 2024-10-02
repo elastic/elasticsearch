@@ -62,7 +62,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
             description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, matchQuery, field);
+        super(source, matchQuery, List.of(matchQuery, field));
         this.field = field;
     }
 

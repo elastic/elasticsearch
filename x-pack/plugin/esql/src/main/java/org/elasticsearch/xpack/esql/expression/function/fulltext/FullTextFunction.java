@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -45,8 +44,8 @@ public abstract class FullTextFunction extends Function {
 
     private final Expression query;
 
-    protected FullTextFunction(Source source, Expression query, Expression... nonQueryChildren) {
-        super(source, Stream.concat(Stream.of(query), Stream.of(nonQueryChildren)).toList());
+    protected FullTextFunction(Source source, Expression query, List<Expression> children) {
+        super(source, children);
         this.query = query;
     }
 

@@ -51,7 +51,7 @@ public class IndexingPressure {
 
     public static final Setting<ByteSizeValue> MAX_REPLICA_BYTES = Setting.memorySizeSetting(
         "indexing_pressure.memory.replica.limit",
-        (s) -> ByteSizeValue.ofBytes((long) (MAX_PRIMARY_BYTES.get(s).getBytes() * 1.5)).toString(),
+        (s) -> ByteSizeValue.ofBytes((long) (MAX_PRIMARY_BYTES.get(s).getBytes() * 1.5)).getStringRep(),
         Setting.Property.NodeScope
     );
 

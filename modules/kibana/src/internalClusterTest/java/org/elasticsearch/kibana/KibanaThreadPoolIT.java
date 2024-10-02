@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -121,8 +122,32 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
             () -> client().prepareIndex(USER_INDEX).setSource(Map.of("foo", "bar")).get()
         );
         assertThat(e1.getMessage(), startsWith("rejected execution of TimedRunnable"));
-        var e2 = expectThrows(EsRejectedExecutionException.class, () -> client().prepareGet(USER_INDEX, "id").get());
-        assertThat(e2.getMessage(), startsWith("rejected execution of ActionRunnable"));
+
+        final var getFuture = client().prepareGet(USER_INDEX, "id").execute();
+        // response handling is force-executed on GET pool, so we must
+        // (a) wait for that task to be enqueued, expanding the queue beyond its configured limit, and
+        // (b) check for the exception in the background
+
+        try {
+            assertTrue(waitUntil(() -> {
+                if (getFuture.isDone()) {
+                    return true;
+                }
+                for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+                    for (ThreadPoolStats.Stats stats : threadPool.stats().stats()) {
+                        if (stats.name().equals(ThreadPool.Names.GET) && stats.queue() > 1) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }));
+        } catch (Exception e) {
+            fail(e);
+        }
+
+        new Thread(() -> expectThrows(EsRejectedExecutionException.class, () -> getFuture.actionGet(SAFE_AWAIT_TIMEOUT))).start();
+
         // intentionally commented out this test until https://github.com/elastic/elasticsearch/issues/97916 is fixed
         // var e3 = expectThrows(
         // SearchPhaseExecutionException.class,

@@ -89,6 +89,7 @@ However, you can _update_ mappings under certain conditions:
 
 * You can add new fields to an existing mapping at any time, explicitly or dynamically.
 * You can add new <<multi-fields,multi-fields>> for existing fields.
+** Documents indexed before the mapping update will not have values for the new multi-fields until they are updated or reindexed. Documents indexed after the mapping change will automatically have values for the new multi-fields.
 
 [discrete]
 [[mapping-limit-settings]]

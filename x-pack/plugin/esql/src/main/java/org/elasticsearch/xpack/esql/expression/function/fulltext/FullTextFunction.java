@@ -62,15 +62,21 @@ public abstract class FullTextFunction extends Function {
             return new TypeResolution("Unresolved children");
         }
 
-        return resolveNonQueryParamTypes().and(resolveQueryType());
+        return resolveNonQueryParamTypes().and(resolveQueryParamType());
     }
 
-    private TypeResolution resolveQueryType() {
+    /**
+     * Resolves the type for the query parameter, as part of the type resolution for the function
+     *
+     * @return type resolution for query parameter
+     */
+    private TypeResolution resolveQueryParamType() {
         return isString(query(), sourceText(), queryParamOrdinal()).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
     }
 
     /**
-     * Subclasses can override this method for custom type resolution
+     * Subclasses can override this method for custom type resolution for additional function parameters
+     *
      * @return type resolution for non-query parameter types
      */
     protected TypeResolution resolveNonQueryParamTypes() {
@@ -101,7 +107,7 @@ public abstract class FullTextFunction extends Function {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(query());
-        out.writeCollection(children());
+        out.writeNamedWriteableCollection(children());
     }
 
     /**

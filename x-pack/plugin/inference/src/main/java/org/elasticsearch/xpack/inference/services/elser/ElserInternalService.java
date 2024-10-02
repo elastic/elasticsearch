@@ -101,17 +101,16 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
                     serviceSettingsBuilder.setModelId(
                         selectDefaultModelVariantBasedOnClusterArchitecture(arch, ELSER_V2_MODEL_LINUX_X86, ELSER_V2_MODEL)
                     );
+                    parsedModelListener.onResponse(
+                        new ElserInternalModel(
+                            inferenceEntityId,
+                            taskType,
+                            NAME,
+                            new ElserInternalServiceSettings(serviceSettingsBuilder.build()),
+                            taskSettings
+                        )
+                    );
                 }));
-
-                parsedModelListener.onResponse(
-                    new ElserInternalModel(
-                        inferenceEntityId,
-                        taskType,
-                        NAME,
-                        new ElserInternalServiceSettings(serviceSettingsBuilder.build()),
-                        taskSettings
-                    )
-                );
             } else {
                 parsedModelListener.onResponse(
                     new ElserInternalModel(

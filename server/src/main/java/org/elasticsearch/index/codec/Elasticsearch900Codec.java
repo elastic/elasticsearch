@@ -9,11 +9,11 @@
 
 package org.elasticsearch.index.codec;
 
-import org.apache.lucene.backward_codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene100.Lucene100Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene912.Lucene912PostingsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
@@ -23,10 +23,10 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
- * Elasticsearch codec as of 8.16. This extends the Lucene 9.12 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
+ * Elasticsearch codec as of 9.0. This extends the Lucene 10.0 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
  * {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch900Codec extends CodecService.DeduplicateFieldInfosCodec {
 
     private final StoredFieldsFormat storedFieldsFormat;
 
@@ -34,7 +34,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
-            return Elasticsearch816Codec.this.getPostingsFormatForField(field);
+            return Elasticsearch900Codec.this.getPostingsFormatForField(field);
         }
     };
 
@@ -42,7 +42,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
-            return Elasticsearch816Codec.this.getDocValuesFormatForField(field);
+            return Elasticsearch900Codec.this.getDocValuesFormatForField(field);
         }
     };
 
@@ -50,12 +50,12 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
         @Override
         public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return Elasticsearch816Codec.this.getKnnVectorsFormatForField(field);
+            return Elasticsearch900Codec.this.getKnnVectorsFormatForField(field);
         }
     };
 
     /** Public no-arg constructor, needed for SPI loading at read-time. */
-    public Elasticsearch816Codec() {
+    public Elasticsearch900Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
@@ -63,8 +63,8 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
      * Constructor. Takes a {@link Zstd814StoredFieldsFormat.Mode} that describes whether to optimize for retrieval speed at the expense of
      * worse space-efficiency or vice-versa.
      */
-    public Elasticsearch816Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch816", new Lucene912Codec());
+    public Elasticsearch900Codec(Zstd814StoredFieldsFormat.Mode mode) {
+        super("Elasticsearch900", new Lucene100Codec());
         this.storedFieldsFormat = new Zstd814StoredFieldsFormat(mode);
         this.defaultPostingsFormat = new Lucene912PostingsFormat();
         this.defaultDVFormat = new Lucene90DocValuesFormat();

@@ -17,7 +17,7 @@ import java.util.List;
 
 import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
 
-public class BWCVersions {
+public final class BWCVersions {
     private BWCVersions() {}
 
     public static List<TransportVersion> getAllBWCVersions() {

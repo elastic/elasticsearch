@@ -7,16 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.api;
+module org.elasticsearch.entitlement.trampoline {
+    uses org.elasticsearch.entitlement.checks.EntitlementChecks;
 
-public class EntitlementChecks {
-    static boolean isAgentBooted = false;
-
-    public static void setAgentBooted() {
-        isAgentBooted = true;
-    }
-
-    public static boolean isAgentBooted() {
-        return isAgentBooted;
-    }
+    exports org.elasticsearch.entitlement.checks;
 }

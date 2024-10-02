@@ -7,9 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlement.agent {
-    requires java.instrument;
-    requires org.objectweb.asm;
-    requires org.elasticsearch.entitlement.trampoline;
-    requires org.elasticsearch.base; // for @SuppressForbidden
+package org.elasticsearch.entitlement.runtime.api;
+
+/**
+ * A simple kind of entitlement that is either present or absent, with no additional structure.
+ */
+public enum FlagEntitlement implements Entitlement {
+    EXIT_JVM,
 }

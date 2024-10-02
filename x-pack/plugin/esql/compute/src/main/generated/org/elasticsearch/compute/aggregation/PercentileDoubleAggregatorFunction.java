@@ -46,7 +46,7 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
 
   public static PercentileDoubleAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, double percentile) {
-    return new PercentileDoubleAggregatorFunction(driverContext, channels, PercentileDoubleAggregator.initSingle(percentile), percentile);
+    return new PercentileDoubleAggregatorFunction(driverContext, channels, PercentileDoubleAggregator.initSingle(driverContext, percentile), percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

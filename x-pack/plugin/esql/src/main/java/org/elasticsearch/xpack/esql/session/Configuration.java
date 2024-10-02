@@ -171,11 +171,9 @@ public class Configuration implements Writeable {
     /**
      * Returns the current time in milliseconds from the time epoch for the execution of this request.
      * It ensures consistency by using the same value on all nodes involved in the search request.
-     * Note: Currently, it returns {@link System#currentTimeMillis()}, but this value will be serialized between nodes.
      */
     public long absoluteStartedTimeInMillis() {
-        // MP TODO: I'm confused - Why is this not a fixed value taken at the start of the query processing?
-        return System.currentTimeMillis();
+        return now.toInstant().toEpochMilli();
     }
 
     /**

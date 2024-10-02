@@ -43,5 +43,10 @@ template:
       - summary:
           mapping:
             type: aggregate_metric_double
-            metrics: sum, value_count
+            metrics: [sum, value_count]
+            default_metric: value_count
+      - summary_minmax:
+          mapping:
+            type: aggregate_metric_double
+            metrics: [sum, value_count, min, max]
             default_metric: value_count

@@ -48,7 +48,7 @@ public class IndexVersions {
         return new IndexVersion(id, luceneVersion);
     }
 
-    @UpdateForV9 // remove the index versions with which v9 will not need to interact
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, Version.LUCENE_8_0_0);
 
@@ -222,7 +222,7 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     // We can simplify this once we've removed all references to index versions earlier than MINIMUM_COMPATIBLE
     static Collection<IndexVersion> getAllVersions() {
         return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();

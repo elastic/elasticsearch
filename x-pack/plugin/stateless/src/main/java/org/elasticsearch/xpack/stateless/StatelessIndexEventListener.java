@@ -117,7 +117,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             indexShard.shardId().getIndex().getUUID(),
             indexShard.routingEntry().role(),
             indexShard.getOperationPrimaryTerm(),
-            latestCommit != null ? latestCommit.last().toShortDescription() : "empty commit",
+            latestCommit != null ? latestCommit.lastCompoundCommit().toShortDescription() : "empty commit",
             describe(indexShard.recoveryState())
         );
     }
@@ -163,7 +163,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
 
             if (indexingShardState.latestCommit() != null) {
-                StatelessCompoundCommit lastCommit = indexingShardState.latestCommit().last();
+                StatelessCompoundCommit lastCommit = indexingShardState.latestCommit().lastCompoundCommit();
                 indexDirectory.updateRecoveryCommit(lastCommit);
                 warmingService.warmCacheForShardRecovery("indexing", indexShard, lastCommit, indexDirectory.getBlobStoreCacheDirectory());
             }
@@ -197,8 +197,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                     .flatMap(f -> f.commitFiles().keySet().stream())
                     .collect(Collectors.toSet());
                 indexDirectory.updateCommit(
-                    info.uploadedBcc().last().generation(),
-                    info.uploadedBcc().last().getAllFilesSizeInBytes(),
+                    info.uploadedBcc().lastCompoundCommit().generation(),
+                    info.uploadedBcc().lastCompoundCommit().getAllFilesSizeInBytes(),
                     uploadedFiles,
                     info.blobFileRanges()
                 );
@@ -209,7 +209,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 info -> translogReplicator.markShardCommitUploaded(
                     indexShard.shardId(),
                     // Use the largest translog start file from all CCs to release translog files
-                    info.uploadedBcc().last().translogRecoveryStartFile()
+                    info.uploadedBcc().lastCompoundCommit().translogRecoveryStartFile()
                 )
             );
             return null;
@@ -231,7 +231,9 @@ class StatelessIndexEventListener implements IndexEventListener {
         try {
             recoveryCommitRegistrationHandler.register(
                 batchedCompoundCommit != null ? batchedCompoundCommit.primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,
-                batchedCompoundCommit != null ? batchedCompoundCommit.last().primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,
+                batchedCompoundCommit != null
+                    ? batchedCompoundCommit.lastCompoundCommit().primaryTermAndGeneration()
+                    : PrimaryTermAndGeneration.ZERO,
                 indexShard.shardId(),
                 ActionListener.releaseAfter(listener.delegateFailure((l, response) -> ActionListener.completeWith(listener, () -> {
                     var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
@@ -254,7 +256,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                         // Otherwise recover from the compound commit found in the object store
                         // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
                         // until the next new commit notification.
-                        compoundCommit = batchedCompoundCommit.last();
+                        compoundCommit = batchedCompoundCommit.lastCompoundCommit();
                         lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
 
                     } else {
@@ -262,7 +264,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                     }
 
                     assert batchedCompoundCommit == null
-                        || batchedCompoundCommit.last().primaryTermAndGeneration().onOrBefore(compoundCommit.primaryTermAndGeneration());
+                        || batchedCompoundCommit.lastCompoundCommit()
+                            .primaryTermAndGeneration()
+                            .onOrBefore(compoundCommit.primaryTermAndGeneration());
                     assert compoundCommit != null;
 
                     searchDirectory.updateLatestUploadedBcc(lastUploaded);

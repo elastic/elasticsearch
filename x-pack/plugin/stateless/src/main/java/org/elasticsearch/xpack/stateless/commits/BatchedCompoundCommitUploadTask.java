@@ -147,7 +147,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
     private void uploadBatchedCompoundCommitFile(ActionListener<BatchedCompoundCommit> listener) {
         try (RefCountingListener refCountingListener = new RefCountingListener(listener.delegateFailureAndWrap((l, unused) -> {
             BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
-            assert uploadedBcc.last() != null;
+            assert uploadedBcc.lastCompoundCommit() != null;
             l.onResponse(uploadedBcc);
         }))) {
             if (cacheWarmedAttempted.compareAndSet(false, true)) {

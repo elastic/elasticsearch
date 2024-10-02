@@ -560,7 +560,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
         if (logger.isTraceEnabled()) {
-            logger.trace("found latest CC in [{}]: {}", blobContainer.path().buildAsString(), latestBcc.last().toLongDescription());
+            logger.trace(
+                "found latest CC in [{}]: {}",
+                blobContainer.path().buildAsString(),
+                latestBcc.lastCompoundCommit().toLongDescription()
+            );
         }
     }
 

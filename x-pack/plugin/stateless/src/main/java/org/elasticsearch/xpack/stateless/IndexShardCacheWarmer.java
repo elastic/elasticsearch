@@ -99,7 +99,7 @@ public class IndexShardCacheWarmer {
                 ).latestCommit();
                 if (batchedCompoundCommit != null) {
                     assert indexShard.routingEntry().isPromotableToPrimary();
-                    StatelessCompoundCommit last = batchedCompoundCommit.last();
+                    StatelessCompoundCommit last = batchedCompoundCommit.lastCompoundCommit();
                     var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
                     // We do not want to update the internal directory metadata this early as this gets dispatched
                     // into the GENERIC thread pool and, it can make the directory to go backwards if the recovery

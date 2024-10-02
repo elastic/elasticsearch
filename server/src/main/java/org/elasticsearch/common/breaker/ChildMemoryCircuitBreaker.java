@@ -89,7 +89,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             + "/"
             + ByteSizeValue.ofBytes(memoryBytesLimit)
             + "]; for more information, see "
-            + ReferenceDocs.CIRCUIT_BREAKER;
+            + ReferenceDocs.CIRCUIT_BREAKER_ERRORS;
         logger.debug(() -> format("%s", message));
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
     }

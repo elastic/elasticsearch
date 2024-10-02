@@ -451,6 +451,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         appendBytesSafe(message, memoryUsed.totalUsage);
         message.append("], which is larger than the limit of [");
         appendBytesSafe(message, parentLimit);
+        message.append("]");
         if (trackRealMemoryUsage) {
             final long realUsage = memoryUsed.baseUsage;
             message.append(", real usage: [");
@@ -475,7 +476,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             }
         });
         message.append("]; for more information, see ");
-        message.append(ReferenceDocs.CIRCUIT_BREAKER);
+        message.append(ReferenceDocs.CIRCUIT_BREAKER_ERRORS);
         return message.toString();
     }
 

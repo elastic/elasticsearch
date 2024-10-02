@@ -29,8 +29,12 @@ public class MapperFeatures implements FeatureSpecification {
             DenseVectorFieldMapper.BIT_VECTORS,
             DocumentMapper.INDEX_SORTING_ON_NESTED,
             KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE,
-            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
-            RangeFieldMapper.DATE_RANGE_INDEXING_FIX
+            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX);
     }
 }

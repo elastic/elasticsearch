@@ -4211,7 +4211,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | STATS count=COUNT(*)
             """;
         var plan = this.physicalPlan(query, airports);
-        System.out.println(plan);
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
@@ -4237,7 +4236,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Now optimize the plan
         var optimized = optimizedPlan(plan);
-        System.out.println(optimized);
         var topLimit = as(optimized, LimitExec.class);
         var aggExec = as(topLimit.child(), AggregateExec.class);
         var exchangeExec = as(aggExec.child(), ExchangeExec.class);

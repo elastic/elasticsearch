@@ -662,7 +662,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         int numShardsRemote = randomIntBetween(2, 10);
         for (String clusterAlias : remoteClusterAlias()) {
             final InternalTestCluster remoteCluster = cluster(clusterAlias);
-            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
+            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
             assertAcked(
                 client(clusterAlias).admin()
                     .indices()

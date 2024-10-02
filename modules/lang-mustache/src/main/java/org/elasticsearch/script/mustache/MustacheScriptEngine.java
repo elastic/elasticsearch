@@ -14,6 +14,8 @@ import com.github.mustachejava.MustacheFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.text.SizeLimitingStringWriter;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -46,6 +48,8 @@ public final class MustacheScriptEngine implements ScriptEngine {
     private static final Logger logger = LogManager.getLogger(MustacheScriptEngine.class);
 
     public static final String NAME = "mustache";
+
+    private static final int MUSTACHE_SIZE_LIMIT = 1024 * 1024 * 1024;  // 1GB
 
     /**
      * Compile a template string to (in this case) a Mustache object than can
@@ -118,12 +122,15 @@ public final class MustacheScriptEngine implements ScriptEngine {
 
         @Override
         public String execute() {
-            final StringWriter writer = new StringWriter();
+            StringWriter writer = new SizeLimitingStringWriter(MUSTACHE_SIZE_LIMIT);
             try {
                 template.execute(writer, params);
             } catch (Exception e) {
                 if (shouldLogException(e)) {
                     logger.error(() -> format("Error running %s", template), e);
+                }
+                if (e.getCause() instanceof SizeLimitingStringWriter.SizeLimitExceededException) {
+                    throw new ElasticsearchParseException("Script string size exceeded", e);
                 }
                 throw new GeneralScriptException("Error running " + template, e);
             }
@@ -131,7 +138,9 @@ public final class MustacheScriptEngine implements ScriptEngine {
         }
 
         public boolean shouldLogException(Throwable e) {
-            return e.getCause() != null && e.getCause() instanceof MustacheInvalidParameterException == false;
+            return e.getCause() != null
+                && e.getCause() instanceof MustacheInvalidParameterException == false
+                && e.getCause() instanceof SizeLimitingStringWriter.SizeLimitExceededException == false;
         }
     }
 

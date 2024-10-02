@@ -24,7 +24,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Uses a {@link SortingDigest} implementation under the covers for small sample populations, then switches to {@link MergingDigest}.

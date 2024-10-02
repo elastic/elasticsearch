@@ -31,7 +31,6 @@ import org.elasticsearch.tdigest.arrays.TDigestLongArray;
 
 import java.util.AbstractCollection;
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A tree of t-digest centroids.

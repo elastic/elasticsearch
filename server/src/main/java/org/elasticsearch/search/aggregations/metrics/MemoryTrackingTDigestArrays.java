@@ -21,7 +21,6 @@ import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 import org.elasticsearch.tdigest.arrays.TDigestLongArray;
 
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * TDigestArrays with raw arrays and circuit breaking.

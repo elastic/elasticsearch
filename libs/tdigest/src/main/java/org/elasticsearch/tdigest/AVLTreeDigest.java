@@ -29,7 +29,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 

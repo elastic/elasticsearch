@@ -27,7 +27,6 @@ import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Simple implementation of the TDigest interface that stores internally and sorts all samples to calculate quantiles and CDFs.

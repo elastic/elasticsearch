@@ -30,7 +30,6 @@ import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Maintains a t-digest by collecting new points in a buffer that is then sorted occasionally and merged

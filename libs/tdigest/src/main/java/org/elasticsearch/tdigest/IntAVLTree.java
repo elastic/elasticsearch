@@ -29,8 +29,6 @@ import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 /**
  * An AVL-tree structure stored in parallel arrays.
  * This class only stores the tree structure, so you need to extend it if you

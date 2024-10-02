@@ -281,3 +281,21 @@ ROW a = CASE(false, TO_DATE_NANOS(0::long), TO_DATE_NANOS(1698069301543123456));
 a:date_nanos
 2023-10-23T13:55:01.543123456Z
 ;
+
+Greatest date nanos
+required_capability: least_greatest_for_datenanos
+
+ROW a = GREATEST(TO_DATE_NANOS("2023-10-23T13:55:01.543"), TO_DATE_NANOS("2023-10-23T13:53:55.832"));
+
+a:date_nanos
+2023-10-23T13:55:01.543Z
+;
+
+Least date nanos
+required_capability: least_greatest_for_datenanos
+
+ROW a = LEAST(TO_DATE_NANOS("2023-10-23T13:55:01.543"), TO_DATE_NANOS("2023-10-23T13:53:55.832"));
+
+a:date_nanos
+2023-10-23T13:53:55.832Z
+;

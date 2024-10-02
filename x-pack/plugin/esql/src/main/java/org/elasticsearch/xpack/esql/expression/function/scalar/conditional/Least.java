@@ -44,7 +44,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
         description = "Returns the minimum value from multiple columns. "
             + "This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.",
         examples = @Example(file = "math", tag = "least")
@@ -53,12 +53,12 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(
             name = "first",
-            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "First of the columns to evaluate."
         ) Expression first,
         @Param(
             name = "rest",
-            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "The rest of the columns to evaluate.",
             optional = true
         ) List<Expression> rest
@@ -152,7 +152,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         if (dataType == DataType.INTEGER) {
             return new LeastIntEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.LONG) {
+        if (dataType == DataType.LONG || dataType == DataType.DATE_NANOS) {
             return new LeastLongEvaluator.Factory(source(), factories);
         }
         if (dataType == DataType.KEYWORD

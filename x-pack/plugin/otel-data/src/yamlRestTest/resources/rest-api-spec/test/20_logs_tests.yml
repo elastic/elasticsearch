@@ -51,3 +51,22 @@ setup:
   - match: { hits.hits.0.fields.resource\.attributes\.host\.ip: ["0.0.0.0", "127.0.0.1"] }
   - match: { hits.hits.0.fields.attributes\.foo: [1, 2, 3] }
   - match: { hits.hits.0.fields.attributes\.bar: [a, b, c] }
+---
+"Exception aliases":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "exception.type": "MyException", "exception.message": "foo", "exception.stacktrace": "Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)" },"trace_id":"abc123xyz456def789ghi012jkl345"}'
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["error.exception.type", "error.exception.message", "error.stack_trace"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.error\.exception\.type: ["MyException"] }
+  - match: { hits.hits.0.fields.error\.exception\.message: ["foo"] }
+  - match: { hits.hits.0.fields.error\.stack_trace: ["Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)"] }

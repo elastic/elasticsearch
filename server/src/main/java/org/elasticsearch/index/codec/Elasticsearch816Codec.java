@@ -13,8 +13,8 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene100.Lucene100Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.codecs.lucene912.Lucene912PostingsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
@@ -64,7 +64,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
      * worse space-efficiency or vice-versa.
      */
     public Elasticsearch816Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch816", new Lucene912Codec());
+        super("Elasticsearch816", new Lucene100Codec());
         this.storedFieldsFormat = new Zstd814StoredFieldsFormat(mode);
         this.defaultPostingsFormat = new Lucene912PostingsFormat();
         this.defaultDVFormat = new Lucene90DocValuesFormat();

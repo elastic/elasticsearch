@@ -1813,7 +1813,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(counter.get(), equalTo(states.length));
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
     @AwaitsFix(bugUrl = "ability to disable soft deletes was removed in 8.0 indexes so we can probably remove this test")
     public void testAutoFollowerSoftDeletesDisabled() {
         Client client = mock(Client.class);

@@ -101,6 +101,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         this.shardContexts = shardContexts;
     }
 
+    public List<ShardContext> shardContexts() {
+        return shardContexts;
+    }
+
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();

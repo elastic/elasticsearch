@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -18,10 +19,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
@@ -83,5 +86,21 @@ public class QueryStringFunction extends FullTextFunction {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+    ) {
+        throw new UnsupportedOperationException("Evaluator for QueryStringQuery needs shard context");
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
+    ) {
+        EvalOperator.ExpressionEvaluator.Factory queryEvaluator = toEvaluator.apply(query());
+        return new FullTextFunctionEvaluator.Factory(shardContexts, queryEvaluator);
     }
 }

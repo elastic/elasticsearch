@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.lucene;
+package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
@@ -18,19 +18,27 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
@@ -39,24 +47,52 @@ import java.io.UncheckedIOException;
  * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
  * this evaluator is here to save the day.
  */
-public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEvaluator {
+public class FullTextFunctionEvaluator implements EvalOperator.ExpressionEvaluator {
+    private BlockFactory blockFactory;
+
+    private ShardConfig[] shards;
+    private List<EsPhysicalOperationProviders.ShardContext> shardContexts;
+
+    private EvalOperator.ExpressionEvaluator queryExpressionEvaluator;
+
     public record ShardConfig(Query query, IndexSearcher searcher) {}
 
-    private final BlockFactory blockFactory;
-    private final ShardConfig[] shards;
-    private final int docChannel;
+    private int docChannel;
 
     private ShardState[] perShardState = EMPTY_SHARD_STATES;
 
-    public LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards, int docChannel) {
+    public FullTextFunctionEvaluator(
+        BlockFactory blockFactory,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts,
+        EvalOperator.ExpressionEvaluator queryExpressionEvaluator
+    ) {
         this.blockFactory = blockFactory;
-        this.shards = shards;
-        this.docChannel = docChannel;
+        this.shards = null;
+        this.shardContexts = shardContexts;
+        this.queryExpressionEvaluator = queryExpressionEvaluator;
+        this.docChannel = 0;
     }
 
     @Override
     public Block eval(Page page) {
         DocVector docs = page.<DocBlock>getBlock(docChannel).asVector();
+
+        // start - change this so that the query is evaluated on every doc
+        BytesRefBlock block = (BytesRefBlock) queryExpressionEvaluator.eval(page);
+        int positionCount = page.getPositionCount();
+        BytesRef queryStringRef = new BytesRef();
+        queryStringRef = block.getBytesRef(positionCount, queryStringRef);
+        String queryString = queryStringRef.utf8ToString();
+        // end
+
+        this.shards = new ShardConfig[shardContexts.size()];
+
+        QueryBuilder queryBuilder = new QueryStringQueryBuilder(queryString);
+
+        for (var i = 0; i < shardContexts.size(); i++) {
+            this.shards[i] = new ShardConfig(shardContexts.get(i).toQuery(queryBuilder), shardContexts.get(i).searcher());
+        }
+
         try {
             if (docs.singleSegmentNonDecreasing()) {
                 return evalSingleSegmentNonDecreasing(docs).asBlock();
@@ -322,6 +358,25 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         @Override
         public void close() {
             Releasables.closeExpectNoException(builder);
+        }
+    }
+
+    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+        private List<EsPhysicalOperationProviders.ShardContext> shardContexts;
+        private EvalOperator.ExpressionEvaluator.Factory queryStringEvaluator;
+
+        public Factory(
+            List<EsPhysicalOperationProviders.ShardContext> shardContexts,
+            EvalOperator.ExpressionEvaluator.Factory queryStringEvaluator
+        ) {
+            this.shardContexts = shardContexts;
+            this.queryStringEvaluator = queryStringEvaluator;
+
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            return new FullTextFunctionEvaluator(context.blockFactory(), shardContexts, queryStringEvaluator.get(context));
         }
     }
 }

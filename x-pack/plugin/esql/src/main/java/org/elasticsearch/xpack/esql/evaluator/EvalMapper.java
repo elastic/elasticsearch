@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.util.List;
@@ -51,12 +52,21 @@ public final class EvalMapper {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public static ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
+        return toEvaluator(exp, layout, null);
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static ExpressionEvaluator.Factory toEvaluator(
+        Expression exp,
+        Layout layout,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
+    ) {
         if (exp instanceof EvaluatorMapper m) {
-            return m.toEvaluator(e -> toEvaluator(e, layout));
+            return m.toEvaluator(e -> toEvaluator(e, layout, shardContexts), shardContexts);
         }
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
-                return em.map(exp, layout);
+                return em.map(exp, layout, shardContexts);
             }
         }
         throw new QlIllegalArgumentException("Unsupported expression [{}]", exp);
@@ -65,8 +75,17 @@ public final class EvalMapper {
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
         public ExpressionEvaluator.Factory map(BinaryLogic bc, Layout layout) {
-            var leftEval = toEvaluator(bc.left(), layout);
-            var rightEval = toEvaluator(bc.right(), layout);
+            return map(bc, layout, null);
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory map(
+            BinaryLogic bc,
+            Layout layout,
+            List<EsPhysicalOperationProviders.ShardContext> shardContexts
+        ) {
+            var leftEval = toEvaluator(bc.left(), layout, shardContexts);
+            var rightEval = toEvaluator(bc.right(), layout, shardContexts);
             /**
              * Evaluator for the <href a="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</href>.
              * We can't generate these with the {@link Evaluator} annotation because that

@@ -12,8 +12,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
+import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
@@ -51,6 +53,13 @@ public interface EvaluatorMapper {
      * </p>
      */
     ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator);
+
+    default ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, ExpressionEvaluator.Factory> a,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
+    ) {
+        return toEvaluator(a);
+    }
 
     /**
      * Fold using {@link #toEvaluator} so you don't need a "by hand"

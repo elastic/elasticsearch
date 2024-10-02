@@ -557,7 +557,10 @@ public class LocalExecutionPlanner {
     }
 
     private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
-        return EvalMapper.toEvaluator(exp, layout);
+        var shardContexts = (physicalOperationProviders instanceof EsPhysicalOperationProviders)
+            ? ((EsPhysicalOperationProviders) physicalOperationProviders).shardContexts()
+            : null;
+        return EvalMapper.toEvaluator(exp, layout, shardContexts);
     }
 
     private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {

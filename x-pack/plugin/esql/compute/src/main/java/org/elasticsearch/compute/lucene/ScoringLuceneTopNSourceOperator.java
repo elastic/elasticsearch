@@ -137,7 +137,7 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
 
         ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             this.shardContext = shardContext;
-            collector = new TopFieldCollectorManager(sort, ArrayUtil.MAX_ARRAY_LENGTH - 1, limit).newCollector();
+            collector = new TopFieldCollectorManager(sort, Math.min(ArrayUtil.MAX_ARRAY_LENGTH - 1, limit), limit).newCollector();
         }
 
         @Override

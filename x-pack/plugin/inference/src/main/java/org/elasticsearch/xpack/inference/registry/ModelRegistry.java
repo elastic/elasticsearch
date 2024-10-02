@@ -91,7 +91,15 @@ public class ModelRegistry {
     public void addDefaultConfigurations(List<UnparsedModel> serviceDefaultConfigs) {
         for (var conf : serviceDefaultConfigs) {
             if (defaultConfigs.containsKey(conf.inferenceEntityId())) {
-                throw new IllegalStateException("Service [" + conf.service() + "] blah");
+                throw new IllegalStateException(
+                    "Cannot add default endpoint to the model registry with duplicate inference id ["
+                        + conf.inferenceEntityId()
+                        + "] declared by service ["
+                        + conf.service()
+                        + "]. The inference Id is already use by ["
+                        + defaultConfigs.get(conf.inferenceEntityId()).service()
+                        + "] service."
+                );
             }
 
             defaultConfigs.put(conf.inferenceEntityId(), conf);

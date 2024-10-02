@@ -35,10 +35,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -343,6 +345,28 @@ public class ModelRegistryTests extends ESTestCase {
             assertThat(adaptiveOut, is(Map.of("enabled", true)));
             adaptiveOut.remove("enabled");
         }
+    }
+
+    public void testDuplicateDefaultIds() {
+        var client = mockBulkClient();
+        var registry = new ModelRegistry(client);
+
+        var id = "my-inference";
+
+        registry.addDefaultConfigurations(List.of(new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of())));
+        var ise = expectThrows(
+            IllegalStateException.class,
+            () -> registry.addDefaultConfigurations(
+                List.of(new UnparsedModel(id, randomFrom(TaskType.values()), "service-b", Map.of(), Map.of()))
+            )
+        );
+        assertThat(
+            ise.getMessage(),
+            containsString(
+                "Cannot add default endpoint to the model registry with duplicate inference id [my-inference] declared by service "
+                    + "[service-b]. The inference Id is already use by [service-a] service."
+            )
+        );
     }
 
     private Client mockBulkClient() {

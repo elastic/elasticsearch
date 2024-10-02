@@ -21,5 +21,4 @@ public record UnparsedModel(
     String service,
     Map<String, Object> settings,
     Map<String, Object> secrets
-) {
-}
+) {}

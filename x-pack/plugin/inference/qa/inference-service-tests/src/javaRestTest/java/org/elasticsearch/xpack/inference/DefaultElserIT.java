@@ -103,7 +103,7 @@ public class DefaultElserIT extends InferenceBaseRestTest {
         assertThat(
             modelConfig.toString(),
             adaptiveAllocations,
-            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 8))
+            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 1, "max_number_of_allocations", 8))
         );
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.rest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
@@ -68,12 +69,12 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
             Set.of(
                 "name",
                 "include_defaults",
-                "timeout",
                 "master_timeout",
                 IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
                 IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
                 IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
                 IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+                DataStream.isFailureStoreFeatureFlagEnabled() ? IndicesOptions.FailureStoreOptions.FAILURE_STORE : "name",
                 "verbose"
             )
         );

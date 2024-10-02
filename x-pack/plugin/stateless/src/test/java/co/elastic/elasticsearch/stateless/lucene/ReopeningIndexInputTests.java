@@ -29,6 +29,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.HandleTrackingFS;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -321,6 +323,74 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             input.close();
         } finally {
             PathUtilsForTesting.teardown();
+        }
+    }
+
+    /**
+     * See Lucene change https://github.com/apache/lucene/pull/13535
+     * @throws IOException
+     */
+    public void testMemoryMappedIndexInputOpenedWithReadOnceContext() throws IOException {
+        // we can only verify memory mapped files
+        final String fileName = "file."
+            + randomFrom(
+                Arrays.stream(LuceneFilesExtensions.values())
+                    .filter(LuceneFilesExtensions::shouldMmap)
+                    .map(LuceneFilesExtensions::getExtension)
+                    .toList()
+            );
+
+        final long primaryTerm = randomLongBetween(1L, 1000L);
+        final Path path = PathUtils.get(createTempDir().toString());
+        try (
+            var node = new FakeStatelessNode(
+                settings -> TestEnvironment.newEnvironment(
+                    Settings.builder().put(settings).put(Environment.PATH_HOME_SETTING.getKey(), path.toAbsolutePath()).build()
+                ),
+                settings -> {
+                    var build = Settings.builder().put(settings).put(Environment.PATH_HOME_SETTING.getKey(), path.toAbsolutePath()).build();
+                    return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+                },
+                xContentRegistry(),
+                primaryTerm
+            )
+        ) {
+            final var indexDirectory = node.indexingDirectory;
+            final var indexPath = node.environment.dataFiles()[0].resolve(node.shardId.getIndex().getUUID()).resolve("0").resolve("index");
+
+            final byte[] bytes = randomByteArrayOfLength(4096);
+            try (IndexOutput output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+                output.writeBytes(bytes, bytes.length);
+            }
+
+            var input = indexDirectory.openInput(fileName, IOContext.READONCE);
+            assertThat(input, instanceOf(IndexDirectory.ReopeningIndexInput.class));
+            assertThat(((IndexDirectory.ReopeningIndexInput) input).getDelegate().isCached(), equalTo(false));
+            readNBytes(input, bytes, 0L, 1024);
+
+            var future = new PlainActionFuture<Void>();
+            node.threadPool.generic().execute(() -> ActionListener.completeWith(future, () -> {
+                indexDirectory.getBlobStoreCacheDirectory()
+                    .getBlobContainer(primaryTerm)
+                    .writeBlob(OperationPurpose.INDICES, "stateless_commit_1", BytesReference.fromByteBuffer(ByteBuffer.wrap(bytes)), true);
+
+                indexDirectory.updateCommit(
+                    1L,
+                    bytes.length,
+                    Set.of(fileName),
+                    Map.of(fileName, createBlobFileRanges(primaryTerm, 1L, 0L, bytes.length))
+                );
+                return null;
+            }));
+            safeGet(future);
+
+            readNBytes(input, bytes, input.getFilePointer(), 1024);
+
+            assertThat(Files.exists(indexPath.resolve(fileName)), equalTo(false));
+            expectThrows(NoSuchFileException.class, () -> indexDirectory.getDelegate().fileLength(fileName));
+            assertThat(((IndexDirectory.ReopeningIndexInput) input).getDelegate().isCached(), equalTo(true));
+
+            input.close();
         }
     }
 

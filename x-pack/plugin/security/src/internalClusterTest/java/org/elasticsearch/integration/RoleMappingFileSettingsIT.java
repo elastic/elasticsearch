@@ -282,15 +282,11 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             IllegalArgumentException.class,
             () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet()
         );
-        // deleting role mappings that don't exist in the native store but do in cluster-state also results in an error response
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet()
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_fleet")).actionGet()
-        );
+        // deleting role mappings that don't exist in the native store but do in cluster-state should result in not found
+        var response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet();
+        assertFalse(response.isFound());
+        response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet();
+        assertFalse(response.isFound());
 
     }
 
@@ -368,12 +364,11 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         // assert that cluster-state role mappings come last
         List<Boolean> isNativeFlags = Arrays.stream(response.mappings()).map(it -> {
-            // native=true is added in `sampleRestRequest` as part of test setup
-            Boolean isNative = (Boolean) it.getMetadata().get("native");
-            return Boolean.TRUE.equals(isNative);
+            Boolean isReadOnly = (Boolean) it.getMetadata().get("_read_only");
+            return Boolean.TRUE.equals(isReadOnly);
         }).collect(Collectors.toList());
         // first 4 are native (and first), last to cluster-state
-        assertThat(isNativeFlags, contains(true, true, true, true, false, false));
+        assertThat(isNativeFlags, contains(false, false, false, false, true, true));
 
         // it's possible to delete overlapping native role mapping
         assertTrue(client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet().isFound());
@@ -527,7 +522,6 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                 "roles": [ "kibana_user_native" ],
                 "rules": { "field": { "username": "*" } },
                 "metadata": {
-                    "native": true,
                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
                 }
             }""";

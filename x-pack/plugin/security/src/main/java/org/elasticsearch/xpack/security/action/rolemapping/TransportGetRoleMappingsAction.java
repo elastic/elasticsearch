@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRoleMappingsRequest, GetRoleMappingsResponse> {
@@ -59,8 +61,24 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
         roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
-            // TODO add metadata marking these as originating from cluster-state/file-settings
-            final List<ExpressionRoleMapping> clusterStateRoleMappings = toOrderedList(clusterStateRoleMapper.getMappings(names));
+            final List<ExpressionRoleMapping> clusterStateRoleMappings = clusterStateRoleMapper.getMappings(names)
+                .stream()
+                .map(originalRoleMapping -> {
+                    // Mark role mappings from cluster state as "_read_only" by adding a boolean to their metadata
+                    Map<String, Object> metadataWithReadOnlyFlag = new HashMap<>(originalRoleMapping.getMetadata());
+                    metadataWithReadOnlyFlag.put("_read_only", true);
+                    return new ExpressionRoleMapping(
+                        originalRoleMapping.getName(),
+                        originalRoleMapping.getExpression(),
+                        originalRoleMapping.getRoles(),
+                        originalRoleMapping.getRoleTemplates(),
+                        metadataWithReadOnlyFlag,
+                        originalRoleMapping.isEnabled()
+                    );
+                })
+                .sorted(Comparator.comparing(ExpressionRoleMapping::getName))
+                .toList();
+
             if (clusterStateRoleMappings.isEmpty()) {
                 listener.onResponse(new GetRoleMappingsResponse(mappings));
                 return;
@@ -76,14 +94,5 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             combined.addAll(clusterStateRoleMappings);
             listener.onResponse(new GetRoleMappingsResponse(combined));
         }, listener::onFailure));
-    }
-
-    private static List<ExpressionRoleMapping> toOrderedList(Set<ExpressionRoleMapping> roleMappings) {
-        if (roleMappings.isEmpty()) {
-            return List.of();
-        }
-        final List<ExpressionRoleMapping> sortedList = new ArrayList<>(roleMappings);
-        sortedList.sort(Comparator.comparing(ExpressionRoleMapping::getName));
-        return sortedList;
     }
 }

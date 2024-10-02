@@ -278,9 +278,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJobsWithIndexNameOption
   issue: https://github.com/elastic/elasticsearch/issues/113528
-- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
-  method: test {p0=dot_prefix/10_basic/Deprecated index template with a dot prefix index pattern}
-  issue: https://github.com/elastic/elasticsearch/issues/113529
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCantCreateJobWithSameID
   issue: https://github.com/elastic/elasticsearch/issues/113581

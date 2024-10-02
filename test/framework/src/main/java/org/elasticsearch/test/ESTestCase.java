@@ -578,9 +578,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+    private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
-    protected final CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
+    protected static CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
         breakers.add(breaker);
         return breaker;
@@ -588,7 +588,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void allBreakersMemoryReleased() {
-        for (CircuitBreaker breaker : breakers) {
+        var breakersToCheck = new ArrayList<>(breakers);
+        // We clear it now to avoid keeping old breakers if the assertion fails
+        breakers.clear();
+        for (CircuitBreaker breaker : breakersToCheck) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
     }

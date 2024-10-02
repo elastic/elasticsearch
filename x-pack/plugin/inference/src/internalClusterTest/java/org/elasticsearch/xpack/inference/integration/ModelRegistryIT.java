@@ -293,7 +293,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             var id = "default-" + i;
             defaultConfigs.put(id, createUnparsedConfig(id, randomFrom(TaskType.values()), service, secret));
         }
-        modelRegistry.addDefaultConfigurations(defaultConfigs.values().stream().toList());
+        defaultConfigs.values().forEach(modelRegistry::addDefaultConfiguration);
 
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -342,7 +342,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             var id = "default-" + i;
             defaultConfigs.put(id, createUnparsedConfig(id, randomFrom(TaskType.values()), service, secret));
         }
-        modelRegistry.addDefaultConfigurations(defaultConfigs.values().stream().toList());
+        defaultConfigs.values().forEach(modelRegistry::addDefaultConfiguration);
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
@@ -370,7 +370,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultSparse = createUnparsedConfig("default-sparse", TaskType.SPARSE_EMBEDDING, service, secret);
         var defaultText = createUnparsedConfig("default-text", TaskType.TEXT_EMBEDDING, service, secret);
 
-        modelRegistry.addDefaultConfigurations(List.of(defaultSparse, defaultText));
+        modelRegistry.addDefaultConfiguration(defaultSparse);
+        modelRegistry.addDefaultConfiguration(defaultText);
 
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -406,7 +407,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultText = createUnparsedConfig("default-text", TaskType.TEXT_EMBEDDING, service, secret);
         var defaultChat = createUnparsedConfig("default-chat", TaskType.COMPLETION, service, secret);
 
-        modelRegistry.addDefaultConfigurations(List.of(defaultSparse, defaultText, defaultChat));
+        modelRegistry.addDefaultConfiguration(defaultSparse);
+        modelRegistry.addDefaultConfiguration(defaultText);
+        modelRegistry.addDefaultConfiguration(defaultChat);
 
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();

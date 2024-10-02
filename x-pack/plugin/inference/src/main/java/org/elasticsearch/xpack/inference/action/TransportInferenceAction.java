@@ -152,12 +152,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     }
 
     private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
-        return new ElasticsearchStatusException(
-            "Unknown service [{}] for model [{}]. ",
-            RestStatus.INTERNAL_SERVER_ERROR,
-            service,
-            inferenceId
-        );
+        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
     }
 
     private static ElasticsearchStatusException incompatibleTaskTypeException(TaskType requested, TaskType expected) {

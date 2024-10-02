@@ -35,7 +35,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -353,12 +352,10 @@ public class ModelRegistryTests extends ESTestCase {
 
         var id = "my-inference";
 
-        registry.addDefaultConfigurations(List.of(new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of())));
+        registry.addDefaultConfiguration(new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of()));
         var ise = expectThrows(
             IllegalStateException.class,
-            () -> registry.addDefaultConfigurations(
-                List.of(new UnparsedModel(id, randomFrom(TaskType.values()), "service-b", Map.of(), Map.of()))
-            )
+            () -> registry.addDefaultConfiguration(new UnparsedModel(id, randomFrom(TaskType.values()), "service-b", Map.of(), Map.of()))
         );
         assertThat(
             ise.getMessage(),

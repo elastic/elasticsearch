@@ -40,9 +40,7 @@ public class IndexingPressureTests extends ESTestCase {
     }
 
     public void testPrimaryMemoryLimitSettingsDefaultForStateless() {
-        Settings settingsDefault = Settings.builder()
-            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-            .build();
+        Settings settingsDefault = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
 
         assertThat(IndexingPressure.MAX_COORDINATING_BYTES.getDefaultRaw(settingsDefault), equalTo("10%"));
         assertThat(IndexingPressure.MAX_PRIMARY_BYTES.getDefaultRaw(settingsDefault), equalTo("15%"));

@@ -22,7 +22,10 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
+import org.elasticsearch.action.datastreams.options.GetDataStreamOptionsAction;
+import org.elasticsearch.action.datastreams.options.PutDataStreamOptionsAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -56,6 +59,10 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycl
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.options.action.TransportGetDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.TransportPutDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.rest.RestGetDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.rest.RestPutDataStreamOptionsAction;
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.datastreams.rest.RestDeleteDataStreamAction;
@@ -229,6 +236,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(GetDataStreamLifecycleStatsAction.INSTANCE, TransportGetDataStreamLifecycleStatsAction.class));
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            actions.add(new ActionHandler<>(GetDataStreamOptionsAction.INSTANCE, TransportGetDataStreamOptionsAction.class));
+            actions.add(new ActionHandler<>(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
+        }
         return actions;
     }
 
@@ -261,6 +272,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDeleteDataStreamLifecycleAction());
         handlers.add(new RestExplainDataStreamLifecycleAction());
         handlers.add(new RestDataStreamLifecycleStatsAction());
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            handlers.add(new RestGetDataStreamOptionsAction());
+            handlers.add(new RestPutDataStreamOptionsAction());
+        }
         return handlers;
     }
 

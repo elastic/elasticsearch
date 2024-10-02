@@ -391,8 +391,11 @@ PUT /my-explicit-mappings-books
 ==== Combine dynamic and explicit mappings
 
 Explicit mappings are defined at index creation, and documents must conform to these mappings.
+You can also use the <<indices-put-mapping,Update mapping API>>.
 When an index has the `dynamic` flag set to `true`, you can add new fields to documents without updating the mapping.
-This allows you to <<mapping-combine-explicit-dynamic,combine explicit and dynamic mappings>>.
+
+This allows you to combine explicit and dynamic mappings.
+Learn more about <<mapping-manage-update,managing and updating mappings>>.
 
 [discrete]
 [[getting-started-search-data]]

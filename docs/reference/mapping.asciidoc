@@ -76,7 +76,7 @@ balance resource usage and performance. Your index will be smaller, but with
 slower search performance.
 
 [discrete]
-[[mapping-combine-explicit-dynamic]]
+[[mapping-manage-update]]
 == Managing and updating mappings
 
 Explicit mappings should be defined at index creation for fields you know in advance. 

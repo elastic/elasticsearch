@@ -827,7 +827,7 @@ class RepositoryIntegrityVerifier {
     ) {
         ThrottledIterator.run(
             iterator,
-            (ref, item) -> itemConsumer.accept(Releasables.wrap(ref, progressCounter::incrementAndGet), item),
+            (ref, item) -> itemConsumer.accept(Releasables.wrap(progressCounter::incrementAndGet, ref), item),
             maxConcurrency,
             onCompletion::close
         );

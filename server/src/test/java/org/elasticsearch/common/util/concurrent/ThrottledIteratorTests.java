@@ -64,8 +64,8 @@ public class ThrottledIteratorTests extends ESTestCase {
 
             ThrottledIterator.run(IntStream.range(0, items).boxed().iterator(), (releasable, item) -> {
                 try (var refs = new RefCountingRunnable(() -> {
-                    releasable.close();
                     completedItems.incrementAndGet();
+                    releasable.close();
                 })) {
                     assertTrue(itemPermits.tryAcquire());
                     if (forkSupplier.getAsBoolean()) {

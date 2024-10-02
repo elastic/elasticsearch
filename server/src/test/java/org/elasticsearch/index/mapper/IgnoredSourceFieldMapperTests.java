@@ -981,7 +981,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals("""
-            {"path":{"disabled":[{"leaf":10},{"leaf":20}],"regular":{"leaf":[10,20]}}}""", syntheticSource);
+            {"path":{"disabled":{"leaf":[10,20]},"regular":{"leaf":[10,20]}}}""", syntheticSource);
     }
 
     public void testDisabledObjectWithinHigherLevelArray() throws IOException {
@@ -1423,6 +1423,19 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals("""
             {"path":{"to":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}}""", syntheticSource);
+    }
+
+    public void testNoDynamicRootObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(topMapping(b -> {
+            b.startObject("_source").field("mode", "synthetic").endObject().field("dynamic", "false");
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("foo", "bar");
+            b.startObject("path").field("X", "Y").endObject();
+            b.array("name", "A", "D", "C", "B");
+        });
+        assertEquals("""
+            {"foo":"bar","name":["A","D","C","B"],"path":{"X":"Y"}}""", syntheticSource);
     }
 
     public void testRuntimeDynamicObjectSingleField() throws IOException {

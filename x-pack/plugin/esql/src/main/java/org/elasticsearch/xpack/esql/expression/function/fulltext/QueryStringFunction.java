@@ -80,9 +80,4 @@ public class QueryStringFunction extends FullTextFunction {
         return ENTRY.name;
     }
 
-    @Override
-    public boolean hasFieldsInformation() {
-        return false;
-    }
-
 }

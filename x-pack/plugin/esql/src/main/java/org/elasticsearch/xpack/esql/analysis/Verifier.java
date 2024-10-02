@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -649,8 +650,10 @@ public class Verifier {
             condition.forEachDown(FullTextFunction.class, functionHolder::set);
             FullTextFunction ftf = functionHolder.get();
             if (ftf != null) {
-                checkCommandUsageAfterFullTextFunction(ftf, plan, failures);
                 checkConditionCanBePushedDown(ftf, condition, failures);
+                if (ftf instanceof QueryStringFunction) {
+                    checkCommandUsageAfterFullTextFunction(ftf, plan, failures);
+                }
             }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
@@ -660,10 +663,9 @@ public class Verifier {
     }
 
     private static void checkCommandUsageAfterFullTextFunction(FullTextFunction ftf, LogicalPlan plan, Set<Failure> failures) {
-        // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
-        // we can't check if it can be pushed down if we don't have information about the fields present in the query.
+        // Check commands used before the function
         plan.forEachDown(LogicalPlan.class, lp -> {
-            if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation || ftf.hasFieldsInformation()) == false) {
+            if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
                 failures.add(
                     fail(
                         plan,

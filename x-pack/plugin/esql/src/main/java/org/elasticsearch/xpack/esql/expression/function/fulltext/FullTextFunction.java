@@ -125,6 +125,4 @@ public abstract class FullTextFunction extends Function {
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
         return DEFAULT;
     }
-
-    public abstract boolean hasFieldsInformation();
 }

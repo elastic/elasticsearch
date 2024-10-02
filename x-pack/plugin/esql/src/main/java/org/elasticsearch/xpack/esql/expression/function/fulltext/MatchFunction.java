@@ -118,11 +118,6 @@ public class MatchFunction extends FullTextFunction implements Validatable {
         return SECOND;
     }
 
-    @Override
-    public boolean hasFieldsInformation() {
-        return true;
-    }
-
     public Expression field() {
         return field;
     }

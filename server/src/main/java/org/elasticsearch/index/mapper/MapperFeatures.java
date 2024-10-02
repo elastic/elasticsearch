@@ -36,6 +36,7 @@ public class MapperFeatures implements FeatureSpecification {
             NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
             BooleanFieldMapper.BOOLEAN_DIMENSION,
             ObjectMapper.SUBOBJECTS_AUTO,
+            ObjectMapper.SUBOBJECTS_AUTO_FIXES,
             KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
             SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
             Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE,
@@ -47,5 +48,10 @@ public class MapperFeatures implements FeatureSpecification {
             TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
             FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX);
     }
 }

@@ -252,6 +252,10 @@ public class CsvTests extends ESTestCase {
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );
+            assumeFalse(
+                "can't use semantic_text in CSV tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

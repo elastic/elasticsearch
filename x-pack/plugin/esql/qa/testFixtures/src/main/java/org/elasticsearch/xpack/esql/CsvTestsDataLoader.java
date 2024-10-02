@@ -81,7 +81,11 @@ public class CsvTestsDataLoader {
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
     private static final TestsDataset BOOKS = new TestsDataset("books");
-    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text");
+    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset(
+        "semantic_text",
+        "mapping-semantic_text.json",
+        "semantic_text.jsonl"
+    );
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -280,7 +284,11 @@ public class CsvTestsDataLoader {
                 .build();
         }
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
-        loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+        if (dataset.dataFileName.endsWith(".csv")) {
+            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+        } else {
+            loadJsonlData(client, dataset.indexName, data, logger);
+        }
     }
 
     private static String readMappingFile(URL resource, Map<String, String> typeMapping) throws IOException {
@@ -316,6 +324,36 @@ public class CsvTestsDataLoader {
                 b.append(line);
             }
             return b.toString();
+        }
+    }
+
+    private static void loadJsonlData(RestClient client, String indexName, URL resource, Logger logger) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        ArrayList<String> failures = new ArrayList<>();
+
+        try (BufferedReader reader = reader(resource)) {
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                builder.append("{\"index\": {\"_index\":\"" + indexName + "\"}}\n");
+                builder.append(line + "\n");
+
+                if (builder.length() > BULK_DATA_SIZE) {
+                    sendBulkRequest(indexName, builder, client, logger, failures);
+                    builder.setLength(0);
+                }
+            }
+        }
+
+        if (builder.isEmpty() == false) {
+            sendBulkRequest(indexName, builder, client, logger, failures);
+        }
+
+        if (failures.isEmpty() == false) {
+            for (String failure : failures) {
+                logger.error(failure);
+            }
+            throw new IOException("Data loading failed with " + failures.size() + " errors: " + failures.get(0));
         }
     }
 

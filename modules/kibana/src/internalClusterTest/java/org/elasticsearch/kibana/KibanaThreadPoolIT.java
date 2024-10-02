@@ -56,7 +56,8 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1KB")
+            .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), "1KB")
+            .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1KB")
             .put("thread_pool.search.size", 1)
             .put("thread_pool.search.queue_size", 1)
             .put("thread_pool.write.size", 1)

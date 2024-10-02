@@ -23,6 +23,10 @@ public class IndexingPressureTests extends ESTestCase {
         .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "10KB")
         .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), "12KB")
         .put(IndexingPressure.MAX_REPLICA_BYTES.getKey(), "15KB")
+        .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "8KB")
+        .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB")
+        .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "9KB")
+        .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "128B")
         .build();
 
     public void testMemoryLimitSettingsFallbackToOldSingleLimitSetting() {
@@ -31,6 +35,23 @@ public class IndexingPressureTests extends ESTestCase {
         assertThat(IndexingPressure.MAX_COORDINATING_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(20)));
         assertThat(IndexingPressure.MAX_PRIMARY_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(20)));
         assertThat(IndexingPressure.MAX_REPLICA_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(30)));
+    }
+
+    public void testHighAndLowWatermarkSettings() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+
+        try (
+            Releasable ignored1 = indexingPressure.markCoordinatingOperationStarted(10, ByteSizeValue.ofKb(6).getBytes(), false);
+            Releasable ignored2 = indexingPressure.markCoordinatingOperationStarted(10, ByteSizeValue.ofKb(2).getBytes(), false)
+        ) {
+            assertFalse(indexingPressure.shouldSplitBulk(randomIntBetween(1, 1000)));
+            assertTrue(indexingPressure.shouldSplitBulk(randomIntBetween(1025, 10000)));
+
+            try (Releasable ignored3 = indexingPressure.markPrimaryOperationStarted(10, ByteSizeValue.ofKb(1).getBytes(), false)) {
+                assertFalse(indexingPressure.shouldSplitBulk(randomIntBetween(1, 127)));
+                assertTrue(indexingPressure.shouldSplitBulk(randomIntBetween(129, 1000)));
+            }
+        }
     }
 
     public void testMemoryBytesAndOpsMarkedAndReleased() {

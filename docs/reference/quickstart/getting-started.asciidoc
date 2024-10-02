@@ -51,7 +51,7 @@ PUT /books
 ----
 // TEST[skip: index already setup]
 
-A `200` response indicates the index was created successfully.
+The following response indicates the index was created successfully.
 
 .Example response
 [%collapsible]
@@ -96,13 +96,18 @@ If the index didn't already exist, this request would automatically create it.
 [source,console]
 ----
 POST books/_doc
-{"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+{
+  "name": "Snow Crash",
+  "author": "Neal Stephenson",
+  "release_date": "1992-06-01",
+  "page_count": 470
+}
 ----
 // TEST[continued]
 
 The response includes metadata that {es} generates for the document, including a unique `_id` for the document within the index.
 
-.Expand to see example response with annotations
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
@@ -159,7 +164,7 @@ POST /_bulk
 
 You should receive a response indicating there were no errors.
 
-.Expand to see example response
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
@@ -291,7 +296,7 @@ GET /books/_mapping
 ----
 // TEST[continued]
 
-.Expand to see example response
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
@@ -345,7 +350,8 @@ GET /books/_mapping
 [[getting-started-explicit-mapping]]
 ==== Define explicit mapping
 
-Create an index named `my-explicit-mappings-books` with explicit mappings:
+Create an index named `my-explicit-mappings-books` with explicit mappings.
+Pass each field's properties as a JSON object. This object should contain the field type and any additional <<mapping-params,mapping parameters>>.
 
 [source,console]
 ----
@@ -354,10 +360,10 @@ PUT /my-explicit-mappings-books
   "mappings": {
     "dynamic": false,  <1>
     "properties": {  <2>
-      "name": { "type": "text" },  <3>
+      "name": { "type": "text" },
       "author": { "type": "text" },
-      "release_date": { "type": "date", "format": "yyyy-MM-dd" },  <4>
-      "page_count": { "type": "integer" }  <5>
+      "release_date": { "type": "date", "format": "yyyy-MM-dd" },
+      "page_count": { "type": "integer" }
     }
   }
 }
@@ -365,11 +371,8 @@ PUT /my-explicit-mappings-books
 // TEST[continued]
 <1> Disables dynamic mapping for the index. Documents containing fields not defined in the mapping will be rejected.
 <2> The `properties` object defines the fields and their data types for documents in this index.
-<3> Defines the "name" field as type "text", suitable for full-text search on book titles.
-<4> Specifies the "release_date" field as a "date" type with the specific format `yyyy-MM-dd`.
-<5> Sets the "page_count" field as an "integer" type for storing the number of pages.
 
-.Expand to see example response
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
@@ -410,7 +413,7 @@ GET books/_search
 ----
 // TEST[continued]
 
-.Expand to see (truncated) example response with annotations
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
@@ -482,7 +485,7 @@ GET books/_search
 ----
 // TEST[continued]
 
-.Expand to see example response with annotations
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
@@ -542,5 +545,3 @@ DELETE /my-explicit-mappings-books
 ====
 Deleting an index permanently deletes its documents, shards, and metadata.
 ====
-
-

@@ -38,11 +38,9 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
 
     @Override
     protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
-        // TODO make sure we handle cluster-state blocks appropriately since `getMappings(...)` access cluster-state under the hood
         if (clusterStateRoleMapper.hasMapping(request.getName())) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    // TODO we need a more instructive error message here
                     "Role mapping ["
                         + request.getName()
                         + "] cannot be created or updated via API since a role mapping "

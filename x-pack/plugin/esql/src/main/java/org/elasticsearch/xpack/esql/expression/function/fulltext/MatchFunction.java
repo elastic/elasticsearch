@@ -122,4 +122,8 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     public boolean hasFieldsInformation() {
         return true;
     }
+
+    public Expression field() {
+        return field;
+    }
 }

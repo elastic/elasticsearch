@@ -70,6 +70,11 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     }
 
     @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
     public String functionName() {
         return "MATCH";
     }
@@ -107,11 +112,6 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, MatchFunction::new, field, query());
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {

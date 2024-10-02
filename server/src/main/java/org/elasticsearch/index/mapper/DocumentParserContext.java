@@ -878,7 +878,7 @@ public abstract class DocumentParserContext {
 
     public void recordOffset(String fieldName, String value) {
         int nextOffset = offsetCounterByField.compute(fieldName, (s, integer) -> integer == null ? 0 : ++integer);
-        var values = arrayOffsetsByField.computeIfAbsent(fieldName , s -> new TreeMap<>(Comparator.naturalOrder()));
+        var values = arrayOffsetsByField.computeIfAbsent(fieldName, s -> new TreeMap<>(Comparator.naturalOrder()));
         var offsets = values.computeIfAbsent(value, s -> new ArrayList<>());
         offsets.add(nextOffset);
     }

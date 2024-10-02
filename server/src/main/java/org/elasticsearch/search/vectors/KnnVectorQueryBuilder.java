@@ -434,9 +434,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 // so add them as should clauses to a filter
                 BoolQueryBuilder boolQuery = new BoolQueryBuilder();
                 boolQuery.must(exactKnnQuery);
-                boolQuery.filter(new BoolQueryBuilder()
-                    .should(filterQueryChildren)
-                    .should(new ToChildBlockJoinQueryBuilder(filterQueryChildren)));
+                boolQuery.filter(
+                    new BoolQueryBuilder().should(filterQueryChildren).should(new ToChildBlockJoinQueryBuilder(filterQueryChildren))
+                );
                 return boolQuery;
             }
         }

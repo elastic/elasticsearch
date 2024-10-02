@@ -50,8 +50,13 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
      * @param scoreDocs the docs and scores this query should match. The array must be
      *                  sorted in order of ascending doc IDs.
      */
-    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName,
-                VectorData queryVector, Float vectorSimilarity, List<QueryBuilder> filterQueries) {
+    public KnnScoreDocQueryBuilder(
+        ScoreDoc[] scoreDocs,
+        String fieldName,
+        VectorData queryVector,
+        Float vectorSimilarity,
+        List<QueryBuilder> filterQueries
+    ) {
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;
         this.queryVector = queryVector;
@@ -83,7 +88,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         } else {
             this.vectorSimilarity = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TO_CHILD_BLOCK_JOIN_QUERY)){
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TO_CHILD_BLOCK_JOIN_QUERY)) {
             this.filterQueries = readQueries(in);
         } else {
             this.filterQueries = List.of();
@@ -111,8 +116,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return vectorSimilarity;
     }
 
-
-
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
@@ -133,7 +136,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             || out.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TO_CHILD_BLOCK_JOIN_QUERY)){
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TO_CHILD_BLOCK_JOIN_QUERY)) {
             writeQueries(out, filterQueries);
         }
     }
@@ -199,9 +202,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 // so add them as should clauses to a filter
                 BoolQueryBuilder boolQuery = new BoolQueryBuilder();
                 boolQuery.must(exactKnnQuery);
-                boolQuery.filter(new BoolQueryBuilder()
-                    .should(filterQueryChildren)
-                    .should(new ToChildBlockJoinQueryBuilder(filterQueryChildren)));
+                boolQuery.filter(
+                    new BoolQueryBuilder().should(filterQueryChildren).should(new ToChildBlockJoinQueryBuilder(filterQueryChildren))
+                );
                 return boolQuery;
             }
         }

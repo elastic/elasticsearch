@@ -17,7 +17,7 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class ToChildBlockJoinQueryBuilderTests extends AbstractQueryTestCase< ToChildBlockJoinQueryBuilder> {
+public class ToChildBlockJoinQueryBuilderTests extends AbstractQueryTestCase<ToChildBlockJoinQueryBuilder> {
     @Override
     protected ToChildBlockJoinQueryBuilder doCreateTestQueryBuilder() {
         String filterFieldName = randomBoolean() ? KEYWORD_FIELD_NAME : TEXT_FIELD_NAME;
@@ -25,8 +25,8 @@ public class ToChildBlockJoinQueryBuilderTests extends AbstractQueryTestCase< To
     }
 
     @Override
-    protected void doAssertLuceneQuery(ToChildBlockJoinQueryBuilder queryBuilder, Query query,
-                                       SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(ToChildBlockJoinQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         assertThat(query, instanceOf(ToChildBlockJoinQuery.class));
     }
 

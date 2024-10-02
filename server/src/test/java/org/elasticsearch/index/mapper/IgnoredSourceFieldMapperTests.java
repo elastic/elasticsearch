@@ -984,6 +984,33 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"disabled":{"leaf":[10,20]},"regular":{"leaf":[10,20]}}}""", syntheticSource);
     }
 
+    public void testObjectArrayAndValueDynamicRuntimeObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").startObject("properties");
+            {
+                b.startObject("regular");
+                {
+                    b.startObject("properties").startObject("leaf").field("type", "integer").endObject().endObject();
+                }
+                b.endObject();
+                b.startObject("runtime").field("type", "object").field("dynamic", "runtime").endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().startArray("runtime").startObject().field("leaf", 10).endObject().endArray().endObject();
+                b.startObject().startObject("runtime").field("leaf", 20).endObject().endObject();
+                b.startObject().startArray("regular").startObject().field("leaf", 10).endObject().endArray().endObject();
+                b.startObject().startObject("regular").field("leaf", 20).endObject().endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"regular":{"leaf":[10,20]},"runtime":{"leaf":[10,20]}}}""", syntheticSource);
+    }
+
     public void testDisabledObjectWithinHigherLevelArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path");

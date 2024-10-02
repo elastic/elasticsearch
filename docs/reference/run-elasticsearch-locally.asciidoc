@@ -1,5 +1,11 @@
+//// 
+IMPORTANT: This content is replicated in the Elasticsearch repo root readme. Ensure both files are in sync.
+
+https://github.com/elastic/start-local is the source of truth.        
+//// 
+
 [[run-elasticsearch-locally]]
-== Run {es} locally in Docker
+== Run {es} locally
 ++++
 <titleabbrev>Run {es} locally</titleabbrev>
 ++++
@@ -8,164 +14,74 @@
 ====
 *DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS*
 
-The instructions on this page are for *local development only*. Do not use these instructions for production deployments, because they are not secure.
-While this approach is convenient for experimenting and learning, you should never run Elasticsearch in this way in a production environment.
+The instructions on this page are for *local development only*. Do not use this configuration for production deployments, because it is not secure.
+Refer to <<elasticsearch-intro-deploy, deployment options>> for a list of production deployment options.
 ====
 
-Follow this tutorial if you want to quickly set up {es} in Docker for local development or testing.
+Quickly set up {es} and {kib} in Docker for local development or testing, using the https://github.com/elastic/start-local?tab=readme-ov-file#-try-elasticsearch-and-kibana-locally[`start-local` script].
 
-This tutorial also includes instructions for installing {kib}. 
- If you don't need access to the {kib} UI, then you can skip those instructions.
+This setup comes with a one-month trial of the Elastic *Platinum* license.
+After the trial period, the license reverts to *Free and open - Basic*.
+Refer to https://www.elastic.co/subscriptions[Elastic subscriptions] for more information.
 
 [discrete]
 [[local-dev-prerequisites]]
 === Prerequisites
 
-If you don't have Docker installed, https://www.docker.com/products/docker-desktop[download and install Docker Desktop] for your operating system.
+- If you don't have Docker installed, https://www.docker.com/products/docker-desktop[download and install Docker Desktop] for your operating system.
+- If you're using Microsoft Windows, then install https://learn.microsoft.com/en-us/windows/wsl/install[Windows Subsystem for Linux (WSL)].
 
 [discrete]
-[[local-dev-env-vars]]
-=== Set environment variables
+[[local-dev-quick-start]]
+=== Run `start-local`
 
-Configure the following environment variables.
+To set up {es} and {kib} locally, run the `start-local` script:
 
 [source,sh]
 ----
-export ELASTIC_PASSWORD="<ES_PASSWORD>"  # password for "elastic" username
-export KIBANA_PASSWORD="<KIB_PASSWORD>"   # Used _internally_ by Kibana, must be at least 6 characters long
+curl -fsSL https://elastic.co/start-local | sh
 ----
+// NOTCONSOLE
+
+This script creates an `elastic-start-local` folder containing configuration files and starts both {es} and {kib} using Docker.
+
+After running the script, you can access Elastic services at the following endpoints:
+
+* *{es}*: http://localhost:9200
+* *{kib}*: http://localhost:5601
+
+The script generates a random password for the `elastic` user, which is displayed at the end of the installation and stored in the `.env` file.
+
+[CAUTION]
+====
+This setup is for local testing only. HTTPS is disabled, and Basic authentication is used for {es}. For security, {es} and {kib} are accessible only through `localhost`.
+====
 
 [discrete]
-[[local-dev-create-docker-network]]
-=== Create a Docker network
+[[api-access]]
+=== API access
 
-To run both {es} and {kib}, you'll need to create a Docker network:
+An API key for {es} is generated and stored in the `.env` file as `ES_LOCAL_API_KEY`.
+Use this key to connect to {es} with a https://www.elastic.co/guide/en/elasticsearch/client/index.html[programming language client] or the <<rest-apis,REST API>>.
+
+From the `elastic-start-local` folder, check the connection to Elasticsearch using `curl`:
 
 [source,sh]
-----
-docker network create elastic-net
-----
-
-[discrete]
-[[local-dev-run-es]]
-=== Run {es}
-
-Start the {es} container with the following command:
-
-ifeval::["{release-state}"=="unreleased"]
-WARNING: Version {version} has not yet been released.
-No Docker image is currently available for {es} {version}.
-endif::[]
-
-[source,sh,subs="attributes"]
-----
-docker run -p 127.0.0.1:9200:9200 -d --name elasticsearch --network elastic-net \
-  -e ELASTIC_PASSWORD=$ELASTIC_PASSWORD \
-  -e "discovery.type=single-node" \
-  -e "xpack.security.http.ssl.enabled=false" \
-  -e "xpack.license.self_generated.type=trial" \
-  {docker-image}
-----
-
-[discrete]
-[[local-dev-run-kib]]
-=== Run {kib} (optional)
-
-To run {kib}, you must first set the `kibana_system` password in the {es} container.
-
-[source,sh,subs="attributes"]
-----
-# configure the Kibana password in the ES container
-curl -u elastic:$ELASTIC_PASSWORD \
-  -X POST \
-  http://localhost:9200/_security/user/kibana_system/_password \
-  -d '{"password":"'"$KIBANA_PASSWORD"'"}' \
-  -H 'Content-Type: application/json'
+----     
+source .env
+curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
 ----
 // NOTCONSOLE
 
-Start the {kib} container with the following command:
-
-ifeval::["{release-state}"=="unreleased"]
-WARNING: Version {version} has not yet been released.
-No Docker image is currently available for {es} {version}.
-endif::[]
-
-[source,sh,subs="attributes"]
-----
-docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
-  -e ELASTICSEARCH_URL=http://elasticsearch:9200 \
-  -e ELASTICSEARCH_HOSTS=http://elasticsearch:9200 \
-  -e ELASTICSEARCH_USERNAME=kibana_system \
-  -e ELASTICSEARCH_PASSWORD=$KIBANA_PASSWORD \
-  -e "xpack.security.enabled=false" \
-  -e "xpack.license.self_generated.type=trial" \
-  {kib-docker-image}
-----
-
-When you access {kib}, use `elastic` as the username and the password you set earlier for the `ELASTIC_PASSWORD` environment variable.
-
-[NOTE]
-====
-The service is started with a trial license. The trial license enables all features of Elasticsearch for a trial period of 30 days. After the trial period expires, the license is downgraded to a basic license, which is free forever.
-====
-
 [discrete]
-[[local-dev-connecting-clients]]
-=== Connect to {es} with language clients
+[[local-dev-additional-info]]
+=== Learn more
 
-To connect to the {es} cluster from a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
-
-.*Expand* for details
-[%collapsible]
-==============
-
-You'll use the following connection details:
-
-* **{es} endpoint**: `http://localhost:9200`
-* **Username**: `elastic`
-* **Password**: `$ELASTIC_PASSWORD` (Value you set in the environment variable)
-
-For example, to connect with the Python `elasticsearch` client:
-
-[source,python]
-----
-import os
-from elasticsearch import Elasticsearch
-
-username = 'elastic'
-password = os.getenv('ELASTIC_PASSWORD') # Value you set in the environment variable
-
-client = Elasticsearch(
-    "http://localhost:9200",
-    basic_auth=(username, password)
-)
-
-print(client.info())
-----
-
-Here's an example curl command using basic authentication:
-
-[source,sh,subs="attributes"]
-----
-curl -u elastic:$ELASTIC_PASSWORD \
-  -X PUT \
-  http://localhost:9200/my-new-index \
-  -H 'Content-Type: application/json'
-----
-// NOTCONSOLE
-
-==============
+For more detailed information about the `start-local` setup, refer to the https://github.com/elastic/start-local[README on GitHub].
+Learn about customizing the setup, logging, and more.
 
 [discrete]
 [[local-dev-next-steps]]
 === Next steps
 
 Use our <<quickstart,quick start guides>> to learn the basics of {es}.
-
-[discrete]
-[[local-dev-production]]
-=== Moving to production
-
-This setup is not suitable for production use.
-Refer to <<elasticsearch-intro-deploy, deployment options>> for more information.

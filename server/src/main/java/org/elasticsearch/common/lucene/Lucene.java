@@ -89,7 +89,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene912";
+    public static final String LATEST_CODEC = "Lucene100";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 

@@ -35,7 +35,7 @@ public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
     }
 
     @Override
-    public InferenceServiceResults parseResult(Request request, HttpResult result, Flow.Publisher<HttpResult> flow) {
+    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var openAiProcessor = new OpenAiStreamingProcessor();
 

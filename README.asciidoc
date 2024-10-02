@@ -33,7 +33,7 @@ https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearc
 === Run Elasticsearch locally
 
 //// 
-IMPORTANT: This content is replicated in the Elasticsearch repo. See `run-elasticsearch-locally.asciidoc`.
+IMPORTANT: This content is replicated in `run-elasticsearch-locally.asciidoc`.
 Ensure both files are in sync.
 
 https://github.com/elastic/start-local is the source of truth.

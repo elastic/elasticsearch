@@ -1828,6 +1828,111 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     /**
+     * This test ensures that search results on old indices using "romanain" analyzer don't change
+     * after we introduce Lucene 10
+     */
+    public void testRomanianAnalyzerBWC() throws Exception {
+        var originalClusterLegacyRomanianAnalyzer = oldClusterHasFeature(SearchFeatures.LUCENE_10_0_0_UPGRADE) == false;
+        assumeTrue("Don't run this test if both versions already support stemming", originalClusterLegacyRomanianAnalyzer);
+        final String indexName = "test_romanian_stemmer";
+        Settings idxSettings = indexSettings(1, 1).build();
+        String cedillaForm = "absenţa";
+        String commaForm = "absența";
+
+        String mapping = """
+                {
+                  "properties": {
+                    "textfield" : {
+                      "type": "text",
+                      "analyzer": "romanian"
+                    }
+                  }
+                }
+            """;
+
+        // query that uses the cedilla form of "t"
+        String query = """
+                {
+                  "query": {
+                    "match": {
+                      "textfield": "absenţa"
+                    }
+                  }
+                }
+            """;
+
+        if (isRunningAgainstOldCluster()) {
+            createIndex(client(), indexName, idxSettings, mapping);
+            ensureGreen(indexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", cedillaForm)
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/2",
+                        // this doc uses the comma form
+                        (builder, params) -> builder.field("textfield", commaForm)
+                    )
+                )
+            );
+            refresh(indexName);
+
+            assertNumHits(indexName, 2, 1);
+
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+        } else {
+            // old index should still only return one doc
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+
+            String newIndexName = indexName + "_new";
+            createIndex(client(), newIndexName, idxSettings, mapping);
+            ensureGreen(newIndexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", cedillaForm)
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", commaForm)
+                    )
+                )
+            );
+            refresh(newIndexName);
+
+            searchRequest = new Request("POST", "/" + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(2, entityAsMap(client().performRequest(searchRequest)));
+
+            // searching both indices (old and new analysis version) we should get 1 hit from the old and 2 from the new index
+            searchRequest = new Request("POST", "/" + indexName + "," + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(3, entityAsMap(client().performRequest(searchRequest)));
+        }
+    }
+
+    /**
      * This test ensures that soft deletes are enabled a when upgrading a pre-8 cluster to 8.0+
      */
     @UpdateForV9 // This test can be removed in v9

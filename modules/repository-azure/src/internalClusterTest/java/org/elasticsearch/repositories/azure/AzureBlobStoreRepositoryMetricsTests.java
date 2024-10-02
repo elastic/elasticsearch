@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -291,11 +292,12 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         }
     }
 
+    @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
     private static class ErrorResponse {
 
         private final RestStatus status;
         private final String responseBody;
-        private final Predicate<HttpExchange> forRequest;
+        private final Predicate<HttpExchange> requestMatcher;
 
         ErrorResponse(RestStatus status) {
             this(status, null);
@@ -308,19 +310,18 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         /**
          * Create an error response that only gets returned for requests that match the supplied predicate. Note
          * that because the errors are stored in a queue this will prevent any subsequently queued errors from
-         * being returned until it returns.
+         * being returned until after it returns.
          */
-        ErrorResponse(RestStatus status, String responseBody, Predicate<HttpExchange> matchingRequest) {
+        ErrorResponse(RestStatus status, String responseBody, Predicate<HttpExchange> requestMatcher) {
             this.status = status;
             this.responseBody = responseBody;
-            this.forRequest = matchingRequest;
+            this.requestMatcher = requestMatcher;
         }
 
         public boolean matchesRequest(HttpExchange exchange) {
-            return forRequest.test(exchange);
+            return requestMatcher.test(exchange);
         }
 
-        @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
         public void writeResponse(HttpExchange exchange) throws IOException {
             if (responseBody != null) {
                 byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);

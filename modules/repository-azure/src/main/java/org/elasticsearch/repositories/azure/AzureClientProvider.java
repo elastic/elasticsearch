@@ -347,11 +347,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         private static final String ES_REQUEST_METRICS_CONTEXT_KEY = "_es_azure_repo_request_stats";
         private static final Logger logger = LogManager.getLogger(RequestMetricsTracker.class);
         private final OperationPurpose purpose;
-        private final RequestMetricsHandler onSuccessfulRequest;
+        private final RequestMetricsHandler requestMetricsHandler;
 
-        private RequestMetricsTracker(OperationPurpose purpose, RequestMetricsHandler onSuccessfulRequest) {
+        private RequestMetricsTracker(OperationPurpose purpose, RequestMetricsHandler requestMetricsHandler) {
             this.purpose = purpose;
-            this.onSuccessfulRequest = onSuccessfulRequest;
+            this.requestMetricsHandler = requestMetricsHandler;
         }
 
         @Override
@@ -373,7 +373,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             HttpMethod method = httpRequest.getHttpMethod();
             if (method != null) {
                 try {
-                    onSuccessfulRequest.requestCompleted(purpose, method, httpRequest.getUrl(), requestMetrics);
+                    requestMetricsHandler.requestCompleted(purpose, method, httpRequest.getUrl(), requestMetrics);
                 } catch (Exception e) {
                     logger.warn("Unable to notify a successful request", e);
                 }

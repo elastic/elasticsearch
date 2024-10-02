@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.cache.reader;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
 
 import org.apache.lucene.store.AlreadyClosedException;
@@ -48,17 +49,23 @@ public class CacheFileReader {
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;
+    private final BlobFileRanges blobFileRanges;
 
-    public CacheFileReader(StatelessSharedBlobCacheService.CacheFile cacheFile, CacheBlobReader cacheBlobReader) {
+    public CacheFileReader(
+        StatelessSharedBlobCacheService.CacheFile cacheFile,
+        CacheBlobReader cacheBlobReader,
+        BlobFileRanges blobFileRanges
+    ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
+        this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
     }
 
     /**
      * @return a new instance that is a copy of the current instance
      */
     public CacheFileReader copy() {
-        return new CacheFileReader(cacheFile.copy(), cacheBlobReader);
+        return new CacheFileReader(cacheFile.copy(), cacheBlobReader, blobFileRanges);
     }
 
     /**
@@ -84,6 +91,10 @@ public class CacheFileReader {
      * @throws Exception    if an error occurs
      */
     public void read(Object initiator, ByteBuffer b, long position, int length, long endOfInput) throws Exception {
+        doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput);
+    }
+
+    private void doRead(Object initiator, ByteBuffer b, long position, int length, long endOfInput) throws Exception {
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to doReadInternal
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset

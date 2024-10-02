@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 
@@ -33,6 +34,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -250,22 +252,19 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * @return an {@link IndexInput}
      */
     protected final IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges, @Nullable Releasable releasable) {
-        return new BlobCacheIndexInput(
-            name,
-            cacheService.getCacheFile(
-                new FileCacheKey(shardId, blobFileRanges.primaryTerm(), blobFileRanges.blobName()),
-                // this length is a lower bound on the length of the blob, used to assert that the cache file does not try to read
-                // data beyond the file boundary within the blob since we overload computeCacheFileRegionSize in
-                // StatelessSharedBlobCacheService to fully utilize each region
-                // it is also used for bounding the reads we do against indexing shard to ensure that we never read beyond the
-                // blob length (with padding added).
-                blobFileRanges.fileOffset() + blobFileRanges.fileLength()
-            ),
-            context,
-            getCacheBlobReader(blobFileRanges.blobLocation()),
-            releasable,
-            blobFileRanges.fileLength(),
-            blobFileRanges.fileOffset()
+        var reader = new CacheFileReader(getCacheFile(blobFileRanges), getCacheBlobReader(blobFileRanges.blobLocation()), blobFileRanges);
+        return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
+    }
+
+    private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {
+        return cacheService.getCacheFile(
+            new FileCacheKey(shardId, blobFileRanges.primaryTerm(), blobFileRanges.blobName()),
+            // this length is a lower bound on the length of the blob, used to assert that the cache file does not try to read
+            // data beyond the file boundary within the blob since we overload computeCacheFileRegionSize in
+            // StatelessSharedBlobCacheService to fully utilize each region
+            // it is also used for bounding the reads we do against indexing shard to ensure that we never read beyond the
+            // blob length (with padding added).
+            blobFileRanges.fileOffset() + blobFileRanges.fileLength()
         );
     }
 

@@ -72,9 +72,12 @@ public record StatelessCompoundCommit(
     Map<String, BlobLocation> commitFiles,
     // the size of the compound commit including codec, header, checksums, replicated content and all internal files
     long sizeInBytes,
-    Set<String> internalFiles
+    Set<String> internalFiles,
+    long headerSizeInBytes,
+    InternalFilesReplicatedRanges internalFilesReplicatedRanges
 ) implements Writeable {
 
+    // TODO This constructor is only used in tests, we should move it in a test utility method instead of keeping it here
     public StatelessCompoundCommit(
         ShardId shardId,
         long generation,
@@ -84,7 +87,17 @@ public record StatelessCompoundCommit(
         long sizeInBytes,
         Set<String> internalFiles
     ) {
-        this(shardId, new PrimaryTermAndGeneration(primaryTerm, generation), 0, nodeEphemeralId, commitFiles, sizeInBytes, internalFiles);
+        this(
+            shardId,
+            new PrimaryTermAndGeneration(primaryTerm, generation),
+            0,
+            nodeEphemeralId,
+            commitFiles,
+            sizeInBytes,
+            internalFiles,
+            0L,
+            InternalFilesReplicatedRanges.EMPTY
+        );
     }
 
     public StatelessCompoundCommit {
@@ -158,7 +171,10 @@ public record StatelessCompoundCommit(
             nodeEphemeralId,
             commitFiles,
             sizeInBytes,
-            in.readCollectionAsImmutableSet(StreamInput::readString)
+            in.readCollectionAsImmutableSet(StreamInput::readString),
+            // TODO add serialization over the network
+            0L,
+            InternalFilesReplicatedRanges.EMPTY
         );
     }
 
@@ -467,7 +483,9 @@ public record StatelessCompoundCommit(
             nodeEphemeralId,
             Collections.unmodifiableMap(commitFiles),
             totalSizeInBytes,
-            internalFiles.stream().map(InternalFile::name).collect(Collectors.toSet())
+            internalFiles.stream().map(InternalFile::name).collect(Collectors.toSet()),
+            headerSizeInBytes,
+            replicatedContentRanges
         );
     }
 

@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests;
@@ -77,7 +78,9 @@ public class RegisterCommitResponseSerializationTests extends AbstractWireSerial
             randomNodeEphemeralId(),
             commitFiles,
             randomNonZeroPositiveLong(),
-            Set.copyOf(randomSubsetOf(commitFiles.keySet()))
+            Set.copyOf(randomSubsetOf(commitFiles.keySet())),
+            0L,
+            InternalFilesReplicatedRanges.EMPTY
         );
     }
 

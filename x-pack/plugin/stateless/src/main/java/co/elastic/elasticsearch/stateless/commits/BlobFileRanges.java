@@ -19,19 +19,47 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.common.util.Maps;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+
+import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
+import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
+import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
+import static java.util.Collections.unmodifiableNavigableMap;
 
 /**
- * Contains the {@link BlobLocation} of a file.
+ * Used to know the position from which to read a file in a blob.
  * <p>
- * In a short future we expect this class to also contain information on byte ranges that are located beyond the first cache region and
- * whose bytes are also copied in the first region, after the compound commit header and before the internal files, in order to speed up
- * the reading of those ranges.
+ * This class provides a {@link #getPosition(long, int)} method that takes an absolute position in a blob that we want to read, and returns
+ * the actual position to read (which may differ). In most cases the method will return a position in the blob where the file is stored in
+ * its entirety. In case the blob has been optimized to store some ranges of bytes of the file (like the header and footer) in the first
+ * region of the blob, and if the number of bytes to read does not exceed the length of the range, the {@link #getPosition(long, int)}
+ * method will return the actual position within the first region that points to the range.
  */
-public record BlobFileRanges(BlobLocation blobLocation) {
+public class BlobFileRanges {
+
+    private final BlobLocation blobLocation;
+    private final NavigableMap<Long, ReplicatedByteRange> replicatedRanges;
 
     public BlobFileRanges(BlobLocation blobLocation) {
+        this(blobLocation, Collections.emptyNavigableMap());
+    }
+
+    private BlobFileRanges(BlobLocation blobLocation, NavigableMap<Long, ReplicatedByteRange> replicatedRanges) {
         this.blobLocation = Objects.requireNonNull(blobLocation);
+        this.replicatedRanges = Objects.requireNonNull(replicatedRanges);
+    }
+
+    public BlobLocation blobLocation() {
+        return blobLocation;
     }
 
     public String blobName() {
@@ -53,4 +81,137 @@ public record BlobFileRanges(BlobLocation blobLocation) {
     public long fileLength() {
         return blobLocation.fileLength();
     }
+
+    /**
+     * Returns the actual position to read in the blob
+     *
+     * @param position  the position that we want to start reading from (absolute position from the beginning of the blob)
+     * @param length    the length of bytes to read
+     * @return          the actual position to start reading the blob from (which may differ from {@code position})
+     */
+    public long getPosition(long position, int length) {
+        if (replicatedRanges.isEmpty() == false) {
+            short len = (short) length;
+            if (length == (int) len) {
+                // greatest range that is less than or equal to the position to start reading from (or null if there is no such range)
+                var candidate = replicatedRanges.floorEntry(position);
+                if (candidate != null) {
+                    return candidate.getValue().getPosition(position, len);
+                }
+            }
+        }
+        return position;
+    }
+
+    /**
+     * Represents a range of {@code length} bytes that is originally stored at {@code position} in a blob and which is also copied at a
+     * different {@code copy} position within the same blob.
+     * Note: {@code position} and {@code copy} are absolute offsets starting from the beginning of the blob.
+     *
+     * @param position  the position at which the original range of bytes starts in the blob
+     * @param length    the length of the range of bytes
+     * @param copy      the position at which a copy of the same bytes exists in the blob
+     */
+    private record ReplicatedByteRange(long position, short length, long copy) {
+
+        /**
+         * Returns the position to read in the replicated range if the bytes to read are present in the range, otherwise returns {@code pos}
+         */
+        private long getPosition(long pos, short len) {
+            if (this.position <= pos && pos + len <= this.position + this.length) {
+                return this.copy + (pos - this.position);
+            }
+            return pos;
+        }
+    }
+
+    /**
+     * Computes the {@link BlobFileRanges} for the last compound commit files of a {@link BatchedCompoundCommit}
+     *
+     * @param batchedCompoundCommit the batched compound commit
+     * @param useReplicatedRanges   if the replication of ranges feature is enabled
+     * @return map of all the commit files of the last commit of the batched compound commit associated to their {@link BlobFileRanges}
+     */
+    public static Map<String, BlobFileRanges> computeLastCommitBlobFileRanges(
+        BatchedCompoundCommit batchedCompoundCommit,
+        boolean useReplicatedRanges
+    ) {
+        var lastCompoundCommit = batchedCompoundCommit.lastCompoundCommit();
+        if (useReplicatedRanges == false || lastCompoundCommit.internalFilesReplicatedRanges().isEmpty()) {
+            return Maps.transformValues(lastCompoundCommit.commitFiles(), BlobFileRanges::new);
+        }
+
+        long blobOffset = 0L;
+        var replicatedByteRanges = new TreeMap<Long, ReplicatedByteRange>();
+        for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
+            assert blobOffset == BlobCacheUtils.toPageAlignedSize(blobOffset);
+
+            if (compoundCommit == lastCompoundCommit) {
+                long replicatedRangesOffset = blobOffset + compoundCommit.headerSizeInBytes();
+                long internalFilesOffset = replicatedRangesOffset + compoundCommit.internalFilesReplicatedRanges().dataSizeInBytes();
+
+                for (var range : compoundCommit.internalFilesReplicatedRanges().replicatedRanges()) {
+                    long position = internalFilesOffset + range.position();
+                    var previous = replicatedByteRanges.put(
+                        position,
+                        new ReplicatedByteRange(position, range.length(), replicatedRangesOffset)
+                    );
+                    assert previous == null : "replicated range already exists: " + previous;
+                    replicatedRangesOffset += range.length();
+                }
+                assert assertReplicatedRangesMatchInternalFiles(compoundCommit, replicatedByteRanges);
+                assert assertNoOverlappingReplicatedRanges(replicatedByteRanges);
+            }
+            blobOffset += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
+        }
+        return lastCompoundCommit.commitFiles().entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
+            var blobLocation = entry.getValue();
+            if (lastCompoundCommit.internalFiles().contains(entry.getKey())) {
+                var floor = replicatedByteRanges.floorEntry(blobLocation.offset());
+                assert floor != null : "no replicated range for [" + entry.getKey() + "] at " + blobLocation + ": " + replicatedByteRanges;
+                return new BlobFileRanges(blobLocation, unmodifiableNavigableMap(replicatedByteRanges.tailMap(floor.getKey(), true)));
+            } else {
+                return new BlobFileRanges(blobLocation);
+            }
+        }));
+    }
+
+    /**
+     * Asserts that replicated ranges exist for header/footer of compound commit internal files.
+     */
+    private static boolean assertReplicatedRangesMatchInternalFiles(
+        StatelessCompoundCommit commit,
+        TreeMap<Long, ReplicatedByteRange> ranges
+    ) {
+        if (commit.internalFilesReplicatedRanges().isEmpty() == false) {
+            for (var internalFile : commit.internalFiles()) {
+                var blobLocation = commit.commitFiles().get(internalFile);
+                assert blobLocation != null : internalFile;
+
+                var header = ranges.floorEntry(blobLocation.offset());
+                assert header != null : "header not found for " + internalFile + " at position " + blobLocation.offset();
+                assert header.getValue() != null;
+                assert header.getValue().length >= ((blobLocation.fileLength() <= REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE)
+                    ? blobLocation.fileLength()
+                    : REPLICATED_CONTENT_HEADER_SIZE);
+
+                long footerPosition = blobLocation.offset() + blobLocation.fileLength() - CodecUtil.footerLength();
+                var footer = ranges.floorEntry(footerPosition);
+                assert footer != null : "footer not found for " + internalFile + " at position " + footerPosition;
+                assert footer.getValue() != null;
+                assert footer.getValue().length >= REPLICATED_CONTENT_FOOTER_SIZE;
+            }
+        }
+        return true;
+    }
+
+    private static boolean assertNoOverlappingReplicatedRanges(TreeMap<Long, ReplicatedByteRange> ranges) {
+        ReplicatedByteRange previous = null;
+        for (var range : ranges.entrySet()) {
+            assert previous == null || previous.copy + previous.length <= range.getValue().copy : previous + " vs " + range;
+            previous = range.getValue();
+        }
+        return true;
+    }
+
 }

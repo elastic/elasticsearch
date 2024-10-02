@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
 import co.elastic.elasticsearch.stateless.cache.reader.IndexingShardCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
@@ -72,6 +73,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheFile;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
@@ -122,9 +124,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 final long primaryTerm = randomNonNegativeLong();
                 final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                     fileName,
-                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                     randomIOContext(),
-                    createBlobReader(fileName, input, sharedBlobCacheService),
+                    new CacheFileReader(
+                        sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
+                        createBlobReader(fileName, input, sharedBlobCacheService),
+                        createBlobFileRanges(primaryTerm, 0L, 0, input.length)
+                    ),
                     null,
                     input.length,
                     0
@@ -213,9 +218,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             assertFalse(tracker.getLatestUploadInfo(termAndGen).isUploaded());
             final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                 fileName,
-                sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, termAndGen.primaryTerm(), fileName), input.length),
                 randomIOContext(),
-                switchingReader,
+                new CacheFileReader(
+                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, termAndGen.primaryTerm(), fileName), input.length),
+                    switchingReader,
+                    createBlobFileRanges(termAndGen.primaryTerm(), termAndGen.generation(), 0, input.length)
+                ),
                 null,
                 input.length,
                 0
@@ -243,9 +251,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final long primaryTerm = randomNonNegativeLong();
             final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                 fileName,
-                sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                 randomIOContext(),
-                createBlobReader(fileName, input, sharedBlobCacheService),
+                new CacheFileReader(
+                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
+                    createBlobReader(fileName, input, sharedBlobCacheService),
+                    createBlobFileRanges(primaryTerm, 0L, 0, input.length)
+                ),
                 null,
                 input.length,
                 0
@@ -341,9 +352,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 final int fileLength = (int) randomLongBetween(1, 2048);
                 final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                     fileName,
-                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), pos + fileLength),
                     randomIOContext(),
-                    cacheBlobReader,
+                    new CacheFileReader(
+                        sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), pos + fileLength),
+                        cacheBlobReader,
+                        createBlobFileRanges(primaryTerm, generation, pos, fileLength)
+                    ),
                     null,
                     fileLength,
                     pos
@@ -358,9 +372,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             uploaded.set(true);
             final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                 "everything",
-                sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), data.length),
                 randomIOContext(),
-                cacheBlobReader,
+                new CacheFileReader(
+                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), data.length),
+                    cacheBlobReader,
+                    createBlobFileRanges(primaryTerm, generation, 0, data.length)
+                ),
                 null,
                 data.length,
                 0

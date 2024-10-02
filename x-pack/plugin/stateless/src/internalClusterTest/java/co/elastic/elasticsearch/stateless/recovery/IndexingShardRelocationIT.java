@@ -18,16 +18,22 @@
 package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -39,6 +45,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -51,6 +58,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -58,8 +66,11 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
@@ -67,6 +78,8 @@ import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -77,6 +90,7 @@ import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -90,11 +104,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toPageAlignedSize;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -105,6 +121,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -112,7 +129,12 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(MockRepository.Plugin.class), super.nodePlugins());
+        final var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(DisableWarmingPlugin.class);
+        plugins.add(MockRepository.Plugin.class);
+        plugins.add(InternalSettingsPlugin.class);
+        return List.copyOf(plugins);
     }
 
     @Override
@@ -997,5 +1019,157 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         }
         // also waits for no relocating shards.
         ensureGreen(indexName);
+    }
+
+    public static class DisableWarmingPlugin extends Stateless {
+
+        static final Setting<Boolean> ENABLED_WARMING = Setting.boolSetting(
+            "test.stateless.warming_enabled",
+            true,
+            Setting.Property.NodeScope
+        );
+
+        public DisableWarmingPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return CollectionUtils.concatLists(super.getSettings(), List.of(ENABLED_WARMING));
+        }
+
+        @Override
+        protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+            StatelessSharedBlobCacheService cacheService,
+            ThreadPool threadPool,
+            TelemetryProvider telemetryProvider,
+            Settings settings
+        ) {
+            if (ENABLED_WARMING.get(settings)) {
+                return super.createSharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings);
+            }
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings) {
+                @Override
+                protected void warmCache(
+                    String description,
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory,
+                    ActionListener<Void> listener
+                ) {
+                    ActionListener.completeWith(listener, () -> null);
+                }
+
+                @Override
+                public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
+                    ActionListener.completeWith(listener, () -> null);
+                }
+            };
+        }
+    }
+
+    public void testRelocatingIndexShardUsesOneCacheRegion() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodesSettings = Settings.builder()
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+
+        final var indexNode = startIndexNode(indexNodesSettings);
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false")
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put(EngineConfig.USE_COMPOUND_FILE, false) // TODO Remove this once ES-9345 is implemented
+                .build()
+        );
+
+        var indexShard = findIndexShard(resolveIndex(indexName), 0);
+        int emptyCommits = randomIntBetween(1, 3);
+        for (int i = 0; i < emptyCommits; i++) {
+            flush(indexName);
+        }
+
+        final int nbSegments = randomIntBetween(1, 5);
+        logger.debug("--> creating single commit with [{}] segments", nbSegments);
+        for (int i = 0; i < nbSegments; i++) {
+            var bulkRequest = client().prepareBulk();
+            for (int j = 0; j < 100; j++) {
+                bulkRequest.add(prepareIndex(indexName).setSource("field", randomUnicodeOfCodepointLength(10)));
+            }
+            assertNoFailures(bulkRequest.get(TimeValue.timeValueSeconds(10)));
+
+            // flush indexing buffers to disk to create a segment
+            indexShard.writeIndexingBuffer();
+        }
+
+        // refresh to create a (non-uploaded) commit
+        refresh(indexName);
+
+        Supplier<VirtualBatchedCompoundCommit> virtualBcc = () -> internalCluster().getInstance(StatelessCommitService.class, indexNode)
+            .getCurrentVirtualBcc(indexShard.shardId());
+        assertBusy(() -> assertNotNull(virtualBcc.get()));
+
+        var lastCompoundCommit = virtualBcc.get().lastCompoundCommit();
+        assertNotNull(lastCompoundCommit);
+
+        // offset of the latest metadata file byte (files are sorted by size)
+        var lastCompoundCommitMaxMetadataFileOffset = lastCompoundCommit.commitFiles().entrySet().stream().filter(entry -> {
+            var fileName = entry.getKey();
+            if (lastCompoundCommit.internalFiles().contains(fileName)) {
+                var extension = LuceneFilesExtensions.fromFile(fileName);
+                return extension != null ? extension.isMetadata() : fileName.startsWith(IndexFileNames.SEGMENTS);
+            }
+            return false;
+        })
+            .mapToLong(entry -> entry.getValue().offset() + entry.getValue().fileLength())
+            .max()
+            .orElseThrow(() -> new AssertionError("No metadata files in commit?"));
+
+        var regionSize = ByteSizeValue.ofBytes(
+            toPageAlignedSize(
+                Math.max(
+                    // region must be large enough to contain the header + all replicated content
+                    lastCompoundCommit.headerSizeInBytes() + lastCompoundCommit.internalFilesReplicatedRanges().dataSizeInBytes(),
+                    // region must be large enough to allow reading completely the largest metadata file
+                    lastCompoundCommitMaxMetadataFileOffset - (virtualBcc.get().getTotalSizeInBytes() - lastCompoundCommit.sizeInBytes())
+                )
+            )
+        );
+        logger.debug("--> using region size of [{}] bytes", regionSize.getBytes());
+
+        // cache must be large enough to store the whole blob
+        var cacheSize = ByteSizeValue.ofBytes(
+            (long) ((Math.ceil((double) virtualBcc.get().getTotalSizeInBytes() / regionSize.getBytes()) * regionSize.getBytes()))
+        );
+        logger.debug("--> using cache size of [{}] bytes", cacheSize.getBytes());
+
+        assertThat(regionSize.getBytes(), lessThan(cacheSize.getBytes()));
+
+        final var indexNode2 = startIndexNode(
+            Settings.builder()
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
+                .put(SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), regionSize)
+                .put(DisableWarmingPlugin.ENABLED_WARMING.getKey(), false)
+                .put(indexNodesSettings)
+                .build()
+        );
+        ensureStableCluster(3);
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNode))));
+        ensureGreen(indexName);
+
+        var cacheService = internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNode2).get();
+        assertThat(cacheService.getStats().writeBytes(), equalTo(regionSize.getBytes()));
+        assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
+        assertThat(cacheService.getStats().writeCount(), equalTo(1L));
     }
 }

@@ -203,6 +203,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         queryBuilder.boost(randomFloat());
         queryBuilder.queryName(randomAlphaOfLength(10));
         QueryBuilder rewritten = queryBuilder.rewrite(innerHitsRewriteContext);
+        float queryBoost = rewritten.boost();
+        String queryName = rewritten.queryName();
 
         if (hasFilters) {
             assertTrue(rewritten instanceof BoolQueryBuilder);
@@ -214,8 +216,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         ExactKnnQueryBuilder exactKnnQueryBuilder = (ExactKnnQueryBuilder) rewritten;
         assertEquals(queryBuilder.queryVector(), exactKnnQueryBuilder.getQuery());
         assertEquals(queryBuilder.fieldName(), exactKnnQueryBuilder.getField());
-        assertEquals(queryBuilder.boost(), exactKnnQueryBuilder.boost(), 0.0001f);
-        assertEquals(queryBuilder.queryName(), exactKnnQueryBuilder.queryName());
+        assertEquals(queryBuilder.boost(), queryBoost, 0.0001f);
+        assertEquals(queryBuilder.queryName(), queryName);
         assertEquals(queryBuilder.vectorSimilarity(), exactKnnQueryBuilder.vectorSimilarity());
     }
 

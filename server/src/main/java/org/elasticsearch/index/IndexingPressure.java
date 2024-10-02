@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +46,7 @@ public class IndexingPressure {
 
     public static final Setting<ByteSizeValue> MAX_PRIMARY_BYTES = Setting.memorySizeSetting(
         "indexing_pressure.memory.primary.limit",
-        MAX_INDEXING_BYTES,
+        s -> DiscoveryNode.isStateless(s) ? "15%" : MAX_INDEXING_BYTES.get(s).getStringRep(),
         Setting.Property.NodeScope
     );
 

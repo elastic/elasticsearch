@@ -9,13 +9,15 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingPressureTests extends ESTestCase {
 
@@ -32,9 +34,27 @@ public class IndexingPressureTests extends ESTestCase {
     public void testMemoryLimitSettingsFallbackToOldSingleLimitSetting() {
         Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "20KB").build();
 
-        assertThat(IndexingPressure.MAX_COORDINATING_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(20)));
-        assertThat(IndexingPressure.MAX_PRIMARY_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(20)));
-        assertThat(IndexingPressure.MAX_REPLICA_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(30)));
+        assertThat(IndexingPressure.MAX_COORDINATING_BYTES.get(settings), equalTo(ByteSizeValue.ofKb(20)));
+        assertThat(IndexingPressure.MAX_PRIMARY_BYTES.get(settings), equalTo(ByteSizeValue.ofKb(20)));
+        assertThat(IndexingPressure.MAX_REPLICA_BYTES.get(settings), equalTo(ByteSizeValue.ofKb(30)));
+    }
+
+    public void testPrimaryMemoryLimitSettingsDefaultForStateless() {
+        Settings settingsDefault = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+
+        assertThat(IndexingPressure.MAX_COORDINATING_BYTES.getDefaultRaw(settingsDefault), equalTo("10%"));
+        assertThat(IndexingPressure.MAX_PRIMARY_BYTES.getDefaultRaw(settingsDefault), equalTo("15%"));
+
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "20KB")
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+
+        assertThat(IndexingPressure.MAX_COORDINATING_BYTES.get(settings), equalTo(ByteSizeValue.ofKb(20)));
+        // Still defaults to 15% as it is not derived from the MAX_INDEXING_BYTES
+        assertThat(IndexingPressure.MAX_PRIMARY_BYTES.getDefaultRaw(settings), equalTo("15%"));
     }
 
     public void testHighAndLowWatermarkSettings() {

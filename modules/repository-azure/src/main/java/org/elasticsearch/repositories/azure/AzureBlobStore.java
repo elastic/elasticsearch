@@ -90,7 +90,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -131,35 +130,23 @@ public class AzureBlobStore implements BlobStore {
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
 
-        List<RequestStatsCollector> requestStatsCollectors = List.of(
-            RequestStatsCollector.create(
-                (httpMethod, url) -> httpMethod == HttpMethod.HEAD,
-                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.GET_BLOB_PROPERTIES, purpose, metrics)
-            ),
-            RequestStatsCollector.create(
+        List<RequestMatcher> requestMatchers = List.of(
+            new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
+            new RequestMatcher(
                 (httpMethod, url) -> httpMethod == HttpMethod.GET && isListRequest(httpMethod, url) == false,
-                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.GET_BLOB, purpose, metrics)
+                Operation.GET_BLOB
             ),
-            RequestStatsCollector.create(
-                AzureBlobStore::isListRequest,
-                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.LIST_BLOBS, purpose, metrics)
-            ),
-            RequestStatsCollector.create(
-                AzureBlobStore::isPutBlockRequest,
-                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.PUT_BLOCK, purpose, metrics)
-            ),
-            RequestStatsCollector.create(
-                AzureBlobStore::isPutBlockListRequest,
-                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.PUT_BLOCK_LIST, purpose, metrics)
-            ),
-            RequestStatsCollector.create(
+            new RequestMatcher(AzureBlobStore::isListRequest, Operation.LIST_BLOBS),
+            new RequestMatcher(AzureBlobStore::isPutBlockRequest, Operation.PUT_BLOCK),
+            new RequestMatcher(AzureBlobStore::isPutBlockListRequest, Operation.PUT_BLOCK_LIST),
+            new RequestMatcher(
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
                 // The only URI parameter allowed for put-blob operation is "timeout", but if a sas token is used,
                 // it's possible that the URI parameters contain additional parameters unrelated to the upload type.
                 (httpMethod, url) -> httpMethod == HttpMethod.PUT
                     && isPutBlockRequest(httpMethod, url) == false
                     && isPutBlockListRequest(httpMethod, url) == false,
-                (purpose, metrics) -> statsCollectors.onRequestComplete(Operation.PUT_BLOB, purpose, metrics)
+                Operation.PUT_BLOB
             )
         );
 
@@ -176,9 +163,9 @@ public class AzureBlobStore implements BlobStore {
                 return;
             }
 
-            for (RequestStatsCollector requestStatsCollector : requestStatsCollectors) {
-                if (requestStatsCollector.shouldConsumeRequestInfo(httpMethod, url)) {
-                    requestStatsCollector.consumeHttpRequestInfo(purpose, metrics);
+            for (RequestMatcher requestMatcher : requestMatchers) {
+                if (requestMatcher.matches(httpMethod, url)) {
+                    statsCollectors.onRequestComplete(requestMatcher.operation, purpose, metrics);
                     return;
                 }
             }
@@ -918,31 +905,10 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    private static class RequestStatsCollector {
-        private final BiPredicate<HttpMethod, URL> filter;
-        private final BiConsumer<OperationPurpose, AzureClientProvider.RequestMetrics> onHttpRequest;
+    private record RequestMatcher(BiPredicate<HttpMethod, URL> filter, Operation operation) {
 
-        private RequestStatsCollector(
-            BiPredicate<HttpMethod, URL> filter,
-            BiConsumer<OperationPurpose, AzureClientProvider.RequestMetrics> onHttpRequest
-        ) {
-            this.filter = filter;
-            this.onHttpRequest = onHttpRequest;
-        }
-
-        static RequestStatsCollector create(
-            BiPredicate<HttpMethod, URL> filter,
-            BiConsumer<OperationPurpose, AzureClientProvider.RequestMetrics> consumer
-        ) {
-            return new RequestStatsCollector(filter, consumer);
-        }
-
-        private boolean shouldConsumeRequestInfo(HttpMethod httpMethod, URL url) {
+        private boolean matches(HttpMethod httpMethod, URL url) {
             return filter.test(httpMethod, url);
-        }
-
-        private void consumeHttpRequestInfo(OperationPurpose operationPurpose, AzureClientProvider.RequestMetrics requestMetrics) {
-            onHttpRequest.accept(operationPurpose, requestMetrics);
         }
     }
 

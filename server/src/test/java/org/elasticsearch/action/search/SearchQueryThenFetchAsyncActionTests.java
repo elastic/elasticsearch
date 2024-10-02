@@ -258,7 +258,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101932")
     public void testMinimumVersionSameAsNewVersion() throws Exception {
         var newVersion = VersionInformation.CURRENT;
         var oldVersion = new VersionInformation(
@@ -390,7 +389,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101932")
     public void testMinimumVersionSameAsOldVersion() throws Exception {
         Version newVersion = Version.CURRENT;
         Version oldVersion = VersionUtils.randomVersionBetween(
@@ -539,7 +537,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101932")
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {
         Version newVersion = Version.CURRENT;
         Version oldVersion = VersionUtils.randomVersionBetween(

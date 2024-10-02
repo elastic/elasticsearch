@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -1182,7 +1181,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {
-        String function = functionName.toLowerCase(Locale.ROOT);
         assertEquals(
             "1:22: [" + functionName + "] function is only supported in WHERE commands",
             error("from test | eval y = " + functionInvocation)

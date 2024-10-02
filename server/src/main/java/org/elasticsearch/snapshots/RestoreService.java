@@ -52,6 +52,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -398,6 +399,8 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
+        validateDatastreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo);
+
         // Remove the data streams from the list of requested indices
         requestIndices.removeAll(dataStreamsToRestore.keySet());
 
@@ -508,6 +511,30 @@ public final class RestoreService implements ClusterStateApplier {
                 listener
             )
         );
+    }
+
+    private void validateDatastreamTemplatesExistAndWarnIfMissing(Map<String, DataStream> dataStreamsToRestore, SnapshotInfo snapshotInfo) {
+        var templatePatterns = clusterService.state()
+            .metadata()
+            .templatesV2()
+            .values()
+            .stream()
+            .filter(cit -> cit.getDataStreamTemplate() != null)
+            .flatMap(cit -> cit.indexPatterns().stream())
+            .collect(Collectors.toSet());
+
+        for (String name : dataStreamsToRestore.keySet()) {
+            if (templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))) {
+                String warningMessage = format(
+                    "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
+                        + " rollover to fail until a matching index template is created",
+                    snapshotInfo.snapshotId(),
+                    name
+                );
+                logger.warn(() -> warningMessage);
+                HeaderWarning.addWarning(warningMessage);
+            }
+        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here

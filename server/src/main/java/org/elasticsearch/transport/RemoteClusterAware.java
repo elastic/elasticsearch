@@ -107,6 +107,21 @@ public abstract class RemoteClusterAware {
     }
 
     /**
+     *
+     * @param indexExpression The index expression is assumed to be an individual index (no commas) but can
+     *                        contain `-`, wildcards, datemath, a remote cluster alias prefix and any other
+     *                        syntax permissible in index expression component.
+     * @return true if the index portion (not the cluster alias portion) has a wildcard '*' character.
+     */
+    public static boolean indexHasWildcard(String indexExpression) {
+        String[] split = splitIndexName(indexExpression);
+        assert split[0] == null || split[0].contains(",") == false : "Should only be a single index expression but was: " + indexExpression;
+        assert ((split[1].charAt(0) != '<' && split[1].startsWith("-<") == false) && split[1].contains(",")) == false
+            : "Should only be a single index expression but was not date math and index has comma: " + indexExpression;
+        return split[1].contains("*");
+    }
+
+    /**
      * Groups indices per cluster by splitting remote cluster-alias, index-name pairs on {@link #REMOTE_CLUSTER_INDEX_SEPARATOR}. All
      * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.

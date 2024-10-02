@@ -155,7 +155,48 @@ public class RemoteClusterAwareTests extends ESTestCase {
             IllegalArgumentException.class,
             "The '-' exclusions in the index expression list excludes all indexes"
         );
+    }
 
+    public void testIndexHasWildcard() {
+        // inputs with a csv based multi-index expression are not allowed in RemoteClusterAware.indexHasWildcard
+        String[] invalidInputs = new String[] {
+            "*,*:*",
+            "foo,*:logs",
+            "foo,bar",
+            "cluster:foo,cluster_b:bar",
+            "cluster:foo,*:bar*",
+            "cluster:foo,*:bar*", };
+        for (String invalidInput : invalidInputs) {
+            expectThrows(AssertionError.class, invalidInput, () -> RemoteClusterAware.indexHasWildcard(invalidInput));
+        }
+
+        String[] inputsNoWildcard = new String[] {
+            "myindex",
+            ".async-search",
+            "cluster*:index1",
+            "*:index1",
+            "*:-index1",
+            "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
+            "cluster1:<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
+            "-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|00:00}}>",
+            "cluster2:-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>" };
+        for (String input : inputsNoWildcard) {
+            assertFalse(input, RemoteClusterAware.indexHasWildcard(input));
+        }
+
+        String[] inputsWithWildcard = new String[] {
+            "logs-*",
+            "my*index",
+            "my*index*",
+            "*",
+            "*my",
+            "cluster2:*",
+            "*:*",
+            "remote*:logs*",
+            "remote1:-logs*" };
+        for (String input : inputsWithWildcard) {
+            assertTrue(input, RemoteClusterAware.indexHasWildcard(input));
+        }
     }
 
     private static class RemoteClusterAwareTest extends RemoteClusterAware {

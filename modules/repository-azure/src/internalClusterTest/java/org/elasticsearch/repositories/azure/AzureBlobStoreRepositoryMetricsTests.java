@@ -80,20 +80,20 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     }
 
     public void testRetriesAreCountedInMetrics() throws IOException {
-        int numThrottles = randomIntBetween(1, MAX_RETRIES);
         final String repository = createRepository(randomRepositoryName());
         final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
-        BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
 
         // Create a blob
-        String blobName = "index-" + randomIdentifier();
-        OperationPurpose purpose = randomFrom(OperationPurpose.values());
+        final String blobName = "index-" + randomIdentifier();
+        final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
 
         // Queue up some throttle responses
+        final int numThrottles = randomIntBetween(1, MAX_RETRIES);
         IntStream.range(0, numThrottles).forEach(i -> errorQueue.offer(new ErrorResponse(RestStatus.TOO_MANY_REQUESTS)));
 
-        // Check that a non-existent blob exists
+        // Check that the blob exists
         blobContainer.blobExists(purpose, blobName);
 
         // These are recorded as throttles
@@ -132,17 +132,17 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     public void testRangeNotSatisfiedAreCountedInMetrics() throws IOException {
         final String repository = createRepository(randomRepositoryName());
         final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
-        BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
 
         // Create a blob
-        String blobName = "index-" + randomIdentifier();
-        OperationPurpose purpose = randomFrom(OperationPurpose.values());
+        final String blobName = "index-" + randomIdentifier();
+        final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
 
         // Queue up a range-not-satisfied error
         errorQueue.offer(new ErrorResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, null, GET_BLOB_REQUEST_PREDICATE));
 
-        // Hit the API
+        // Attempt to read the blob
         assertThrows(RequestedRangeNotSatisfiedException.class, () -> blobContainer.readBlob(purpose, blobName));
 
         assertCounterMetricRecorded(
@@ -171,17 +171,17 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     }
 
     public void testErrorResponsesAreCountedInMetrics() throws IOException {
-        final int numErrors = randomIntBetween(1, MAX_RETRIES);
         final String repository = createRepository(randomRepositoryName());
         final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
         final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
 
         // Create a blob
-        String blobName = "index-" + randomIdentifier();
-        OperationPurpose purpose = randomFrom(OperationPurpose.values());
+        final String blobName = "index-" + randomIdentifier();
+        final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
 
         // Queue some retryable error responses
+        final int numErrors = randomIntBetween(1, MAX_RETRIES);
         IntStream.range(0, numErrors)
             .forEach(
                 i -> errorQueue.offer(
@@ -191,7 +191,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
                 )
             );
 
-        // Hit the API
+        // Check that the blob exists
         blobContainer.blobExists(purpose, blobName);
 
         assertCounterMetricRecorded(

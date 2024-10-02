@@ -150,7 +150,7 @@ public class AzureBlobStore implements BlobStore {
             )
         );
 
-        this.statsConsumer = (purpose, httpMethod, url, metrics) -> {
+        this.statsConsumer = (purpose, method, url, metrics) -> {
             try {
                 URI uri = url.toURI();
                 String path = uri.getPath() == null ? "" : uri.getPath();
@@ -164,7 +164,7 @@ public class AzureBlobStore implements BlobStore {
             }
 
             for (RequestMatcher requestMatcher : requestMatchers) {
-                if (requestMatcher.matches(httpMethod, url)) {
+                if (requestMatcher.matches(method, url)) {
                     statsCollectors.onRequestComplete(requestMatcher.operation, purpose, metrics);
                     return;
                 }
@@ -694,7 +694,7 @@ public class AzureBlobStore implements BlobStore {
                     return operation;
                 }
             }
-            throw new IllegalArgumentException("No matching key");
+            throw new IllegalArgumentException("No matching key: " + key);
         }
     }
 
@@ -729,7 +729,7 @@ public class AzureBlobStore implements BlobStore {
 
         public void onRequestComplete(Operation operation, OperationPurpose purpose, AzureClientProvider.RequestMetrics requestMetrics) {
             collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new OperationMetrics(operation, purpose))
-                .onOccurrence(requestMetrics);
+                .onRequestComplete(requestMetrics);
         }
     }
 
@@ -744,7 +744,7 @@ public class AzureBlobStore implements BlobStore {
             this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
         }
 
-        public void onOccurrence(AzureClientProvider.RequestMetrics requestMetrics) {
+        public void onRequestComplete(AzureClientProvider.RequestMetrics requestMetrics) {
             counter.add(requestMetrics.getRequestCount());
 
             // range not satisfied is not retried, so we count them by checking the final response

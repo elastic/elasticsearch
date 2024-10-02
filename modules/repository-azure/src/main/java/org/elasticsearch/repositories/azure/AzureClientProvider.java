@@ -264,30 +264,30 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {}
 
-    public static class RequestMetrics {
+    static class RequestMetrics {
         private volatile long timeToResponseInMillis;
         private volatile int requestCount;
         private volatile int errorCount;
         private volatile int throttleCount;
         private volatile int statusCode;
 
-        public int getRequestCount() {
+        int getRequestCount() {
             return requestCount;
         }
 
-        public int getErrorCount() {
+        int getErrorCount() {
             return errorCount;
         }
 
-        public int getStatusCode() {
+        int getStatusCode() {
             return statusCode;
         }
 
-        public int getThrottleCount() {
+        int getThrottleCount() {
             return throttleCount;
         }
 
-        public long getTimeToResponseInMillis() {
+        long getTimeToResponseInMillis() {
             return timeToResponseInMillis;
         }
 
@@ -391,6 +391,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
      */
     interface RequestMetricsHandler {
 
-        void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics requestStats);
+        void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics metrics);
     }
 }

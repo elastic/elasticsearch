@@ -272,7 +272,7 @@ You should receive a response indicating there were no errors.
 When using dynamic mapping, {es} automatically creates mappings for new fields by default.
 The documents we've added so far have used dynamic mapping, because we didn't specify a mapping when creating the index.
 
-To see how dynamic mapping works, add a new document to the `books` index with a field that doesn't exist.
+To see how dynamic mapping works, add a new document to the `books` index with a field that doesn't appear in the existing documents.
 
 [source,console]
 ----
@@ -288,7 +288,7 @@ POST /books/_doc
 // TEST[continued]
 <1> The new field.
 
-View the mapping for the `books` index. The new field `new_field` has been added to the mapping with a `text` data type.
+View the mapping for the `books` index with the <<indices-get-mapping, Get mapping API>>. The new field `new_field` has been added to the mapping with a `text` data type.
 
 [source,console]
 ----
@@ -351,7 +351,7 @@ GET /books/_mapping
 ==== Define explicit mapping
 
 Create an index named `my-explicit-mappings-books` with explicit mappings.
-Pass each field's properties as a JSON object. This object should contain the field type and any additional <<mapping-params,mapping parameters>>.
+Pass each field's properties as a JSON object. This object should contain the <<mapping-types,field data type>> and any additional <<mapping-params,mapping parameters>>.
 
 [source,console]
 ----

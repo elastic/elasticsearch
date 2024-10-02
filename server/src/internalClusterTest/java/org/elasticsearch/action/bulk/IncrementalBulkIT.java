@@ -599,7 +599,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         executorService.execute(r);
 
-        BulkResponse bulkResponse = safeGet(future);
+        BulkResponse bulkResponse = future.actionGet();
         assertFalse(refCounted.hasReferences());
         return bulkResponse;
     }

@@ -41,7 +41,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Match",
-        MatchFunction::new
+        MatchFunction::readFromStream
     );
 
     private final Expression field;
@@ -65,8 +65,11 @@ public class MatchFunction extends FullTextFunction implements Validatable {
         this.field = field;
     }
 
-    private MatchFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    private static MatchFunction readFromStream(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression query = in.readNamedWriteable(Expression.class);
+        Expression field = in.readNamedWriteableCollectionAsList(Expression.class).getLast();
+        return new MatchFunction(source, field, query);
     }
 
     @Override

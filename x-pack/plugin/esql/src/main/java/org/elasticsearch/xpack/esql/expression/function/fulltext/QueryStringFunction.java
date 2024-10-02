@@ -53,6 +53,8 @@ public class QueryStringFunction extends FullTextFunction {
 
     private QueryStringFunction(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+        // This is not needed but we consume it
+        in.readNamedWriteableCollectionAsList(Expression.class);
     }
 
     @Override

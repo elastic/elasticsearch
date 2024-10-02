@@ -342,7 +342,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
 
         private static boolean isErrorCode(int statusCode) {
-            return statusCode <= 199 || statusCode > 299;
+            return statusCode < 200 || statusCode > 299;
         }
     }
 
@@ -359,8 +359,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
-            RequestMetrics requestMetrics = new RequestMetrics();
-            long requestStartTimeInMillis = System.currentTimeMillis();
+            final RequestMetrics requestMetrics = new RequestMetrics();
+            final long requestStartTimeInMillis = System.currentTimeMillis();
             context.setData(ES_REQUEST_METRICS_CONTEXT_KEY, requestMetrics);
             return next.process().doOnSuccess((httpResponse) -> {
                 requestMetrics.statusCode = httpResponse.getStatusCode();

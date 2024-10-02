@@ -147,7 +147,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
         clearMetrics(dataNodeName);
 
-        // Queue some retryable error responses
+        // Queue some retry-able error responses
         final int numErrors = randomIntBetween(1, MAX_RETRIES);
         final AtomicInteger throttles = new AtomicInteger();
         IntStream.range(0, numErrors).forEach(i -> {
@@ -320,7 +320,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             }
         }
 
-        void assertIntMetricRecorded(MetricType metricType, String metricName, int expectedValue) {
+        private void assertIntMetricRecorded(MetricType metricType, String metricName, int expectedValue) {
             assertMatchingMetricRecorded(
                 metricType,
                 metricName,
@@ -328,7 +328,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             );
         }
 
-        void assertNoMetricRecorded(MetricType metricType, String metricName) {
+        private void assertNoMetricRecorded(MetricType metricType, String metricName) {
             assertThat(
                 "Expected no values for " + metricType + " " + metricName,
                 metricType.getMeasurements(getTelemetryPlugin(dataNodeName), metricName),
@@ -336,7 +336,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             );
         }
 
-        void assertMatchingMetricRecorded(MetricType metricType, String metricName, Consumer<Measurement> assertion) {
+        private void assertMatchingMetricRecorded(MetricType metricType, String metricName, Consumer<Measurement> assertion) {
             List<Measurement> measurements = metricType.getMeasurements(getTelemetryPlugin(dataNodeName), metricName);
             Measurement measurement = measurements.stream()
                 .filter(

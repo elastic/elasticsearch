@@ -57,7 +57,7 @@ public class StatelessCommitNotificationPublisher {
 
         NewCommitNotificationRequest request = new NewCommitNotificationRequest(
             shardRoutingTable,
-            uploadedBcc.last(),
+            uploadedBcc.lastCompoundCommit(),
             uploadedBcc.primaryTermAndGeneration().generation(),
             uploadedBcc.primaryTermAndGeneration(),
             clusterStateVersion,

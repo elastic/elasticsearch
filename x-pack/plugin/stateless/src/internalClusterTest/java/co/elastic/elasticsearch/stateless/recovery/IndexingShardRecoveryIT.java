@@ -780,7 +780,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
             assertThat(uploaded, notNullValue());
 
             assertThat(uploaded.primaryTermAndGeneration(), equalTo(expected.lastUploadedBcc));
-            assertThat(uploaded.last().primaryTermAndGeneration(), equalTo(expected.lastUploadedCc));
+            assertThat(uploaded.lastCompoundCommit().primaryTermAndGeneration(), equalTo(expected.lastUploadedCc));
             assertBlobExists(shardId, expected.lastUploadedBcc);
 
             if (expected.lastVirtualBcc == null) {

@@ -808,7 +808,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert primaryTermAndGenToBlobReference.isEmpty() : primaryTermAndGenToBlobReference;
             assert blobLocations.isEmpty() : blobLocations;
 
-            final var recoveredCommit = recoveredBcc.last();
+            final var recoveredCommit = recoveredBcc.lastCompoundCommit();
             Map<PrimaryTermAndGeneration, Map<String, BlobLocation>> referencedBlobs = new HashMap<>();
             final var bccStoredFiles = recoveredBcc.getAllInternalFiles();
             // It's possible that the recovered commit uses files from a different commit stored
@@ -1313,7 +1313,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + uploadedBcc;
             final long newBccGeneration = uploadedBcc.primaryTermAndGeneration().generation(); // for managing pending uploads
-            final long newGeneration = uploadedBcc.last().generation(); // for notifying generation listeners
+            final long newGeneration = uploadedBcc.lastCompoundCommit().generation(); // for notifying generation listeners
 
             // We use two synchronized blocks to ensure:
             // 1. Listeners are completed outside the synchronized blocks
@@ -1448,7 +1448,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * latest uploaded {@link BatchedCompoundCommit} without synchronization, or -1 if no upload has happened.
          */
         public long getMaxUploadedGeneration() {
-            return latestUploadedBcc == null ? -1 : latestUploadedBcc.last().generation();
+            return latestUploadedBcc == null ? -1 : latestUploadedBcc.lastCompoundCommit().generation();
         }
 
         /**
@@ -1557,7 +1557,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void sendNewUploadedCommitNotification(BlobReference blobReference, BatchedCompoundCommit uploadedBcc) {
             assert uploadedBcc != null;
 
-            var notificationCommitGeneration = uploadedBcc.last().generation();
+            var notificationCommitGeneration = uploadedBcc.lastCompoundCommit().generation();
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
             Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
 
@@ -1659,7 +1659,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 latestBlobReference = primaryTermAndGenToBlobReference.get(termGen);
                 assert latestBlobReference != null : "could not find latest " + termGen + " in compound commit blobs";
                 latestCommitReferencesInfo = commitReferencesInfos.get(
-                    latestBatchedCompoundCommitUploaded.last().primaryTermAndGeneration()
+                    latestBatchedCompoundCommitUploaded.lastCompoundCommit().primaryTermAndGeneration()
                 );
                 assert latestCommitReferencesInfo != null
                     : "Unable to get latest commit reference info from " + latestBatchedCompoundCommitUploaded;

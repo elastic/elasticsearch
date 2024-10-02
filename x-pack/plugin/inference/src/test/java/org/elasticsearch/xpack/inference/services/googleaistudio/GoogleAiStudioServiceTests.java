@@ -179,7 +179,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(apiKey)
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -210,7 +209,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(apiKey)
                 ),
-                Set.of(),
                 modelListener
             );
         }
@@ -240,7 +238,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(apiKey)
                 ),
-                Set.of(),
                 modelListener
             );
         }

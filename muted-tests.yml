@@ -341,6 +341,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113874
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/113916
+- class: org.elasticsearch.kibana.KibanaThreadPoolIT
+  method: testBlockedThreadPoolsRejectUserRequests
+  issue: https://github.com/elastic/elasticsearch/issues/113939
 
 # Examples:
 #

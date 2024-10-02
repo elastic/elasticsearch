@@ -35,7 +35,8 @@ public enum DockerBase {
         "apk"
     ),
 
-    // Chainguard based wolfi image with latest jdk
+    // Based on WOLFI above, with more extras. We don't set a base image because
+    // we programmatically extend from the Wolfi image.
     WOLFI_ESS(null, "-wolfi-ess", "apk");
 
     private final String image;

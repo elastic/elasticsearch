@@ -182,6 +182,10 @@ public class IndexNameExpressionResolver {
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        return dataStreams(state, options, indexExpressions).stream().map(ResolvedExpression::resource).distinct().toList();
+    }
+
+    public List<ResolvedExpression> dataStreams(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(
             state,
             options,
@@ -194,14 +198,11 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
         final Collection<ResolvedExpression> expressions = resolveExpressions(context, indexExpressions);
-        // PRTODO: FIXME - Update to return ResolvedExpression
         return expressions.stream()
             .filter(expression -> {
                 IndexAbstraction ia = state.metadata().getIndicesLookup().get(expression.resource());
                 return ia != null && Type.DATA_STREAM == ia.getType();
             })
-            .map(ResolvedExpression::resource)
-            .distinct()
             .toList();
     }
 

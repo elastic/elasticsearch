@@ -787,6 +787,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
             } else {
                 boolean missingIndex = false;
+                // PRTODO: Does this need to be updated? If we take a snapshot of `logs-*::data` and then recover it after deleting the
+                // stream, will the data stream have a bunch of unreferenced index names in its failure store list?
                 for (Index index : dataStream.getIndices()) {
                     final String indexName = index.getName();
                     if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
@@ -4145,6 +4147,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 request.partial(),
                 indexIds,
                 CollectionUtils.concatLists(
+                    // It's ok to just get the data stream names here because we've already resolved all the concrete indices.
                     indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices()),
                     systemDataStreamNames
                 ),

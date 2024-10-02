@@ -10,6 +10,7 @@ package org.elasticsearch.action.datastreams;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -38,9 +39,34 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
     public static class Request extends BroadcastRequest<Request> {
         public Request() {
-            // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
-            // a data stream's backing indices are retrieved from its metadata
-            super(null, IndicesOptions.fromOptions(false, true, true, true, true, false, true, false));
+            // this mostly doesn't matter since data stream name resolution isn't affected by IndicesOptions much and
+            // a data stream's backing indices are retrieved from its metadata, but we need to ensure selectors are configured
+            // correctly for this request
+            super(
+                null,
+                IndicesOptions.builder()
+                    .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+                    .wildcardOptions(IndicesOptions.WildcardOptions.builder()
+                        .matchOpen(true)
+                        .matchClosed(true)
+                        .includeHidden(false)
+                        .resolveAliases(false)
+                        .allowEmptyExpressions(true)
+                        .build()
+                    )
+                    .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder()
+                        .allowAliasToMultipleIndices(true)
+                        .allowClosedIndices(true)
+                        .ignoreThrottled(false)
+                        .allowSelectors(true)
+                        .build()
+                    )
+                    .selectorOptions(IndicesOptions.SelectorOptions.builder()
+                        .setDefaultSelectors(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)
+                        .build()
+                    )
+                    .build()
+            );
         }
 
         public Request(StreamInput in) throws IOException {

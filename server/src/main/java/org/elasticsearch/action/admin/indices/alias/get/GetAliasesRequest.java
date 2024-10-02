@@ -24,7 +24,7 @@ import java.util.Map;
 
 public class GetAliasesRequest extends ActionRequest implements AliasesRequest {
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHidden();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHiddenNoSelectors();
 
     private String[] aliases;
     private String[] originalAliases;

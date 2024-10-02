@@ -537,7 +537,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
-        String name = visitFunctionIdentifier(ctx.functionIdentifier());
+        String name = visitFunctionName(ctx.functionName());
         List<Expression> args = expressions(ctx.booleanExpression());
         if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases

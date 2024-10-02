@@ -82,6 +82,8 @@ slower search performance.
 Explicit mappings should be defined at index creation for fields you know in advance. 
 You can still add _new fields_ to mappings at any time, as your data evolves.
 
+Use the <<indices-put-mapping,Update mapping API>> to update an existing mapping.
+
 In most cases, you can't change mappings for fields that are already mapped.
 These changes require <<docs-reindex,reindexing>>.
 

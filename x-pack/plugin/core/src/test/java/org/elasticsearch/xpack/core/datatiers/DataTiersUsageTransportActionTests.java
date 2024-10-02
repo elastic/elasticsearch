@@ -90,9 +90,12 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testCalculateMAD() {
-        assertThat(DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(TDigestState.create(10)), equalTo(0L));
+        assertThat(
+            DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(TDigestState.createWithoutCircuitBreaking(10)),
+            equalTo(0L)
+        );
 
-        TDigestState sketch = TDigestState.create(randomDoubleBetween(1, 1000, false));
+        TDigestState sketch = TDigestState.createWithoutCircuitBreaking(randomDoubleBetween(1, 1000, false));
         sketch.add(1);
         sketch.add(1);
         sketch.add(2);

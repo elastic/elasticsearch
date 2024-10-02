@@ -36,7 +36,7 @@ public class TDigestState implements Releasable, Accountable {
     private static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
 
     private final CircuitBreaker breaker;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private boolean closed = false;
 
     private final double compression;
 
@@ -325,7 +325,8 @@ public class TDigestState implements Releasable, Accountable {
 
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
+        if (closed == false) {
+            closed = true;
             breaker.addWithoutBreaking(-SHALLOW_SIZE);
             Releasables.close(tdigest);
         }

@@ -51,7 +51,7 @@ abstract class IntAVLTree implements Releasable, Accountable {
     }
 
     private final TDigestArrays arrays;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private boolean closed = false;
 
     private final NodeAllocator nodeAllocator;
     private int root;
@@ -565,7 +565,7 @@ abstract class IntAVLTree implements Releasable, Accountable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntStack.class);
 
         private final TDigestArrays arrays;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private boolean closed = false;
 
         private final TDigestIntArray stack;
         private int size;
@@ -598,7 +598,8 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (closed == false) {
+                closed = true;
                 arrays.adjustBreaker(-SHALLOW_SIZE);
                 stack.close();
             }
@@ -609,7 +610,7 @@ abstract class IntAVLTree implements Releasable, Accountable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(NodeAllocator.class);
 
         private final TDigestArrays arrays;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private boolean closed = false;
 
         private int nextNode;
         private final IntStack releasedNodes;
@@ -660,7 +661,8 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (closed == false) {
+                closed = true;
                 arrays.adjustBreaker(-SHALLOW_SIZE);
                 releasedNodes.close();
             }
@@ -669,7 +671,8 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
+        if (closed == false) {
+            closed = true;
             arrays.adjustBreaker(-SHALLOW_SIZE);
             Releasables.close(nodeAllocator, parent, left, right, depth);
         }

@@ -72,7 +72,7 @@ public class MergingDigest extends AbstractTDigest {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MergingDigest.class);
 
     private final TDigestArrays arrays;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private boolean closed = false;
 
     private int mergeCount = 0;
 
@@ -624,7 +624,8 @@ public class MergingDigest extends AbstractTDigest {
 
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
+        if (closed == false) {
+            closed = true;
             arrays.adjustBreaker(-SHALLOW_SIZE);
             Releasables.close(weight, mean, tempWeight, tempMean, order);
         }

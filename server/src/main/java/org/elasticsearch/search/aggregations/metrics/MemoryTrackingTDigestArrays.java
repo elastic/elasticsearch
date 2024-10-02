@@ -89,7 +89,7 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
     private abstract static class AbstractMemoryTrackingArray implements Releasable, Accountable {
         protected final CircuitBreaker breaker;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private boolean closed = false;
 
         AbstractMemoryTrackingArray(CircuitBreaker breaker) {
             this.breaker = breaker;
@@ -97,7 +97,8 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
         @Override
         public final void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (closed == false) {
+                closed = true;
                 breaker.addWithoutBreaking(-ramBytesUsed());
             }
         }

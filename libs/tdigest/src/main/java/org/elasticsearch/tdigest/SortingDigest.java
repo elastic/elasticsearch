@@ -38,7 +38,7 @@ public class SortingDigest extends AbstractTDigest {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SortingDigest.class);
 
     private final TDigestArrays arrays;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private boolean closed = false;
 
     // Tracks all samples. Gets sorted on quantile and cdf calls.
     final TDigestDoubleArray values;
@@ -164,7 +164,8 @@ public class SortingDigest extends AbstractTDigest {
 
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
+        if (closed == false) {
+            closed = true;
             arrays.adjustBreaker(-SHALLOW_SIZE);
             Releasables.close(values);
         }

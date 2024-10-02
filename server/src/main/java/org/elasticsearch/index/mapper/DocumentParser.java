@@ -820,7 +820,7 @@ public final class DocumentParser {
                     && getSourceKeepMode(context, fieldMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS))
                 && copyToFieldHasValuesInDocument == false
                 && fieldWithFallbackSyntheticSource == false;
-            canRemoveSingleLeafElement = keepArraySource
+            canRemoveSingleLeafElement = (keepArraySource && objectRequiresStoringSource == false)
                 && fieldWithFallbackSyntheticSource == false
                 && copyToFieldHasValuesInDocument == false;
             if (objectRequiresStoringSource

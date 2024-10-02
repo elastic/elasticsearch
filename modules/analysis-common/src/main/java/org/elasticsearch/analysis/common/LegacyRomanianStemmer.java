@@ -11,13 +11,10 @@ import org.tartarus.snowball.Among;
 
 /**
 * This class implements the stemming algorithm defined by a snowball script.
-* NOTE: This is the RomanianStemmer used in Lucene 9
-*
-* @deprecated this class exists for backwards compatibility of indices created with Lucene 9
+* NOTE: This is the RomanianStemmer used in Lucene 9 and should only be used for backwards compatibility
 */
-@Deprecated
 @SuppressWarnings("checkstyle:DescendantToken")
-public class LegacyRomanianStemmer extends org.tartarus.snowball.SnowballStemmer {
+class LegacyRomanianStemmer extends org.tartarus.snowball.SnowballStemmer {
 
     private static final java.lang.invoke.MethodHandles.Lookup methodObject = java.lang.invoke.MethodHandles.lookup();
 

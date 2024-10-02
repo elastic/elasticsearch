@@ -1251,14 +1251,6 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFunctionTargetsExistingField() throws Exception {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        assertEquals(
-            "1:47: [match(y, \"Anna\")] cannot operate on [y], which is not a field from an index mapping",
-            error("from test | eval y = concat(\"a\", \"b\") | where match(y, \"Anna\"" + ")")
-        );
-        assertEquals(
-            "1:47: [match(name, \"Anna\")] cannot operate on [name], which is not a field from an index mapping",
-            error("from test | rename first_name as name | where match(name, \"Anna\"" + ")")
-        );
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\"" + ")"));
     }
 

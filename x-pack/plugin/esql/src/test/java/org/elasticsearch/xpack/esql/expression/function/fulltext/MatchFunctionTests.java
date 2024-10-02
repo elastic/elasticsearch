@@ -44,19 +44,33 @@ public class MatchFunctionTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        Set<DataType> supported = Set.of(DataType.KEYWORD, DataType.TEXT);
+        List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
         List<TestCaseSupplier> suppliers = new LinkedList<>();
         for (DataType fieldType : validStringDataTypes()) {
             for (DataType queryType : validStringDataTypes()) {
                 suppliers.add(
                     new TestCaseSupplier(
-                        "<" + fieldType + ", " + queryType + ">",
+                        "<" + fieldType + "-ES field, " + queryType + ">",
                         List.of(fieldType, queryType),
                         () -> testCase(fieldType, randomIdentifier(), queryType, randomAlphaOfLengthBetween(1, 10), equalTo(true))
                     )
                 );
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "<" + fieldType + "-non ES field, " + queryType + ">",
+                        List.of(fieldType, queryType),
+                        typeErrorSupplier(
+                            true,
+                            supportedPerPosition,
+                            List.of(fieldType, queryType),
+                            MatchFunctionTests::matchTypeErrorSupplier
+                        )
+                    )
+                );
             }
         }
-        List<TestCaseSupplier> errorsSuppliers = errorsForCasesWithoutExamples(suppliers, MatchFunctionTests::matchTypeErrorSupplier);
+        List<TestCaseSupplier> errorsSuppliers = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
         // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
         return parameterSuppliersFromTypedData(errorsSuppliers.stream().filter(s -> s.types().contains(DataType.NULL) == false).toList());
     }
@@ -67,14 +81,6 @@ public class MatchFunctionTests extends AbstractFunctionTestCase {
 
     private static List<DataType> validStringDataTypes() {
         return Arrays.stream(DataType.values()).filter(DataType::isString).toList();
-    }
-
-    public final void testFold() {
-        Expression expression = buildLiteralExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTrue("expected unresolved", expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
-        }
     }
 
     private static TestCaseSupplier.TestCase testCase(

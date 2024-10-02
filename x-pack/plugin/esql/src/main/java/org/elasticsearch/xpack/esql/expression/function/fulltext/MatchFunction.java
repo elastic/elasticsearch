@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -28,14 +31,13 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isField;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class MatchFunction extends FullTextFunction {
+public class MatchFunction extends FullTextFunction implements Validatable {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -87,9 +89,21 @@ public class MatchFunction extends FullTextFunction {
 
     @Override
     protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST).and(isField(field, sourceText(), FIRST))
-            .and(isString(field, sourceText(), FIRST))
-            .and(super.resolveNonQueryParamTypes());
+        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.resolveNonQueryParamTypes());
+    }
+
+    @Override
+    public void validate(Failures failures) {
+        if (field instanceof FieldAttribute == false) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "[{}] cannot operate on [{}], which is not a field from an index mapping",
+                    functionName(),
+                    field.sourceText()
+                )
+            );
+        }
     }
 
     @Override

@@ -63,18 +63,6 @@ public final class TypeResolutions {
         return isType(e, DataType::isString, operationName, paramOrd, "string");
     }
 
-    public static TypeResolution isField(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e instanceof FieldAttribute fa) {
-            if (fa.resolved()) {
-                return TypeResolution.TYPE_RESOLVED;
-            }
-        }
-
-        return new TypeResolution(
-            format(null, "[{}] cannot operate on [{}], which is not a field from an index mapping", operationName, e.sourceText())
-        );
-    }
-
     public static TypeResolution isIP(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, dt -> dt == IP, operationName, paramOrd, "ip");
     }

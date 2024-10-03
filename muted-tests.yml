@@ -336,9 +336,6 @@ tests:
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=range/20_synthetic_source/Date range}
-  issue: https://github.com/elastic/elasticsearch/issues/113874
 - class: org.elasticsearch.kibana.KibanaThreadPoolIT
   method: testBlockedThreadPoolsRejectUserRequests
   issue: https://github.com/elastic/elasticsearch/issues/113939

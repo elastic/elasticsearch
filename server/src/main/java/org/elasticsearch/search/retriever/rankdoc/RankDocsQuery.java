@@ -44,7 +44,7 @@ public class RankDocsQuery extends Query {
      * A {@link Query} that matches only the specified {@link RankDoc}, using the provided {@link Query} sources
      * solely for the purpose of explainability.
      */
-    private static class TopQuery extends Query {
+    public static class TopQuery extends Query {
         private final RankDoc[] docs;
         private final Query[] sources;
         private final String[] queryNames;

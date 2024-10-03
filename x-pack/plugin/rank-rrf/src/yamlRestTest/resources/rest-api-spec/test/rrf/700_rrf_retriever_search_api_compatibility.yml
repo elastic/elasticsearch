@@ -344,14 +344,7 @@ setup:
             fields: {
               "text_to_highlight": {
                 "fragment_size": 150,
-                "number_of_fragments": 3,
-                "highlight_query": {
-                  "match": {
-                    "text_to_highlight": {
-                      "query": "Search"
-                    }
-                  }
-                }
+                "number_of_fragments": 3
               }
             }
           }

@@ -343,7 +343,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     /**
      * Searches with LIMIT 0 are used by Kibana to get a list of columns. After the initial planning
      * (which involves cross-cluster field-caps calls), it is a coordinator only operation at query time
-     * which uses a different pathway that queries that require data node (and remote data node) operations
+     * which uses a different pathway compared to queries that require data node (and remote data node) operations
      * at query time.
      */
     public void testCCSExecutionOnSearchesWithLimit0() {

@@ -86,6 +86,14 @@ docker run --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
 TIP: Use the `-m` flag to set a memory limit for the container. This removes the
 need to <<docker-set-heap-size,manually set the JVM size>>.
 +
+
+Machine Learning features such as semantic search with the ELSER model
+require a larger container with more than 1GB of memory.
+If you intend to use the ML capabilities start the container with this command
+[source,sh,subs="attributes"]
+----
+docker run --name es01 --net elastic -p 9200:9200 -it -m 6GB -e "xpack.ml.use_auto_machine_memory_percent=true" {docker-image}
+----
 The command prints the `elastic` user password and an enrollment token for {kib}.
 
 . Copy the generated `elastic` password and enrollment token. These credentials

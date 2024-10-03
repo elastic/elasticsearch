@@ -73,4 +73,18 @@ public class ShardDocSortField extends SortField {
             }
         };
     }
+
+    /**
+     * Get the doc id encoded in the sort value.
+     */
+    public static int decodeDoc(long value) {
+        return (int) value;
+    }
+
+    /**
+     * Get the shard request index encoded in the sort value.
+     */
+    public static int decodeShardRequestIndex(long value) {
+        return (int) (value >> 32);
+    }
 }

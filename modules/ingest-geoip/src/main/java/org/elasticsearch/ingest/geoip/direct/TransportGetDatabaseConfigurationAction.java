@@ -11,21 +11,21 @@ package org.elasticsearch.ingest.geoip.direct;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -33,9 +33,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportGetDatabaseConfigurationAction extends TransportMasterNodeAction<
+import static org.elasticsearch.ingest.IngestGeoIpFeatures.GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE;
+
+public class TransportGetDatabaseConfigurationAction extends TransportNodesAction<
     GetDatabaseConfigurationAction.Request,
-    GetDatabaseConfigurationAction.Response> {
+    GetDatabaseConfigurationAction.Response,
+    GetDatabaseConfigurationAction.NodeRequest,
+    GetDatabaseConfigurationAction.NodeResponse,
+    List<DatabaseConfigurationMetadata>> {
+
+    private final FeatureService featureService;
 
     @Inject
     public TransportGetDatabaseConfigurationAction(
@@ -43,28 +50,39 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        FeatureService featureService
     ) {
         super(
             GetDatabaseConfigurationAction.NAME,
-            transportService,
             clusterService,
-            threadPool,
+            transportService,
             actionFilters,
-            GetDatabaseConfigurationAction.Request::new,
-            indexNameExpressionResolver,
-            GetDatabaseConfigurationAction.Response::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            GetDatabaseConfigurationAction.NodeRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.featureService = featureService;
     }
 
     @Override
-    protected void masterOperation(
-        final Task task,
-        final GetDatabaseConfigurationAction.Request request,
-        final ClusterState state,
-        final ActionListener<GetDatabaseConfigurationAction.Response> listener
+    protected void doExecute(
+        Task task,
+        GetDatabaseConfigurationAction.Request request,
+        ActionListener<GetDatabaseConfigurationAction.Response> listener
     ) {
+        if (featureService.clusterHasFeature(clusterService.state(), GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE) == false) {
+            /*
+             * TransportGetDatabaseConfigurationAction used to be a TransportMasterNodeAction, and not all nodes in the cluster have been
+             * updated. So we don't want to send node requests to the other nodes because they will blow up. Instead, we just return
+             * the information that we used to return from the master node (it doesn't make any difference that this might not be the master
+             * node, because we're only reading the cluster state).
+             */
+            newResponseAsync(task, request, createActionContext(task, request), List.of(), List.of(), listener);
+        } else {
+            super.doExecute(task, request, listener);
+        }
+    }
+
+    protected List<DatabaseConfigurationMetadata> createActionContext(Task task, GetDatabaseConfigurationAction.Request request) {
         final Set<String> ids;
         if (request.getDatabaseIds().length == 0) {
             // if we did not ask for a specific name, then return all databases
@@ -79,7 +97,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
             );
         }
 
-        final IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final IngestGeoIpMetadata geoIpMeta = clusterService.state().metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         List<DatabaseConfigurationMetadata> results = new ArrayList<>();
 
         for (String id : ids) {
@@ -92,19 +110,54 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
             } else {
                 DatabaseConfigurationMetadata meta = geoIpMeta.getDatabases().get(id);
                 if (meta == null) {
-                    listener.onFailure(new ResourceNotFoundException("database configuration not found: {}", id));
-                    return;
+                    throw new ResourceNotFoundException("database configuration not found: {}", id);
                 } else {
                     results.add(meta);
                 }
             }
         }
+        return results;
+    }
 
-        listener.onResponse(new GetDatabaseConfigurationAction.Response(results));
+    protected void newResponseAsync(
+        Task task,
+        GetDatabaseConfigurationAction.Request request,
+        List<DatabaseConfigurationMetadata> results,
+        List<GetDatabaseConfigurationAction.NodeResponse> responses,
+        List<FailedNodeException> failures,
+        ActionListener<GetDatabaseConfigurationAction.Response> listener
+    ) {
+        ActionListener.run(
+            listener,
+            l -> ActionListener.respondAndRelease(
+                l,
+                new GetDatabaseConfigurationAction.Response(results, clusterService.getClusterName(), responses, failures)
+            )
+        );
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDatabaseConfigurationAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected GetDatabaseConfigurationAction.Response newResponse(
+        GetDatabaseConfigurationAction.Request request,
+        List<GetDatabaseConfigurationAction.NodeResponse> nodeResponses,
+        List<FailedNodeException> failures
+    ) {
+        throw new UnsupportedOperationException("Use newResponseAsync instead");
     }
+
+    @Override
+    protected GetDatabaseConfigurationAction.NodeRequest newNodeRequest(GetDatabaseConfigurationAction.Request request) {
+        return new GetDatabaseConfigurationAction.NodeRequest(request.getDatabaseIds());
+    }
+
+    @Override
+    protected GetDatabaseConfigurationAction.NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        return new GetDatabaseConfigurationAction.NodeResponse(in);
+    }
+
+    @Override
+    protected GetDatabaseConfigurationAction.NodeResponse nodeOperation(GetDatabaseConfigurationAction.NodeRequest request, Task task) {
+        return new GetDatabaseConfigurationAction.NodeResponse(transportService.getLocalNode(), List.of());
+    }
+
 }

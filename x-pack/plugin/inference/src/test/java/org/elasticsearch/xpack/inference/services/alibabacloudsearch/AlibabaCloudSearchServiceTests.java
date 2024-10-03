@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.Alib
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -45,7 +46,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -94,7 +94,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -107,7 +106,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             @Override
             public void doInfer(
                 Model model,
-                List<String> input,
+                InferenceInputs inputs,
                 Map<String, Object> taskSettings,
                 InputType inputType,
                 TimeValue timeout,

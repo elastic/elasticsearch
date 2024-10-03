@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -71,20 +70,16 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
         assertEquals(
             "Validation Failed: 1: id cannot contain '#' for stored script;",
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 IllegalArgumentException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            TransportPutStoredScriptAction.TYPE,
-                            new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("id#")
-                                .content(new BytesArray(Strings.format("""
-                                    {"script": {"lang": "%s", "source": "1"} }
-                                    """, LANG)), XContentType.JSON),
-                            l
-                        )
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    TransportPutStoredScriptAction.TYPE,
+                    new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("id#")
+                        .content(new BytesArray(Strings.format("""
+                            {"script": {"lang": "%s", "source": "1"} }
+                            """, LANG)), XContentType.JSON),
+                    l
                 )
             ).getMessage()
         );
@@ -93,21 +88,16 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         assertEquals(
             "exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]",
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 IllegalArgumentException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            TransportPutStoredScriptAction.TYPE,
-                            new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("foobar")
-                                .content(new BytesArray(Strings.format("""
-                                    {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                                    """, LANG)), XContentType.JSON),
-                            l
-                        )
-
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    TransportPutStoredScriptAction.TYPE,
+                    new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("foobar")
+                        .content(new BytesArray(Strings.format("""
+                            {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
+                            """, LANG)), XContentType.JSON),
+                    l
                 )
             ).getMessage()
         );

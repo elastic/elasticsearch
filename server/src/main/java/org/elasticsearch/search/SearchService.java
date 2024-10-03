@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -51,7 +50,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -144,7 +142,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -230,7 +227,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.worker_threads_enabled",
         true,
         Property.NodeScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.DeprecatedWarning
     );
 
     public static final Setting<Boolean> QUERY_PHASE_PARALLEL_COLLECTION_ENABLED = Setting.boolSetting(
@@ -281,7 +279,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final FetchPhase fetchPhase;
     private final RankFeatureShardPhase rankFeatureShardPhase;
-    private volatile boolean enableSearchWorkerThreads;
+    private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
     private volatile long defaultKeepAlive;
@@ -375,7 +373,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
 
-        enableSearchWorkerThreads = SEARCH_WORKER_THREADS_ENABLED.get(settings);
+        if (SEARCH_WORKER_THREADS_ENABLED.get(settings)) {
+            searchExecutor = threadPool.executor(Names.SEARCH);
+        }
+
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
@@ -384,7 +385,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
-        this.enableSearchWorkerThreads = enableSearchWorkerThreads;
+        if (enableSearchWorkerThreads) {
+            searchExecutor = threadPool.executor(Names.SEARCH);
+        } else {
+            searchExecutor = null;
+        }
     }
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
@@ -1113,7 +1118,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader.indexShard().shardId(),
                 request.getClusterAlias()
             );
-            ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1122,7 +1126,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
-                executor,
+                searchExecutor,
                 resultsType,
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice
@@ -1257,7 +1261,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source == null) {
             return;
         }
-        validateSearchSource(source, context.scrollContext() != null);
         SearchShardTarget shardTarget = context.shardTarget();
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         context.from(source.from());
@@ -1450,49 +1453,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
             context.queryPhaseRankShardContext(source.rankBuilder().buildQueryPhaseShardContext(queries, context.from()));
-        }
-    }
-
-    /**
-     * Validates the incoming search request on the data node. These checks have been moved to the coordinating node.
-     * Validation is still performed on the data nodes to ensure that in a mixed cluster scenario, when the coordinating node is on an older
-     * version that does not yet perform validation, the shards make up for that.
-     * This method can be entirely removed in the next major version, when all nodes perform the validation when coordinating a search.
-     *
-     * @see SearchRequest#validate()
-     */
-    @UpdateForV9
-    private static void validateSearchSource(SearchSourceBuilder source, boolean hasScroll) {
-        if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE && hasScroll) {
-            throw new IllegalArgumentException("disabling [track_total_hits] is not allowed in a scroll context");
-        }
-        if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
-            if (hasScroll) {
-                throw new IllegalArgumentException("`search_after` cannot be used in a scroll context.");
-            }
-            if (source.from() > 0) {
-                throw new IllegalArgumentException("`from` parameter must be set to 0 when `search_after` is used.");
-            }
-        }
-        if (source.collapse() != null) {
-            if (hasScroll) {
-                throw new IllegalArgumentException("cannot use `collapse` in a scroll context");
-            }
-        }
-        if (source.slice() != null) {
-            if (source.pointInTimeBuilder() == null && (hasScroll == false)) {
-                throw new IllegalArgumentException("[slice] can only be used with [scroll] or [point-in-time] requests");
-            }
-        }
-        if (source.storedFields() != null) {
-            if (source.storedFields().fetchFields() == false) {
-                if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
-                    throw new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested");
-                }
-                if (source.fetchFields() != null) {
-                    throw new IllegalArgumentException("[stored_fields] cannot be disabled when using the [fields] option");
-                }
-            }
         }
     }
 

@@ -378,7 +378,7 @@ If you use a Glacier storage class, or another unsupported storage class, or
 object expiry, then you may permanently lose access to your repository
 contents.
 
-You may use the `intellligent_tiering` storage class to automatically manage
+You may use the `intelligent_tiering` storage class to automatically manage
 the class of objects, but you must not enable the optional Archive Access or
 Deep Archive Access tiers. If you use these tiers then you may permanently lose
 access to your repository contents.

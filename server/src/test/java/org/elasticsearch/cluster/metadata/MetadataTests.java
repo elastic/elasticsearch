@@ -112,6 +112,14 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias1").build())
                     .putAlias(AliasMetadata.builder("alias2").build())
             )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("alias2").build())
+                    .putAlias(AliasMetadata.builder("alias3").build())
+            )
             .build();
 
         {
@@ -135,10 +143,12 @@ public class MetadataTests extends ESTestCase {
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias*");
-            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
-            assertThat(aliases, aMapWithSize(1));
-            List<AliasMetadata> aliasMetadataList = aliases.get("index");
-            assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index", "index2" });
+            assertThat(aliases, aMapWithSize(2));
+            List<AliasMetadata> indexAliasMetadataList = aliases.get("index");
+            assertThat(indexAliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
+            List<AliasMetadata> index2AliasMetadataList = aliases.get("index2");
+            assertThat(index2AliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias2", "alias3")));
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias1");
@@ -258,10 +268,19 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias1").build())
                     .putAlias(AliasMetadata.builder("alias2").build())
             )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("alias1").build())
+                    .putAlias(AliasMetadata.builder("alias3").build())
+            )
             .build();
         GetAliasesRequest request = new GetAliasesRequest().aliases("*", "-alias1");
-        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
-        assertThat(aliases, transformedItemsMatch(AliasMetadata::alias, contains("alias2")));
+        Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index", "index2" });
+        assertThat(aliases.get("index"), transformedItemsMatch(AliasMetadata::alias, contains("alias2")));
+        assertThat(aliases.get("index2"), transformedItemsMatch(AliasMetadata::alias, contains("alias3")));
     }
 
     public void testFindDataStreams() {
@@ -1967,7 +1986,7 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
@@ -2019,7 +2038,7 @@ public class MetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasOldSystemAndNewRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
@@ -2034,7 +2053,7 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(oldVersionSystem, regularIndex);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemIndexValidationAllRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
@@ -2050,7 +2069,7 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationAllSystemSomeOld() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
@@ -2293,7 +2312,7 @@ public class MetadataTests extends ESTestCase {
             } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
                 chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
             } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
-                chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
+                chunkCount += 4 + (dataStreamMetadata.dataStreams().size() * 2L) + dataStreamMetadata.getDataStreamAliases().size();
             } else if (custom instanceof DesiredNodesMetadata) {
                 chunkCount += 1;
             } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {

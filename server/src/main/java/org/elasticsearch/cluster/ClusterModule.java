@@ -67,7 +67,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -95,7 +95,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -105,10 +104,9 @@ public class ClusterModule extends AbstractModule {
 
     public static final String BALANCED_ALLOCATOR = "balanced";
     public static final String DESIRED_BALANCE_ALLOCATOR = "desired_balance"; // default
-    public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = Setting.simpleString(
         "cluster.routing.allocation.type",
         DESIRED_BALANCE_ALLOCATOR,
-        Function.identity(),
         Property.NodeScope,
         Property.Deprecated
     );
@@ -393,7 +391,7 @@ public class ClusterModule extends AbstractModule {
         }
     }
 
-    @UpdateForV9 // in v9 there is only one allocator
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // in v10 there is only one allocator
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,

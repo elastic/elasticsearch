@@ -148,7 +148,7 @@ Before starting, you need to have:
 --
 
 You should follow http://azure.microsoft.com/en-us/documentation/articles/linux-use-ssh-key/[this guide] to learn
-how to create or use existing SSH keys. If you have already did it, you can skip the following.
+how to create or use existing SSH keys. If you have already done it, you can skip the following.
 
 Here is a description on how to generate SSH keys using `openssl`:
 

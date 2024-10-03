@@ -27,13 +27,14 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-@UpdateForV9
+@UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
 // @UpdateForV10 // this can be removed in v10. It may be called by v8 nodes to v9 nodes.
 public class TransportNodesFeaturesAction extends TransportNodesAction<
     NodesFeaturesRequest,
     NodesFeaturesResponse,
     TransportNodesFeaturesAction.NodeFeaturesRequest,
-    NodeFeatures> {
+    NodeFeatures,
+    Void> {
 
     public static final ActionType<NodesFeaturesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/features");
 

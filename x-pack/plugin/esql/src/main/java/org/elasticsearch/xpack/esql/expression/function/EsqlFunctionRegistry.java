@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
@@ -348,6 +350,7 @@ public class EsqlFunctionRegistry {
                 def(ToCartesianShape.class, ToCartesianShape::new, "to_cartesianshape"),
                 def(ToDatePeriod.class, ToDatePeriod::new, "to_dateperiod"),
                 def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
+                def(ToDateNanos.class, ToDateNanos::new, "to_date_nanos", "to_datenanos"),
                 def(ToDegrees.class, ToDegrees::new, "to_degrees"),
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
@@ -387,7 +390,9 @@ public class EsqlFunctionRegistry {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] {
                 def(Categorize.class, Categorize::new, "categorize"),
-                def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
+                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
+                // Full text functions
+                def(QueryStringFunction.class, QueryStringFunction::new, "qstr") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -400,6 +405,17 @@ public class EsqlFunctionRegistry {
             this.snapshotRegistry = snapshotRegistry;
         }
         return snapshotRegistry;
+    }
+
+    public static boolean isSnapshotOnly(String functionName) {
+        for (FunctionDefinition[] defs : snapshotFunctions()) {
+            for (FunctionDefinition def : defs) {
+                if (def.name().equalsIgnoreCase(functionName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public static String normalizeName(String name) {
@@ -559,6 +575,7 @@ public class EsqlFunctionRegistry {
             }
             register(snapshotFunctions());
         }
+
     }
 
     void register(FunctionDefinition[]... groupFunctions) {

@@ -15,7 +15,6 @@ import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
 import java.util.List;
-import java.util.function.Function;
 
 interface AwsEc2Service extends Closeable {
     Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
@@ -34,12 +33,7 @@ interface AwsEc2Service extends Closeable {
      * XXXX refers to a name of a tag configured for all EC2 instances. Instances which don't
      * have this tag set will be ignored by the discovery process. Defaults to private_ip.
      */
-    Setting<String> HOST_TYPE_SETTING = new Setting<>(
-        "discovery.ec2.host_type",
-        HostType.PRIVATE_IP,
-        Function.identity(),
-        Property.NodeScope
-    );
+    Setting<String> HOST_TYPE_SETTING = Setting.simpleString("discovery.ec2.host_type", HostType.PRIVATE_IP, Property.NodeScope);
     /**
      * discovery.ec2.any_group: If set to false, will require all security groups to be present for the instance to be used for the
      * discovery. Defaults to true.

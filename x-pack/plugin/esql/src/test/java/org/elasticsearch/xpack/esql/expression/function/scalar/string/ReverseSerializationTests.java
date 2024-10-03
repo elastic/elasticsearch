@@ -9,25 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationTests;
 
-import java.io.IOException;
-
-public class ReverseSerializationTests extends AbstractExpressionSerializationTests<Reverse> {
+public class ReverseSerializationTests extends AbstractUnaryScalarSerializationTests<Reverse> {
     @Override
-    protected Reverse createTestInstance() {
-        return new Reverse(randomSource(), randomChild());
-    }
-
-    @Override
-    protected Reverse mutateInstance(Reverse instance) throws IOException {
-        Source source = instance.source();
-        Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
+    protected Reverse create(Source source, Expression child) {
         return new Reverse(source, child);
-    }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
     }
 }

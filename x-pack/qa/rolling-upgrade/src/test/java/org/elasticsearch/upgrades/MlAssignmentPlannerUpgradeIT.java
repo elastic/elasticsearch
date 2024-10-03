@@ -71,7 +71,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101926")
     public void testMlAssignmentPlannerUpgrade() throws Exception {
-        @UpdateForV9 // upgrade will always be from v8, condition can be removed
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // upgrade will always be from v8, condition can be removed
         var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
         // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
         assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);

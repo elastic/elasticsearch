@@ -35,7 +35,7 @@ import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POO
 
 public class AverageSearchLoadSampler {
     static final double DEFAULT_SEARCH_EWMA_ALPHA = 0.2;
-    static final double DEFAULT_SHARD_READ_EWMA_ALPHA = 0.8;
+    static final double DEFAULT_SHARD_READ_EWMA_ALPHA = 0.6;
 
     public static final Setting<Double> SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.search.sampler.search_load_ewma_alpha",

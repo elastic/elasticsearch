@@ -91,7 +91,7 @@ public class ModelRegistry {
     public void addDefaultConfiguration(UnparsedModel serviceDefaultConfig) {
         if (defaultConfigs.containsKey(serviceDefaultConfig.inferenceEntityId())) {
             throw new IllegalStateException(
-                "Cannot add default endpoint to the model registry with duplicate inference id ["
+                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id ["
                     + serviceDefaultConfig.inferenceEntityId()
                     + "] declared by service ["
                     + serviceDefaultConfig.service()

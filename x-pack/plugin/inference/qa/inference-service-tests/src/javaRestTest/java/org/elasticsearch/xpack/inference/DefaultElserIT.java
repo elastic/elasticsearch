@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -40,20 +40,20 @@ public class DefaultElserIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testInferCreatesDefaultElser() throws IOException {
         assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
-        var model = getModel(ElserInternalService.DEFAULT_ELSER_ID);
+        var model = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
         assertDefaultElserConfig(model);
 
         var inputs = List.of("Hello World", "Goodnight moon");
         var queryParams = Map.of("timeout", "120s");
-        var results = infer(ElserInternalService.DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, inputs, queryParams);
+        var results = infer(ElasticsearchInternalService.DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, inputs, queryParams);
         var embeddings = (List<Map<String, Object>>) results.get("sparse_embedding");
         assertThat(results.toString(), embeddings, hasSize(2));
     }
 
     @SuppressWarnings("unchecked")
     private static void assertDefaultElserConfig(Map<String, Object> modelConfig) {
-        assertEquals(modelConfig.toString(), ElserInternalService.DEFAULT_ELSER_ID, modelConfig.get("inference_id"));
-        assertEquals(modelConfig.toString(), ElserInternalService.NAME, modelConfig.get("service"));
+        assertEquals(modelConfig.toString(), ElasticsearchInternalService.DEFAULT_ELSER_ID, modelConfig.get("inference_id"));
+        assertEquals(modelConfig.toString(), ElasticsearchInternalService.NAME, modelConfig.get("service"));
         assertEquals(modelConfig.toString(), TaskType.SPARSE_EMBEDDING.toString(), modelConfig.get("task_type"));
 
         var serviceSettings = (Map<String, Object>) modelConfig.get("service_settings");

@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceService;
@@ -44,7 +43,6 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
     private final StreamingTaskManager streamingTaskManager;
-    private final Client client;
 
     @Inject
     public TransportInferenceAction(
@@ -53,15 +51,13 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
-        StreamingTaskManager streamingTaskManager,
-        Client client
+        StreamingTaskManager streamingTaskManager
     ) {
         super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.inferenceStats = inferenceStats;
         this.streamingTaskManager = streamingTaskManager;
-        this.client = client;
     }
 
     @Override

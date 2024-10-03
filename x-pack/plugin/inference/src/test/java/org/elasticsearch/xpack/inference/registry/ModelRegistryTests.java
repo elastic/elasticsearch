@@ -360,8 +360,8 @@ public class ModelRegistryTests extends ESTestCase {
         assertThat(
             ise.getMessage(),
             containsString(
-                "Cannot add default endpoint to the model registry with duplicate inference id [my-inference] declared by service "
-                    + "[service-b]. The inference Id is already use by [service-a] service."
+                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id [my-inference] declared by "
+                    + "service [service-b]. The inference Id is already use by [service-a] service."
             )
         );
     }

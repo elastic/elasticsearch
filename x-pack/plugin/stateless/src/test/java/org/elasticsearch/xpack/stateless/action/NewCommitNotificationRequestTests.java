@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
+import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomCompoundCommit;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -78,12 +80,14 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                     indexShardRoutingTable,
                     new StatelessCompoundCommit(
                         compoundCommit.shardId(),
-                        newCcTermAndGen.generation(),
-                        newCcTermAndGen.primaryTerm(),
+                        newCcTermAndGen,
+                        compoundCommit.translogRecoveryStartFile(),
                         compoundCommit.nodeEphemeralId(),
                         compoundCommit.commitFiles(),
                         compoundCommit.sizeInBytes(),
-                        compoundCommit.internalFiles()
+                        compoundCommit.internalFiles(),
+                        compoundCommit.headerSizeInBytes(),
+                        compoundCommit.internalFilesReplicatedRanges()
                     ),
                     newCcTermAndGen.generation(),
                     instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
@@ -144,12 +148,14 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
         final long generation = randomLongBetween(1, 100);
         final StatelessCompoundCommit compoundCommit = new StatelessCompoundCommit(
             indexShardRoutingTable.shardId(),
-            generation,
-            primaryTerm,
+            new PrimaryTermAndGeneration(primaryTerm, generation),
+            randomLongBetween(1L, Long.MAX_VALUE - 1L),
             randomUUID(),
             Map.of(),
             randomLongBetween(10, 100),
-            Set.of()
+            Set.of(),
+            randomNonNegativeLong(),
+            InternalFilesReplicatedRanges.EMPTY
         );
 
         final var request1 = new NewCommitNotificationRequest(
@@ -204,14 +210,9 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
         final long primaryTerm = randomLongBetween(10, 42);
         final long generation = randomLongBetween(10, 100);
         final long bccGeneration = randomLongBetween(5, generation);
-        final StatelessCompoundCommit statelessCompoundCommit = new StatelessCompoundCommit(
+        final StatelessCompoundCommit statelessCompoundCommit = randomCompoundCommit(
             indexShardRoutingTable.shardId(),
-            generation,
-            primaryTerm,
-            randomUUID(),
-            Map.of(),
-            randomLongBetween(10, 100),
-            Set.of()
+            new PrimaryTermAndGeneration(primaryTerm, generation)
         );
         final long clusterStateVersion = randomNonNegativeLong();
         final String nodeId = randomIdentifier();
@@ -265,15 +266,7 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
 
         return new NewCommitNotificationRequest(
             indexShardRoutingTable,
-            new StatelessCompoundCommit(
-                indexShardRoutingTable.shardId(),
-                generation,
-                primaryTerm,
-                randomUUID(),
-                Map.of(),
-                randomLongBetween(10, 100),
-                Set.of()
-            ),
+            randomCompoundCommit(indexShardRoutingTable.shardId(), new PrimaryTermAndGeneration(primaryTerm, generation)),
             bccGeneration,
             randomFrom(
                 new PrimaryTermAndGeneration(primaryTerm - between(1, 9), randomLongBetween(1, 100)),
@@ -291,15 +284,7 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
 
         return new NewCommitNotificationRequest(
             indexShardRoutingTable,
-            new StatelessCompoundCommit(
-                indexShardRoutingTable.shardId(),
-                generation,
-                primaryTerm,
-                randomUUID(),
-                Map.of(),
-                randomLongBetween(10, 100),
-                Set.of()
-            ),
+            randomCompoundCommit(indexShardRoutingTable.shardId(), new PrimaryTermAndGeneration(primaryTerm, generation)),
             generation,
             new PrimaryTermAndGeneration(primaryTerm, generation),
             randomNonNegativeLong(),

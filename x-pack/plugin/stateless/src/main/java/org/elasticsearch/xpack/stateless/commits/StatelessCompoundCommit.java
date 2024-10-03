@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMPOUND_COMMITS_WITH_HEADER_SIZE_AND_REPLICATED_RANGES;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -76,29 +77,6 @@ public record StatelessCompoundCommit(
     long headerSizeInBytes,
     InternalFilesReplicatedRanges internalFilesReplicatedRanges
 ) implements Writeable {
-
-    // TODO This constructor is only used in tests, we should move it in a test utility method instead of keeping it here
-    public StatelessCompoundCommit(
-        ShardId shardId,
-        long generation,
-        long primaryTerm,
-        String nodeEphemeralId,
-        Map<String, BlobLocation> commitFiles,
-        long sizeInBytes,
-        Set<String> internalFiles
-    ) {
-        this(
-            shardId,
-            new PrimaryTermAndGeneration(primaryTerm, generation),
-            0,
-            nodeEphemeralId,
-            commitFiles,
-            sizeInBytes,
-            internalFiles,
-            0L,
-            InternalFilesReplicatedRanges.EMPTY
-        );
-    }
 
     public StatelessCompoundCommit {
         assert commitFiles.keySet().containsAll(internalFiles);
@@ -155,6 +133,10 @@ public record StatelessCompoundCommit(
         out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeVLong(sizeInBytes);
         out.writeStringCollection(internalFiles);
+        if (out.getTransportVersion().onOrAfter(COMPOUND_COMMITS_WITH_HEADER_SIZE_AND_REPLICATED_RANGES)) {
+            out.writeVLong(headerSizeInBytes);
+            out.writeCollection(internalFilesReplicatedRanges.replicatedRanges());
+        }
     }
 
     public static StatelessCompoundCommit readFromTransport(StreamInput in) throws IOException {
@@ -164,6 +146,19 @@ public record StatelessCompoundCommit(
         String nodeEphemeralId = in.readString();
         Map<String, BlobLocation> commitFiles = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
         long sizeInBytes = in.readVLong();
+        Set<String> internalFiles = in.readCollectionAsImmutableSet(StreamInput::readString);
+        long headerSizeInBytes;
+        InternalFilesReplicatedRanges replicatedRanges;
+        if (in.getTransportVersion().onOrAfter(COMPOUND_COMMITS_WITH_HEADER_SIZE_AND_REPLICATED_RANGES)) {
+            headerSizeInBytes = in.readVLong();
+            replicatedRanges = InternalFilesReplicatedRanges.from(
+                in.readCollectionAsImmutableList(InternalFilesReplicatedRanges.InternalFileReplicatedRange::fromStream)
+            );
+        } else {
+            headerSizeInBytes = 0L;
+            replicatedRanges = InternalFilesReplicatedRanges.EMPTY;
+
+        }
         return new StatelessCompoundCommit(
             shardId,
             primaryTermAndGeneration,
@@ -171,10 +166,9 @@ public record StatelessCompoundCommit(
             nodeEphemeralId,
             commitFiles,
             sizeInBytes,
-            in.readCollectionAsImmutableSet(StreamInput::readString),
-            // TODO add serialization over the network
-            0L,
-            InternalFilesReplicatedRanges.EMPTY
+            internalFiles,
+            headerSizeInBytes,
+            replicatedRanges
         );
     }
 

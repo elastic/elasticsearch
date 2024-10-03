@@ -1085,7 +1085,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false")
                 .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                .put(EngineConfig.USE_COMPOUND_FILE, false) // TODO Remove this once ES-9345 is implemented
+                .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
                 .build()
         );
 

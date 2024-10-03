@@ -1,5 +1,5 @@
 pr: 113989
-summary: Add `parts_number` setting to S3 repository
+summary: Add `max_multipart_parts` setting to S3 repository
 area: Snapshot/Restore
 type: enhancement
 issues: []

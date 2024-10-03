@@ -231,7 +231,8 @@ public class TransportVersions {
     public static final TransportVersion CCS_REMOTE_TELEMETRY_STATS = def(8_755_00_0);
     public static final TransportVersion ESQL_CCS_EXECUTION_INFO = def(8_756_00_0);
     public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_757_00_0);
-    public static final TransportVersion ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES = def(8_758_00_0);
+    public static final TransportVersion RRF_QUERY_REWRITE = def(8_758_00_0);
+    public static final TransportVersion ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES = def(8_759_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -290,7 +291,7 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+    @UpdateForV9
     // This needs to be bumped to the 8.last
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 

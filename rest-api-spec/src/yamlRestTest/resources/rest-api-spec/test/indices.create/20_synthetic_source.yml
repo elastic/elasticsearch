@@ -895,7 +895,7 @@ doubly nested object:
 ---
 subobjects auto:
   - requires:
-      cluster_features: ["mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source and supporting subobjects auto setting
 
   - do:

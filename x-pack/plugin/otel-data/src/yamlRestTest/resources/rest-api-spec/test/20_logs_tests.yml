@@ -48,9 +48,9 @@ setup:
         body:
           fields: ["*"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields.resource\.attributes\.host\.ip: ["0.0.0.0", "127.0.0.1"] }
-  - match: { hits.hits.0.fields.attributes\.foo: [1, 2, 3] }
-  - match: { hits.hits.0.fields.attributes\.bar: [a, b, c] }
+  - match: { hits.hits.0.fields.resource\.attributes\.host\.ip: ["127.0.0.1", "0.0.0.0"] }
+  - match: { hits.hits.0.fields.attributes\.foo: [3, 2, 1] }
+  - match: { hits.hits.0.fields.attributes\.bar: [b, c, a] }
 ---
 "Exception aliases":
   - do:

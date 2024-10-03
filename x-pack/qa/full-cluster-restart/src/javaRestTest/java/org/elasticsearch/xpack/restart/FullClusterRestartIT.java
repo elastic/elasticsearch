@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
@@ -294,7 +295,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testServiceAccountApiKey() throws IOException {
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.SECURITY)
         var originalClusterSupportsServiceAccounts = oldClusterHasFeature(RestTestLegacyFeatures.SERVICE_ACCOUNTS_SUPPORTED);
         assumeTrue("no service accounts in versions before 7.13", originalClusterSupportsServiceAccounts);
 
@@ -523,7 +524,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testTransformLegacyTemplateCleanup() throws Exception {
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING)
         var originalClusterSupportsTransform = oldClusterHasFeature(RestTestLegacyFeatures.TRANSFORM_SUPPORTED);
         assumeTrue("Before 7.2 transforms didn't exist", originalClusterSupportsTransform);
 
@@ -605,7 +606,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testSlmPolicyAndStats() throws IOException {
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         var originalClusterSupportsSlm = oldClusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED);
 
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy(
@@ -958,10 +959,10 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
 
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         var originalClusterSupportsDataStreams = oldClusterHasFeature(RestTestLegacyFeatures.DATA_STREAMS_SUPPORTED);
 
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         var originalClusterDataStreamHasDateInIndexName = oldClusterHasFeature(RestTestLegacyFeatures.NEW_DATA_STREAMS_INDEX_NAME_FORMAT);
 
         assumeTrue("no data streams in versions before 7.9.0", originalClusterSupportsDataStreams);
@@ -1011,7 +1012,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
-    @UpdateForV9 // Can be removed
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // Can be removed
     public void testDisableFieldNameField() throws IOException {
         assumeFalse(
             "can only disable field names field before 8.0",
@@ -1062,9 +1063,14 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 }""");
             // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}
             try {
+                Map<String, Object> result = entityAsMap(client().performRequest(esql));
+                MapMatcher mapMatcher = matchesMap();
+                if (result.get("took") != null) {
+                    mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+                }
                 assertMap(
-                    entityAsMap(client().performRequest(esql)),
-                    matchesMap().entry(
+                    result,
+                    mapMatcher.entry(
                         "columns",
                         List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword"))
                     ).entry("values", List.of(List.of("test", "test")))

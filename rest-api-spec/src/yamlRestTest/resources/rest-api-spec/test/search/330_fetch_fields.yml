@@ -1129,7 +1129,7 @@ fetch geo_point:
 ---
 "Test with subobjects: auto":
   - requires:
-      cluster_features: "mapper.subobjects_auto_fixes"
+      cluster_features: "mapper.subobjects_auto"
       reason: requires support for subobjects auto setting
 
   - do:

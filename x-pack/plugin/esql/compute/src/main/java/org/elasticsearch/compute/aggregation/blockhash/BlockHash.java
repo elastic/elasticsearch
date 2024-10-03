@@ -47,6 +47,9 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     /**
      * Add all values for the "group by" columns in the page to the hash and
      * pass the ordinals to the provided {@link GroupingAggregatorFunction.AddInput}.
+     * <p>
+     *     This call will not {@link GroupingAggregatorFunction.AddInput#close} {@code addInput}.
+     * </p>
      */
     public abstract void add(Page page, GroupingAggregatorFunction.AddInput addInput);
 

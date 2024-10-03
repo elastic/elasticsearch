@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -87,8 +86,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private final AtomicInteger recoveryMonitorBlocks = new AtomicInteger();
 
-    @Nullable // if we're not downloading files from snapshots in this recovery or we're retrying
+    @Nullable // if we're not downloading files from snapshots in this recovery
     private volatile Releasable snapshotFileDownloadsPermit;
+
+    // placeholder for snapshotFileDownloadsPermit for use when this RecoveryTarget has been replaced by a new one due to a retry
+    private static final Releasable SNAPSHOT_FILE_DOWNLOADS_PERMIT_PLACEHOLDER_FOR_RETRY = Releasables.wrap();
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
@@ -142,7 +144,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private MultiFileWriter createMultiFileWriter() {
         final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
-        return new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger, this::ensureRefCount);
+        return new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger);
     }
 
     /**
@@ -154,7 +156,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // If we're retrying we should remove the reference from this instance as the underlying resources
         // get released after the retry copy is created
         Releasable snapshotFileDownloadsPermitCopy = snapshotFileDownloadsPermit;
-        snapshotFileDownloadsPermit = null;
+        if (snapshotFileDownloadsPermitCopy != null) {
+            snapshotFileDownloadsPermit = SNAPSHOT_FILE_DOWNLOADS_PERMIT_PLACEHOLDER_FOR_RETRY;
+        }
         return new RecoveryTarget(
             indexShard,
             sourceNode,
@@ -179,7 +183,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     public IndexShard indexShard() {
-        ensureRefCount();
+        assert hasReferences();
         return indexShard;
     }
 
@@ -232,7 +236,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     public Store store() {
-        ensureRefCount();
+        assert hasReferences();
         return store;
     }
 
@@ -359,14 +363,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public String toString() {
         return shardId + " [" + recoveryId + "]";
-    }
-
-    private void ensureRefCount() {
-        if (refCount() <= 0) {
-            throw new ElasticsearchException(
-                "RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " + "calls"
-            );
-        }
     }
 
     /*** Implementation of {@link RecoveryTargetHandler } */
@@ -594,6 +590,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         BlobStoreIndexShardSnapshot.FileInfo fileInfo,
         ActionListener<Void> listener
     ) {
+        assert hasReferences();
         assert hasPermitToDownloadSnapshotFiles();
 
         try (

@@ -177,7 +177,7 @@ public class JoinValidationService {
         }
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
     private void legacyValidateJoin(DiscoveryNode discoveryNode, ActionListener<Void> listener, Transport.Connection connection) {
         final var responseHandler = TransportResponseHandler.empty(responseExecutor, listener.delegateResponse((l, e) -> {
             logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);

@@ -102,11 +102,6 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
-    int defaultSpanForChunking(int maxWindowSize) {
-        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
-    }
-
-    @Override
     int numExtraTokensForSingleSequence() {
         return 2;
     }

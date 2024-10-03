@@ -126,11 +126,6 @@ public class DebertaV2Tokenizer extends NlpTokenizer {
     }
 
     @Override
-    int defaultSpanForChunking(int maxWindowSize) {
-        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
-    }
-
-    @Override
     public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {
         return new DebertaTokenizationResult(originalVocab, tokenizations, padTokenId);
     }

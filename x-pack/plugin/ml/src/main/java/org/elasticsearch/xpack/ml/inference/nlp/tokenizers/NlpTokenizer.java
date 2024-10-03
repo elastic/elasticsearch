@@ -50,7 +50,9 @@ public abstract class NlpTokenizer implements Releasable {
 
     abstract int getNumExtraTokensForSeqPair();
 
-    abstract int defaultSpanForChunking(int maxWindowSize);
+    int defaultSpanForChunking(int maxWindowSize) {
+        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
+    }
 
     public abstract TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations);
 

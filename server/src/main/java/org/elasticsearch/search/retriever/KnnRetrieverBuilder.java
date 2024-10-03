@@ -127,12 +127,30 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public QueryBuilder topDocsQuery() {
-        assert rankDocs != null : "{rankDocs} should have been materialized at this point";
+        assert rankDocs != null : "rankDocs should have been materialized by now";
+        var rankDocsQuery = new RankDocsQueryBuilder(rankDocs, null, true);
+        if (preFilterQueryBuilders.isEmpty()) {
+            return rankDocsQuery.queryName(retrieverName);
+        }
+        BoolQueryBuilder res = new BoolQueryBuilder().must(rankDocsQuery);
+        preFilterQueryBuilders.forEach(res::filter);
+        return res.queryName(retrieverName);
+    }
 
-        BoolQueryBuilder knnTopResultsQuery = new BoolQueryBuilder().filter(new RankDocsQueryBuilder(rankDocs))
-            .should(new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), field, similarity));
-        preFilterQueryBuilders.forEach(knnTopResultsQuery::filter);
-        return knnTopResultsQuery;
+    @Override
+    public QueryBuilder explainQuery() {
+        assert rankDocs != null : "rankDocs should have been materialized by now";
+        var rankDocsQuery = new RankDocsQueryBuilder(
+            rankDocs,
+            new QueryBuilder[] { new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), field, similarity) },
+            true
+        );
+        if (preFilterQueryBuilders.isEmpty()) {
+            return rankDocsQuery.queryName(retrieverName);
+        }
+        BoolQueryBuilder res = new BoolQueryBuilder().must(rankDocsQuery);
+        preFilterQueryBuilders.forEach(res::filter);
+        return res.queryName(retrieverName);
     }
 
     @Override

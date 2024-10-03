@@ -50,45 +50,6 @@ public class DefaultElserIT extends InferenceBaseRestTest {
         assertThat(results.toString(), embeddings, hasSize(2));
     }
 
-    public void testScaleFrom0() {
-        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
-        // fail("how can we test this when we need to wait for the cooldown");
-    }
-
-    /*
-    @SuppressWarnings("unchecked")
-    public void testInferMultipleInferences() throws IOException {
-        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
-        var model = getModel(ElserInternalService.DEFAULT_ELSER_ID);
-        assertDefaultElserConfig(model);
-
-        var inputs = List.of("Hello World", "Goodnight moon");
-        var queryParams = Map.of("timeout", "120s");
-
-        EsExecutors.newFixed(
-            DefaultElserIT.class.getSimpleName() + "-testthreads",
-            1,
-            1000,
-            daemonThreadFactory(DefaultElserIT.class.getSimpleName()),
-            threadPool.getThreadContext(),
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
-        );
-
-        int numRequests = 10;
-        for (int i = 0; i < numRequests; i++) {
-            threadPool.executor("foo").execute(() -> {
-                Map<String, Object> results = null;
-                try {
-                    results = infer(ElserInternalService.DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, inputs, queryParams);
-                } catch (IOException e) {
-                    fail(e, "error inferring");
-                }
-                var embeddings = (List<Map<String, Object>>) results.get("sparse_embedding");
-                assertThat(results.toString(), embeddings, hasSize(2));
-            });
-        }
-    }
-    */
     @SuppressWarnings("unchecked")
     private static void assertDefaultElserConfig(Map<String, Object> modelConfig) {
         assertEquals(modelConfig.toString(), ElserInternalService.DEFAULT_ELSER_ID, modelConfig.get("inference_id"));

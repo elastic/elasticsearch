@@ -40,7 +40,7 @@ of weekyears. This can result in different values between the built-in formats a
 for week dates.
 
 [[built-in-date-formats]]
-==== Built in formats
+==== Built-in formats
 
 Most of the below formats have a `strict` companion format, which means that
 year, month and day parts of the month must use respectively 4, 2 and 2 digits

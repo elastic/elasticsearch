@@ -11,7 +11,7 @@ breaking:
 
     If you run {es} 8.16 on JDK version 22 or below, it will use the COMPAT locale database to match the behavior of 8.15. However, starting with {es} 9.0, {es} will use the CLDR database regardless of JDK version it is run on.
   impact: |
-    This affects you if you use custom date formats using textual or week-date field specifiers. If you field specifiers that are incompatible with the CLDR database, then this change will cause Elasticsearch to reject previously valid date fields as invalid data. You might need to modify your ingest or output integration code to account for the differences between these two JDK versions.
+    This affects you if you use custom date formats using textual or week-date field specifiers. If you use date fields or calculated week-dates that change between the COMPAT and CLDR databases, then this change will cause Elasticsearch to reject previously valid date fields as invalid data. You might need to modify your ingest or output integration code to account for the differences between these two JDK versions.
 
     Starting in version 8.15.2, Elasticsearch will log deprecation warnings if you are using date format specifiers that might change on upgrading to JDK 23. These warnings are visible in Kibana.
 

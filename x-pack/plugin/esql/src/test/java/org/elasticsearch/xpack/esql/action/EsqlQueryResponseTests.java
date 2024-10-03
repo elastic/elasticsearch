@@ -236,7 +236,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     protected EsqlQueryResponse mutateInstance(EsqlQueryResponse instance) {
         boolean allNull = true;
         for (ColumnInfoImpl info : instance.columns()) {
-            if (info.type() != DataType.NULL) {
+            if (info.type() != DataType.NULL && info.type() != DataType.UNSUPPORTED) {
                 allNull = false;
             }
         }

@@ -93,4 +93,14 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
         }
         assertThat(unclosed, empty());
     }
+
+    @Override
+    public void testNoneFiltered() {
+        assumeFalse("can't double filter. tests already filter.", true);
+    }
+
+    @Override
+    public void testAllFiltered() {
+        assumeFalse("can't double filter. tests already filter.", true);
+    }
 }

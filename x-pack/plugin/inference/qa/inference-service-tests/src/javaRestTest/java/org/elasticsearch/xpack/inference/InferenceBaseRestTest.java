@@ -53,7 +53,10 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .put(CLIENT_SOCKET_TIMEOUT, "120s")  // Long timeout for model download
+            .build();
     }
 
     static String mockSparseServiceModelConfig() {

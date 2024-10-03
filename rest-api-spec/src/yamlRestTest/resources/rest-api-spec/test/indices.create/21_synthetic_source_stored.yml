@@ -804,7 +804,7 @@ field param - nested array within array:
 ---
 index param - root arrays:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.synthetic_source_keep", "gte_v8.16.0"]
       reason: requires keeping array source
 
   - do:

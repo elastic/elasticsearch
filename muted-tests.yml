@@ -350,6 +350,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
   issue: https://github.com/elastic/elasticsearch/issues/114019
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5WithTrainedModelAndInference
+  issue: https://github.com/elastic/elasticsearch/issues/114023
 
 # Examples:
 #

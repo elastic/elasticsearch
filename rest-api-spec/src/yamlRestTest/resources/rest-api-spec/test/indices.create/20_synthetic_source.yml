@@ -920,7 +920,7 @@ subobjects auto:
                       id:
                         type: keyword
               stored:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   span:
                     properties:

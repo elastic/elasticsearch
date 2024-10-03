@@ -421,20 +421,21 @@ public final class DocumentParser {
             throwOnConcreteValue(context.parent(), currentFieldName, context);
         }
 
+        if (context.canAddIgnoredField() && getSourceKeepMode(context, context.parent().sourceKeepMode()) == Mapper.SourceKeepMode.ALL) {
+            context = context.addIgnoredFieldFromContext(
+                new IgnoredSourceFieldMapper.NameValue(
+                    context.parent().fullPath(),
+                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
+                    null,
+                    context.doc()
+                )
+            );
+            token = context.parser().currentToken();
+            parser = context.parser();
+        }
+
         if (context.parent().isNested()) {
             // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
-            if (context.parent().storeArraySource() && context.canAddIgnoredField()) {
-                context = context.addIgnoredFieldFromContext(
-                    new IgnoredSourceFieldMapper.NameValue(
-                        context.parent().fullPath(),
-                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                        null,
-                        context.doc()
-                    )
-                );
-                token = context.parser().currentToken();
-                parser = context.parser();
-            }
             context = context.createNestedContext((NestedObjectMapper) context.parent());
         }
 
@@ -801,8 +802,8 @@ public final class DocumentParser {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
-                && (objectMapper.storeArraySource()
-                    || (context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS
+                && (getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
+                    || (getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS
                         && objectMapper instanceof NestedObjectMapper == false));
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
@@ -1115,15 +1116,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(
-                name,
-                fullPath,
-                Explicit.IMPLICIT_TRUE,
-                Optional.empty(),
-                Explicit.IMPLICIT_FALSE,
-                Dynamic.RUNTIME,
-                Collections.emptyMap()
-            );
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Optional.empty(), Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
         }
 
         @Override

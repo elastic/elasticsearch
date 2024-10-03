@@ -164,6 +164,7 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
             METADATA _score
             | WHERE qstr("content: fox")
             | KEEP id, _score
+            | SORT id ASC
             """;
 
         try (var resp = run(query)) {
@@ -174,7 +175,13 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
             );
             // values
             List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(1, 1.1565589D)).item(List.of(6, 0.9114002D)));
+            assertMap(
+                values,
+                matchesList().item(List.of(2, 0.3028995096683502))
+                    .item(List.of(3, 0.3028995096683502))
+                    .item(List.of(4, 0.2547692656517029))
+                    .item(List.of(5, 0.28161853551864624))
+            );
         }
     }
 
@@ -185,18 +192,21 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
             METADATA _score
             | WHERE qstr("content: fox")
               AND abs(id) > 0
-            | KEEP id, _score
+            | EVAL c_score = ceil(_score)
+            | KEEP id, c_score
+            | SORT id DESC
+            | LIMIT 2
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "c_score")));
             assertThat(
                 resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
                 equalTo(List.of("INTEGER", "DOUBLE"))
             );
             // values
             List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(1, 1.1565589D)).item(List.of(6, 0.9114002D)));
+            assertMap(values, matchesList().item(List.of(5, 1.0)).item(List.of(4, 1.0)));
         }
     }
 }

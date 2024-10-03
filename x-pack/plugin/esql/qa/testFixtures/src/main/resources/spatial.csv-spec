@@ -38,7 +38,11 @@ wkt:keyword                                                                     
 ;
 
 centroidOfNull
-FROM airports | eval z = TO_GEOPOINT(null) | STATS centroidNull = ST_CENTROID_AGG(null), centroidExpNull = ST_CENTROID_AGG(TO_GEOPOINT(null::string)), centroidEvalNull = ST_CENTROID_AGG(z);
+FROM airports 
+| eval z = TO_GEOPOINT(null) 
+| STATS centroidNull = ST_CENTROID_AGG(null), 
+        centroidExpNull = ST_CENTROID_AGG(TO_GEOPOINT(null::string)), 
+        centroidEvalNull = ST_CENTROID_AGG(z);
 
 centroidNull:null|centroidExpNull:geo_point|centroidEvalNull:geo_point
 POINT (NaN NaN)  |null                     |POINT (NaN NaN)

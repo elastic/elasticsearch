@@ -170,6 +170,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineBinaryComparisons(),
             new CombineDisjunctions(),
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
+            // TODO see https://github.com/elastic/elasticsearch/issues/113393
             // new ReplaceStatsAggExpressionWithEval(),
             // prune/elimination
             new PruneFilters(),

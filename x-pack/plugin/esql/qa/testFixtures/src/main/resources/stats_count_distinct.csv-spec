@@ -179,6 +179,7 @@ m:long  | languages:i
 ;
 
 foldablePrecision
+required_capability: extend_aggs_on_constants_support
 from employees | eval x = 82+8 | stats count_distinct(salary, x*100);
 
 count_distinct(salary, x*100):long
@@ -208,6 +209,7 @@ from employees | eval x = 82+8 | stats cd1=count_distinct(salary, x*100), cd2=co
 ;
 
 foldableNullPrecision
+required_capability: extend_aggs_on_constants_support
 from employees | eval x = 82+null | stats count_distinct(salary, x*100), count_distinct(salary, null), count_distinct(salary, null + 1);
 
 count_distinct(salary, x*100):long|count_distinct(salary, null):long|count_distinct(salary, null + 1):long
@@ -215,7 +217,13 @@ count_distinct(salary, x*100):long|count_distinct(salary, null):long|count_disti
 ;
 
 foldableNullPrecisionWithGroupings
-from employees | eval x = 82+null | stats cdNullEval=count_distinct(salary, x*100), cdNull=count_distinct(salary, null), cdFoldedNull=count_distinct(salary, null + 1) by gender,languages | sort gender,languages;
+required_capability: extend_aggs_on_constants_support
+from employees 
+| eval x = 82+null 
+| stats cdNullEval=count_distinct(salary, x*100), 
+        cdNull=count_distinct(salary, null), 
+        cdFoldedNull=count_distinct(salary, null + 1) by gender,languages 
+| sort gender,languages;
 
 cdNullEval:long|  cdNull:long  |cdFoldedNull:long|gender:keyword |   languages:integer   
 4              |4              |4                |F              |1              

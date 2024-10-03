@@ -266,14 +266,27 @@ c:long | a:double |   mi:integer |  ma:integer | s:long
 ;
 
 rowWithMultipleStatsOverNull2
-row x=1, y=2 | stats c=count(null + 1), c_d=count_distinct(1 + null), a=avg(null + x), mi=min(y + null), ma=max(y + x * null), s=sum(null);
+row x=1, y=2 
+| stats c=count(null + 1), 
+        c_d=count_distinct(1 + null), 
+        a=avg(null + x), 
+        mi=min(y + null), 
+        ma=max(y + x * null), 
+        s=sum(null);
 
  c:long    |   c_d:long    |    a:double   |   mi:integer  |   ma:integer  |   s:double       
 0          |0              |null           |null           |null           |null
 ;
 
 rowWithMultipleStatsOverNull3
-ROW a = 1, b = "two", c = null | STATS `a_count` = COUNT(`a`), `a_cardinality` = COUNT_DISTINCT(`a`),`b_count` = COUNT(`b`), `b_cardinality` = COUNT_DISTINCT(`b`),`c_count` = COUNT(`c`), `c_cardinality` = COUNT_DISTINCT(`c`)
+required_capability: extend_aggs_on_constants_support
+ROW a = 1, b = "two", c = null
+| STATS `a_count` = COUNT(`a`), 
+        `a_cardinality` = COUNT_DISTINCT(`a`),
+        `b_count` = COUNT(`b`),
+        `b_cardinality` = COUNT_DISTINCT(`b`),
+        `c_count` = COUNT(`c`), 
+        `c_cardinality` = COUNT_DISTINCT(`c`)
 ;
 
 a_count:long   |a_cardinality:long |b_count:long   |b_cardinality:long |c_count:long   | c_cardinality:long 

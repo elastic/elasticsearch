@@ -2001,6 +2001,7 @@ x:integer   |z:integer
 ;
 
 emptyStatsBy2
+required_capability: extend_aggs_on_constants_support
 from employees | eval x = [1,2,3], y = null | stats max(y) by x;
 
 max(y):null |x:integer       
@@ -2010,14 +2011,36 @@ null        |3
 ;
 
 statsOfPropagateableConst
-row foo="unused" | eval mv=[1,2,3] | stats avg = avg(mv), avg([5,6]), min(mv), min([5,6]), max(mv), max([5,6]), count(mv), count([5,6]), count_distinct(mv), count_distinct([5,5,6]);
+row foo="unused" 
+| eval mv=[1,2,3] 
+| stats avg = avg(mv), 
+        avg([5,6]), 
+        min(mv), 
+        min([5,6]), 
+        max(mv), 
+        max([5,6]), 
+        count(mv), 
+        count([5,6]), 
+        count_distinct(mv), 
+        count_distinct([5,5,6]);
 
  avg:double    |avg([5,6]):double|min(mv):integer|min([5,6]):integer|max(mv):integer|max([5,6]):integer|count(mv):long |count([5,6]):long|count_distinct(mv):long|count_distinct([5,5,6]):long
 2.0            |5.5              |1              |5                 |3              |6                 |3              |2                |3                      |2
 ;
 
 statsOfPropagateableConstOnIndex
-from employees | eval mv=[1,2,3] | stats avg = avg(mv), avg([5,6]), min(mv), min([5,6]), max(mv), max([5,6]), count(mv), count([5,6]), count_distinct(mv), count_distinct([5,5,6]);
+from employees 
+| eval mv=[1,2,3] 
+| stats avg = avg(mv), 
+        avg([5,6]), 
+        min(mv), 
+        min([5,6]), 
+        max(mv), 
+        max([5,6]), 
+        count(mv), 
+        count([5,6]), 
+        count_distinct(mv), 
+        count_distinct([5,5,6]);
 
  avg:double    |avg([5,6]):double|min(mv):integer|min([5,6]):integer|max(mv):integer|max([5,6]):integer|count(mv):long |count([5,6]):long|count_distinct(mv):long|count_distinct([5,5,6]):long
 2.0            |5.5              |1              |5                 |3              |6                 |300            |200              |3                      |2
@@ -2049,7 +2072,14 @@ COUNT_DISTINCT(c):long|COUNT_DISTINCT(null):long|COUNT_DISTINCT(null - 1):long|a
 ;
 
 countDistinctWithGrouping
-from employees | EVAL c = 5 + 6, d = 6 + null, e = [1,2,2] | STATS `cd(5+6)`=COUNT_DISTINCT(c), `cd(null)`=COUNT_DISTINCT(null), `cd(null-1)`=COUNT_DISTINCT(null - 1), `cd(eval_null)`=COUNT_DISTINCT(d), `cd(mv)`=COUNT_DISTINCT(e) BY gender | sort gender;
+from employees 
+| EVAL c = 5 + 6, d = 6 + null, e = [1,2,2] 
+| STATS `cd(5+6)`=COUNT_DISTINCT(c), 
+        `cd(null)`=COUNT_DISTINCT(null), 
+        `cd(null-1)`=COUNT_DISTINCT(null - 1), 
+        `cd(eval_null)`=COUNT_DISTINCT(d), 
+        `cd(mv)`=COUNT_DISTINCT(e) BY gender 
+| sort gender;
 
 cd(5+6):long   |cd(null):long  |cd(null-1):long|cd(eval_null):long|cd(mv):long |gender:keyword     
 1              |0              |0              |0                 |2           |F              
@@ -2058,7 +2088,16 @@ cd(5+6):long   |cd(null):long  |cd(null-1):long|cd(eval_null):long|cd(mv):long |
 ;
 
 countWithGrouping
-from employees | EVAL a = 5 + 6, b = 6 + null, e = [1,2,2] | STATS `c(5+6)`=COUNT(a), `c(null)`=COUNT(null), `c(null-1)`=COUNT(null - 1), `c(eval_null)`=COUNT(b), `c(mv)`=COUNT(e) BY gender | sort gender;
+from employees 
+| EVAL a = 5 + 6, 
+       b = 6 + null, 
+       e = [1,2,2] 
+| STATS `c(5+6)`=COUNT(a), 
+        `c(null)`=COUNT(null), 
+        `c(null-1)`=COUNT(null - 1), 
+        `c(eval_null)`=COUNT(b), 
+        `c(mv)`=COUNT(e) BY gender 
+| sort gender;
 
 c(5+6):long    |c(null):long   |c(null-1):long |c(eval_null):long |c(mv):long  |gender:keyword     
 33             |0              |0              |0                 |99          |F              
@@ -2367,6 +2406,7 @@ m:integer |a:double |x:integer
 ;
 
 valuesOfConstants
+required_capability: extend_aggs_on_constants_support
 row mv_int = [1,2,3,2], string = "abc", mv_string = ["bar","foo"], null_exp = 234 + null, to_be_casted_ip = "127.0.0.1", row_null = null 
 | stats values(null), values(mv_int), values(string), values(mv_string), values(null_exp), values(123 + null), values(to_be_casted_ip::ip), values(row_null)
 ;

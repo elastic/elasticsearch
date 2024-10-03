@@ -337,7 +337,12 @@ public class EsqlCapabilities {
         /**
          * Compute year differences in full calendar years.
          */
-        DATE_DIFF_YEAR_CALENDARIAL;
+        DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * Support aggregations on constants in more scenarios.
+         */
+        EXTEND_AGGS_ON_CONSTANTS_SUPPORT;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

@@ -45,25 +45,25 @@ public final class ReplaceAggregatesWithNull extends OptimizerRules.OptimizerRul
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        var aggs = aggregate.aggregates();
-        List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
+        var aggregates = aggregate.aggregates();
+        List<NamedExpression> remainingAggregates = new ArrayList<>(aggregates.size());
         boolean changed = false;
-        List<Alias> transientEval = new ArrayList<>();
+        List<Alias> replacingEvalVariables = new ArrayList<>();
 
-        for (NamedExpression agg : aggs) {
+        for (NamedExpression agg : aggregates) {
             Expression e = Alias.unwrap(agg);
             Object value = null;
-            boolean isNewAgg = false;
+            boolean isNullAgg = false;
             if (e instanceof AggregateFunction af && Expressions.isNull(af.field())) {
-                isNewAgg = true;
+                isNullAgg = true;
                 if (af instanceof CountDistinct || af instanceof Count) {
                     value = 0L;
                 }
             } else if (Expressions.isNull(e)) {// FoldNull can replace an entire aggregate function with a null Literal
-                isNewAgg = true;
+                isNullAgg = true;
             }
 
-            if (isNewAgg) {
+            if (isNullAgg) {
                 /*
                  * Add an eval for every null (even if they are all "null"s, they can have different data types,
                  * depending on the Aggregate function return type).
@@ -71,18 +71,18 @@ public final class ReplaceAggregatesWithNull extends OptimizerRules.OptimizerRul
                  * don't have to be updated. PruneColumns makes use of the Attribute ids to decide if unused references can be removed.
                  */
                 var aliased = new Alias(agg.source(), agg.name(), Literal.of(agg, value), agg.toAttribute().id(), true);
-                transientEval.add(aliased);
+                replacingEvalVariables.add(aliased);
                 changed = true;
             } else {
-                newAggs.add(agg);
+                remainingAggregates.add(agg);
             }
         }
 
         LogicalPlan plan = aggregate;
-        if (changed) {
+        if (changed) {// if there were null aggregates found
             var source = aggregate.source();
-            if (newAggs.isEmpty() == false) {
-                plan = new Aggregate(source, aggregate.child(), aggregate.aggregateType(), aggregate.groupings(), newAggs);
+            if (remainingAggregates.isEmpty() == false) {// build the new Aggregate with the rest (non-null) aggregates
+                plan = new Aggregate(source, aggregate.child(), aggregate.aggregateType(), aggregate.groupings(), remainingAggregates);
             } else {
                 // All aggs actually have been optimized away
                 // \_Aggregate[[],[AVG([NULL][NULL]) AS s]]
@@ -95,9 +95,9 @@ public final class ReplaceAggregatesWithNull extends OptimizerRules.OptimizerRul
                     LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })
                 );
             }
-            if (transientEval.isEmpty() == false) {
-                plan = new Eval(source, plan, transientEval);
-                plan = new Project(source, plan, Expressions.asAttributes(aggs));
+            if (replacingEvalVariables.isEmpty() == false) {
+                plan = new Eval(source, plan, replacingEvalVariables);
+                plan = new Project(source, plan, Expressions.asAttributes(aggregates));
             }
         }
 

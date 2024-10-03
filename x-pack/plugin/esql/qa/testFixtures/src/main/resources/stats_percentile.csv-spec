@@ -1,19 +1,54 @@
 percentileOfNull
-row x = null::integer, y = null, z = 123 - null | stats percIntNull = percentile(y, 90), percNull = percentile(y, 90), percentile(null, 90), percentile(null+2, 90), percentile(z, 90);
+row x = null::integer, y = null, z = 123 - null 
+| stats percIntNull = percentile(y, 90), 
+        percNull = percentile(y, 90), 
+        percentile(null, 90), 
+        percentile(null+2, 90), 
+        percentile(z, 90);
 
   percIntNull:double|percNull:double|percentile(null, 90):double|percentile(null+2, 90):double|percentile(z, 90):double
 null                |null           |null                       |null                         |null
 ;
 
 percentileWithPropagateablePercentileArgument
-row value200 = 200, x = null::integer, y = null, z = 123 - null, p90 = 80+10 | eval p100 = p90 + 10, p3_null = null + 2, p50 = 40+10 | stats percentile(value200, p90), percentile(value200, p100), percentile(value200, p3_null), percentile(value200, p50), percentile(p90, p90), percentile(p90, p50), percentile(p3_null, p3_null), percentile(p100, p3_null);
+required_capability: extend_aggs_on_constants_support
+row value200 = 200, x = null::integer, y = null, z = 123 - null, p90 = 80+10 
+| eval p100 = p90 + 10, 
+       p3_null = null + 2, 
+       p50 = 40+10 
+| stats percentile(value200, p90), 
+        percentile(value200, p100), 
+        percentile(value200, p3_null), 
+        percentile(value200, p50), 
+        percentile(p90, p90), 
+        percentile(p90, p50), 
+        percentile(p3_null, p3_null), 
+        percentile(p100, p3_null);
 
 percentile(value200, p90):double|percentile(value200, p100):double|percentile(value200, p3_null):double|percentile(value200, p50):double|percentile(p90, p90):double|percentile(p90, p50):double|percentile(p3_null, p3_null):double|percentile(p100, p3_null):double
 200.0                           |200.0                            |null                                |200.0                           |90.0                       |90.0                       |null                               |null
 ;
 
 percentileWithPropagateablePercentileArgumentOnRealIndex
-from employees | eval value200 = 200, x = null::integer, y = null, z = 123 - null, p90 = 80+10 | eval p100 = p90 + 10, p3_null = null + 2, p50 = 40+10 | stats percentile(value200, p90), percentile(value200, p100), percentile(value200, p3_null), percentile(value200, p50), percentile(p90, p90), percentile(p90, p50), percentile(p3_null, p3_null), percentile(p100, p3_null) by gender | sort gender;
+required_capability: extend_aggs_on_constants_support
+from employees 
+| eval value200 = 200, 
+       x = null::integer, 
+       y = null, 
+       z = 123 - null, 
+       p90 = 80+10
+| eval p100 = p90 + 10, 
+       p3_null = null + 2, 
+       p50 = 40+10 
+| stats percentile(value200, p90), 
+        percentile(value200, p100), 
+        percentile(value200, p3_null), 
+        percentile(value200, p50), 
+        percentile(p90, p90), 
+        percentile(p90, p50), 
+        percentile(p3_null, p3_null), 
+        percentile(p100, p3_null) by gender
+| sort gender;
 
 percentile(value200, p90):double|percentile(value200, p100):double|percentile(value200, p3_null):double|percentile(value200, p50):double|percentile(p90, p90):double|percentile(p90, p50):double|percentile(p3_null, p3_null):double|percentile(p100, p3_null):double|gender:keyword
 200.0                           |200.0                            |null                                |200.0                           |90.0                       |90.0                       |null                               |null                            |F
@@ -22,7 +57,16 @@ percentile(value200, p90):double|percentile(value200, p100):double|percentile(va
 ;
 
 percentileOfNullsOnRealIndex
-from employees | eval x = null::integer, y = null, z = 123 - null | stats percIntNull = percentile(x, 90), percNull = percentile(y, 90), percentile(null, 90), percentile(null+2, 90), percentile(z, 90) by languages | sort languages desc;
+from employees 
+| eval x = null::integer,
+       y = null, 
+       z = 123 - null
+| stats percIntNull = percentile(x, 90), 
+        percNull = percentile(y, 90), 
+        percentile(null, 90), 
+        percentile(null+2, 90), 
+        percentile(z, 90) by languages
+| sort languages desc;
 
   percIntNull:double|percNull:double|percentile(null, 90):double|percentile(null+2, 90):double|percentile(z, 90):double|languages:integer
 null                |null           |null                       |null                         |null                    |null
@@ -262,14 +306,25 @@ percentile(salary, x):double|percentile(salary, 90):double|languages:integer
 ;
 
 nullPercentileValue
-from employees | eval x = null + 1 | stats pNull = percentile(salary_change, null), pNullFolding = percentile(salary_change, null + 1), pNullEvalFolding = percentile(salary_change, x);
+required_capability: extend_aggs_on_constants_support
+from employees 
+| eval x = null + 1 
+| stats pNull = percentile(salary_change, null), 
+        pNullFolding = percentile(salary_change, null + 1),
+        pNullEvalFolding = percentile(salary_change, x);
 
  pNull:double  |pNullFolding:double|pNullEvalFolding:double
 null           |null               |null
 ;
 
 nullPercentileValue_WithGrouping
-from employees | eval x = null + 1 | stats pNull = percentile(salary_change, null), pNullFolding = percentile(salary_change, null + 1), pNullEvalFolding = percentile(salary_change, x), p = percentile(salary_change, 75) by gender | sort p;
+from employees 
+| eval x = null + 1 
+| stats pNull = percentile(salary_change, null), 
+        pNullFolding = percentile(salary_change, null + 1), 
+        pNullEvalFolding = percentile(salary_change, x), 
+        p = percentile(salary_change, 75) by gender 
+| sort p;
 
  pNull:double  |pNullFolding:double|pNullEvalFolding:double|   p:double    |gender:keyword
 null           |null               |null                   |7.34           |M

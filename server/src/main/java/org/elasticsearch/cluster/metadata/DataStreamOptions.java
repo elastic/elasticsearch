@@ -101,4 +101,30 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     public static DataStreamOptions fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
+
+    /**
+     * Creates class the composes the different fields of the data stream options and normalises explicitly nullified fields.
+     * @return a class that will compose the provided data stream options to a normalised version of the data stream options
+     */
+    public static Composer composer(DataStreamOptions options) {
+        return new Composer(options);
+    }
+
+    public static class Composer {
+        private DataStreamFailureStore failureStore;
+
+        private Composer(DataStreamOptions options) {
+            failureStore = options.failureStore == null || options.failureStore.isNullified() ? null : options.failureStore;
+        }
+
+        public void apply(DataStreamOptions dataStreamOptions) {
+            if (dataStreamOptions.failureStore != null) {
+                this.failureStore = dataStreamOptions.failureStore.isNullified() ? null : dataStreamOptions.failureStore;
+            }
+        }
+
+        public DataStreamOptions compose() {
+            return new DataStreamOptions(failureStore);
+        }
+    }
 }

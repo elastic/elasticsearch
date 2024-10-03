@@ -1709,17 +1709,18 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static DataStreamOptions composeDataStreamOptions(List<DataStreamOptions> dataStreamOptionsList) {
-        DataStreamOptions effectiveDataStreamOptions = null;
+        if (dataStreamOptionsList.isEmpty()) {
+            return null;
+        }
+        DataStreamOptions.Composer composer = null;
         for (DataStreamOptions current : dataStreamOptionsList) {
-            if (effectiveDataStreamOptions == null) {
-                effectiveDataStreamOptions = current;
+            if (composer == null) {
+                composer = DataStreamOptions.composer(current);
             } else {
-                if (current.failureStore() != null) {
-                    new DataStreamOptions(current.failureStore());
-                }
+                composer.apply(current);
             }
         }
-        return effectiveDataStreamOptions;
+        return composer.compose();
     }
 
     /**

@@ -1622,8 +1622,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = addComponentTemplate(service, state, ctFailureStoreDisabled, DataStreamOptions.FAILURE_STORE_DISABLED);
 
         String ctFailureStoreNullified = "ct_null_failure_store";
-        DataStreamOptions nullifiedFaiureStore = new DataStreamOptions(DataStreamFailureStore.NULL);
-        state = addComponentTemplate(service, state, ctFailureStoreNullified, nullifiedFaiureStore);
+        DataStreamOptions nullifiedFailureStore = new DataStreamOptions(DataStreamFailureStore.NULL);
+        state = addComponentTemplate(service, state, ctFailureStoreNullified, nullifiedFailureStore);
+
+        // Component A: -
+        // Composable Z: -
+        // Result: -
+        assertDataStreamOptionsResolution(service, state, List.of(), null, null);
 
         // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
         // Composable Z: -
@@ -1663,10 +1668,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamOptions.FAILURE_STORE_DISABLED
         );
 
+        // Component A: "data_stream_options": { "failure_store": null}
+        // Composable Z: -
+        // Result: "data_stream_options": {}
+        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreNullified), null, DataStreamOptions.EMPTY);
+
         // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
         // Composable Z: "data_stream_options": { "failure_store": null}
         // Result: "data_stream_options": {}
-        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), nullifiedFaiureStore, DataStreamOptions.EMPTY);
+        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), nullifiedFailureStore, DataStreamOptions.EMPTY);
     }
 
     public void testInvalidNonDataStreamTemplateWithDataStreamOptions() throws Exception {

@@ -475,9 +475,7 @@ public final class DataStreamTestHelper {
                 .template(
                     Template.builder()
                         .dataStreamOptions(
-                            DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
-                                ? DataStreamOptions.FAILURE_STORE_ENABLED
-                                : DataStreamOptions.EMPTY
+                            DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures ? DataStreamOptions.FAILURE_STORE_ENABLED : null
                         )
                 )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

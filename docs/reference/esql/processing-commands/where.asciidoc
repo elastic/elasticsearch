@@ -5,6 +5,11 @@
 The `WHERE` processing command produces a table that contains all the rows from
 the input table for which the provided condition evaluates to `true`.
 
+[TIP]
+====
+Docs with `null` field values will be excluded from search results where you are excluding a specific value from that field. For example: `WHERE field != "value"` will be interpreted as `WHERE field != "value" and field is not null`.
+====
+
 **Syntax**
 
 [source,esql]

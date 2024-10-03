@@ -47,8 +47,7 @@ public enum FeatureMetric {
     FROM(EsRelation.class::isInstance),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
-    RENAME(Rename.class::isInstance),
-    META(p -> false);
+    RENAME(Rename.class::isInstance);
 
     private Predicate<LogicalPlan> planCheck;
 

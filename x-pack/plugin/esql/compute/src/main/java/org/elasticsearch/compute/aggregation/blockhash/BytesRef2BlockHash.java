@@ -26,7 +26,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.Locale;
 
 /**
- * Maps three {@link BytesRefBlock}s to group ids.
+ * Maps two {@link BytesRefBlock}s to group ids.
  */
 final class BytesRef2BlockHash extends BlockHash {
     private final int emitBatchSize;

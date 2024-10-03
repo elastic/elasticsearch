@@ -41,10 +41,9 @@ centroidOfNull
 FROM airports | eval z = TO_GEOPOINT(null) | STATS centroidNull = ST_CENTROID_AGG(null), centroidExpNull = ST_CENTROID_AGG(TO_GEOPOINT(null::string)), centroidEvalNull = ST_CENTROID_AGG(z);
 
 centroidNull:null|centroidExpNull:geo_point|centroidEvalNull:geo_point
-null             |null                     |null
+POINT (NaN NaN)  |null                     |POINT (NaN NaN)
 ;
 
-########### failing :-( with InvalidArgumentException: Does not support yet aggregations over constants
 centroidFromStringNested
 required_capability: st_centroid_agg
 
@@ -1312,7 +1311,6 @@ wkt:keyword                                           |pt:cartesian_point
 ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
 ;
 
-########### failing :-( with InvalidArgumentException: Does not support yet aggregations over constants
 centroidCartesianFromStringNested
 required_capability: st_centroid_agg
 

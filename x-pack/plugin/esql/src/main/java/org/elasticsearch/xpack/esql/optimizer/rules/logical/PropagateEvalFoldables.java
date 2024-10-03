@@ -59,7 +59,7 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
             } else if (p instanceof Aggregate agg) {
                 List<NamedExpression> newAggs = new ArrayList<>(agg.aggregates().size());
                 agg.aggregates().forEach(e -> {
-                    if (Alias.unwrap(e) instanceof AggregateFunction) {
+                    if (Alias.unwrap(e) instanceof AggregateFunction af && af.isConstantFoldable()) {
                         newAggs.add((NamedExpression) e.transformUp(ReferenceAttribute.class, replaceReference));
                     } else {
                         newAggs.add(e);

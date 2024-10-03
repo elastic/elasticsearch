@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -5591,7 +5591,327 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
-    private Literal nullOf(DataType dataType) {
-        return new Literal(Source.EMPTY, null, dataType);
+    /**
+     * eval x = null + 1 | .... | stats avg(x)
+     * and
+     * avg(null + 1)
+     *
+     * Expects
+     * Project[[s{r}#10, y{r}#6]]
+     * \_TopN[[Order[y{r}#6,ASC,LAST]],10000[INTEGER]]
+     *   \_Eval[[null[DOUBLE] AS s]]
+     *     \_Aggregate[STANDARD,[y{r}#6],[y{r}#6]]
+     *       \_Eval[[salary{f}#17 / 1000[INTEGER] AS y]]
+     *         \_Limit[5[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     */
+    public void testAvg_Of_FoldableAndPropagateableNull() {
+        String[] queries = new String[] { """
+            from test
+            | eval x = null + 1, y = salary / 1000
+            | limit 5
+            | stats s = avg(x) by y
+            | sort y
+            """, """
+            from test
+            | eval y = salary / 1000
+            | limit 5
+            | stats s = avg(null + 1) by y
+            | sort y
+            """ };
+
+        for (String query : queries) {
+            var plan = optimizedPlan(query);
+
+            var project = as(plan, Project.class);
+            assertThat(Expressions.names(project.projections()), contains("s", "y"));
+            var sAttribute = Expressions.attribute(project.projections().get(0));
+            var yAttribute = Expressions.attribute(project.projections().get(1));
+
+            var topN = as(project.child(), TopN.class);
+            assertThat(topN.order().size(), is(1));
+
+            var order = as(topN.order().get(0), Order.class);
+            assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+            assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+            // same "y" for project and sort
+            assertThat(Expressions.attribute(order.child()), is(yAttribute));
+
+            var eval = as(topN.child(), Eval.class);
+            assertThat(eval.fields().size(), equalTo(1));
+            var evalAttribute = eval.fields().get(0);
+            // same "s" for project and eval
+            assertThat(sAttribute, is(Expressions.attribute(evalAttribute)));
+            assertTrue(evalAttribute.child().foldable());
+            assertTrue(evalAttribute.child().fold() == null);
+            assertThat(evalAttribute.dataType(), equalTo(DOUBLE));
+
+            var aggregate = as(eval.child(), Aggregate.class);
+            assertThat(aggregate.aggregates().size(), equalTo(1));
+            assertThat(aggregate.groupings().size(), equalTo(1));
+            // same "y" for project and sort AND aggregations
+            assertThat(Expressions.attribute(aggregate.aggregates().get(0)), is(yAttribute));
+            assertThat(Expressions.attribute(aggregate.groupings().get(0)), is(yAttribute));
+
+            eval = as(aggregate.child(), Eval.class);
+            assertThat(eval.fields().size(), equalTo(1));
+            evalAttribute = eval.fields().get(0);
+            assertThat(yAttribute, is(Expressions.attribute(evalAttribute)));
+            assertThat(evalAttribute.child(), instanceOf(Div.class));
+            assertThat(Expressions.names(evalAttribute.child().references()), contains("salary"));
+
+            var limit = as(eval.child(), Limit.class);
+            assertThat(limit.limit().fold(), equalTo(5));
+
+            as(limit.child(), EsRelation.class);
+        }
+    }
+
+    /**
+     * Expects
+     * Project[[s{r}#10, x{r}#3]]
+     * \_TopN[[Order[x{r}#3,ASC,LAST]],10000[INTEGER]]
+     *   \_Eval[[$$SUM$s$0{r$}#22 / $$COUNT$s$1{r$}#23 AS s]]
+     *     \_Aggregate[STANDARD,[x{r}#3],[SUM(y{r}#6) AS $$SUM$s$0, COUNT(y{r}#6) AS $$COUNT$s$1, x{r}#3]]
+     *       \_Eval[[null[INTEGER] AS x, salary{f}#17 / 1000[INTEGER] AS y]]
+     *         \_Limit[5[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     */
+    public void testAvg_By_FoldableAndPropagateableNull() {
+        var plan = optimizedPlan("""
+            from test
+            | eval x = null + 1, y = salary / 1000
+            | limit 5
+            | stats s = avg(y) by x
+            | sort x
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("s", "x"));
+        var sAttribute = Expressions.attribute(project.projections().get(0));
+        var xAttribute = Expressions.attribute(project.projections().get(1));
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        // same "x" for project and sort
+        assertThat(Expressions.attribute(order.child()), is(xAttribute));
+
+        var eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var evalAttribute = eval.fields().get(0);
+        // same "s" for project and eval
+        assertThat(sAttribute, is(Expressions.attribute(evalAttribute)));
+        assertFalse(evalAttribute.child().foldable());
+        var div = as(evalAttribute.child(), Div.class);
+        assertThat(Expressions.name(div.left()), startsWith("$$SUM$s$0"));
+        assertThat(Expressions.name(div.right()), startsWith("$$COUNT$s$1"));
+        assertThat(evalAttribute.dataType(), equalTo(DOUBLE));
+
+        var aggregate = as(eval.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(3));
+        assertThat(aggregate.groupings().size(), equalTo(1));
+        // same "x" for project and sort AND groupings
+        assertThat(Expressions.attribute(aggregate.groupings().get(0)), is(xAttribute));
+
+        // average made of sum and count
+        // checking the sum first
+        var aliasSum = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(aliasSum.name(), equalTo("$$SUM$s$0"));
+        var sum = as(Alias.unwrap(aliasSum), Sum.class);
+        var yAttribute = Expressions.attribute(sum.field());
+        assertThat(yAttribute.name(), equalTo("y"));
+
+        // then the count
+        var aliasCount = as(aggregate.aggregates().get(1), Alias.class);
+        assertThat(aliasCount.name(), equalTo("$$COUNT$s$1"));
+        var count = as(Alias.unwrap(aliasCount), Count.class);
+        assertThat(count.field(), is(yAttribute)); // sum and count over the same field
+
+        // and the grouping which is referenced in the aggregates as well
+        assertThat(Expressions.attribute(aggregate.aggregates().get(2)), is(xAttribute));
+
+        eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(2));
+
+        // x = null because x = null + 1 => x = null after folding
+        evalAttribute = eval.fields().get(0);
+        assertTrue(evalAttribute.child().foldable());
+        assertTrue(evalAttribute.child().fold() == null);
+        assertThat(evalAttribute.dataType(), equalTo(INTEGER));
+        assertThat(Expressions.attribute(evalAttribute), is(xAttribute));
+
+        // y = salary / 1000
+        evalAttribute = eval.fields().get(1);
+        assertThat(yAttribute, is(Expressions.attribute(evalAttribute)));
+        assertThat(evalAttribute.child(), instanceOf(Div.class));
+        assertThat(Expressions.names(evalAttribute.child().references()), contains("salary"));
+
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(5));
+
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Project[[s{r}#10, y{r}#6]]
+     * \_TopN[[Order[y{r}#6,ASC,LAST]],10000[INTEGER]]
+     *   \_Eval[[$$COUNT$$$SUM$s$0$0{r$}#24 * 10[INTEGER] AS $$SUM$s$0, $$SUM$s$0{r$}#22 / $$COUNT$s$1{r$}#23 AS s]]
+     *     \_Aggregate[STANDARD,[y{r}#6],[COUNT([*][KEYWORD]) AS $$COUNT$$$SUM$s$0$0, COUNT(10[INTEGER]) AS $$COUNT$s$1, y{r}#6]]
+     *       \_Eval[[salary{f}#17 / 1000[INTEGER] AS y]]
+     *         \_Limit[5[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     */
+    public void testAvg_Of_FoldableAndPropagateable_NonNull() {
+        var query = """
+            from test
+            | eval x = 9 + 1, y = salary / 1000
+            | limit 5
+            | stats s = avg(x) by y
+            | sort y
+            """;
+
+        // There are multiple rules applied here. Below the simplified order of them being applied
+        //
+        // surrogates const folding surrogates const folding
+        // avg(x) => sum(x)/count(x) => sum(10)/count(10) => mv_sum(10)*count(*)/count(10) => 10*count(*)/count(10)
+
+        var plan = optimizedPlan(query);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("s", "y"));
+        var sAttribute = Expressions.attribute(project.projections().get(0));
+        var yAttribute = Expressions.attribute(project.projections().get(1));
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        // same "y" for project and sort
+        assertThat(Expressions.attribute(order.child()), is(yAttribute));
+
+        var eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(2));
+
+        // 10 * count(*)
+        Alias evalAttribute = eval.fields().get(0);
+        assertThat(evalAttribute.name(), equalTo("$$SUM$s$0"));
+        var mul = as(evalAttribute.child(), Mul.class);
+        var literal = as(mul.right(), Literal.class);
+        assertThat(literal.fold(), equalTo(10));
+        assertThat(Expressions.name(mul.left()), equalTo("$$COUNT$$$SUM$s$0$0"));
+        Attribute countAll = Expressions.attribute(mul.left());
+
+        // expression / count(10)
+        evalAttribute = eval.fields().get(1);
+        // same "s" for project and eval
+        assertThat(sAttribute, is(Expressions.attribute(evalAttribute)));
+        var div = as(evalAttribute.child(), Div.class);
+        assertThat(Expressions.name(div.left()), equalTo("$$SUM$s$0"));
+        assertThat(Expressions.name(div.right()), equalTo("$$COUNT$s$1"));
+        Attribute sum10 = Expressions.attribute(div.left());
+        Attribute count10 = Expressions.attribute(div.right());
+
+        var aggregate = as(eval.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(3));
+
+        // same "y" for project and sort AND aggregations
+        assertThat(Expressions.attribute(aggregate.aggregates().get(2)), is(yAttribute));
+
+        // this is count(10) coming from sum's surrogate expression and after constant folding
+        Alias a = (Alias) aggregate.aggregates().get(1);
+        assertThat(Expressions.attribute(a), is(count10));
+        Count c = as(a.child(), Count.class);
+        literal = as(c.field(), Literal.class);
+        assertThat(literal.fold(), equalTo(10));
+
+        // this is count(*) coming from sum's surrogate expression
+        a = (Alias) aggregate.aggregates().get(0);
+        assertThat(Expressions.attribute(a), is(countAll));
+        c = as(a.child(), Count.class);
+        literal = as(c.field(), Literal.class);
+        assertThat(((BytesRef) literal.fold()).utf8ToString(), equalTo("*"));
+
+        assertThat(aggregate.groupings().size(), equalTo(1));
+        assertThat(Expressions.attribute(aggregate.groupings().get(0)), is(yAttribute));
+
+        eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        evalAttribute = eval.fields().get(0);
+        assertThat(yAttribute, is(Expressions.attribute(evalAttribute)));
+        assertThat(evalAttribute.child(), instanceOf(Div.class));
+        assertThat(Expressions.names(evalAttribute.child().references()), contains("salary"));
+
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(5));
+
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Project[[s{r}#7, y{r}#4]]
+     * \_TopN[[Order[y{r}#4,ASC,LAST]],10000[INTEGER]]
+     *   \_Eval[[10.0[DOUBLE] AS s]]
+     *     \_Aggregate[STANDARD,[y{r}#4],[y{r}#4]]
+     *       \_Eval[[salary{f}#14 / 1000[INTEGER] AS y]]
+     *         \_Limit[5[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testAvg_Of_Foldable_NonNull() {
+        var query = """
+            from test
+            | eval y = salary / 1000
+            | limit 5
+            | stats s = avg(9 + 1) by y
+            | sort y
+            """;
+
+        var plan = optimizedPlan(query);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("s", "y"));
+        var sAttribute = Expressions.attribute(project.projections().get(0));
+        var yAttribute = Expressions.attribute(project.projections().get(1));
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        // same "y" for project and sort
+        assertThat(Expressions.attribute(order.child()), is(yAttribute));
+
+        var eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        Alias evalAttribute = eval.fields().get(0);
+        assertThat(sAttribute, is(Expressions.attribute(evalAttribute)));
+        Literal l = as(evalAttribute.child(), Literal.class);
+        assertThat(l.value(), equalTo(10.0d));
+        assertThat(l.dataType(), equalTo(DOUBLE));
+
+        var aggregate = as(eval.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        assertThat(aggregate.groupings().size(), equalTo(1));
+        // same "y" for project and sort AND aggregations
+        assertThat(Expressions.attribute(aggregate.aggregates().get(0)), is(yAttribute));
+        assertThat(Expressions.attribute(aggregate.groupings().get(0)), is(yAttribute));
+
+        eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        evalAttribute = eval.fields().get(0);
+        assertThat(yAttribute, is(Expressions.attribute(evalAttribute)));
+        assertThat(evalAttribute.child(), instanceOf(Div.class));
+        assertThat(Expressions.names(evalAttribute.child().references()), contains("salary"));
+
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(5));
+
+        as(limit.child(), EsRelation.class);
     }
 }

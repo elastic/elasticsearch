@@ -35,6 +35,15 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
 
     public abstract SpatialAggregateFunction withDocValues();
 
+    public boolean useDocValues() {
+        return useDocValues;
+    }
+
+    @Override
+    public boolean isConstantFoldable() {
+        return false;
+    }
+
     @Override
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
@@ -51,9 +60,5 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
                 && Objects.equals(other.useDocValues, useDocValues);
         }
         return false;
-    }
-
-    public boolean useDocValues() {
-        return useDocValues;
     }
 }

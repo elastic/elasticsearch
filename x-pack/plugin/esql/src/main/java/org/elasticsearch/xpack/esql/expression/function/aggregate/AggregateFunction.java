@@ -81,6 +81,10 @@ public abstract class AggregateFunction extends Function {
         return parameters;
     }
 
+    public boolean isConstantFoldable() {
+        return true;
+    }
+
     /**
      * Returns the input expressions used in aggregation.
      * Defaults to a list containing the only the input field.

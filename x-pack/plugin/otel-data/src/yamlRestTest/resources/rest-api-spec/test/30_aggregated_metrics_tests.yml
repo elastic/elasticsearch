@@ -22,7 +22,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{ "metricset.interval": "10m", "metricset.name" : "service_destination"  } } }'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination"},"resource":{"attributes":{ "metricset.interval": "10m"  } } }'
   - is_false: errors
   - do:
       search:
@@ -44,7 +44,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{ "metricset.interval": "60m", "metricset.name" : "service_destination"  } } }'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination" },"resource":{"attributes":{ "metricset.interval": "60m" } } }'
   - is_false: errors
   - do:
       search:
@@ -66,7 +66,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{ "metricset.interval": "10m", "metricset.name" : "service_summary"  } } }'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
   - is_false: errors
   - do:
       search:
@@ -88,7 +88,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{ "metricset.interval": "60m", "metricset.name" : "service_summary"  } } }'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary" },"resource":{"attributes":{ "metricset.interval": "60m" } } }'
   - is_false: errors
   - do:
       search:
@@ -110,7 +110,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{ "metricset.interval": "10m", "metricset.name" : "service_transaction"  } } }'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"  },"resource":{"attributes":{ "metricset.interval": "10m" } } }'
   - is_false: errors
   - do:
       search:
@@ -132,7 +132,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{ "metricset.interval": "60m", "metricset.name" : "service_transaction"  } } }'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
   - is_false: errors
   - do:
       search:
@@ -154,7 +154,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{ "metricset.interval": "10m", "metricset.name" : "transaction"  } } }'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
   - is_false: errors
   - do:
       search:
@@ -176,7 +176,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false},"resource":{"attributes":{ "metricset.interval": "60m", "metricset.name" : "transaction"  } } }'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
   - is_false: errors
   - do:
       search:

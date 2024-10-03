@@ -268,10 +268,19 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias1").build())
                     .putAlias(AliasMetadata.builder("alias2").build())
             )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("alias1").build())
+                    .putAlias(AliasMetadata.builder("alias3").build())
+            )
             .build();
         GetAliasesRequest request = new GetAliasesRequest().aliases("*", "-alias1");
-        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
-        assertThat(aliases, transformedItemsMatch(AliasMetadata::alias, contains("alias2")));
+        Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index", "index2" });
+        assertThat(aliases.get("index"), transformedItemsMatch(AliasMetadata::alias, contains("alias2")));
+        assertThat(aliases.get("index2"), transformedItemsMatch(AliasMetadata::alias, contains("alias3")));
     }
 
     public void testFindDataStreams() {

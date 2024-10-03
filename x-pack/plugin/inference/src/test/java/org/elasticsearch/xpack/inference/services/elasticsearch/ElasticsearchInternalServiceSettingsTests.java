@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
 
 import java.io.IOException;
 import java.util.HashMap;

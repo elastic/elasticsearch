@@ -28,7 +28,7 @@ public class RestGetDataStreamOptionsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_data_options_action";
+        return "get_data_stream_options_action";
     }
 
     @Override

@@ -31,7 +31,7 @@ public class RestPutDataStreamOptionsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "put_data_options_action";
+        return "put_data_stream_options_action";
     }
 
     @Override

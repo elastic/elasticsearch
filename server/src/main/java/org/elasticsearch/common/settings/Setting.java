@@ -1366,6 +1366,16 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, Integer.toString(defaultValue), intParser(key, minValue, properties), properties);
     }
 
+    public static Setting<Integer> intSetting(
+        String key,
+        Function<Settings, String> defaultValueFn,
+        int minValue,
+        int maxValue,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValueFn, intParser(key, minValue, maxValue, properties), properties);
+    }
+
     private static Function<String, Integer> intParser(String key, int minValue, Property[] properties) {
         final boolean isFiltered = isFiltered(properties);
         return s -> parseInt(s, minValue, key, isFiltered);
@@ -1659,6 +1669,10 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {
         return memorySizeSetting(key, defaultValue.toString(), properties);
+    }
+
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
+        return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     /**

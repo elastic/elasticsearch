@@ -928,7 +928,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     public void testDeeplyNestedObjectArrayAndValue() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
-            b.startObject("path").startObject("properties").startObject("to").startObject("properties");;
+            b.startObject("path").startObject("properties").startObject("to").startObject("properties");
             {
                 b.startObject("stored");
                 {
@@ -965,7 +965,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     public void testObjectArrayAndValueInNestedObject() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
-            b.startObject("path").startObject("properties").startObject("to").startObject("properties");;
+            b.startObject("path").startObject("properties").startObject("to").startObject("properties");
             {
                 b.startObject("stored");
                 {

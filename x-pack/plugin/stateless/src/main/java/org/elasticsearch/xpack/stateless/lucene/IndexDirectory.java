@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -29,7 +28,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedFunction;
@@ -306,23 +304,6 @@ public class IndexDirectory extends ByteSizeDirectory {
                 }
             });
         }
-    }
-
-    /**
-     * Updates the metadata required for recovery operations. This method is invoked prior to the recovery process
-     * to ensure that all necessary information is available for replaying operations from the transaction log (translog) if needed.
-     *
-     * @param recoveryCommit the base commit point from which recovery will proceed.
-     */
-    @Deprecated(forRemoval = true)
-    public void updateRecoveryCommit(StatelessCompoundCommit recoveryCommit) {
-        updateRecoveryCommit(
-            recoveryCommit.generation(),
-            recoveryCommit.nodeEphemeralId(),
-            recoveryCommit.translogRecoveryStartFile(),
-            recoveryCommit.sizeInBytes(),
-            Maps.transformValues(recoveryCommit.commitFiles(), BlobFileRanges::new)
-        );
     }
 
     /**

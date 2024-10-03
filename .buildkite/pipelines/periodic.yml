@@ -11,7 +11,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.0.1
         retry:
@@ -31,7 +30,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.1.4
         retry:
@@ -51,7 +49,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.2.4
         retry:
@@ -71,7 +68,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.3.2
         retry:
@@ -91,7 +87,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.4.3
         retry:
@@ -111,7 +106,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.5.4
         retry:
@@ -131,7 +125,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.6.2
         retry:
@@ -151,7 +144,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.7.2
         retry:
@@ -171,7 +163,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 6.8.23
         retry:
@@ -191,7 +182,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.0.1
         retry:
@@ -211,7 +201,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.1.1
         retry:
@@ -231,7 +220,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.2.1
         retry:
@@ -251,7 +239,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.3.2
         retry:
@@ -271,7 +258,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.4.2
         retry:
@@ -291,7 +277,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.5.2
         retry:
@@ -311,7 +296,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.6.2
         retry:
@@ -331,7 +315,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.7.1
         retry:
@@ -351,7 +334,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.8.1
         retry:
@@ -371,7 +353,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.9.3
         retry:
@@ -391,7 +372,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.10.2
         retry:
@@ -411,7 +391,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.11.2
         retry:
@@ -431,7 +410,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.12.1
         retry:
@@ -451,7 +429,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.13.4
         retry:
@@ -471,7 +448,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.14.2
         retry:
@@ -491,7 +467,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.15.2
         retry:
@@ -511,7 +486,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.16.3
         retry:
@@ -531,7 +505,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 7.17.24
         retry:
@@ -558,7 +531,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - label: example-plugins
     command: |-
       cd $$WORKSPACE/plugins/examples
@@ -570,7 +542,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - group: java-fips-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / java-fips-matrix"
@@ -585,7 +556,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
   - group: java-matrix
@@ -617,7 +587,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
   - label: release-tests
@@ -644,7 +613,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / azure
         command: |
           export azure_storage_container=elasticsearch-ci-thirdparty
@@ -659,7 +627,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / gcs
         command: |
           export google_storage_bucket=elasticsearch-ci-thirdparty
@@ -674,7 +641,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / geoip
         command: |
           .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
@@ -684,7 +650,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / s3
         command: |
           export amazon_s3_bucket=elasticsearch-ci.us-west-2
@@ -699,7 +664,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
   - label: Upload Snyk Dependency Graph
     command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
     env:
@@ -710,7 +674,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
     if: build.branch == "main" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
@@ -719,7 +682,6 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-2
-      diskSizeGb: 250
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh
     timeout_in_minutes: 5

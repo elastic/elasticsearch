@@ -60,7 +60,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -653,10 +652,7 @@ public class Verifier {
             Expression condition = f.condition();
             checkCommandsAfterQueryStringFunction(plan, condition, failures);
             checkFullTextFunctionsConditions(condition, failures);
-            forEachFullTextFunctionParent(
-                condition,
-                (ftf, parents) -> { checkFullTextFunctionsParents(parents, ftf, condition, failures); }
-            );
+            checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
@@ -679,28 +675,6 @@ public class Verifier {
                 }
             });
         });
-    }
-
-    private static <T extends Expression> void forEachFullTextFunctionParent(
-        Expression parent,
-        BiConsumer<FullTextFunction, List<Expression>> consumer
-    ) {
-        forEachFullTextFunctionParent(parent, consumer, new ArrayList<>());
-    }
-
-    private static <T extends Expression> void forEachFullTextFunctionParent(
-        Expression parent,
-        BiConsumer<FullTextFunction, List<Expression>> consumer,
-        List<Expression> parents
-    ) {
-        if (parent instanceof FullTextFunction ftf) {
-            consumer.accept(ftf, parents);
-            return;
-        }
-
-        parents.add(parent);
-        parent.children().forEach(c -> forEachFullTextFunctionParent(c, consumer, parents));
-        parents.removeLast();
     }
 
     private static void checkFullTextFunctionsConditions(Expression condition, Set<Failure> failures) {
@@ -737,12 +711,10 @@ public class Verifier {
     }
 
     private static void checkFullTextFunctionsParents(
-        List<Expression> parents,
-        Function function,
         Expression condition,
         Set<Failure> failures
     ) {
-        for (Expression parent : parents.reversed()) {
+        condition.forEachParent(FullTextFunction.class, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)
                 && (parent instanceof Not == false)) {
@@ -751,11 +723,11 @@ public class Verifier {
                         condition,
                         "Invalid condition [{}]. Function {} can't be used with {}",
                         condition.sourceText(),
-                        function.functionName(),
+                        ftf.functionName(),
                         ((Function) parent).functionName()
                     )
                 );
             }
-        }
+        });
     }
 }

@@ -33,10 +33,11 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
+/**
+ * Function that reverses a string.
+ */
 public class Reverse extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Reverse", Reverse::new);
-
-    private final Expression field;
 
     @FunctionInfo(
         returnType = { "keyword", "text" },
@@ -58,26 +59,15 @@ public class Reverse extends UnaryScalarFunction {
         ) Expression field
     ) {
         super(source, field);
-        this.field = field;
     }
 
     private Reverse(StreamInput in) throws IOException {
-        this(Source.EMPTY, in.readNamedWriteable(Expression.class));
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(field());
+        super(in);
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    public DataType dataType() {
-        return field.dataType();
     }
 
     @Override
@@ -87,11 +77,6 @@ public class Reverse extends UnaryScalarFunction {
         }
 
         return isString(field, sourceText(), DEFAULT);
-    }
-
-    @Override
-    public boolean foldable() {
-        return field.foldable();
     }
 
     /**

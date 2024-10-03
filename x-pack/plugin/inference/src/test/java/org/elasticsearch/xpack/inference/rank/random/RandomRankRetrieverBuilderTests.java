@@ -17,8 +17,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
-import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,8 +75,8 @@ public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<Ra
         entries.add(
             new NamedXContentRegistry.Entry(
                 RetrieverBuilder.class,
-                new ParseField(TextSimilarityRankBuilder.NAME),
-                (p, c) -> TextSimilarityRankRetrieverBuilder.PARSER.apply(p, (RetrieverParserContext) c)
+                new ParseField(RandomRankBuilder.NAME),
+                (p, c) -> RandomRankRetrieverBuilder.PARSER.apply(p, (RetrieverParserContext) c)
             )
         );
         return new NamedXContentRegistry(entries);

@@ -54,7 +54,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -126,7 +125,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(apiKey)
                 ),
-                Set.of(),
                 modelListener
             );
         }
@@ -153,7 +151,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(apiKey)
                 ),
-                Set.of(),
                 modelListener
             );
         }
@@ -261,7 +258,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 failureListener
             );
         }
@@ -280,7 +276,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
     }
 
@@ -295,7 +291,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
     }
 
@@ -314,7 +310,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
     }
 
@@ -333,7 +329,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, Set.of(), failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
     }
 

@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
@@ -28,12 +30,16 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -41,11 +47,29 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public abstract class BaseElasticsearchInternalService implements InferenceService {
 
     protected final OriginSettingClient client;
+    protected final ExecutorService inferenceExecutor;
+    protected final Consumer<ActionListener<Set<String>>> platformArch;
 
     private static final Logger logger = LogManager.getLogger(BaseElasticsearchInternalService.class);
 
     public BaseElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
+        this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
+        this.platformArch = this::platformArchitecture;
+    }
+
+    // For testing.
+    // platformArchFn enables similating different architectures
+    // without extensive mocking on the client to simulate the nodes info response.
+    // TODO make package private once the elser service is moved to the Elasticsearch
+    // service package.
+    public BaseElasticsearchInternalService(
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        Consumer<ActionListener<Set<String>>> platformArchFn
+    ) {
+        this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
+        this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
+        this.platformArch = platformArchFn;
     }
 
     /**
@@ -55,24 +79,34 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     protected abstract EnumSet<TaskType> supportedTaskTypes();
 
     @Override
-    public void start(Model model, ActionListener<Boolean> listener) {
-        if (model instanceof ElasticsearchInternalModel == false) {
-            listener.onFailure(notElasticsearchModelException(model));
-            return;
+    public void start(Model model, ActionListener<Boolean> finalListener) {
+        if (model instanceof ElasticsearchInternalModel esModel) {
+
+            if (supportedTaskTypes().contains(model.getTaskType()) == false) {
+                finalListener.onFailure(
+                    new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()))
+                );
+                return;
+            }
+
+            SubscribableListener.<Boolean>newForked(forkedListener -> { isBuiltinModelPut(model, forkedListener); })
+                .<Boolean>andThen((l, modelConfigExists) -> {
+                    if (modelConfigExists == false) {
+                        putModel(model, l);
+                    } else {
+                        l.onResponse(true);
+                    }
+                })
+                .<Boolean>andThen((l2, modelDidPut) -> {
+                    var startRequest = esModel.getStartTrainedModelDeploymentActionRequest();
+                    var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, finalListener);
+                    client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
+                })
+                .addListener(finalListener);
+
+        } else {
+            finalListener.onFailure(notElasticsearchModelException(model));
         }
-
-        if (supportedTaskTypes().contains(model.getTaskType()) == false) {
-            listener.onFailure(
-                new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()))
-            );
-            return;
-        }
-
-        var esModel = (ElasticsearchInternalModel) model;
-        var startRequest = esModel.getStartTrainedModelDeploymentActionRequest();
-        var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, listener);
-
-        client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
     }
 
     @Override
@@ -136,13 +170,18 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
-    @Override
-    public void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
-        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
+    protected void isBuiltinModelPut(Model model, ActionListener<Boolean> listener) {
+        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = ActionListener.wrap(response -> {
             if (response.getResources().count() < 1) {
-                delegate.onResponse(Boolean.FALSE);
+                listener.onResponse(Boolean.FALSE);
             } else {
-                delegate.onResponse(Boolean.TRUE);
+                listener.onResponse(Boolean.TRUE);
+            }
+        }, exception -> {
+            if (exception instanceof ResourceNotFoundException) {
+                listener.onResponse(Boolean.FALSE);
+            } else {
+                listener.onFailure(exception);
             }
         });
 
@@ -164,11 +203,6 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public boolean isInClusterService() {
-        return true;
-    }
-
-    @Override
     public void close() throws IOException {}
 
     public static String selectDefaultModelVariantBasedOnClusterArchitecture(
@@ -185,6 +219,28 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             // default to the platform-agnostic model
             return platformAgnosticModel;
         }
+    }
+
+    private void platformArchitecture(ActionListener<Set<String>> platformArchitectureListener) {
+        // Find the cluster platform as the service may need that
+        // information when creating the model
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            platformArchitectureListener.delegateFailureAndWrap((delegate, architectures) -> {
+                if (architectures.isEmpty() && clusterIsInElasticCloud()) {
+                    // In Elastic cloud ml nodes run on Linux x86
+                    delegate.onResponse(Set.of("linux-x86_64"));
+                } else {
+                    delegate.onResponse(architectures);
+                }
+            }),
+            client,
+            inferenceExecutor
+        );
+    }
+
+    static boolean clusterIsInElasticCloud() {
+        // use a heuristic to determine if in Elastic cloud.
+        return true; // TODO
     }
 
     public static InferModelAction.Request buildInferenceRequest(

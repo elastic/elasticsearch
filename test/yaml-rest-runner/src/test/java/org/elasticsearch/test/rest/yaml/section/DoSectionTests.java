@@ -580,7 +580,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(e.getMessage(), equalTo("the warning [foo] was both allowed and expected"));
     }
 
-    @UpdateForV9 // remove
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove
     public void testLegacyNodeSelectorByVersionRange() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:

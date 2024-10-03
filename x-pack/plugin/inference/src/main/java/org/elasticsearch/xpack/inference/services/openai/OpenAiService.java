@@ -316,6 +316,11 @@ public class OpenAiService extends SenderService {
         return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return COMPLETION_ONLY;
+    }
+
     /**
      * Model was originally defined in task settings, but it should
      * have been part of the service settings.

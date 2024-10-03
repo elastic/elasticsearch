@@ -349,13 +349,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     public void testCCSExecutionOnSearchesWithLimit0() {
         setupTwoClusters();
 
-        /**
-         * Tests:
-         * 1. Ensure non-cross cluster queries have overall took time
-         * 2. Ensure cross cluster queries have overall took time and individual took times that are less than or equal to overall too
-         *    and correct status set in _cluster/details.
-         * 3. OTHER??
-         */
+        // Ensure non-cross cluster queries have overall took time
         try (EsqlQueryResponse resp = runQuery("FROM logs* | LIMIT 0")) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
@@ -363,6 +357,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
         }
 
+        // ensure cross-cluster searches have overall took time and correct per-cluster details in EsqlExecutionInfo
         try (EsqlQueryResponse resp = runQuery("FROM logs*,cluster-a:* | LIMIT 0")) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
@@ -395,7 +390,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         try (EsqlQueryResponse resp = runQuery("FROM logs*,cluster-a:nomatch* | LIMIT 0")) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
-            System.err.println(executionInfo);
             assertThat(executionInfo.isCrossClusterSearch(), is(true));
             long overallTookMillis = executionInfo.overallTook().millis();
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
@@ -424,13 +418,10 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         try (EsqlQueryResponse resp = runQuery("FROM nomatch*,cluster-a:* | LIMIT 0")) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
-            System.err.println(executionInfo);
             assertThat(executionInfo.isCrossClusterSearch(), is(true));
             long overallTookMillis = executionInfo.overallTook().millis();
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
-
-            System.err.println(executionInfo);
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
             assertThat(remoteCluster.getIndexExpression(), equalTo("*"));

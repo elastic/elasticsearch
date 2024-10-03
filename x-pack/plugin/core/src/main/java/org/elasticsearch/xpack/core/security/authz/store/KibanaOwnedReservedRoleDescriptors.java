@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.action.inference.ManageInferenceAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -65,6 +66,8 @@ class KibanaOwnedReservedRoleDescriptors {
             new String[] {
                 "monitor",
                 "manage_index_templates",
+                // ManageInference required for Kibana's inference plugin to setup an ELSER endpoint.
+                ManageInferenceAction.NAME,
                 MonitoringBulkAction.NAME,
                 "manage_saml",
                 "manage_token",

@@ -317,10 +317,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
             RequestMetrics metrics = (RequestMetrics) context.getData(RequestMetricsTracker.ES_REQUEST_METRICS_CONTEXT_KEY)
-                .orElseGet(() -> {
+                .orElseThrow(() -> {
                     String errorMessage = "No metrics object associated with request " + context.getHttpRequest();
                     assert false : errorMessage;
-                    throw new IllegalStateException(errorMessage);
+                    return new IllegalStateException(errorMessage);
                 });
             metrics.requestCount++;
             return next.process().doOnError(throwable -> {

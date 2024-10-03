@@ -44,7 +44,22 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFi
  * In principle this is like re-writing the predicate:
  * <pre>WHERE ST_DISTANCE(field, TO_GEOPOINT("POINT(0 0)")) &lt;= 10000</pre>
  * as:
- * <pre>WHERE ST_INTERSECTS(field, TO_GEOSHAPE("CIRCLE(0,0,10000)"))</pre>
+ * <pre>WHERE ST_INTERSECTS(field, TO_GEOSHAPE("CIRCLE(0,0,10000)"))</pre>.
+ * <p>
+ * In addition, since the distance could be calculated in a preceding <code>EVAL</code> command, we also need to consider the case:
+ * <pre>
+ *     FROM index
+ *     | EVAL distance = ST_DISTANCE(field, TO_GEOPOINT("POINT(0 0)"))
+ *     | WHERE distance &lt;= 10000
+ * </pre>
+ * And re-write that as:
+ * <pre>
+ *     FROM index
+ *     | WHERE ST_INTERSECTS(field, TO_GEOSHAPE("CIRCLE(0,0,10000)"))
+ *     | EVAL distance = ST_DISTANCE(field, TO_GEOPOINT("POINT(0 0)"))
+ * </pre>
+ * Note that the WHERE clause is both rewritten to an intersection and pushed down closer to the <code>EsQueryExec</code>,
+ * which allows the predicate to be pushed down to Lucene in a later rule, <code>PushFiltersToSource</code>.
  */
 public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     FilterExec,
@@ -110,6 +125,8 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
                 return comparison;
             });
             if (rewritten.equals(filterExec.condition()) == false) {
+                // Rewrite the order so the EVAL is last, allowing the filter to be pushed down to lucene by PushFiltersToSource
+                // TODO: Remove the distance attribute from the EVAL if it is no longer needed
                 FilterExec filter = new FilterExec(filterExec.source(), esQueryExec, rewritten);
                 return new EvalExec(evalExec.source(), filter, evalExec.fields());
             }

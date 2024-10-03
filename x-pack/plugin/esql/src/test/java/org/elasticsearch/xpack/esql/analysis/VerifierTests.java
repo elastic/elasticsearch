@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -1152,7 +1153,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "1:19: Invalid condition [match(first_name, \"Anna\") or length(first_name) > 5]. "
-                + "Use a separate WHERE clause for the MATCH function instead",
+                + "Function MATCH can't be used as part of an or condition that includes [length(first_name) > 5]",
             error("from test | where match(first_name, \"Anna\") or length(first_name) > 5")
         );
     }
@@ -1162,7 +1163,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "1:19: Invalid condition [qstr(\"first_name:Anna\") or length(first_name) > 5]. "
-                + "Use a separate WHERE clause for the QSTR function instead",
+                + "Function QSTR can't be used as part of an or condition that includes [length(first_name) > 5]",
             error("from test | where qstr(\"first_name:Anna\") or length(first_name) > 5")
         );
     }
@@ -1204,6 +1205,66 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals("1:19: argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
         // Other value types are tested in QueryStringFunctionTests
+    }
+
+    public void testQueryStringWithDisjunctionsThatCannotBePushedDown() {
+        checkWithDisjunctionsThatCannotBePushedDown("QSTR", "qstr(\"first_name: Anna\")");
+    }
+
+    public void testMatchWithDisjunctionsThatCannotBePushedDown() {
+        checkWithDisjunctionsThatCannotBePushedDown("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkWithDisjunctionsThatCannotBePushedDown(String functionName, String functionInvocation) {
+        assertEquals(
+            LoggerMessageFormat.format(null,
+                "1:19: Invalid condition [{} or length(first_name) > 12]. "
+                    + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12]",
+                functionInvocation,
+                functionName
+            ),
+            error("from test | where " + functionInvocation + " or length(first_name) > 12")
+        );
+        assertEquals(
+            LoggerMessageFormat.format(null,
+                "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
+                    + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12 and first_name is null]",
+                functionInvocation,
+                functionName
+            ),
+            error(
+                "from test | where ("
+                    + functionInvocation
+                    + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
+            )
+        );
+    }
+
+    public void testQueryStringFunctionWithNonBooleanFunctions() {
+        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
+    }
+
+    public void testMatchFunctionWithNonBooleanFunctions() {
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation) {
+        assertEquals(
+            "1:19: Invalid condition [" + functionInvocation + " is not null]. Function " + functionName + " can't be used with ISNOTNULL",
+            error("from test | where " + functionInvocation + " is not null")
+        );
+        assertEquals(
+            "1:19: Invalid condition [" + functionInvocation + " is null]. Function " + functionName + " can't be used with ISNULL",
+            error("from test | where " + functionInvocation + " is null")
+        );
+        assertEquals(
+            "1:19: Invalid condition ["
+                + functionInvocation
+                + " in (\"hello\", \"world\")]. Function "
+                + functionName
+                + " can't be used with IN",
+            error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
+        );
     }
 
     public void testMatchFunctionArgNotNullOrConstant() throws Exception {

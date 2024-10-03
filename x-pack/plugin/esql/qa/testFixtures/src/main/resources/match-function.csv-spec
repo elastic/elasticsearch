@@ -141,6 +141,18 @@ card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
 ;
 
+matchWithNonPushableConjunction
+required_capability: match_function
+
+from books 
+| where match(title, "Rings") and length(title) > 75
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+;
+
 matchWithMultipleWhereClauses
 required_capability: match_function
 

@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
@@ -104,6 +105,8 @@ public abstract class BaseRestHandler implements RestHandler {
         // prepare the request for execution; has the side effect of touching the request parameters
         try (var action = prepareRequest(request, client)) {
 
+            assert assertConsumesSupportedParams(supported, request);
+
             // validate unconsumed params, but we must exclude params used to format the response
             // use a sorted set so the unconsumed parameters appear in a reliable sorted order
             final SortedSet<String> unconsumedParams = request.unconsumedParams()
@@ -146,6 +149,20 @@ public abstract class BaseRestHandler implements RestHandler {
             // execute the action
             action.accept(channel);
         }
+    }
+
+    private boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
+        if (supported != null) {
+            final var supportedAndCommon = new TreeSet<>(supported);
+            supportedAndCommon.add("error_trace");
+            supportedAndCommon.addAll(ALWAYS_SUPPORTED);
+            supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            final var consumed = new TreeSet<>(request.consumedParams());
+            consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            assert supportedAndCommon.equals(consumed)
+                : getName() + ": consumed params " + consumed + " while supporting " + supportedAndCommon;
+        }
+        return true;
     }
 
     protected static String unrecognized(RestRequest request, Set<String> invalids, Set<String> candidates, String detail) {

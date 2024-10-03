@@ -1,7 +1,7 @@
 ---
 object param - store complex object:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -65,7 +65,7 @@ object param - store complex object:
 ---
 object param - object array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -129,7 +129,7 @@ object param - object array:
 ---
 object param - object array within array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -172,7 +172,7 @@ object param - object array within array:
 ---
 object param - no object array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -214,7 +214,7 @@ object param - no object array:
 ---
 object param - field ordering in object array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -263,7 +263,7 @@ object param - field ordering in object array:
 ---
 object param - nested object array next to other fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -319,7 +319,7 @@ object param - nested object array next to other fields:
 ---
 object param - nested object with stored array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -415,7 +415,7 @@ index param - nested array within array:
 # 112156
 stored field under object with store_array_source:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix"]
+      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix", "mapper.bwc_workaround_9_0"]
       reason: requires bug fix to be implemented
 
   - do:
@@ -804,7 +804,7 @@ field param - nested array within array:
 ---
 index param - root arrays:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
+      cluster_features: ["mapper.synthetic_source_keep", "gte_v8.16.0"]
       reason: requires keeping array source
 
   - do:

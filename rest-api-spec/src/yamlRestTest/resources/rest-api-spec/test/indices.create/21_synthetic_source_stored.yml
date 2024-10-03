@@ -415,7 +415,7 @@ index param - nested array within array:
 # 112156
 stored field under object with store_array_source:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix"]
+      cluster_features: ["mapper.source.synthetic_source_keep"]
       reason: requires bug fix to be implemented
 
   - do:

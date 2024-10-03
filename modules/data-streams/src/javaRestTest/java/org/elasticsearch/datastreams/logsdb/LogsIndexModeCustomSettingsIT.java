@@ -15,6 +15,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -353,6 +354,66 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
                 closeIndex(index);
                 updateIndexSettings(index, Settings.builder().put("index.mapping.ignore_malformed", newValue));
                 assertThat(getSetting(client, index, "index.mapping.ignore_malformed"), equalTo(newValue));
+            }
+        }
+    }
+
+    public void testIgnoreAboveSetting() throws IOException {
+        // with default template
+        {
+            assertOK(createDataStream(client, "logs-test-1"));
+            String logsIndex1 = getDataStreamBackingIndex(client, "logs-test-1", 0);
+            assertThat(getSetting(client, logsIndex1, "index.mapping.ignore_above"), equalTo("8191"));
+            for (String newValue : List.of("512", "2048", "12000", String.valueOf(Integer.MAX_VALUE))) {
+                closeIndex(logsIndex1);
+                updateIndexSettings(logsIndex1, Settings.builder().put("index.mapping.ignore_above", newValue));
+                assertThat(getSetting(client, logsIndex1, "index.mapping.ignore_above"), equalTo(newValue));
+            }
+            for (String newValue : List.of(String.valueOf((long) Integer.MAX_VALUE + 1), String.valueOf(Long.MAX_VALUE))) {
+                closeIndex(logsIndex1);
+                ResponseException ex = assertThrows(
+                    ResponseException.class,
+                    () -> updateIndexSettings(logsIndex1, Settings.builder().put("index.mapping.ignore_above", newValue))
+                );
+                assertThat(
+                    ex.getMessage(),
+                    Matchers.containsString("Failed to parse value [" + newValue + "] for setting [index.mapping.ignore_above]")
+                );
+            }
+        }
+        // with override template
+        {
+            var template = """
+                {
+                  "template": {
+                    "settings": {
+                      "index": {
+                        "mapping": {
+                          "ignore_above": "128"
+                        }
+                      }
+                    }
+                  }
+                }""";
+            assertOK(putComponentTemplate(client, "logs@custom", template));
+            assertOK(createDataStream(client, "logs-custom-dev"));
+            String index = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
+            assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo("128"));
+            for (String newValue : List.of("64", "256", "12000", String.valueOf(Integer.MAX_VALUE))) {
+                closeIndex(index);
+                updateIndexSettings(index, Settings.builder().put("index.mapping.ignore_above", newValue));
+                assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo(newValue));
+            }
+        }
+        // standard index
+        {
+            String index = "test-index";
+            createIndex(index);
+            assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo(Integer.toString(Integer.MAX_VALUE)));
+            for (String newValue : List.of("256", "512", "12000", String.valueOf(Integer.MAX_VALUE))) {
+                closeIndex(index);
+                updateIndexSettings(index, Settings.builder().put("index.mapping.ignore_above", newValue));
+                assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo(newValue));
             }
         }
     }

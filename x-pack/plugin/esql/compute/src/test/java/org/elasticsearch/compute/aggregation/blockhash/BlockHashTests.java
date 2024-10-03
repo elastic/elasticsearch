@@ -1168,7 +1168,9 @@ public class BlockHashTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() {}
+                public void close() {
+                    fail("hashes should not close AddInput");
+                }
             });
             hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -1184,7 +1186,9 @@ public class BlockHashTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() {}
+                public void close() {
+                    fail("hashes should not close AddInput");
+                }
             });
             assertThat(output1.size(), equalTo(output1.size()));
             for (int i = 0; i < output1.size(); i++) {
@@ -1305,7 +1309,9 @@ public class BlockHashTests extends ESTestCase {
             }
 
             @Override
-            public void close() {}
+            public void close() {
+                fail("hashes should not close AddInput");
+            }
         });
         if (blockHash instanceof LongLongBlockHash == false
             && blockHash instanceof BytesRefLongBlockHash == false

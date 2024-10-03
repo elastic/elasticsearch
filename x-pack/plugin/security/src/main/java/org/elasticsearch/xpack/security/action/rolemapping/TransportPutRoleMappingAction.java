@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.action.rolemapping;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -39,15 +40,14 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
     @Override
     protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
         if (clusterStateRoleMapper.hasMapping(request.getName())) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "Role mapping ["
-                        + request.getName()
-                        + "] cannot be created or updated via API since a role mapping "
-                        + "with the same name is already exists in the [file_settings] namespace."
-                )
+            // Allow to define a mapping with the same name in the native role mapping store as the file_settings namespace, but add a
+            // warning header to signal to the caller that this could be a problem.
+            HeaderWarning.addWarning(
+                "A role mapping with the name ["
+                    + request.getName()
+                    + "] already exists in the [file_settings] namespace. "
+                    + "Both role mappings will be effective."
             );
-            return;
         }
         roleMappingStore.putRoleMapping(
             request,

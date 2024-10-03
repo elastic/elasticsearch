@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsR
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
@@ -273,20 +274,21 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         // the role mappings are retrievable by the role mapping action for BWC
         assertGetResponseHasMappings("everyone_kibana", "everyone_fleet");
 
-        // role mappings (with the same names) cannot be stored in the "native" store
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet()
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet()
-        );
-        // deleting role mappings that don't exist in the native store but do in cluster-state should result in not found
-        var response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet();
-        assertFalse(response.isFound());
-        response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet();
-        assertFalse(response.isFound());
+        // role mappings (with the same names) can be stored in the "native" store
+        {
+            PutRoleMappingResponse response = client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana"))
+                .actionGet();
+            assertTrue(response.isCreated());
+            response = client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet();
+            assertTrue(response.isCreated());
+        }
+        {
+            // deleting role mappings that exist in the native store and in cluster-state should result in success
+            var response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet();
+            assertTrue(response.isFound());
+            response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_fleet")).actionGet();
+            assertTrue(response.isFound());
+        }
 
     }
 
@@ -363,12 +365,12 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         );
 
         // assert that cluster-state role mappings come last
-        List<Boolean> isNativeFlags = Arrays.stream(response.mappings()).map(it -> {
+        List<Boolean> isReadOnlyFlags = Arrays.stream(response.mappings()).map(it -> {
             Boolean isReadOnly = (Boolean) it.getMetadata().get("_read_only");
             return Boolean.TRUE.equals(isReadOnly);
         }).collect(Collectors.toList());
         // first 4 are native (and first), last to cluster-state
-        assertThat(isNativeFlags, contains(false, false, false, false, true, true));
+        assertThat(isReadOnlyFlags, contains(false, false, false, false, true, true));
 
         // it's possible to delete overlapping native role mapping
         assertTrue(client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet().isFound());

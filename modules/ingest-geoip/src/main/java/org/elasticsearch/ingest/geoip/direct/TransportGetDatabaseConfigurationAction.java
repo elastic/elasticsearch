@@ -190,6 +190,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
         return maxmindDatabases;
     }
 
+    @Override
     protected void newResponseAsync(
         Task task,
         GetDatabaseConfigurationAction.Request request,

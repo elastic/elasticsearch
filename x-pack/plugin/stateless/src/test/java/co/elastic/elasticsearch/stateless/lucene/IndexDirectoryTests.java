@@ -21,6 +21,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -335,7 +336,13 @@ public class IndexDirectoryTests extends ESTestCase {
 
             StatelessCompoundCommit commit = createCommit(directory, files, 2L);
 
-            directory.updateRecoveryCommit(commit);
+            directory.updateRecoveryCommit(
+                commit.generation(),
+                commit.nodeEphemeralId(),
+                commit.translogRecoveryStartFile(),
+                commit.sizeInBytes(),
+                Maps.transformValues(commit.commitFiles(), BlobFileRanges::new)
+            );
             assertEquals(files, Set.of(directory.getBlobStoreCacheDirectory().listAll()));
             Set<String> newFiles = randomSet(1, 10, () -> randomAlphaOfLength(10));
             newFiles.removeAll(files);
@@ -430,7 +437,16 @@ public class IndexDirectoryTests extends ESTestCase {
         try (IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), indexBlobStoreCacheDirectory, null)) {
             Set<String> files = randomSet(1, 10, () -> randomAlphaOfLength(10));
             var recoveryCommit = createCommit(directory, files, 4L);
-            directory.updateRecoveryCommit(recoveryCommit);
+            directory.updateRecoveryCommit(
+                recoveryCommit.generation(),
+                recoveryCommit.nodeEphemeralId(),
+                recoveryCommit.translogRecoveryStartFile(),
+                recoveryCommit.sizeInBytes(),
+                BlobFileRanges.computeLastCommitBlobFileRanges(
+                    new BatchedCompoundCommit(recoveryCommit.primaryTermAndGeneration(), List.of(recoveryCommit)),
+                    randomBoolean()
+                )
+            );
 
             assertThat(directory.getRecoveryCommitMetadataNodeEphemeralId().isPresent(), is(true));
             assertThat(directory.getRecoveryCommitMetadataNodeEphemeralId().get(), is(equalTo(recoveryCommit.nodeEphemeralId())));

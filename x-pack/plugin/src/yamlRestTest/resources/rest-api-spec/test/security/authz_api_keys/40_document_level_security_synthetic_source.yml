@@ -186,7 +186,7 @@ Filter on object with stored source:
                 type: keyword
               obj:
                 type: object
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   secret:
                     type: keyword

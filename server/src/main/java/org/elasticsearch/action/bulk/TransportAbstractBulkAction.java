@@ -195,10 +195,22 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 updatedComponentTemplates.putAll(componentTemplateSubstitutions);
                 simulatedMetadataBuilder.componentTemplates(updatedComponentTemplates);
             }
-            // We now remove the index from the simulated metadata to force the templates to be used
+            /*
+             * We now remove the index from the simulated metadata to force the templates to be used. Note that simulated requests are
+             * always index requests -- no other type of request is supported.
+             */
             for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-                IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
-                simulatedMetadataBuilder.remove(indexRequest.index());
+                assert actionRequest != null : "Requests cannot be null in simulate mode";
+                assert actionRequest instanceof IndexRequest
+                    : "Only IndexRequests are supported in simulate mode, but got " + actionRequest.getClass();
+                if (actionRequest != null) {
+                    IndexRequest indexRequest = (IndexRequest) actionRequest;
+                    String indexName = indexRequest.index();
+                    if (indexName != null) {
+                        simulatedMetadataBuilder.remove(indexName);
+                        simulatedMetadataBuilder.removeDataStream(indexName);
+                    }
+                }
             }
             metadata = simulatedMetadataBuilder.build();
         } else {

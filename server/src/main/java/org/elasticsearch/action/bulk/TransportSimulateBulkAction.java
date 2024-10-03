@@ -203,7 +203,12 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 Metadata.Builder simulatedMetadata = Metadata.builder(state.metadata());
                 if (indexAbstraction != null) {
                     // We remove the index from the cluster state if necessary (since we're going to use the templates)
-                    simulatedMetadata.remove(request.index());
+                    String indexRequest = request.index();
+                    assert indexRequest != null : "Index requests cannot be null in a simulate bulk call";
+                    if (indexRequest != null) {
+                        simulatedMetadata.remove(indexRequest);
+                        simulatedMetadata.removeDataStream(indexRequest);
+                    }
                 }
                 if (componentTemplateSubstitutions.isEmpty() == false) {
                     Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();

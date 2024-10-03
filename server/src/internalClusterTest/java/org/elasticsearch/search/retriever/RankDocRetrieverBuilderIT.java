@@ -455,9 +455,9 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_6"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_7"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_3"));
             assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_4"));
-            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_7"));
         });
     }
 

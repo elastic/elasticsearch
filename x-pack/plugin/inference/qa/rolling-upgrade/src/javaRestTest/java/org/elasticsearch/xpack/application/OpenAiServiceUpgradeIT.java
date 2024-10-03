@@ -128,6 +128,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         var testTaskType = TaskType.COMPLETION;
 
         if (isOldCluster()) {
+            openAiChatCompletionsServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionsResponse()));
             put(oldClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), testTaskType);
 
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier);
@@ -157,6 +158,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
             assertCompletionInference(oldClusterId);
 
+            openAiChatCompletionsServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionsResponse()));
             put(upgradedClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), testTaskType);
             configs = (List<Map<String, Object>>) get(testTaskType, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));

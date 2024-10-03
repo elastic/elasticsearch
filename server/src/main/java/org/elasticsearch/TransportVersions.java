@@ -221,6 +221,16 @@ public class TransportVersions {
     public static final TransportVersion BULK_INCREMENTAL_STATE = def(8_745_00_0);
     public static final TransportVersion FAILURE_STORE_STATUS_IN_INDEX_RESPONSE = def(8_746_00_0);
     public static final TransportVersion ESQL_AGGREGATION_OPERATOR_STATUS_FINISH_NANOS = def(8_747_00_0);
+    public static final TransportVersion ML_TELEMETRY_MEMORY_ADDED = def(8_748_00_0);
+    public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE = def(8_749_00_0);
+    public static final TransportVersion SEMANTIC_TEXT_SEARCH_INFERENCE_ID = def(8_750_00_0);
+    public static final TransportVersion ML_INFERENCE_CHUNKING_SETTINGS = def(8_751_00_0);
+    public static final TransportVersion SEMANTIC_QUERY_INNER_HITS = def(8_752_00_0);
+    public static final TransportVersion RETAIN_ILM_STEP_INFO = def(8_753_00_0);
+    public static final TransportVersion ADD_DATA_STREAM_OPTIONS = def(8_754_00_0);
+    public static final TransportVersion CCS_REMOTE_TELEMETRY_STATS = def(8_755_00_0);
+    public static final TransportVersion ESQL_CCS_EXECUTION_INFO = def(8_756_00_0);
+    public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_757_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -285,7 +295,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15;
+    public static final TransportVersion MINIMUM_CCS_VERSION = ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

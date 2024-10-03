@@ -61,7 +61,6 @@ public enum ReferenceDocs {
     BOOTSTRAP_CHECK_SYSTEM_CALL_FILTER,
     BOOTSTRAP_CHECK_ONERROR_AND_ONOUTOFMEMORYERROR,
     BOOTSTRAP_CHECK_EARLY_ACCESS,
-    BOOTSTRAP_CHECK_G1GC,
     BOOTSTRAP_CHECK_ALL_PERMISSION,
     BOOTSTRAP_CHECK_DISCOVERY_CONFIGURATION,
     BOOTSTRAP_CHECKS,
@@ -84,6 +83,7 @@ public enum ReferenceDocs {
     FLOOD_STAGE_WATERMARK,
     X_OPAQUE_ID,
     FORMING_SINGLE_NODE_CLUSTERS,
+    JDK_LOCALE_DIFFERENCES,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 
@@ -119,6 +119,15 @@ public enum ReferenceDocs {
             if (iterator.hasNext()) {
                 throw new IllegalStateException("found unexpected extra value: " + iterator.next());
             }
+
+            // We must only link to anchors with fixed IDs (defined by [[fragment-name]] in the docs) because auto-generated fragment IDs
+            // depend on the heading text and are too easy to break inadvertently. Auto-generated fragment IDs begin with an underscore.
+            for (final var entry : result.entrySet()) {
+                if (entry.getValue().startsWith("_") || entry.getValue().contains("#_")) {
+                    throw new IllegalStateException("found auto-generated fragment ID at " + entry.getKey());
+                }
+            }
+
             return result;
         }
     }

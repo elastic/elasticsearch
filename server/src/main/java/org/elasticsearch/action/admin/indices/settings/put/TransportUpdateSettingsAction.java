@@ -124,19 +124,24 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            concreteIndices
-        )
-            .settings(requestSettings)
-            .setPreserveExisting(request.isPreserveExisting())
-            .reopenShards(request.reopen())
-            .ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
-
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
-            logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
-            l.onFailure(e);
-        }));
+        updateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                requestSettings,
+                request.isPreserveExisting()
+                    ? UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE
+                    : UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                request.reopen()
+                    ? UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES
+                    : UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                concreteIndices
+            ),
+            listener.delegateResponse((l, e) -> {
+                logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
+                l.onFailure(e);
+            })
+        );
     }
 
     /**

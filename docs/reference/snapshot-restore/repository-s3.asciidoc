@@ -263,7 +263,7 @@ multiple deployments may share the same bucket.
 
     (<<byte-units,byte value>>) Big files can be broken down into chunks during snapshotting if needed.
     When large file split into chunks, the chunk size will be defined by smallest of `chunk_size`
-    or `buffer_size * parts_number`. Specify the chunk size as a value and unit, for example:
+    or `buffer_size * max_multipart_parts`. Specify the chunk size as a value and unit, for example:
     `1TB`, `1GB`, `10MB`. Defaults to the maximum size of a blob in the S3 which is `5TB`.
 
 `compress`::
@@ -293,12 +293,12 @@ include::repository-shared-settings.asciidoc[]
     size allowed by S3. Defaults to `100mb` or `5%` of JVM heap, whichever is
     smaller.
 
-`parts_number` ::
+`max_multipart_parts` ::
 
     (<<number,numeric>>) Maximum number of parts for multipart upload. When large file split into
-    chunks, the chunk size will be defined by smallest of `chunk_size` or `buffer_size * parts_number`.
+    chunks, the chunk size will be defined by smallest of `chunk_size` or `buffer_size * max_multipart_parts`.
     Default value is 10,000, also see https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html[S3 multipart upload limits].
-    For example, with `buffer_size=100MB` and `parts_number=10,000` summation of all parts is about 1TB.
+    For example, with `buffer_size=100MB` and `max_multipart_parts=10,000` summation of all parts is about 1TB.
     If chunk_size is set to 5TB then smallest between two would be 1TB.
 
 `canned_acl`::

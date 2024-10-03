@@ -143,7 +143,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Maximum parts number for multipart upload. (see https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
      */
-    static final Setting<Integer> PARTS_NUMBER = Setting.intSetting("parts_number", 10_000, 1, 10_000);
+    static final Setting<Integer> MAX_MULTIPART_PARTS = Setting.intSetting("max_multipart_parts", 10_000, 1, 10_000);
 
     /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
@@ -259,7 +259,7 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
         var maxChunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
-        var maxPartsNum = PARTS_NUMBER.get(metadata.settings());
+        var maxPartsNum = MAX_MULTIPART_PARTS.get(metadata.settings());
         this.chunkSize = objectSizeLimit(maxChunkSize, bufferSize, maxPartsNum);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize

@@ -184,7 +184,7 @@ public class S3RepositoryTests extends ESTestCase {
                 .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
                 .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), "1GB")
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), "100MB")
-                .put(S3Repository.PARTS_NUMBER.getKey(), 10_000) // ~1TB
+                .put(S3Repository.MAX_MULTIPART_PARTS.getKey(), 10_000) // ~1TB
                 .build()
         );
         try (var repo = createS3Repo(meta)) {
@@ -201,7 +201,7 @@ public class S3RepositoryTests extends ESTestCase {
                 .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
                 .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), "5TB")
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), "100MB")
-                .put(S3Repository.PARTS_NUMBER.getKey(), 10_000)
+                .put(S3Repository.MAX_MULTIPART_PARTS.getKey(), 10_000)
                 .build()
         );
         try (var repo = createS3Repo(meta)) {

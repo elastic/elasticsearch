@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadT
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -341,12 +342,14 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 );
                 final var commit = new StatelessCompoundCommit(
                     node.shardId,
-                    termAndGen.generation(),
-                    termAndGen.primaryTerm(),
+                    termAndGen,
+                    1L,
                     node.node.getEphemeralId(),
                     Map.of("file", blobLocation),
                     0,
-                    Set.of()
+                    Set.of(),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY
                 );
 
                 // Warm the cache and verify the range is fetched with minimization as expected
@@ -397,12 +400,14 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
             final var commit = new StatelessCompoundCommit(
                 node.shardId,
-                termAndGen.generation(),
-                termAndGen.primaryTerm(),
+                termAndGen,
+                1L,
                 node.node.getEphemeralId(),
                 Map.of("file", blobLocation),
                 0,
-                Set.of()
+                Set.of(),
+                0L,
+                InternalFilesReplicatedRanges.EMPTY
             );
 
             // Warm the cache and verify the range is fetched with minimization as expected

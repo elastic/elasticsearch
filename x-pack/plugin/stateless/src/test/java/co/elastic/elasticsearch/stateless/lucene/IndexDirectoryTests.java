@@ -24,7 +24,9 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -465,12 +467,14 @@ public class IndexDirectoryTests extends ESTestCase {
             .collect(Collectors.toMap(Function.identity(), o -> createBlobLocation(1L, o.hashCode(), 0L, between(1, 100))));
         return new StatelessCompoundCommit(
             directory.getBlobStoreCacheDirectory().getShardId(),
-            generation,
+            new PrimaryTermAndGeneration(1L, generation),
             1L,
             "_na_",
             commitFiles,
             commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
-            files
+            files,
+            0L,
+            InternalFilesReplicatedRanges.EMPTY
         );
     }
 }

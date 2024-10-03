@@ -22,7 +22,9 @@ import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -224,8 +226,8 @@ public class SearchDirectoryTests extends ESTestCase {
                 searchDirectory.updateCommit(
                     new StatelessCompoundCommit(
                         node.shardId,
-                        primaryTerm,
-                        generation,
+                        new PrimaryTermAndGeneration(primaryTerm, generation),
+                        1L,
                         node.node.getId(),
                         files.stream()
                             .collect(
@@ -235,7 +237,9 @@ public class SearchDirectoryTests extends ESTestCase {
                                 )
                             ),
                         blobLength,
-                        files.stream().map(ChecksummedFile::fileName).collect(Collectors.toSet())
+                        files.stream().map(ChecksummedFile::fileName).collect(Collectors.toSet()),
+                        0L,
+                        InternalFilesReplicatedRanges.EMPTY
                     )
                 );
                 generation += 1L;

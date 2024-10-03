@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequestTests;
 import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.CheckIndex;
@@ -635,7 +636,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
     }
 
     private StatelessCompoundCommit buildCompoundCommit(ShardId shardId, long primaryTerm, long ccGen) {
-        return new StatelessCompoundCommit(shardId, ccGen, primaryTerm, randomUUID(), Map.of(), randomLongBetween(10, 100), Set.of());
+        return StatelessCompoundCommitTestUtils.randomCompoundCommit(shardId, new PrimaryTermAndGeneration(primaryTerm, ccGen));
     }
 
     private static List<String> listFiles(Engine engine) {

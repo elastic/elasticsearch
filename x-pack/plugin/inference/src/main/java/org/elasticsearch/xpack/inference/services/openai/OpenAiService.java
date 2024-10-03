@@ -69,7 +69,6 @@ public class OpenAiService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -314,6 +313,11 @@ public class OpenAiService extends SenderService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
+    }
+
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return COMPLETION_ONLY;
     }
 
     /**

@@ -126,7 +126,7 @@ The following parameters are accepted by `date` fields:
 
     The locale to use when parsing dates since months do not have the same names
     and/or abbreviations in all languages. The default is the
-    https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#ROOT[`ROOT` locale],
+    https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#ROOT[`ROOT` locale].
 
 <<ignore-malformed,`ignore_malformed`>>::
 

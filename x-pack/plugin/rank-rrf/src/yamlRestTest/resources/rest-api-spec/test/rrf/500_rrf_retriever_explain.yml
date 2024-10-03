@@ -117,7 +117,7 @@ setup:
   - match: {hits.hits.0._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
   - match: {hits.hits.0._explanation.details.1.value: 1}
   - match: {hits.hits.0._explanation.details.1.description: "/rrf.score:.\\[0.5\\].*/" }
-  - match: {hits.hits.0._explanation.details.1.details.0.description: "/within.top.*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
 
   - close_to: { hits.hits.1._explanation.value: { value: 0.5833334, error: 0.000001 } }
   - match: {hits.hits.1._explanation.description: "/rrf.score:.\\[0.5833334\\].*/" }
@@ -126,7 +126,7 @@ setup:
   - match: {hits.hits.1._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
   - match: {hits.hits.1._explanation.details.1.value: 2}
   - match: {hits.hits.1._explanation.details.1.description: "/rrf.score:.\\[0.33333334\\].*/" }
-  - match: {hits.hits.1._explanation.details.1.details.0.description: "/within.top.*/" }
+  - match: {hits.hits.1._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
 
   - match: {hits.hits.2._explanation.value: 0.5}
   - match: {hits.hits.2._explanation.description: "/rrf.score:.\\[0.5\\].*/" }
@@ -154,10 +154,10 @@ setup:
                       term: {
                         text: {
                           value: "term",
-                          _name: "my_query"
                         }
                       }
-                    }
+                    },
+                    _name: "my_query"
                   }
                 },
                 {
@@ -186,7 +186,7 @@ setup:
   - match: {hits.hits.0._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
   - match: {hits.hits.0._explanation.details.1.value: 1}
   - match: {hits.hits.0._explanation.details.1.description: "/.*my_top_knn.*/" }
-  - match: {hits.hits.0._explanation.details.1.details.0.description: "/within.top.*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
 
   - close_to: { hits.hits.1._explanation.value: { value: 0.5833334, error: 0.000001 } }
   - match: {hits.hits.1._explanation.description: "/rrf.score:.\\[0.5833334\\].*/" }
@@ -195,7 +195,7 @@ setup:
   - match: {hits.hits.1._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
   - match: {hits.hits.1._explanation.details.1.value: 2}
   - match: {hits.hits.1._explanation.details.1.description: "/.*my_top_knn.*/" }
-  - match: {hits.hits.1._explanation.details.1.details.0.description: "/within.top.*/" }
+  - match: {hits.hits.1._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
 
   - match: {hits.hits.2._explanation.value: 0.5}
   - match: {hits.hits.2._explanation.description: "/rrf.score:.\\[0.5\\].*/" }
@@ -254,7 +254,7 @@ setup:
   - match: {hits.hits.0._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
   - match: {hits.hits.0._explanation.details.1.value: 1}
   - match: {hits.hits.0._explanation.details.1.description: "/.*my_top_knn.*/" }
-  - match: {hits.hits.0._explanation.details.1.details.0.description: "/within.top.*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
 
   - close_to: { hits.hits.1._explanation.value: { value: 0.5833334, error: 0.000001 } }
   - match: {hits.hits.1._explanation.description: "/rrf.score:.\\[0.5833334\\].*/" }
@@ -263,7 +263,7 @@ setup:
   - match: {hits.hits.1._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
   - match: {hits.hits.1._explanation.details.1.value: 2}
   - match: {hits.hits.1._explanation.details.1.description: "/.*my_top_knn.*/" }
-  - match: {hits.hits.1._explanation.details.1.details.0.description: "/within.top.*/" }
+  - match: {hits.hits.1._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
 
   - match: {hits.hits.2._explanation.value: 0.5}
   - match: {hits.hits.2._explanation.description: "/rrf.score:.\\[0.5\\].*/" }

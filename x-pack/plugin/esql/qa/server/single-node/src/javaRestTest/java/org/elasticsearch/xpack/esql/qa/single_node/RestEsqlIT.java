@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -78,10 +79,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
         Map<String, Object> result = runEsql(builder);
-        assertEquals(2, result.size());
+        assertEquals(3, result.size());
         Map<String, String> colA = Map.of("name", "avg(value)", "type", "double");
         assertEquals(List.of(colA), result.get("columns"));
         assertEquals(List.of(List.of(499.5d)), result.get("values"));
+        assertTrue(result.containsKey("took"));
+        assertThat(((Number) result.get("took")).longValue(), greaterThanOrEqualTo(0L));
     }
 
     public void testInvalidPragma() throws IOException {
@@ -283,11 +286,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
         Map<String, Object> result = runEsql(builder);
+        MapMatcher mapMatcher = matchesMap();
         assertMap(
             result,
-            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")))
+            mapMatcher.entry("columns", matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")))
                 .entry("values", List.of(List.of(499.5d)))
                 .entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         List<List<String>> signatures = new ArrayList<>();
@@ -362,21 +367,26 @@ public class RestEsqlIT extends RestEsqlTestCase {
             // Lock to shard level partitioning, so we get consistent profile output
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
+
         Map<String, Object> result = runEsql(builder);
+        MapMatcher mapMatcher = matchesMap();
         ListMatcher values = matchesList();
         for (int i = 0; i < 1000; i++) {
             values = values.item(matchesList().item("2020-12-12T00:00:00.000Z").item("value" + i).item("value" + i).item(i).item(499.5));
         }
         assertMap(
             result,
-            matchesMap().entry(
+            mapMatcher.entry(
                 "columns",
                 matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                     .item(matchesMap().entry("name", "test").entry("type", "text"))
                     .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
                     .item(matchesMap().entry("name", "value").entry("type", "long"))
                     .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
-            ).entry("values", values).entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+            )
+                .entry("values", values)
+                .entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         List<List<String>> signatures = new ArrayList<>();
@@ -472,16 +482,20 @@ public class RestEsqlIT extends RestEsqlTestCase {
         for (int group2 = 0; group2 < 10; group2++) {
             expectedValues.add(List.of(1.0, 1, 1, 0, group2));
         }
+        MapMatcher mapMatcher = matchesMap();
         assertMap(
             result,
-            matchesMap().entry(
+            mapMatcher.entry(
                 "columns",
                 matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
                     .item(matchesMap().entry("name", "MAX(value)").entry("type", "long"))
                     .item(matchesMap().entry("name", "MIN(value)").entry("type", "long"))
                     .item(matchesMap().entry("name", "group1").entry("type", "long"))
                     .item(matchesMap().entry("name", "group2").entry("type", "long"))
-            ).entry("values", expectedValues).entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+            )
+                .entry("values", expectedValues)
+                .entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         @SuppressWarnings("unchecked")

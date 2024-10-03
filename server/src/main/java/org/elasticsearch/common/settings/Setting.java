@@ -1632,18 +1632,18 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
      *
-     * @param clazz the enum class
-     * @param key the key for the setting
+     * @param <T>          the generics type parameter reflecting the actual type of the enum
+     * @param clazz        the enum class
      * @param defaultValue a default value function that returns the default values string representation.
-     * @param validator validator for this setting
-     * @param properties properties for this setting like scope, filtering...
-     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @param key          the key for the setting
+     * @param validator    validator for this setting
+     * @param properties   properties for this setting like scope, filtering...
      * @return the setting object
      */
-    public static <T extends Enum<T>> Setting<T> enumSetting1(
+    public static <T extends Enum<T>> Setting<T> enumSetting(
         Class<T> clazz,
-        String key,
         Function<Settings, String> defaultValue,
+        String key,
         Validator<T> validator,
         Property... properties
     ) {

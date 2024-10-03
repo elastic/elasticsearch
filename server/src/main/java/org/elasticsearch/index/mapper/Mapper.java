@@ -83,9 +83,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
     // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
     // Setting to SourceKeepMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
-    public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting1(
+    public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
         SourceKeepMode.class,
-        "index.mapping.synthetic_source_keep",
         settings -> {
             var indexMode = IndexSettings.MODE.get(settings);
             if (indexMode == IndexMode.LOGSDB) {
@@ -93,7 +92,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             } else {
                 return SourceKeepMode.NONE.toString();
             }
-        },
+        }, "index.mapping.synthetic_source_keep",
         value -> {
             if (value == SourceKeepMode.ALL) {
                 throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value + "]");

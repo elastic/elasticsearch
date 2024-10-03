@@ -328,7 +328,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             Configurator.shutdown(context);
         }));
 
-        BootstrapForTesting.ensureInitialized();
+//        BootstrapForTesting.ensureInitialized();
 
         /*
          * We need to exclude time zones not supported by joda (like SystemV* timezones)

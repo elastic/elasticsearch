@@ -156,7 +156,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // If we're retrying we should remove the reference from this instance as the underlying resources
         // get released after the retry copy is created
         Releasable snapshotFileDownloadsPermitCopy = snapshotFileDownloadsPermit;
-        snapshotFileDownloadsPermit = SNAPSHOT_FILE_DOWNLOADS_PERMIT_PLACEHOLDER_FOR_RETRY;
+        if (snapshotFileDownloadsPermitCopy != null) {
+            snapshotFileDownloadsPermit = SNAPSHOT_FILE_DOWNLOADS_PERMIT_PLACEHOLDER_FOR_RETRY;
+        }
         return new RecoveryTarget(
             indexShard,
             sourceNode,

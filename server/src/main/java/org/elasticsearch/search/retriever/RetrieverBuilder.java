@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -53,6 +54,8 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 
+    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
+
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
     protected static void declareBaseParserFields(
@@ -65,41 +68,25 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
             return preFilterQueryBuilder;
         }, PRE_FILTER_FIELD);
         parser.declareString(RetrieverBuilder::retrieverName, NAME_FIELD);
+        parser.declareFloat(RetrieverBuilder::minScore, MIN_SCORE_FIELD);
     }
 
-    private void retrieverName(String retrieverName) {
+    public RetrieverBuilder retrieverName(String retrieverName) {
         this.retrieverName = retrieverName;
+        return this;
     }
 
-    /**
-     * This method parsers a top-level retriever within a search and tracks its own depth. Currently, the
-     * maximum depth allowed is limited to 2 as a compound retriever cannot currently contain another
-     * compound retriever.
-     */
+    public RetrieverBuilder minScore(Float minScore) {
+        this.minScore = minScore;
+        return this;
+    }
+
     public static RetrieverBuilder parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         parser = new FilterXContentParserWrapper(parser) {
 
-            int nestedDepth = 0;
-
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-                if (categoryClass.equals(RetrieverBuilder.class)) {
-                    nestedDepth++;
-
-                    if (nestedDepth > 2) {
-                        throw new IllegalArgumentException(
-                            "the nested depth of the [" + name + "] retriever exceeds the maximum nested depth [2] for retrievers"
-                        );
-                    }
-                }
-
-                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
-
-                if (categoryClass.equals(RetrieverBuilder.class)) {
-                    nestedDepth--;
-                }
-
-                return namedObject;
+                return getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
             }
         };
 
@@ -186,6 +173,8 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     protected String retrieverName;
 
+    protected Float minScore;
+
     /**
      * Determines if this retriever contains sub-retrievers that need to be executed prior to search.
      */
@@ -217,6 +206,14 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
      */
     public abstract QueryBuilder topDocsQuery();
 
+    public QueryBuilder explainQuery() {
+        return topDocsQuery();
+    }
+
+    public Float minScore() {
+        return minScore;
+    }
+
     public void setRankDocs(RankDoc[] rankDocs) {
         this.rankDocs = rankDocs;
     }
@@ -238,6 +235,14 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
      * Elements from retrievers are expected to be "extracted" into the {@link SearchSourceBuilder}.
      */
     public abstract void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed);
+
+    public ActionRequestValidationException validate(
+        SearchSourceBuilder source,
+        ActionRequestValidationException validationException,
+        boolean allowPartialSearchResults
+    ) {
+        return validationException;
+    }
 
     // ---- FOR TESTING XCONTENT PARSING ----
 
@@ -267,14 +272,16 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RetrieverBuilder that = (RetrieverBuilder) o;
-        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders) && doEquals(o);
+        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders)
+            && Objects.equals(minScore, that.minScore)
+            && doEquals(o);
     }
 
     protected abstract boolean doEquals(Object o);
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), preFilterQueryBuilders, doHashCode());
+        return Objects.hash(getClass(), preFilterQueryBuilders, minScore, doHashCode());
     }
 
     protected abstract int doHashCode();

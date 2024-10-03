@@ -622,21 +622,20 @@ synthetic_source_keep defaults:
       indices.create:
         index: test2
 
-
   - do:
       indices.get_settings:
         index: test1
         include_defaults: true
 
-  - is_true: test
-  - match: { test.settings.index.mode: "logsdb" }
-  - match: { test.settings.index.mapping.synthetic_source_keep: "arrays" }
+  - is_true: test1
+  - match: { test1.settings.index.mode: "logsdb" }
+  - match: { test1.defaults.index.mapping.synthetic_source_keep: "arrays" }
 
   - do:
       indices.get_settings:
-        index: test1
+        index: test2
         include_defaults: true
 
-  - is_true: test
-  - match: { test.settings.index.mode: "logsdb" }
-  - match: { test.settings.index.mapping.synthetic_source_keep: "none" }
+  - is_true: test2
+  - is_false: test2.settings.index.mode
+  - match: { test2.defaults.index.mapping.synthetic_source_keep: "none" }

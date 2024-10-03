@@ -136,8 +136,10 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
 
         ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             this.shardContext = shardContext;
-            int numHits = 100; // TODO : make this configurable/inferrable
-            collector = new TopFieldCollectorManager(sort, numHits, limit).newCollector();
+            int maxHits = 100_000; // TODO : make this configurable / inferrable?
+            int numHits = Math.min(limit, maxHits);
+            int totalHitsThreshold = 100;
+            this.collector = new TopFieldCollectorManager(sort, numHits, totalHitsThreshold).newCollector();
             // TODO : use TopScoreDocCollectorManager when SORT _score DESC
         }
 

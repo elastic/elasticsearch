@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -27,11 +25,8 @@ import java.util.concurrent.Flow;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,8 +42,6 @@ public class StreamingResponseHandlerTests extends ESTestCase {
     private Request request;
     @Mock
     private ResponseHandler responseHandler;
-    @Mock
-    private ActionListener<InferenceServiceResults> listener;
     @Mock
     private Flow.Subscriber<HttpResult> downstreamSubscriber;
     @InjectMocks
@@ -69,15 +62,8 @@ public class StreamingResponseHandlerTests extends ESTestCase {
         mocks.close();
     }
 
-    public void testOnSubscribeCallsRequest() {
-        var subscription = mock(Flow.Subscription.class);
-        streamingResponseHandler.onSubscribe(subscription);
-        verify(subscription, only()).request(1L);
-    }
-
-    public void testResponseHandlerFailureIsForwardedToListener() {
-        var upstreamSubscription = mock(Flow.Subscription.class);
-        streamingResponseHandler.onSubscribe(upstreamSubscription);
+    public void testResponseHandlerFailureIsForwardedToSubscriber() {
+        var upstreamSubscription = upstreamSubscription();
         var expectedException = new RetryException(true, "ah");
         doThrow(expectedException).when(responseHandler).validateResponse(any(), any(), any(), any());
 
@@ -88,43 +74,20 @@ public class StreamingResponseHandlerTests extends ESTestCase {
 
         streamingResponseHandler.onNext(item);
 
-        verify(listener, only()).onFailure(expectedException);
         verify(upstreamSubscription, times(1)).cancel();
+        verify(downstreamSubscriber, times(1)).onError(expectedException);
     }
 
-    public void testSuccessfulResponseCallsListener() {
-        var upstreamSubscription = upstreamWithListenerCalled();
-
-        verify(listener, only()).onResponse(any());
-        verify(upstreamSubscription, never()).cancel();
-    }
-
-    private Flow.Subscription upstreamWithListenerCalled() {
+    @SuppressWarnings("unchecked")
+    private Flow.Subscription upstreamSubscription() {
         var upstreamSubscription = mock(Flow.Subscription.class);
         streamingResponseHandler.onSubscribe(upstreamSubscription);
-        var inferenceServiceResults = mock(InferenceServiceResults.class);
-
-        doAnswer(ans -> {
-            Flow.Publisher<HttpResult> publisher = ans.getArgument(2);
-            publisher.subscribe(downstreamSubscriber);
-            return inferenceServiceResults;
-        }).when(responseHandler).parseResult(any(), any(), any());
-
-        streamingResponseHandler.onNext(item);
+        streamingResponseHandler.subscribe(downstreamSubscriber);
         return upstreamSubscription;
     }
 
-    public void testOnNextOnlyCallsListenerOnce() {
-        upstreamWithListenerCalled();
-
-        streamingResponseHandler.onNext(item);
-
-        verify(listener, times(1)).onResponse(any());
-        verify(listener, never()).onFailure(any());
-    }
-
-    public void testSecondOnNextCallsDownstream() {
-        upstreamWithListenerCalled();
+    public void testOnNextCallsDownstream() {
+        upstreamSubscription();
 
         streamingResponseHandler.onNext(item);
 
@@ -132,7 +95,7 @@ public class StreamingResponseHandlerTests extends ESTestCase {
     }
 
     public void testCompleteForwardsComplete() {
-        upstreamWithListenerCalled();
+        upstreamSubscription();
 
         streamingResponseHandler.onComplete();
 
@@ -142,7 +105,7 @@ public class StreamingResponseHandlerTests extends ESTestCase {
 
     public void testErrorForwardsError() {
         var expectedError = new RetryException(false, "ah");
-        upstreamWithListenerCalled();
+        upstreamSubscription();
 
         streamingResponseHandler.onError(expectedError);
 
@@ -151,7 +114,7 @@ public class StreamingResponseHandlerTests extends ESTestCase {
     }
 
     public void testSubscriptionForwardsRequest() {
-        var upstreamSubscription = upstreamWithListenerCalled();
+        var upstreamSubscription = upstreamSubscription();
 
         var downstream = ArgumentCaptor.forClass(Flow.Subscription.class);
         verify(downstreamSubscriber, times(1)).onSubscribe(downstream.capture());

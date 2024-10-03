@@ -339,6 +339,8 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=range/20_synthetic_source/Date range}
   issue: https://github.com/elastic/elasticsearch/issues/113874
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  issue: https://github.com/elastic/elasticsearch/issues/113916
 
 # Examples:
 #

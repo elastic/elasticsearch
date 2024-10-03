@@ -26,23 +26,23 @@ import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPO
  */
 public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature ML_STATE_RESET_FALLBACK_ON_DISABLED = new NodeFeature("ml.state_reset_fallback_on_disabled");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature FEATURE_STATE_RESET_SUPPORTED = new NodeFeature("system_indices.feature_state_reset_supported");
     public static final NodeFeature SYSTEM_INDICES_REST_ACCESS_ENFORCED = new NodeFeature("system_indices.rest_access_enforced");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SYSTEM_INDICES_REST_ACCESS_DEPRECATED = new NodeFeature("system_indices.rest_access_deprecated");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature HIDDEN_INDICES_SUPPORTED = new NodeFeature("indices.hidden_supported");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature COMPONENT_TEMPLATE_SUPPORTED = new NodeFeature("indices.component_template_supported");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED = new NodeFeature(
         "indices.delete_template_multiple_names_supported"
     );
     public static final NodeFeature ML_NEW_MEMORY_FORMAT = new NodeFeature("ml.new_memory_format");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SUPPORTS_VENDOR_XCONTENT_TYPES = new NodeFeature("rest.supports_vendor_xcontent_types");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SUPPORTS_TRUE_BINARY_RESPONSES = new NodeFeature("rest.supports_true_binary_responses");
 
     /** These are "pure test" features: normally we would not need them, and test for TransportVersion/fallback to Version (see for example
@@ -61,20 +61,20 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature DESIRED_NODE_API_SUPPORTED = new NodeFeature("desired_node_supported");
     public static final NodeFeature SECURITY_UPDATE_API_KEY = new NodeFeature("security.api_key_update");
     public static final NodeFeature SECURITY_BULK_UPDATE_API_KEY = new NodeFeature("security.api_key_bulk_update");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature WATCHES_VERSION_IN_META = new NodeFeature("watcher.version_in_meta");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SECURITY_ROLE_DESCRIPTORS_OPTIONAL = new NodeFeature("security.role_descriptors_optional");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SEARCH_AGGREGATIONS_FORCE_INTERVAL_SELECTION_DATE_HISTOGRAM = new NodeFeature(
         "search.aggregations.force_interval_selection_on_date_histogram"
     );
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature TRANSFORM_NEW_API_ENDPOINT = new NodeFeature("transform.new_api_endpoint");
     // Ref: https://github.com/elastic/elasticsearch/pull/65205
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature ML_INDICES_HIDDEN = new NodeFeature("ml.indices_hidden");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature ML_ANALYTICS_MAPPINGS = new NodeFeature("ml.analytics_mappings");
 
     public static final NodeFeature TSDB_NEW_INDEX_FORMAT = new NodeFeature("indices.tsdb_new_format");
@@ -101,29 +101,29 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature DEPRECATION_WARNINGS_LEAK_FIXED = new NodeFeature("deprecation_warnings_leak_fixed");
 
     // QA - Full cluster restart
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature REPLICATION_OF_CLOSED_INDICES = new NodeFeature("indices.closed_replication_supported");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature TASK_INDEX_SYSTEM_INDEX = new NodeFeature("tasks.moved_to_system_index");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SOFT_DELETES_ENFORCED = new NodeFeature("indices.soft_deletes_enforced");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature NEW_TRANSPORT_COMPRESSED_SETTING = new NodeFeature("transport.new_compressed_setting");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SHUTDOWN_SUPPORTED = new NodeFeature("shutdown.supported");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SERVICE_ACCOUNTS_SUPPORTED = new NodeFeature("auth.service_accounts_supported");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature TRANSFORM_SUPPORTED = new NodeFeature("transform.supported");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature SLM_SUPPORTED = new NodeFeature("slm.supported");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature DATA_STREAMS_SUPPORTED = new NodeFeature("data_stream.supported");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature NEW_DATA_STREAMS_INDEX_NAME_FORMAT = new NodeFeature("data_stream.new_index_name_format");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature DISABLE_FIELD_NAMES_FIELD_REMOVED = new NodeFeature("disable_of_field_names_field_removed");
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature ML_NLP_SUPPORTED = new NodeFeature("ml.nlp_supported");
 
     /*

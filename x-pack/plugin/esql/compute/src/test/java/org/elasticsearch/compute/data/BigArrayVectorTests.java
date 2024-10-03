@@ -37,7 +37,13 @@ public class BigArrayVectorTests extends SerializationTestCase {
 
     public void testBoolean() throws IOException {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        Boolean[] values = IntStream.range(0, positionCount).mapToObj(i -> randomBoolean()).toArray(Boolean[]::new);
+        Boolean value = randomFrom(random(), null, true, false);
+        Boolean[] values = IntStream.range(0, positionCount).mapToObj(i -> {
+            if (value == null) {
+                return randomBoolean();
+            }
+            return value;
+        }).toArray(Boolean[]::new);
         BitArray array = new BitArray(positionCount, bigArrays);
         IntStream.range(0, positionCount).filter(i -> values[i]).forEach(array::set);
         try (var vector = new BooleanBigArrayVector(array, positionCount, blockFactory)) {
@@ -76,6 +82,15 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(mask.hadMultivaluedFields(), equalTo(false));
                 for (int p = 0; p < values.length; p++) {
                     assertThat(mask.mask().getBoolean(p), equalTo(values[p]));
+                }
+            }
+            if (value != null) {
+                if (value) {
+                    assertTrue(vector.allTrue());
+                    assertFalse(vector.allFalse());
+                } else {
+                    assertFalse(vector.allTrue());
+                    assertTrue(vector.allFalse());
                 }
             }
         }

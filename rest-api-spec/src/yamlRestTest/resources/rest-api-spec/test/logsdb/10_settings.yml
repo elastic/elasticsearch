@@ -609,6 +609,9 @@ synthetic_source_keep defaults:
           path: /{index}
           capabilities: [ logsdb_index_mode ]
       reason: "Support for 'logsdb' index mode capability required"
+  - skip:
+      cluster_features: "gte_v8.16.0"
+      reason: "Suppress this test for merging & backporting https://github.com/elastic/elasticsearch/pull/113957"
 
   - do:
       indices.create:

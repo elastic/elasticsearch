@@ -49,6 +49,8 @@ class CohereStreamingProcessor extends DelegatingProcessor<Deque<String>, Stream
                     }
                     default -> throw new IOException("Unknown eventType found: " + eventType);
                 }
+            } catch (ElasticsearchStatusException e) {
+                throw e;
             } catch (Exception e) {
                 log.warn("Failed to parse json from cohere: {}", json);
                 throw e;

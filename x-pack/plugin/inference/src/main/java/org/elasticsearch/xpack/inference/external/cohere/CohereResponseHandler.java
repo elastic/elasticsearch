@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereErrorResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.streaming.NdJsonProcessor;
+import org.elasticsearch.xpack.inference.external.response.streaming.NewlineDelimitedByteProcessor;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.concurrent.Flow;
@@ -59,10 +59,10 @@ public class CohereResponseHandler extends BaseResponseHandler {
 
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
-        var jsonProcessor = new NdJsonProcessor();
+        var ndProcessor = new NewlineDelimitedByteProcessor();
         var cohereProcessor = new CohereStreamingProcessor();
-        flow.subscribe(jsonProcessor);
-        jsonProcessor.subscribe(cohereProcessor);
+        flow.subscribe(ndProcessor);
+        ndProcessor.subscribe(cohereProcessor);
         return new StreamingChatCompletionResults(cohereProcessor);
     }
 

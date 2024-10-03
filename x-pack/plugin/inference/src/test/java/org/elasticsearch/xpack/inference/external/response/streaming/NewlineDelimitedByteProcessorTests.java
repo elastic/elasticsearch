@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.external.response.streaming;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Deque;
 import java.util.concurrent.Flow;
@@ -19,7 +19,6 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.assertArg;
@@ -27,23 +26,24 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class NdJsonProcessorTests extends ESTestCase {
+public class NewlineDelimitedByteProcessorTests extends ESTestCase {
     private Flow.Subscription upstream;
     private Flow.Subscriber<Deque<String>> downstream;
-    private NdJsonProcessor processor;
+    private NewlineDelimitedByteProcessor processor;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         upstream = mock();
         downstream = mock();
-        processor = new NdJsonProcessor();
+        processor = new NewlineDelimitedByteProcessor();
         processor.onSubscribe(upstream);
         processor.subscribe(downstream);
     }
 
     public void testEmptyBody() {
         processor.next(result(null));
+        processor.onComplete();
         verify(upstream, times(1)).request(1);
         verify(downstream, times(0)).onNext(any());
     }
@@ -59,8 +59,7 @@ public class NdJsonProcessorTests extends ESTestCase {
     }
 
     public void testValidResponse() {
-        processor.next(result("{\"hello\":\"there\"}"));
-        verify(upstream, times(0)).request(1);
+        processor.next(result("{\"hello\":\"there\"}\n"));
         verify(downstream, times(1)).onNext(assertArg(deque -> {
             assertThat(deque, notNullValue());
             assertThat(deque.size(), is(1));
@@ -86,23 +85,28 @@ public class NdJsonProcessorTests extends ESTestCase {
         }));
     }
 
-    public void testInvalidMultilineResponse() {
+    public void testOnCompleteFlushesResponse() {
         processor.next(result("""
-            {"hello": "there"}
-            this isn't json
-            """));
-        verify(upstream, times(0)).request(1);
-        verify(downstream, times(1)).onError(assertArg(t -> assertThat(t, isA(IOException.class))));
-        verify(upstream, times(1)).cancel();
-    }
+            {"value": 1}"""));
 
-    public void testInvalidOneLineResponse() {
-        processor.next(result("this isn't json"));
-        processor.onComplete();
-        verify(upstream, times(1)).request(1);
-        verify(downstream, times(1)).onError(assertArg(t -> assertThat(t, isA(IOException.class))));
+        // onNext should not be called with only one value
+        verify(downstream, times(0)).onNext(any());
         verify(downstream, times(0)).onComplete();
-        verify(upstream, times(0)).cancel();
-    }
 
+        // onComplete should flush the value pending, and onNext should be called
+        processor.onComplete();
+        verify(downstream, times(1)).onNext(assertArg(deque -> {
+            assertThat(deque, notNullValue());
+            assertThat(deque.size(), is(1));
+            var item = deque.getFirst();
+            assertThat(item, containsString(String.valueOf(1)));
+        }));
+        verify(downstream, times(0)).onComplete();
+
+        // next time the downstream requests data, onComplete is called
+        var downstreamSubscription = ArgumentCaptor.forClass(Flow.Subscription.class);
+        verify(downstream).onSubscribe(downstreamSubscription.capture());
+        downstreamSubscription.getValue().request(1);
+        verify(downstream, times(1)).onComplete();
+    }
 }

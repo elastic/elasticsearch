@@ -1309,8 +1309,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var shardId = testHarness.shardId;
             StatelessCompoundCommit recoveredCommit = new StatelessCompoundCommit(
                 shardId,
-                1,
-                2,
+                new PrimaryTermAndGeneration(2L, 1L),
+                1L,
                 "xx",
                 Map.of(
                     "segments_2",
@@ -1321,7 +1321,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     )
                 ),
                 10,
-                Set.of("segments_2")
+                Set.of("segments_2"),
+                0L,
+                InternalFilesReplicatedRanges.EMPTY
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)

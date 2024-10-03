@@ -50,7 +50,6 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.inference.ManageInferenceAction;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
@@ -436,7 +435,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(TransportClusterRerouteAction.TYPE.name(), request, authentication), is(false));
         assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
-        assertThat(kibanaRole.cluster().check(ManageInferenceAction.NAME, request, authentication), is(true));
+        
+        // Inference
+        assertTrue(role.cluster().check("cluster:admin/xpack/inference/get", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
 
         // Enrich
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/put", request, authentication), is(true));

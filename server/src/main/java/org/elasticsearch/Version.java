@@ -232,7 +232,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         VERSION_STRINGS = Map.copyOf(builderByString);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     // Re-enable this assertion once the rest api version is bumped
     private static void assertRestApiVersion() {
         // assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1

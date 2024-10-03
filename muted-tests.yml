@@ -339,8 +339,21 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=range/20_synthetic_source/Date range}
   issue: https://github.com/elastic/elasticsearch/issues/113874
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  issue: https://github.com/elastic/elasticsearch/issues/113916
+- class: org.elasticsearch.kibana.KibanaThreadPoolIT
+  method: testBlockedThreadPoolsRejectUserRequests
+  issue: https://github.com/elastic/elasticsearch/issues/113939
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5Small_withPlatformAgnosticVariant
+  issue: https://github.com/elastic/elasticsearch/issues/113983
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
+  issue: https://github.com/elastic/elasticsearch/issues/114019
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5WithTrainedModelAndInference
+  issue: https://github.com/elastic/elasticsearch/issues/114023
+- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderIT
+  method: testRRFWithCollapse
+  issue: https://github.com/elastic/elasticsearch/issues/114074
 
 # Examples:
 #

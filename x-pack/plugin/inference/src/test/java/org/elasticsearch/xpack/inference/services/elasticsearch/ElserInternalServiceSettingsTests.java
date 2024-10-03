@@ -5,18 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elser;
+package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettingsTests;
 
 import java.io.IOException;
 import java.util.HashSet;
 
-import static org.elasticsearch.xpack.inference.services.elser.ElserModelsTests.randomElserModel;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
 
 public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTestCase<ElserInternalServiceSettings> {
 

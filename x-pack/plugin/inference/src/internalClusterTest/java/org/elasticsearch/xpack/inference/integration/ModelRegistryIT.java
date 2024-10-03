@@ -28,11 +28,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettingsTests;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -118,10 +117,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
 
-        var elserService = new ElserInternalService(
+        var elserService = new ElasticsearchInternalService(
             new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class), mock(ThreadPool.class))
         );
-        ElserInternalModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
+        ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfigWithSecrets(
             modelHolder.get().inferenceEntityId(),
             modelHolder.get().taskType(),
             modelHolder.get().settings(),
@@ -277,7 +276,17 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     private Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
-        return ElserInternalServiceTests.randomModelConfig(inferenceEntityId, taskType);
+        return switch (taskType) {
+            case SPARSE_EMBEDDING -> new org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel(
+                inferenceEntityId,
+                taskType,
+                ElasticsearchInternalService.NAME,
+                ElserInternalServiceSettingsTests.createRandom(),
+                ElserMlNodeTaskSettingsTests.createRandom()
+            );
+            default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
+        };
+
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
@@ -300,7 +309,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             new ModelWithUnknownField(
                 inferenceEntityId,
                 TaskType.SPARSE_EMBEDDING,
-                ElserInternalService.NAME,
+                ElasticsearchInternalService.NAME,
                 ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom()
             )

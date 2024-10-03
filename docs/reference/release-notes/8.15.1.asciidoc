@@ -62,7 +62,11 @@ Geo::
 Indices APIs::
 * Fix template alias parsing livelock {es-pull}112217[#112217]
 
+Inference::
+* Fix the bug where the run() function of ExecutableInferenceRequest throws an exception when get inferenceEntityId. {es-pull}112135[#112135]
+
 Infra/Core::
+* Fix toReleaseVersion() when called on the current version id {es-pull}112242[#112242] (issue: {es-issue}111900[#111900])
 * Fix windows memory locking {es-pull}111866[#111866] (issue: {es-issue}111847[#111847])
 
 Ingest Node::

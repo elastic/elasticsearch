@@ -265,10 +265,9 @@ public final class UnigramTokenizer extends Tokenizer {
         return false;
     }
 
-    private int[] decomposeBytePieces(CharSequence maybeTokenized) {
+    private int[] decomposeBytePieces(byte[] bytes) {
         assert this.byteFallback;
 
-        byte[] bytes = maybeTokenized.toString().getBytes(StandardCharsets.UTF_8);
         int[] pieces = new int[bytes.length];
         for (int i = 0; i < bytes.length; i++) {
             BytesRef decomposedToken = new BytesRef(Strings.format("<0x%02X>", bytes[i]));
@@ -362,7 +361,7 @@ public final class UnigramTokenizer extends Tokenizer {
             if (node.id == unknownTokenId && byteFallback) {
                 CharSequence multiByteSequence = inputSequence.subSequence(node.startsAtCharPos, endsAtChars);
                 byte[] bytes = multiByteSequence.toString().getBytes(StandardCharsets.UTF_8);
-                int[] pieces = decomposeBytePieces(multiByteSequence);
+                int[] pieces = decomposeBytePieces(bytes);
                 for (int i = pieces.length - 1; i >= 0; i--) {
                     results.add(
                         new DelimitedToken.Encoded(

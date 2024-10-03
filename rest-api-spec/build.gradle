@@ -55,28 +55,7 @@ tasks.named("precommit").configure {
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({task ->
-    task.skipTest("tsdb/140_routing_path/multi-value routing path field", "Multi-value routing paths are allowed now. See #112645")
     task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
     task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
-    task.skipTest("search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays", "Temporary mute while backporting to 8.x")
-    task.skipTest("indices.create/20_synthetic_source/subobjects auto", "Tentantively disabled until #112092 gets backported to 8.x")
-    task.skipTest(
-      "index/92_metrics_auto_subobjects/Metrics object indexing with synthetic source",
-      "Tentantively disabled until #112092 gets backported to 8.x"
-    )
-    task.skipTest(
-      "index/92_metrics_auto_subobjects/Root without subobjects with synthetic source",
-      "Tentantively disabled until #112092 gets backported to 8.x"
-    )
-    task.skipTest(
-      "indices.put_index_template/15_composition/Composable index templates that include subobjects: auto at root",
-      "Tentantively disabled until #112092 gets backported to 8.x"
-    )
-    task.skipTest(
-      "indices.put_index_template/15_composition/Composable index templates that include subobjects: auto on arbitrary field",
-      "Tentantively disabled until #112092 gets backported to 8.x"
-    )
-    task.skipTest("index/92_metrics_auto_subobjects/Metrics object indexing", "Tentantively disabled until #112092 gets backported to 8.x")
-    task.skipTest("index/92_metrics_auto_subobjects/Root with metrics", "Tentantively disabled until #112092 gets backported to 8.x")
-    task.skipTest("search/330_fetch_fields/Test with subobjects: auto", "Tentantively disabled until #112092 gets backported to 8.x")
+    task.skipTestsByFilePattern("indices.create/synthetic_source*.yml", "@UpdateForV9 -> tests do not pass after bumping API version to 9 [ES-9597]")
 })

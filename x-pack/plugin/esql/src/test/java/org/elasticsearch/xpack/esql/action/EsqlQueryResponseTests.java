@@ -236,6 +236,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     protected EsqlQueryResponse mutateInstance(EsqlQueryResponse instance) {
         boolean allNull = true;
         for (ColumnInfoImpl info : instance.columns()) {
+            // values inside NULL and UNSUPPORTED blocks cannot be mutated, because they are all null
             if (info.type() != DataType.NULL && info.type() != DataType.UNSUPPORTED) {
                 allNull = false;
             }

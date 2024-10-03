@@ -347,7 +347,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     public ChunkedToXContentBuilder field(String name, ToXContent value) {
-        addChunk((b, p) -> b.field(name, value, params));
+        addChunk((b, p) -> b.field(name, value, p));
         return this;
     }
 

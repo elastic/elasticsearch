@@ -13,8 +13,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Iterator;
-import java.util.Map;
-import java.util.function.Function;
 
 public enum ChunkedToXContentHelper {
     ;
@@ -41,20 +39,6 @@ public enum ChunkedToXContentHelper {
 
     public static Iterator<ToXContent> endArray() {
         return Iterators.single(((builder, params) -> builder.endArray()));
-    }
-
-    public static Iterator<ToXContent> map(String name, Map<String, ?> map) {
-        return map(name, map, entry -> (ToXContent) (builder, params) -> builder.field(entry.getKey(), entry.getValue()));
-    }
-
-    /**
-     * Like xContentFragmentValuesMap, but allows the underlying XContent object to define its own "name" with startObject(string)
-     * and endObject, rather than assuming that the key in the map should be the name in the XContent output.
-     * @param name name to use in the XContent for the outer object wrapping the map being rendered to XContent
-     * @param map map being rendered to XContent
-     */
-    public static Iterator<ToXContent> xContentFragmentValuesMapCreateOwnName(String name, Map<String, ? extends ToXContent> map) {
-        return map(name, map, entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder, params));
     }
 
     public static Iterator<ToXContent> field(String name, boolean value) {
@@ -87,10 +71,6 @@ public enum ChunkedToXContentHelper {
 
     public static <T extends ToXContent> Iterator<ToXContent> wrapWithObject(String name, Iterator<T> iterator) {
         return Iterators.concat(startObject(name), iterator, endObject());
-    }
-
-    public static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return wrapWithObject(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 
     /**

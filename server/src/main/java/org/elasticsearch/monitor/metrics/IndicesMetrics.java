@@ -51,7 +51,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     }
 
     private static List<AutoCloseable> registerAsyncMetrics(MeterRegistry registry, IndicesStatsCache cache) {
-        final int TOTAL_METRICS = 21;
+        final int TOTAL_METRICS = 27;
         List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
         for (IndexMode indexMode : IndexMode.values()) {
             String name = indexMode.getName();
@@ -79,7 +79,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).numBytes)
                 )
             );
-            // query (count, took, failures*) - use gauges as shards can be removed
+            // query (count, took, failures) - use gauges as shards can be removed
             metrics.add(
                 registry.registerLongGauge(
                     "es.indices." + name + ".query.total",
@@ -96,11 +96,19 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getQueryTimeInMillis())
                 )
             );
-            // fetch (count, took, failures*) - use gauges as shards can be removed
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".query.failure.total",
+                    "total query failures of " + name + " indices",
+                    "unit",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getQueryFailure())
+                )
+            );
+            // fetch (count, took, failures) - use gauges as shards can be removed
             metrics.add(
                 registry.registerLongGauge(
                     "es.indices." + name + ".fetch.total",
-                    "total fetch of " + name + " indices",
+                    "total fetches of " + name + " indices",
                     "unit",
                     () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getFetchCount())
                 )
@@ -111,6 +119,14 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     "total fetch time of " + name + " indices",
                     "ms",
                     () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getFetchTimeInMillis())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".fetch.failure.total",
+                    "total fetch failures of " + name + " indices",
+                    "unit",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getFetchFailure())
                 )
             );
         }

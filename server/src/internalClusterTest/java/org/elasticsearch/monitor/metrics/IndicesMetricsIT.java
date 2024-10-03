@@ -14,17 +14,28 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.OnScriptError;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,7 +56,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class);
+        return List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class, FailingFieldPlugin.class);
     }
 
     @Override
@@ -61,26 +72,32 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String STANDARD_DOCS_COUNT = "es.indices.standard.docs.total";
     static final String STANDARD_QUERY_COUNT = "es.indices.standard.query.total";
     static final String STANDARD_QUERY_TIME = "es.indices.standard.query.time";
+    static final String STANDARD_QUERY_FAILURE = "es.indices.standard.query.failure.total";
     static final String STANDARD_FETCH_COUNT = "es.indices.standard.fetch.total";
     static final String STANDARD_FETCH_TIME = "es.indices.standard.fetch.time";
+    static final String STANDARD_FETCH_FAILURE = "es.indices.standard.fetch.failure.total";
 
     static final String TIME_SERIES_INDEX_COUNT = "es.indices.time_series.total";
     static final String TIME_SERIES_BYTES_SIZE = "es.indices.time_series.size";
     static final String TIME_SERIES_DOCS_COUNT = "es.indices.time_series.docs.total";
     static final String TIME_SERIES_QUERY_COUNT = "es.indices.time_series.query.total";
     static final String TIME_SERIES_QUERY_TIME = "es.indices.time_series.query.time";
+    static final String TIME_SERIES_QUERY_FAILURE = "es.indices.time_series.query.failure.total";
     static final String TIME_SERIES_FETCH_COUNT = "es.indices.time_series.fetch.total";
     static final String TIME_SERIES_FETCH_TIME = "es.indices.time_series.fetch.time";
+    static final String TIME_SERIES_FETCH_FAILURE = "es.indices.time_series.fetch.failure.total";
 
     static final String LOGSDB_INDEX_COUNT = "es.indices.logsdb.total";
     static final String LOGSDB_BYTES_SIZE = "es.indices.logsdb.size";
     static final String LOGSDB_DOCS_COUNT = "es.indices.logsdb.docs.total";
     static final String LOGSDB_QUERY_COUNT = "es.indices.logsdb.query.total";
     static final String LOGSDB_QUERY_TIME = "es.indices.logsdb.query.time";
+    static final String LOGSDB_QUERY_FAILURE = "es.indices.logsdb.query.failure.total";
     static final String LOGSDB_FETCH_COUNT = "es.indices.logsdb.fetch.total";
     static final String LOGSDB_FETCH_TIME = "es.indices.logsdb.fetch.time";
+    static final String LOGSDB_FETCH_FAILURE = "es.indices.logsdb.fetch.failure.total";
 
-    public void testIndicesMetrics() {
+    public void testIndicesMetrics() throws Exception {
         String node = internalCluster().startNode();
         ensureStableCluster(1);
         final TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class, node)
@@ -257,11 +274,33 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(nodeStats3.getFetchTimeInMillis() - nodeStats2.getFetchTimeInMillis())
             )
         );
-    }
-
-    enum MetricType {
-        COUNTER,
-        GAUGE
+        // search failures
+        expectThrows(Exception.class, () -> { client().prepareSearch("logs*").setRuntimeMappings(parseMapping("""
+            {
+                "fail_me": {
+                    "type": "long",
+                    "script": {"source": "<>", "lang": "failing_field"}
+                }
+            }
+            """)).setQuery(new RangeQueryBuilder("fail_me").gte(0)).setAllowPartialSearchResults(true).get(); });
+        collectThenAssertMetrics(
+            telemetry,
+            4,
+            Map.of(
+                STANDARD_QUERY_FAILURE,
+                equalTo(0L),
+                STANDARD_FETCH_FAILURE,
+                equalTo(0L),
+                TIME_SERIES_QUERY_FAILURE,
+                equalTo(0L),
+                TIME_SERIES_FETCH_FAILURE,
+                equalTo(0L),
+                LOGSDB_QUERY_FAILURE,
+                equalTo(numLogsdbIndices),
+                LOGSDB_FETCH_FAILURE,
+                equalTo(0L)
+            )
+        );
     }
 
     void collectThenAssertMetrics(TestTelemetryPlugin telemetry, int times, Map<String, Matcher<Long>> matchers) {
@@ -321,6 +360,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             }
             totalDocs += numDocs;
             flush(indexName);
+            refresh(indexName);
         }
         return totalDocs;
     }
@@ -346,7 +386,58 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             }
             totalDocs += numDocs;
             flush(indexName);
+            refresh(indexName);
         }
         return totalDocs;
+    }
+
+    private Map<String, Object> parseMapping(String mapping) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, mapping)) {
+            return parser.map();
+        }
+    }
+
+    public static class FailingFieldPlugin extends Plugin implements ScriptPlugin {
+
+        @Override
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+            return new ScriptEngine() {
+                @Override
+                public String getType() {
+                    return "failing_field";
+                }
+
+                @Override
+                @SuppressWarnings("unchecked")
+                public <FactoryType> FactoryType compile(
+                    String name,
+                    String code,
+                    ScriptContext<FactoryType> context,
+                    Map<String, String> params
+                ) {
+                    return (FactoryType) new LongFieldScript.Factory() {
+                        @Override
+                        public LongFieldScript.LeafFactory newFactory(
+                            String fieldName,
+                            Map<String, Object> params,
+                            SearchLookup searchLookup,
+                            OnScriptError onScriptError
+                        ) {
+                            return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
+                                @Override
+                                public void execute() {
+                                    throw new IllegalStateException("Accessing failing field");
+                                }
+                            };
+                        }
+                    };
+                }
+
+                @Override
+                public Set<ScriptContext<?>> getSupportedContexts() {
+                    return Set.of(LongFieldScript.CONTEXT);
+                }
+            };
+        }
     }
 }

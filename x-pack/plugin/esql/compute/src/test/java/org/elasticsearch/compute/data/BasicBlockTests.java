@@ -829,10 +829,25 @@ public class BasicBlockTests extends ESTestCase {
             BooleanVector.Builder vectorBuilder = blockFactory.newBooleanVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            IntStream.range(0, positionCount).mapToObj(ii -> randomBoolean()).forEach(vectorBuilder::appendBoolean);
+            Boolean value = randomFrom(random(), null, true, false);
+            IntStream.range(0, positionCount).mapToObj(ii -> {
+                if (value == null) {
+                    return randomBoolean();
+                }
+                return value;
+            }).forEach(vectorBuilder::appendBoolean);
             BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
             assertToMask(vector);
+            if (value != null) {
+                if (value) {
+                    assertTrue(vector.allTrue());
+                    assertFalse(vector.allFalse());
+                } else {
+                    assertFalse(vector.allTrue());
+                    assertTrue(vector.allFalse());
+                }
+            }
             releaseAndAssertBreaker(vector.asBlock());
         }
     }
@@ -867,6 +882,13 @@ public class BasicBlockTests extends ESTestCase {
                 b -> assertThat(b, instanceOf(ConstantNullBlock.class))
             );
             assertEmptyLookup(blockFactory, block);
+            if (value) {
+                assertTrue(block.asVector().allTrue());
+                assertFalse(block.asVector().allFalse());
+            } else {
+                assertFalse(block.asVector().allTrue());
+                assertTrue(block.asVector().allFalse());
+            }
             releaseAndAssertBreaker(block);
         }
     }

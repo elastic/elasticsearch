@@ -93,7 +93,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         return parseInnerRetrieverBuilder(parser, context);
     }
 
-    protected static RetrieverBuilder parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
+    public static RetrieverBuilder parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         Objects.requireNonNull(context);
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT && parser.nextToken() != XContentParser.Token.START_OBJECT) {
@@ -251,10 +251,18 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
+        builder.startObject(getName());
         if (preFilterQueryBuilders.isEmpty() == false) {
             builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilders);
         }
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
+        if (retrieverName != null) {
+            builder.field(NAME_FIELD.getPreferredName(), retrieverName);
+        }
         doToXContent(builder, params);
+        builder.endObject();
         builder.endObject();
 
         return builder;

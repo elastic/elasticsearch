@@ -48,8 +48,8 @@ public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<Ra
     }
 
     @Override
-    protected RandomRankRetrieverBuilder doParseInstance(XContentParser parser) {
-        return RandomRankRetrieverBuilder.PARSER.apply(
+    protected RandomRankRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
+        return (RandomRankRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),

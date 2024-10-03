@@ -14,4 +14,5 @@ package org.elasticsearch.entitlement.runtime.api;
  */
 public enum FlagEntitlement implements Entitlement {
     EXIT_JVM,
+    SET_SYSTEM_STREAMS,
 }

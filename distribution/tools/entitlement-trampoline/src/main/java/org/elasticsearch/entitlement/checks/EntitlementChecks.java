@@ -9,7 +9,19 @@
 
 package org.elasticsearch.entitlement.checks;
 
+import java.io.InputStream;
+import java.io.PrintStream;
+
 public interface EntitlementChecks {
     @CheckBefore(method = "exit")
     void checkSystemExit(Class<?> callerClass, System system, int status);
+
+    @CheckBefore(method = "setIn")
+    void checkSystemSetIn(Class<?> callerClass, System system, InputStream in);
+
+    @CheckBefore(method = "setOut")
+    void checkSystemSetOut(Class<?> callerClass, System system, PrintStream out);
+
+    @CheckBefore(method = "setErr")
+    void checkSystemSetErr(Class<?> callerClass, System system, PrintStream err);
 }

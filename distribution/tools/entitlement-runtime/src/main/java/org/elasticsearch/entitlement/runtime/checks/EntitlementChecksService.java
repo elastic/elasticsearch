@@ -15,6 +15,8 @@ import org.elasticsearch.entitlement.runtime.api.Entitlement;
 import org.elasticsearch.entitlement.runtime.api.FlagEntitlement;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,6 +38,7 @@ public class EntitlementChecksService implements EntitlementChecks {
     }
 
     private final Set<Module> entitledToExit = newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<Module> entitledToSetSystemStreams = newSetFromMap(new ConcurrentHashMap<>());
 
     public void grant(Module module, Entitlement e) {
         if (isFrozen) {
@@ -45,6 +48,7 @@ public class EntitlementChecksService implements EntitlementChecks {
             case FlagEntitlement f -> {
                 switch (f) {
                     case EXIT_JVM -> entitledToExit.add(module);
+                    case SET_SYSTEM_STREAMS -> entitledToSetSystemStreams.add(module);
                 }
             }
         }
@@ -58,6 +62,7 @@ public class EntitlementChecksService implements EntitlementChecks {
             throw new IllegalStateException("Entitlement grants are frozen");
         }
         entitledToExit.clear();
+        entitledToSetSystemStreams.clear();
     }
 
     /**
@@ -77,6 +82,21 @@ public class EntitlementChecksService implements EntitlementChecks {
     @Override
     public void checkSystemExit(Class<?> callerClass, System system, int status) {
         checkFlagEntitlement(callerClass, entitledToExit);
+    }
+
+    @Override
+    public void checkSystemSetIn(Class<?> callerClass, System system, InputStream in) {
+        checkFlagEntitlement(callerClass, entitledToSetSystemStreams);
+    }
+
+    @Override
+    public void checkSystemSetOut(Class<?> callerClass, System system, PrintStream out) {
+        checkFlagEntitlement(callerClass, entitledToSetSystemStreams);
+    }
+
+    @Override
+    public void checkSystemSetErr(Class<?> callerClass, System system, PrintStream err) {
+        checkFlagEntitlement(callerClass, entitledToSetSystemStreams);
     }
 
     private void checkFlagEntitlement(Class<?> callerClass, Set<Module> entitledModules) {

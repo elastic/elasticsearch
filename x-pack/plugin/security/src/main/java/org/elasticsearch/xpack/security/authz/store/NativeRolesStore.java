@@ -172,6 +172,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
     }
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     @Override
     public void accept(Set<String> names, ActionListener<RoleRetrievalResult> listener) {
         getRoleDescriptors(names, listener);

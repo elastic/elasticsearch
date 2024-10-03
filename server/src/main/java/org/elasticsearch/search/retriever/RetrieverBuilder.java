@@ -93,7 +93,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         return parseInnerRetrieverBuilder(parser, context);
     }
 
-    public static RetrieverBuilder parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
+    protected static RetrieverBuilder parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         Objects.requireNonNull(context);
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT && parser.nextToken() != XContentParser.Token.START_OBJECT) {

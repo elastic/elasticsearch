@@ -92,7 +92,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             } else {
                 return SourceKeepMode.NONE.toString();
             }
-        }, "index.mapping.synthetic_source_keep",
+        },
+        "index.mapping.synthetic_source_keep",
         value -> {
             if (value == SourceKeepMode.ALL) {
                 throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value + "]");

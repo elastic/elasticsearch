@@ -19,8 +19,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -56,6 +60,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -646,15 +651,12 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            Holder<FullTextFunction> functionHolder = new Holder<>();
-            condition.forEachDown(FullTextFunction.class, functionHolder::set);
-            FullTextFunction ftf = functionHolder.get();
-            if (ftf != null) {
-                checkConditionCanBePushedDown(ftf, condition, failures);
-                if (ftf instanceof QueryStringFunction) {
-                    checkCommandUsageAfterFullTextFunction(ftf, plan, failures);
-                }
-            }
+            checkCommandsAfterQueryStringFunction(plan, condition, failures);
+            checkFullTextFunctionsConditions(condition, failures);
+            forEachFullTextFunctionParent(
+                condition,
+                (ftf, parents) -> { checkFullTextFunctionsParents(parents, ftf, condition, failures); }
+            );
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
@@ -662,35 +664,98 @@ public class Verifier {
         }
     }
 
-    private static void checkCommandUsageAfterFullTextFunction(FullTextFunction ftf, LogicalPlan plan, Set<Failure> failures) {
-        // Check commands used before the function
-        plan.forEachDown(LogicalPlan.class, lp -> {
-            if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
-                failures.add(
-                    fail(
-                        plan,
-                        "[{}] function cannot be used after {}",
-                        ftf.functionName(),
-                        lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
-                    )
-                );
-            }
+    private static void checkCommandsAfterQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
+        condition.forEachDown(QueryStringFunction.class, qsf -> {
+            plan.forEachDown(LogicalPlan.class, lp -> {
+                if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
+                    failures.add(
+                        fail(
+                            plan,
+                            "[{}] function cannot be used after {}",
+                            qsf.functionName(),
+                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                        )
+                    );
+                }
+            });
         });
     }
 
-    private static void checkConditionCanBePushedDown(FullTextFunction ftf, Expression condition, Set<Failure> failures) {
-        if (canPushToSource(condition, x -> false) == false) {
-            // We couldn't push everything to Lucene, and there is a FullTextFunction in the condition.
-            // Fail this early as we can't push down the FullTextFunction query in this case
-            failures.add(
-                fail(
-                    condition,
-                    "Invalid condition [{}]. Use a separate WHERE clause for the {} function instead",
-                    condition.sourceText(),
-                    ftf.functionName(),
-                    ftf.functionName()
-                )
-            );
+    private static <T extends Expression> void forEachFullTextFunctionParent(
+        Expression parent,
+        BiConsumer<FullTextFunction, List<Expression>> consumer
+    ) {
+        forEachFullTextFunctionParent(parent, consumer, new ArrayList<>());
+    }
+
+    private static <T extends Expression> void forEachFullTextFunctionParent(
+        Expression parent,
+        BiConsumer<FullTextFunction, List<Expression>> consumer,
+        List<Expression> parents
+    ) {
+        if (parent instanceof FullTextFunction ftf) {
+            consumer.accept(ftf, parents);
+            return;
+        }
+
+        parents.add(parent);
+        parent.children().forEach(c -> forEachFullTextFunctionParent(c, consumer, parents));
+        parents.removeLast();
+    }
+
+    private static void checkFullTextFunctionsConditions(Expression condition, Set<Failure> failures) {
+        condition.forEachUp(Or.class, or -> {
+            Expression left = or.left();
+            Expression right = or.right();
+            left.forEachDown(FullTextFunction.class, ftf -> {
+                if (canPushToSource(right, x -> false) == false) {
+                    failures.add(
+                        fail(
+                            or,
+                            "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
+                            or.sourceText(),
+                            ftf.functionName(),
+                            right.sourceText()
+                        )
+                    );
+                }
+            });
+            right.forEachDown(FullTextFunction.class, ftf -> {
+                if (canPushToSource(left, x -> false) == false) {
+                    failures.add(
+                        fail(
+                            or,
+                            "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
+                            or.sourceText(),
+                            ftf.functionName(),
+                            left.sourceText()
+                        )
+                    );
+                }
+            });
+        });
+    }
+
+    private static void checkFullTextFunctionsParents(
+        List<Expression> parents,
+        Function function,
+        Expression condition,
+        Set<Failure> failures
+    ) {
+        for (Expression parent : parents.reversed()) {
+            if ((parent instanceof FullTextFunction == false)
+                && (parent instanceof BinaryLogic == false)
+                && (parent instanceof Not == false)) {
+                failures.add(
+                    fail(
+                        condition,
+                        "Invalid condition [{}]. Function {} can't be used with {}",
+                        condition.sourceText(),
+                        function.functionName(),
+                        ((Function) parent).functionName()
+                    )
+                );
+            }
         }
     }
 }

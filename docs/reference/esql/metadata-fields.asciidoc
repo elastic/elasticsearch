@@ -20,6 +20,9 @@ supported ones are:
   * <<mapping-ignored-field,`_ignored`>>: the ignored source document fields. The field is of the type
   <<keyword,keyword>>.
 
+  * `_score`: the score of each document with respect to the portion of the ES|QL query that can be
+  pushed down to Lucene. The field is of the type <<number,double>>.
+
 To enable the access to these fields, the <<esql-from,`FROM`>> source command needs
 to be provided with a dedicated directive:
 

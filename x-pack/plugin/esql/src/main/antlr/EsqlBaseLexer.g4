@@ -176,6 +176,7 @@ BY : 'by';
 AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
+AUTO : {this.isDevVersion()}? 'auto';
 CAST_OP : '::';
 COMMA : ',';
 DESC : 'desc';

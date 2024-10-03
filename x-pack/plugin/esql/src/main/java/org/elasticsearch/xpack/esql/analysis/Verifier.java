@@ -710,10 +710,7 @@ public class Verifier {
         });
     }
 
-    private static void checkFullTextFunctionsParents(
-        Expression condition,
-        Set<Failure> failures
-    ) {
+    private static void checkFullTextFunctionsParents(Expression condition, Set<Failure> failures) {
         condition.forEachParent(FullTextFunction.class, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)

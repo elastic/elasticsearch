@@ -1217,7 +1217,8 @@ public class VerifierTests extends ESTestCase {
 
     private void checkWithDisjunctionsThatCannotBePushedDown(String functionName, String functionInvocation) {
         assertEquals(
-            LoggerMessageFormat.format(null,
+            LoggerMessageFormat.format(
+                null,
                 "1:19: Invalid condition [{} or length(first_name) > 12]. "
                     + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12]",
                 functionInvocation,
@@ -1226,7 +1227,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | where " + functionInvocation + " or length(first_name) > 12")
         );
         assertEquals(
-            LoggerMessageFormat.format(null,
+            LoggerMessageFormat.format(
+                null,
                 "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
                     + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12 and first_name is null]",
                 functionInvocation,

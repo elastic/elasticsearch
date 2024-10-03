@@ -802,8 +802,8 @@ public final class DocumentParser {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
-                && ((getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
-                    || getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS
+                && (getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
+                    || (getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS
                         && objectMapper instanceof NestedObjectMapper == false));
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
@@ -1116,15 +1116,8 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(
-                name,
-                fullPath,
-                Explicit.IMPLICIT_TRUE,
-                Optional.empty(),
-                Explicit.IMPLICIT_FALSE,
-                Dynamic.RUNTIME,
-                Collections.emptyMap()
-            );
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Optional.empty(), Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
+
         }
 
         @Override

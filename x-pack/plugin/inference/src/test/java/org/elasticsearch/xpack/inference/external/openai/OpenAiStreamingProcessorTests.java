@@ -111,12 +111,10 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
         item.offer(new ServerSentEvent(ServerSentEventField.DATA, "this isn't json"));
 
         var exception = onError(new OpenAiStreamingProcessor(), item);
-        assertThat(exception, instanceOf(IOException.class));
-        assertThat(exception.getMessage(), equalTo("Failed to parse event from inference provider."));
-        assertThat(exception.getCause(), instanceOf(XContentParseException.class));
+        assertThat(exception, instanceOf(XContentParseException.class));
     }
 
-    public void testEmptyResultsRequestsMoreData() {
+    public void testEmptyResultsRequestsMoreData() throws Exception {
         var emptyDeque = new ArrayDeque<ServerSentEvent>();
 
         var processor = new OpenAiStreamingProcessor();
@@ -133,7 +131,7 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
         verify(downstream, times(0)).onNext(any());
     }
 
-    public void testDoneMessageIsIgnored() {
+    public void testDoneMessageIsIgnored() throws Exception {
         var item = new ArrayDeque<ServerSentEvent>();
         item.offer(new ServerSentEvent(ServerSentEventField.DATA, "[DONE]"));
 

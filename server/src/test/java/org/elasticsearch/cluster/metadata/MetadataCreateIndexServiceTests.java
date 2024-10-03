@@ -1315,7 +1315,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     @AwaitsFix(bugUrl = "looks like a test that's not applicable to 9.0 after version bump")
     public void testDeprecateTranslogRetentionSettings() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");

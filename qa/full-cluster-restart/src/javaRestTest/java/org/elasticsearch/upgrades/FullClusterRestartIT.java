@@ -1207,7 +1207,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             closeIndex(index);
         }
 
-        @UpdateForV9 // This check can be removed (always assume true)
+        @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING) // This check can be removed (always assume true)
         var originalClusterSupportsReplicationOfClosedIndices = oldClusterHasFeature(RestTestLegacyFeatures.REPLICATION_OF_CLOSED_INDICES);
 
         if (originalClusterSupportsReplicationOfClosedIndices) {
@@ -1608,7 +1608,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @SuppressWarnings("unchecked")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
 
-        @UpdateForV9 // assumeTrue can be removed (condition always true)
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // assumeTrue can be removed (condition always true)
         var originalClusterTaskIndexIsSystemIndex = oldClusterHasFeature(RestTestLegacyFeatures.TASK_INDEX_SYSTEM_INDEX);
         assumeTrue(".tasks became a system index in 7.10.0", originalClusterTaskIndexIsSystemIndex);
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
@@ -1729,7 +1729,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     /**
      * This test ensures that soft deletes are enabled a when upgrading a pre-8 cluster to 8.0+
      */
-    @UpdateForV9 // This test can be removed in v9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // This test can be removed in v9
     public void testEnableSoftDeletesOnRestore() throws Exception {
         var originalClusterDidNotEnforceSoftDeletes = oldClusterHasFeature(RestTestLegacyFeatures.SOFT_DELETES_ENFORCED) == false;
 
@@ -1842,7 +1842,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      * with true/false as options. This test ensures that the old boolean setting in cluster state is
      * translated properly. This test can be removed in 9.0.
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
     public void testTransportCompressionSetting() throws IOException {
         var originalClusterBooleanCompressSetting = oldClusterHasFeature(RestTestLegacyFeatures.NEW_TRANSPORT_COMPRESSED_SETTING) == false;
         assumeTrue("the old transport.compress setting existed before 7.14", originalClusterBooleanCompressSetting);

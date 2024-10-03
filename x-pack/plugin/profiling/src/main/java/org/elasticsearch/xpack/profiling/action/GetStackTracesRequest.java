@@ -43,7 +43,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField LIMIT_FIELD = new ParseField("limit");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids_field");
-    @UpdateForV9 // Remove this BWC layer and allow only AGGREGATION_FIELDS
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // Remove this BWC layer and allow only AGGREGATION_FIELDS
     public static final ParseField AGGREGATION_FIELD = new ParseField("aggregation_field");
     public static final ParseField AGGREGATION_FIELDS = new ParseField("aggregation_fields");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
@@ -62,7 +62,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private String[] indices;
     private boolean userProvidedIndices;
     private String stackTraceIdsField;
-    @UpdateForV9 // Remove this BWC layer and allow only aggregationFields
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // Remove this BWC layer and allow only aggregationFields
     private String aggregationField;
     private String[] aggregationFields;
     private Double requestedDuration;

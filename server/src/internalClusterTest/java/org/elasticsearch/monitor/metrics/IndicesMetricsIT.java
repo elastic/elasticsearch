@@ -40,6 +40,7 @@ import java.util.Set;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -76,6 +77,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String STANDARD_FETCH_COUNT = "es.indices.standard.fetch.total";
     static final String STANDARD_FETCH_TIME = "es.indices.standard.fetch.time";
     static final String STANDARD_FETCH_FAILURE = "es.indices.standard.fetch.failure.total";
+    static final String STANDARD_INDEXING_COUNT = "es.indices.standard.indexing.total";
+    static final String STANDARD_INDEXING_TIME = "es.indices.standard.indexing.time";
+    static final String STANDARD_INDEXING_FAILURE = "es.indices.standard.indexing.failure.total";
 
     static final String TIME_SERIES_INDEX_COUNT = "es.indices.time_series.total";
     static final String TIME_SERIES_BYTES_SIZE = "es.indices.time_series.size";
@@ -86,6 +90,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String TIME_SERIES_FETCH_COUNT = "es.indices.time_series.fetch.total";
     static final String TIME_SERIES_FETCH_TIME = "es.indices.time_series.fetch.time";
     static final String TIME_SERIES_FETCH_FAILURE = "es.indices.time_series.fetch.failure.total";
+    static final String TIME_SERIES_INDEXING_COUNT = "es.indices.time_series.indexing.total";
+    static final String TIME_SERIES_INDEXING_TIME = "es.indices.time_series.indexing.time";
+    static final String TIME_SERIES_INDEXING_FAILURE = "es.indices.time_series.indexing.failure.total";
 
     static final String LOGSDB_INDEX_COUNT = "es.indices.logsdb.total";
     static final String LOGSDB_BYTES_SIZE = "es.indices.logsdb.size";
@@ -96,6 +103,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String LOGSDB_FETCH_COUNT = "es.indices.logsdb.fetch.total";
     static final String LOGSDB_FETCH_TIME = "es.indices.logsdb.fetch.time";
     static final String LOGSDB_FETCH_FAILURE = "es.indices.logsdb.fetch.failure.total";
+    static final String LOGSDB_INDEXING_COUNT = "es.indices.logsdb.indexing.total";
+    static final String LOGSDB_INDEXING_TIME = "es.indices.logsdb.indexing.time";
+    static final String LOGSDB_INDEXING_FAILURE = "es.indices.logsdb.indexing.failure.total";
 
     public void testIndicesMetrics() throws Exception {
         String node = internalCluster().startNode();
@@ -105,9 +115,11 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        var indexing0 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
         telemetry.resetMeter();
         long numStandardIndices = randomIntBetween(1, 5);
         long numStandardDocs = populateStandardIndices(numStandardIndices);
+        var indexing1 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
         collectThenAssertMetrics(
             telemetry,
             1,
@@ -137,6 +149,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
 
         long numTimeSeriesIndices = randomIntBetween(1, 5);
         long numTimeSeriesDocs = populateTimeSeriesIndices(numTimeSeriesIndices);
+        var indexing2 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
         collectThenAssertMetrics(
             telemetry,
             2,
@@ -166,6 +179,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
 
         long numLogsdbIndices = randomIntBetween(1, 5);
         long numLogsdbDocs = populateLogsdbIndices(numLogsdbIndices);
+        var indexing3 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
         collectThenAssertMetrics(
             telemetry,
             3,
@@ -190,6 +204,33 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(numLogsdbDocs),
                 LOGSDB_BYTES_SIZE,
                 greaterThan(0L)
+            )
+        );
+        // indexing stats
+        collectThenAssertMetrics(
+            telemetry,
+            4,
+            Map.of(
+                STANDARD_INDEXING_COUNT,
+                equalTo(numStandardDocs),
+                STANDARD_INDEXING_TIME,
+                greaterThanOrEqualTo(0L),
+                STANDARD_INDEXING_FAILURE,
+                equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexCount()),
+
+                TIME_SERIES_INDEXING_COUNT,
+                equalTo(numTimeSeriesDocs),
+                TIME_SERIES_INDEXING_TIME,
+                greaterThanOrEqualTo(0L),
+                TIME_SERIES_INDEXING_FAILURE,
+                equalTo(indexing2.getIndexFailedCount() - indexing1.getIndexFailedCount()),
+
+                LOGSDB_INDEXING_COUNT,
+                equalTo(numLogsdbDocs),
+                LOGSDB_INDEXING_TIME,
+                greaterThanOrEqualTo(0L),
+                LOGSDB_INDEXING_FAILURE,
+                equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount())
             )
         );
         telemetry.resetMeter();
@@ -383,6 +424,21 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 client().prepareIndex(indexName)
                     .setSource("@timestamp", timestamp, "host.name", randomFrom("prod", "qa"), "cpu", randomIntBetween(1, 100))
                     .get();
+            }
+            int numFailures = between(0, 2);
+            for (int d = 0; d < numFailures; d++) {
+                expectThrows(Exception.class, () -> {
+                    client().prepareIndex(indexName)
+                        .setSource(
+                            "@timestamp",
+                            "malformed-timestamp",
+                            "host.name",
+                            randomFrom("prod", "qa"),
+                            "cpu",
+                            randomIntBetween(1, 100)
+                        )
+                        .get();
+                });
             }
             totalDocs += numDocs;
             flush(indexName);

@@ -269,7 +269,6 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                         )
                     ),
                     between(1, 10),
-                    () -> {},
                     Releasables.wrap(refs.acquire(), chunkedZipResponse)::close
                 );
             }

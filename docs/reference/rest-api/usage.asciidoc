@@ -207,7 +207,7 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true,
     "models" : [{
-        "service": "elser",
+        "service": "elasticsearch",
         "task_type": "SPARSE_EMBEDDING",
         "count": 1
       }

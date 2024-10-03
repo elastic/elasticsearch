@@ -11,6 +11,7 @@ import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings.AmazonBedrockEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseListener;
@@ -28,7 +29,7 @@ public class AmazonBedrockEmbeddingsResponseListener extends AmazonBedrockRespon
     @Override
     public void onResponse(InvokeModelResult result) {
         ((AmazonBedrockEmbeddingsResponseHandler) responseHandler).acceptEmbeddingsResult(result);
-        inferenceResultsListener.onResponse(responseHandler.parseResult(request, null));
+        inferenceResultsListener.onResponse(responseHandler.parseResult(request, (HttpResult) null));
     }
 
     @Override

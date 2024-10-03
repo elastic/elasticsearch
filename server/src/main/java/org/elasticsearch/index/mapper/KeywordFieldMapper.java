@@ -1093,7 +1093,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             });
         }
 
-        if (fieldType().ignoreAbove != ignoreAboveDefault) {
+        if (fieldType().ignoreAbove != Integer.MAX_VALUE) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                 @Override
                 protected void writeValue(Object value, XContentBuilder b) throws IOException {

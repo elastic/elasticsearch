@@ -39,6 +39,7 @@ patterns. Legacy Grok patterns are not supported.
 | `ignore_missing`       | no        | `true`              | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 include::common-options.asciidoc[]
 | `skip_if_unlicensed`   | no        | `false`             | If `true` and the current license does not support running redact processors, then the processor quietly exits without modifying the document
+| `trace_redact`         | no        | `false`             | If `true` then ingest metadata `_ingest._redact._is_redacted` is set to `true` if the document has been redacted
 |======
 
 In this example the predefined `IP` Grok pattern is used to match

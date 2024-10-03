@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceService;
@@ -42,6 +43,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
     private final StreamingTaskManager streamingTaskManager;
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportInferenceAction.class);
 
     @Inject
     public TransportInferenceAction(

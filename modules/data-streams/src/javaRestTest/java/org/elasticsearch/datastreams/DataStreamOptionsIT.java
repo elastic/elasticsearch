@@ -81,21 +81,21 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
             assertThat(failureStore.size(), is(1));
         }
         {
-            Request disableRequest = new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME + "/_options");
-            disableRequest.setJsonEntity("""
+            Request enableRequest = new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME + "/_options");
+            enableRequest.setJsonEntity("""
                 {
                   "failure_store": {
                     "enabled": true
                   }
                 }""");
-            assertAcknowledged(client().performRequest(disableRequest));
+            assertAcknowledged(client().performRequest(enableRequest));
             final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
             List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
             assertThat(dataStreams.size(), is(1));
             Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
             assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
             assertThat(dataStream.containsKey("failure_store"), is(true));
-            // Ensure the failure store is disabled
+            // Ensure the failure store is enabled
             assertThat(((Map<String, Object>) dataStream.get("failure_store")).get("enabled"), equalTo(true));
             // And the failure indices preserved
             List<String> failureStore = getFailureStore(dataStream);

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,13 +39,16 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
     GetDataStreamOptionsAction.Request,
     GetDataStreamOptionsAction.Response> {
 
+    private final SystemIndices systemIndices;
+
     @Inject
     public TransportGetDataStreamOptionsAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
     ) {
         super(
             GetDataStreamOptionsAction.INSTANCE.name(),
@@ -57,6 +61,7 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
             GetDataStreamOptionsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -66,17 +71,19 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
         ClusterState state,
         ActionListener<GetDataStreamOptionsAction.Response> listener
     ) {
-        List<String> results = DataStreamsActionUtil.getDataStreamNames(
+        List<String> requestedDataStreams = DataStreamsActionUtil.getDataStreamNames(
             indexNameExpressionResolver,
             state,
             request.getNames(),
             request.indicesOptions()
         );
         Map<String, DataStream> dataStreams = state.metadata().dataStreams();
-
+        for (String name : requestedDataStreams) {
+            systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
+        }
         listener.onResponse(
             new GetDataStreamOptionsAction.Response(
-                results.stream()
+                requestedDataStreams.stream()
                     .map(dataStreams::get)
                     .filter(Objects::nonNull)
                     .map(

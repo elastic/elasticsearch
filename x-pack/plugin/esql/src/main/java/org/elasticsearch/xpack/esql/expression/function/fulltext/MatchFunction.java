@@ -47,6 +47,8 @@ public class MatchFunction extends FullTextFunction implements Validatable {
 
     private final Expression field;
 
+    private final boolean isOperator;
+
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -62,12 +64,26 @@ public class MatchFunction extends FullTextFunction implements Validatable {
             description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
+        this(source, field, matchQuery, false);
+    }
+
+    public static MatchFunction createOperator(Source source, Expression field, Expression matchQuery) {
+        return new MatchFunction(source, field, matchQuery, true);
+    }
+
+    private MatchFunction(Source source, Expression field, Expression matchQuery, boolean isOperator) {
         super(source, matchQuery, List.of(matchQuery, field));
         this.field = field;
+        this.isOperator = isOperator;
     }
 
     private MatchFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readBoolean()
+        );
     }
 
     @Override
@@ -75,6 +91,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(query());
+        out.writeBoolean(isOperator);
     }
 
     @Override
@@ -84,7 +101,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
 
     @Override
     public String functionName() {
-        return "MATCH";
+        return isOperator ? ":" : "MATCH";
     }
 
     @Override
@@ -114,7 +131,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         // Query is the first child, field is the second child
-        return new MatchFunction(source(), newChildren.get(1), newChildren.getFirst());
+        return new MatchFunction(source(), newChildren.get(1), newChildren.getFirst(), isOperator);
     }
 
     @Override
@@ -128,5 +145,10 @@ public class MatchFunction extends FullTextFunction implements Validatable {
 
     public Expression field() {
         return field;
+    }
+
+    @Override
+    public String functionType() {
+        return isOperator ? "operator" : super.functionType();
     }
 }

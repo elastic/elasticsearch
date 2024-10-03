@@ -297,7 +297,7 @@ public class Verifier {
         }
     }
 
-    // traverse the expression and look either for an agg function or a grouping match
+    // traverse the expression and look either for an agg " + ftf.functionType() + " or a grouping match
     // stop either when no children are left, the leafs are literals or a reference attribute is given
     private static void checkInvalidNamedExpressionUsage(
         Expression e,
@@ -655,7 +655,7 @@ public class Verifier {
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
+                failures.add(fail(ftf, "[{}] " + ftf.functionType() + " is only supported in WHERE commands", ftf.functionName()));
             });
         }
     }
@@ -667,8 +667,9 @@ public class Verifier {
                     failures.add(
                         fail(
                             plan,
-                            "[{}] function cannot be used after {}",
+                            "[{}] {} cannot be used after {}",
                             qsf.functionName(),
+                            qsf.functionType(),
                             lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
                         )
                     );
@@ -686,9 +687,10 @@ public class Verifier {
                     failures.add(
                         fail(
                             or,
-                            "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
+                            "Invalid condition [{}]. [{}] {} can't be used as part of an or condition that includes [{}]",
                             or.sourceText(),
                             ftf.functionName(),
+                            ftf.functionType(),
                             right.sourceText()
                         )
                     );
@@ -699,10 +701,11 @@ public class Verifier {
                     failures.add(
                         fail(
                             or,
-                            "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
+                            "Invalid condition [{}]. [{}] {} can't be used as part of an or condition that includes [{}]",
                             or.sourceText(),
                             ftf.functionName(),
-                            left.sourceText()
+                            ftf.functionType(),
+                            right.sourceText()
                         )
                     );
                 }
@@ -718,9 +721,10 @@ public class Verifier {
                 failures.add(
                     fail(
                         condition,
-                        "Invalid condition [{}]. Function {} can't be used with {}",
+                        "Invalid condition [{}]. [{}] {} can't be used with {}",
                         condition.sourceText(),
                         ftf.functionName(),
+                        ftf.functionType(),
                         ((Function) parent).functionName()
                     )
                 );

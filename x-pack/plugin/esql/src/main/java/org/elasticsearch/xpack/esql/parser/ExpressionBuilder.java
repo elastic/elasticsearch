@@ -790,7 +790,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (Build.current().isSnapshot() == false) {
             throw new ParsingException(source(ctx), ": operator currently requires a snapshot build");
         }
-        return new MatchFunction(
+        return MatchFunction.createOperator(
             source(ctx),
             expression(ctx.valueExpression()),
             expression(ctx.queryString)

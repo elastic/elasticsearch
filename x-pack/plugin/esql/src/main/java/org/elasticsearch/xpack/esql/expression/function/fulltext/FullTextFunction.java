@@ -116,4 +116,8 @@ public abstract class FullTextFunction extends Function {
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
         return DEFAULT;
     }
+
+    public String functionType() {
+        return "function";
+    }
 }

@@ -248,7 +248,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         final long bulkRequestSize = bulkRequest.ramBytesUsed();
         final long bulkShardRequestSize = totalRequestSize;
         restartNodesWithSettings(
-            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
+            Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
         );
 
         assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
@@ -312,7 +312,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         }
         final long bulkShardRequestSize = totalRequestSize;
         restartNodesWithSettings(
-            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
+            Settings.builder().put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
         );
 
         assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
@@ -358,7 +358,12 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     public void testWritesWillSucceedIfBelowThreshold() throws Exception {
-        restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1MB").build());
+        restartNodesWithSettings(
+            Settings.builder()
+                .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1MB")
+                .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), "1MB")
+                .build()
+        );
         assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
         ensureGreen(INDEX_NAME);
 

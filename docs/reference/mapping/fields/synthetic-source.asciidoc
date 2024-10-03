@@ -209,8 +209,8 @@ Values of `geo_point` fields are represented in synthetic `_source` with reduced
 [[synthetic-source-keep]]
 ====== Minimizing source modifications
 
-It is possible to avoid the synthetic source modifications for a particular object or field, at extra storage cost.
-This is controlled through param `synthetic_source_keep` with the following values:
+It is possible to avoid synthetic source modifications for a particular object or field, at extra storage cost.
+This is controlled through param `synthetic_source_keep` with the following option:
 
  - `none`: synthetic source diverges from the original source as described above (default).
  - `arrays`: arrays of the corresponding field or object preserve the original element ordering and duplicate elements.

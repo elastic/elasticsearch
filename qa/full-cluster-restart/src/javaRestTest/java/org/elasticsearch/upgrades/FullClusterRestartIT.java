@@ -43,11 +43,8 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
-import org.elasticsearch.test.rest.TestResponseParsers;
-import org.elasticsearch.transport.Compression;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -60,7 +57,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -80,7 +76,6 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -2040,36 +2035,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             restoreRequest.addParameter("wait_for_completion", "true");
             final ResponseException error = expectThrows(ResponseException.class, () -> client().performRequest(restoreRequest));
             assertThat(error.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
-        }
-    }
-
-    /**
-     * In 7.14 the cluster.remote.*.transport.compress setting was changed from a boolean to an enum setting
-     * with true/false as options. This test ensures that the old boolean setting in cluster state is
-     * translated properly. This test can be removed in 9.0.
-     */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    public void testTransportCompressionSetting() throws IOException {
-        var originalClusterBooleanCompressSetting = oldClusterHasFeature(RestTestLegacyFeatures.NEW_TRANSPORT_COMPRESSED_SETTING) == false;
-        assumeTrue("the old transport.compress setting existed before 7.14", originalClusterBooleanCompressSetting);
-        if (isRunningAgainstOldCluster()) {
-            client().performRequest(
-                newXContentRequest(
-                    HttpMethod.PUT,
-                    "/_cluster/settings",
-                    (builder, params) -> builder.startObject("persistent")
-                        .field("cluster.remote.foo.seeds", Collections.singletonList("localhost:9200"))
-                        .field("cluster.remote.foo.transport.compress", "true")
-                        .endObject()
-                )
-            );
-        } else {
-            final Request getSettingsRequest = new Request("GET", "/_cluster/settings");
-            final Response getSettingsResponse = client().performRequest(getSettingsRequest);
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, getSettingsResponse.getEntity().getContent())) {
-                final Settings settings = TestResponseParsers.parseClusterSettingsResponse(parser).getPersistentSettings();
-                assertThat(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("foo").get(settings), equalTo(Compression.Enabled.TRUE));
-            }
         }
     }
 

@@ -280,7 +280,7 @@ class DatabaseReaderLazyLoader implements IpDatabase {
         }
     }
 
-    long getBuilDateMillis() throws IOException {
+    long getBuildDateMillis() throws IOException {
         if (buildDate.get() == null) {
             synchronized (buildDate) {
                 if (buildDate.get() == null) {

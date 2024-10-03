@@ -556,7 +556,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                     new ConfigDatabaseDetail(
                         entry.getKey(),
                         databaseReaderLazyLoader.getMd5(),
-                        databaseReaderLazyLoader.getBuilDateMillis(),
+                        databaseReaderLazyLoader.getBuildDateMillis(),
                         databaseReaderLazyLoader.getDatabaseType()
                     )
                 );

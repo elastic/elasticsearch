@@ -11,7 +11,6 @@ You'll learn how to create an index, add data as documents, work with dynamic an
 [TIP]
 ====
 The code examples in this tutorial are in {kibana-ref}/console-kibana.html[Console] syntax by default.
-You can {kibana-ref}/console-kibana.html#import-export-console-requests[convert into other programming languages] in the Console UI.
 ====
 
 [discrete]

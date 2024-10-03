@@ -72,7 +72,7 @@ public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
                     e.getMessage(),
                     containsString(
                         "One or more nodes in your cluster does not support chunking_settings. "
-                            + "Please update all nodes in your cluster to use chunking_settings."
+                            + "Please update all nodes in your cluster to the latest version to use chunking_settings."
                     )
                 );
                 return;

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -339,6 +340,20 @@ public abstract class DocumentParserContext {
             }
         }
         return this;
+    }
+
+    /**
+     * Wraps {@link XContentDataHelper#encodeToken}, disabling dot expansion from {@link DotExpandingXContentParser}.
+     * This helps avoid producing duplicate names in the same scope, due to expanding dots to objects.
+     * For instance: { "a.b": "b", "a.c": "c" } => { "a": { "b": "b" }, "a": { "c": "c" } }
+     * This can happen when storing parts of document source that are not indexed (e.g. disabled objects).
+     */
+    BytesRef encodeFlattenedToken() throws IOException {
+        boolean old = path().isWithinLeafObject();
+        path().setWithinLeafObject(true);
+        BytesRef encoded = XContentDataHelper.encodeToken(parser());
+        path().setWithinLeafObject(old);
+        return encoded;
     }
 
     /**

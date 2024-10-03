@@ -343,14 +343,18 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             SearchHit hit = new SearchHit(1, "ID");
             hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList("foo")));
             SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
-                @Override
-                public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
-                }
-            });
-            phase.run();
-            mockSearchPhaseContext.assertNoFailure();
+            try {
+                ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
+                    }
+                });
+                phase.run();
+                mockSearchPhaseContext.assertNoFailure();
+            } finally {
+                hits.decRef();
+            }
         } finally {
             var resp = mockSearchPhaseContext.searchResponse.get();
             if (resp != null) {
@@ -387,17 +391,21 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             SearchHit hit = new SearchHit(1, "ID");
             hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList("foo")));
             SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
-                @Override
-                public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(
-                        new SearchResponseSections(hits, null, null, false, null, null, 1),
-                        new AtomicArray<>(0)
-                    );
-                }
-            });
-            phase.run();
-            mockSearchPhaseContext.assertNoFailure();
+            try {
+                ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        mockSearchPhaseContext.sendSearchResponse(
+                            new SearchResponseSections(hits, null, null, false, null, null, 1),
+                            new AtomicArray<>(0)
+                        );
+                    }
+                });
+                phase.run();
+                mockSearchPhaseContext.assertNoFailure();
+            } finally {
+                hits.decRef();
+            }
         } finally {
             var resp = mockSearchPhaseContext.searchResponse.get();
             if (resp != null) {

@@ -926,6 +926,79 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"stored":[{"leaf":10},{"leaf":20}]}}""", syntheticSource);
     }
 
+    public void testDeeplyNestedObjectArrayAndValue() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties").startObject("to").startObject("properties");
+            {
+                b.startObject("stored");
+                {
+                    b.field("type", "object").field("store_array_source", true);
+                    b.startObject("properties").startObject("leaf").field("type", "integer").endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endObject().endObject().endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startObject("to").startArray("stored");
+                    {
+                        b.startObject().field("leaf", 10).endObject();
+                    }
+                    b.endArray().endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("to").startObject("stored").field("leaf", 20).endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"to":{"stored":[{"leaf":10},{"leaf":20}]}}}""", syntheticSource);
+    }
+
+    public void testObjectArrayAndValueInNestedObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties").startObject("to").startObject("properties");
+            {
+                b.startObject("stored");
+                {
+                    b.field("type", "nested").field("dynamic", false);
+                }
+                b.endObject();
+            }
+            b.endObject().endObject().endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startObject("to").startArray("stored");
+                    {
+                        b.startObject().field("leaf", 10).endObject();
+                    }
+                    b.endArray().endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("to").startObject("stored").field("leaf", 20).endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"to":{"stored":[{"leaf":10},{"leaf":20}]}}}""", syntheticSource);
+    }
+
     public void testObjectArrayAndValueDisabledObject() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path").field("type", "object").startObject("properties");

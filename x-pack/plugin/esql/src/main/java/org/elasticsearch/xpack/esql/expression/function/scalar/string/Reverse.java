@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.util.ArrayUtils.reverseArray;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -112,22 +113,12 @@ public class Reverse extends UnaryScalarFunction {
         return true;
     }
 
-    private static void reverseArray(byte[] array, int start, int end) {
-        while (start < end) {
-            byte temp = array[start];
-            array[start] = array[end];
-            array[end] = temp;
-            start++;
-            end--;
-        }
-    }
-
     @Evaluator
     static BytesRef process(BytesRef val) {
         if (isOneByteUTF8(val)) {
             // this is the fast path. we know we can just reverse the bytes.
             BytesRef reversed = BytesRef.deepCopyOf(val);
-            reverseArray(reversed.bytes, reversed.offset, reversed.offset + reversed.length - 1);
+            reverseArray(reversed.bytes, reversed.offset, reversed.length);
             return reversed;
         }
         return BytesRefs.toBytesRef(reverseStringWithUnicodeCharacters(val.utf8ToString()));

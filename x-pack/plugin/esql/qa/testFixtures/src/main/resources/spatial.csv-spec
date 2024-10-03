@@ -1149,6 +1149,23 @@ TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | 
 BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen
 ;
 
+airportsSortDistanceFromCopenhagenTrainStationInline
+required_capability: st_distance
+
+FROM airports
+| SORT ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) ASC
+| LIMIT 5
+| KEEP abbrev, name, location, country, city
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf
+BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen
+;
+
 airportsSortDistanceFromCopenhagenTrainStationDetails
 required_capability: st_distance
 

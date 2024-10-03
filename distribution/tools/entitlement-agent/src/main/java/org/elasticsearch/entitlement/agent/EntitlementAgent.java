@@ -40,9 +40,7 @@ public class EntitlementAgent {
             ),
             true
         );
-        // System.out.println("Starting retransformClasses");
         inst.retransformClasses(config.classesToInstrument().toArray(new Class<?>[0]));
-        // System.out.println("Finished initialization");
     }
 
     @SuppressForbidden(reason = "The appendToBootstrapClassLoaderSearch method takes a JarFile")

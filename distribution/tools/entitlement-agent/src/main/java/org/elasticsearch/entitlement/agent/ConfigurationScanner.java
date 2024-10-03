@@ -13,12 +13,12 @@ import org.elasticsearch.entitlement.checks.CheckBefore;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
@@ -49,7 +49,7 @@ public class ConfigurationScanner {
                     classesToInstrument.add(targetClass);
                     Method targetMethod = targetClass.getMethod(
                         checkBefore.method(),
-                        Stream.of(checkMethod.getParameterTypes()).skip(2).toArray(Class<?>[]::new)
+                        Arrays.copyOfRange(checkMethod.getParameterTypes(), 2, checkMethod.getParameterCount())
                     );
                     methodMap.put(MethodKey.forTargetMethod(targetMethod), checkMethod);
                 }

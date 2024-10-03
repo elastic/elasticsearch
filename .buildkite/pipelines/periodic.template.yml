@@ -69,7 +69,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
+              - openjdk21
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp

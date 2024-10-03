@@ -198,11 +198,13 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * path for when the index does not exist). And it does not deal with system indices since we do not intend for users to
                  * simulate writing to system indices.
                  */
-
                 ClusterState.Builder simulatedClusterStateBuilder = new ClusterState.Builder(state);
                 Metadata.Builder simulatedMetadata = Metadata.builder(state.metadata());
                 if (indexAbstraction != null) {
-                    // We remove the index from the cluster state if necessary (since we're going to use the templates)
+                    /*
+                     * We remove the index or data stream from the cluster state so that we are forced to fall back to the templates to get
+                     * mappings.
+                     */
                     String indexRequest = request.index();
                     assert indexRequest != null : "Index requests cannot be null in a simulate bulk call";
                     if (indexRequest != null) {
@@ -211,6 +213,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     }
                 }
                 if (componentTemplateSubstitutions.isEmpty() == false) {
+                    /*
+                     * We put the template substitutions into the cluster state. If they have the same name as an existing one, the
+                     * existing one is replaced.
+                     */
                     Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
                     updatedComponentTemplates.putAll(state.metadata().componentTemplates());
                     updatedComponentTemplates.putAll(componentTemplateSubstitutions);

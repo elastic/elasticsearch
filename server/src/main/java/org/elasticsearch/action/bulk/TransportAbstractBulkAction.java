@@ -186,7 +186,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         if (bulkRequest.isSimulated() && componentTemplateSubstitutions.isEmpty() == false) {
             /*
              * If this is a simulated request, and there are template substitutions, then we want to create and use a new metadata that has
-             * those templates.
+             * those templates. That is, we want to add the new templates (which will replace any that already existed with the same name),
+             * and remove the indices and data streams that are referred to from the bulkRequest so that we get settings from the templates
+             * rather than from the indices/data streams.
              */
             Metadata.Builder simulatedMetadataBuilder = Metadata.builder(clusterService.state().getMetadata());
             if (componentTemplateSubstitutions.isEmpty() == false) {

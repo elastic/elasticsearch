@@ -285,10 +285,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         /*
          * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
-         * templates to find the pipelines. But if a user has passed in component template substitutions, they want the settings from those
-         * used in place of the settings used to create any previous indices. So in that case we use the templates to find the pipelines --
-         * we don't fall back to the existing index if we don't find any because it is possible the user has intentionally removed the
-         * pipeline.
+         * templates to find the pipelines.
          */
         final Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
             () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)

@@ -39,9 +39,7 @@ import org.elasticsearch.transport.Transports;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -139,18 +137,9 @@ public class RestBulkAction extends BaseRestHandler {
 
     static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
 
-        private final boolean allowExplicitIndex;
         private final RestRequest request;
 
-        private final Map<String, String> stringDeduplicator = new HashMap<>();
-        private final String defaultIndex;
-        private final String defaultRouting;
-        private final FetchSourceContext defaultFetchSourceContext;
-        private final String defaultPipeline;
-        private final boolean defaultListExecutedPipelines;
-        private final Boolean defaultRequireAlias;
-        private final boolean defaultRequireDataStream;
-        private final BulkRequestParser parser;
+        private final BulkRequestParser.IncrementalParser parser;
         private final Supplier<IncrementalBulkService.Handler> handlerSupplier;
         private IncrementalBulkService.Handler handler;
 
@@ -161,17 +150,22 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
-            this.allowExplicitIndex = allowExplicitIndex;
             this.request = request;
-            this.defaultIndex = request.param("index");
-            this.defaultRouting = request.param("routing");
-            this.defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
-            this.defaultPipeline = request.param("pipeline");
-            this.defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
-            this.defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
-            this.defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             // TODO: Fix type deprecation logging
-            this.parser = new BulkRequestParser(false, request.getRestApiVersion());
+            this.parser = new BulkRequestParser(false, request.getRestApiVersion()).incrementalParser(
+                request.param("index"),
+                request.param("routing"),
+                FetchSourceContext.parseFromRestRequest(request),
+                request.param("pipeline"),
+                request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
+                request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
+                request.paramAsBoolean("list_executed_pipelines", false),
+                allowExplicitIndex,
+                request.getXContentType(),
+                (indexRequest, type) -> items.add(indexRequest),
+                items::add,
+                items::add
+            );
             this.handlerSupplier = handlerSupplier;
         }
 
@@ -208,23 +202,7 @@ public class RestBulkAction extends BaseRestHandler {
 
                     // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
                     // BulkRequest#add is fine
-                    bytesConsumed = parser.incrementalParse(
-                        data,
-                        defaultIndex,
-                        defaultRouting,
-                        defaultFetchSourceContext,
-                        defaultPipeline,
-                        defaultRequireAlias,
-                        defaultRequireDataStream,
-                        defaultListExecutedPipelines,
-                        allowExplicitIndex,
-                        request.getXContentType(),
-                        (request, type) -> items.add(request),
-                        items::add,
-                        items::add,
-                        isLast == false,
-                        stringDeduplicator
-                    );
+                    bytesConsumed = parser.parse(data, isLast);
                     bytesParsed += bytesConsumed;
 
                 } catch (Exception e) {

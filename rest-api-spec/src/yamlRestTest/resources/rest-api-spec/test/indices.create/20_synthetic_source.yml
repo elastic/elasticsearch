@@ -529,7 +529,7 @@ subobject with dynamic override:
 ---
 object array in object with dynamic override:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.synthetic_source_keep"]
       reason: requires tracking ignored source
 
   - do:

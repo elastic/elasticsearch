@@ -141,6 +141,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Maximum parts number for multipart upload. (see https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+     */
+    static final Setting<Integer> PARTS_NUMBER = Setting.intSetting("parts_number", 10_000, 1, 10_000);
+
+    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
@@ -253,7 +258,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
-        this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxChunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxPartsNum = PARTS_NUMBER.get(metadata.settings());
+        this.chunkSize = objectSizeLimit(maxChunkSize, bufferSize, maxPartsNum);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
@@ -300,6 +307,20 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
+    }
+
+    /**
+     * Calculates S3 object size limit based on 2 constraints: maximum object(chunk) size
+     * and maximum number of parts for multipart upload.
+     * https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+     *
+     * @param objectSize object size limit in s3 or chunk_size
+     * @param partSize part size in s3 or buffer_size
+     * @param partsNum number of parts(buffers)
+     */
+    static ByteSizeValue objectSizeLimit(ByteSizeValue objectSize, ByteSizeValue partSize, int partsNum) {
+        var bytes = Math.min(objectSize.getBytes(), partSize.getBytes() * partsNum);
+        return ByteSizeValue.ofBytes(bytes);
     }
 
     /**

@@ -79,9 +79,9 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).numBytes)
                 )
             );
-            // query (count, took, failures*)
+            // query (count, took, failures*) - use gauges as shards can be removed
             metrics.add(
-                registry.registerLongAsyncCounter(
+                registry.registerLongGauge(
                     "es.indices." + name + ".query.total",
                     "total queries of " + name + " indices",
                     "unit",
@@ -89,16 +89,16 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongAsyncCounter(
+                registry.registerLongGauge(
                     "es.indices." + name + ".query.time",
                     "total query time of " + name + " indices",
                     "ms",
                     () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getQueryTimeInMillis())
                 )
             );
-            // fetch (count, took, failures*)
+            // fetch (count, took, failures*) - use gauges as shards can be removed
             metrics.add(
-                registry.registerLongAsyncCounter(
+                registry.registerLongGauge(
                     "es.indices." + name + ".fetch.total",
                     "total fetch of " + name + " indices",
                     "unit",
@@ -106,7 +106,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongAsyncCounter(
+                registry.registerLongGauge(
                     "es.indices." + name + ".fetch.time",
                     "total fetch time of " + name + " indices",
                     "ms",

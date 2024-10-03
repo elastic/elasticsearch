@@ -93,7 +93,6 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         long numStandardDocs = populateStandardIndices(numStandardIndices);
         collectThenAssertMetrics(
             telemetry,
-            MetricType.GAUGE,
             1,
             Map.of(
                 STANDARD_INDEX_COUNT,
@@ -123,7 +122,6 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         long numTimeSeriesDocs = populateTimeSeriesIndices(numTimeSeriesIndices);
         collectThenAssertMetrics(
             telemetry,
-            MetricType.GAUGE,
             2,
             Map.of(
                 STANDARD_INDEX_COUNT,
@@ -153,7 +151,6 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         long numLogsdbDocs = populateLogsdbIndices(numLogsdbIndices);
         collectThenAssertMetrics(
             telemetry,
-            MetricType.GAUGE,
             3,
             Map.of(
                 STANDARD_INDEX_COUNT,
@@ -185,7 +182,6 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         var nodeStats1 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
-            MetricType.COUNTER,
             1,
             Map.of(
                 STANDARD_QUERY_COUNT,
@@ -213,7 +209,6 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         var nodeStats2 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
-            MetricType.COUNTER,
             2,
             Map.of(
                 STANDARD_QUERY_COUNT,
@@ -240,7 +235,6 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         var nodeStats3 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
-            MetricType.COUNTER,
             3,
             Map.of(
                 STANDARD_QUERY_COUNT,
@@ -270,13 +264,11 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         GAUGE
     }
 
-    void collectThenAssertMetrics(TestTelemetryPlugin telemetry, MetricType metricType, int times, Map<String, Matcher<Long>> matchers) {
+    void collectThenAssertMetrics(TestTelemetryPlugin telemetry, int times, Map<String, Matcher<Long>> matchers) {
         telemetry.collect();
         for (Map.Entry<String, Matcher<Long>> e : matchers.entrySet()) {
             String name = e.getKey();
-            List<Measurement> measurements = metricType == MetricType.COUNTER
-                ? telemetry.getLongAsyncCounterMeasurement(name)
-                : telemetry.getLongGaugeMeasurement(name);
+            List<Measurement> measurements = telemetry.getLongGaugeMeasurement(name);
             assertThat(name, measurements, hasSize(times));
             assertThat(name, measurements.getLast().getLong(), e.getValue());
         }

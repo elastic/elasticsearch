@@ -11,6 +11,7 @@ evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name 'logsdb'
@@ -28,5 +29,9 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
+  usesDefaultDistribution()
+}
+
+tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }

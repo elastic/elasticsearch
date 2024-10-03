@@ -830,16 +830,20 @@ public class BasicBlockTests extends ESTestCase {
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
             Boolean value = randomFrom(random(), null, true, false);
-            IntStream.range(0, positionCount).mapToObj(ii -> {
+            Boolean[] bools = IntStream.range(0, positionCount).mapToObj(ii -> {
                 if (value == null) {
                     return randomBoolean();
                 }
                 return value;
-            }).forEach(vectorBuilder::appendBoolean);
+            }).toArray(Boolean[]::new);
+            Arrays.stream(bools).forEach(vectorBuilder::appendBoolean);
             BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
             assertToMask(vector);
-            if (value != null) {
+            if (value == null) {
+                assertThat(vector.allTrue(), equalTo(Arrays.stream(bools).allMatch(v -> v)));
+                assertThat(vector.allFalse(), equalTo(Arrays.stream(bools).allMatch(v -> v == false)));
+            } else {
                 if (value) {
                     assertTrue(vector.allTrue());
                     assertFalse(vector.allFalse());

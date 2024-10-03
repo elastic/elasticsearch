@@ -58,4 +58,8 @@ tasks.named("yamlRestCompatTestTransform").configure({task ->
     task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
     task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
     task.skipTest("indices.create/21_synthetic_source_stored/object param - nested object with stored array", "skip test to submit #113690")
+    task.skipTest("indices.create/20_synthetic_source/disabled object", "temporary until backported")
+    task.skipTest("indices.create/20_synthetic_source/disabled object contains array", "temporary until backported")
+    task.skipTest("indices.create/20_synthetic_source/object with dynamic override", "temporary until backported")
+    task.skipTest("indices.create/20_synthetic_source/disabled root object", "temporary until backported")
 })

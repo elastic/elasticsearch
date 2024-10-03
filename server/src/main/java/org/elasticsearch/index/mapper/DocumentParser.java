@@ -135,7 +135,7 @@ public final class DocumentParser {
                         new IgnoredSourceFieldMapper.NameValue(
                             MapperService.SINGLE_MAPPING_NAME,
                             0,
-                            XContentDataHelper.encodeToken(context.parser()),
+                            context.encodeFlattenedToken(),
                             context.doc()
                         )
                     );
@@ -236,7 +236,7 @@ public final class DocumentParser {
             var leaf = fields.get(fullName);  // There may be multiple matches for array elements, don't use #remove.
             if (leaf != null) {
                 parser.nextToken();  // Advance the parser to the value to be read.
-                result.add(leaf.cloneWithValue(XContentDataHelper.encodeToken(parser)));
+                result.add(leaf.cloneWithValue(context.encodeFlattenedToken()));
                 parser.nextToken();  // Skip the token ending the value.
                 fieldName = null;
             }
@@ -402,7 +402,7 @@ public final class DocumentParser {
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
                         context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                        XContentDataHelper.encodeToken(parser),
+                        context.encodeFlattenedToken(),
                         context.doc()
                     )
                 );
@@ -652,12 +652,11 @@ public final class DocumentParser {
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
             if (context.canAddIgnoredField()) {
-                // read everything up to end object and store it
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
             } else {
@@ -743,7 +742,7 @@ public final class DocumentParser {
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
             } else {
@@ -761,7 +760,7 @@ public final class DocumentParser {
                             IgnoredSourceFieldMapper.NameValue.fromContext(
                                 context,
                                 context.path().pathAsText(currentFieldName),
-                                XContentDataHelper.encodeToken(context.parser())
+                                context.encodeFlattenedToken()
                             )
                         );
                     } catch (IOException e) {
@@ -818,17 +817,15 @@ public final class DocumentParser {
             } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
                 // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
                 // get tracked through ignored source.
-                context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
-                );
+                context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken()));
                 return;
             }
         }
 
         // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
         // elements from regular source loading that are then skipped from the synthesized array source.
-        // To prevent this, we track each array name, to check if it contains any sub-arrays in its elements.
-        context = context.cloneForArray(fullPath);
+        // To prevent this, we track that parsing sub-context is within array scope.
+        context = context.maybeCloneForArray(mapper);
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
@@ -934,7 +931,7 @@ public final class DocumentParser {
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
             }
@@ -945,7 +942,7 @@ public final class DocumentParser {
                 IgnoredSourceFieldMapper.NameValue.fromContext(
                     context,
                     context.path().pathAsText(currentFieldName),
-                    XContentDataHelper.encodeToken(context.parser())
+                    context.encodeFlattenedToken()
                 )
             );
         }
@@ -1044,7 +1041,7 @@ public final class DocumentParser {
                 if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
                     try {
                         context.addIgnoredField(
-                            IgnoredSourceFieldMapper.NameValue.fromContext(context, path, XContentDataHelper.encodeToken(context.parser()))
+                            IgnoredSourceFieldMapper.NameValue.fromContext(context, path, context.encodeFlattenedToken())
                         );
                     } catch (IOException e) {
                         throw new IllegalArgumentException(

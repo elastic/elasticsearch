@@ -964,6 +964,79 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"stored":[{"leaf":10},{"leaf":20}]}}""", syntheticSource);
     }
 
+    public void testDeeplyNestedObjectArrayAndValue() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties").startObject("to").startObject("properties");
+            {
+                b.startObject("stored");
+                {
+                    b.field("type", "object").field("store_array_source", true);
+                    b.startObject("properties").startObject("leaf").field("type", "integer").endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endObject().endObject().endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startObject("to").startArray("stored");
+                    {
+                        b.startObject().field("leaf", 10).endObject();
+                    }
+                    b.endArray().endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("to").startObject("stored").field("leaf", 20).endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"to":{"stored":[{"leaf":10},{"leaf":20}]}}}""", syntheticSource);
+    }
+
+    public void testObjectArrayAndValueInNestedObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties").startObject("to").startObject("properties");
+            {
+                b.startObject("stored");
+                {
+                    b.field("type", "nested").field("dynamic", false);
+                }
+                b.endObject();
+            }
+            b.endObject().endObject().endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startObject("to").startArray("stored");
+                    {
+                        b.startObject().field("leaf", 10).endObject();
+                    }
+                    b.endArray().endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("to").startObject("stored").field("leaf", 20).endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"to":{"stored":[{"leaf":10},{"leaf":20}]}}}""", syntheticSource);
+    }
+
     public void testObjectArrayAndValueDisabledObject() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path").field("type", "object").startObject("properties");
@@ -1718,6 +1791,107 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
         var syntheticSource = syntheticSource(documentMapper, document);
         assertEquals("{\"path\":{\"at\":\"A\"}}", syntheticSource);
+    }
+
+    public void testDynamicIgnoredObjectWithFlatFields() throws IOException {
+        DocumentMapper documentMapper = createMapperService(topMapping(b -> {
+            b.startObject("_source").field("mode", "synthetic").endObject();
+            b.field("dynamic", false);
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startObject("top");
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+        };
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"top\":{\"file.name\":\"A\",\"file.line\":10}}", syntheticSource);
+
+        CheckedConsumer<XContentBuilder, IOException> documentWithArray = b -> {
+            b.startArray("top");
+            b.startObject();
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+            b.startObject();
+            b.field("file.name", "B");
+            b.field("file.line", 20);
+            b.endObject();
+            b.endArray();
+        };
+
+        var syntheticSourceWithArray = syntheticSource(documentMapper, documentWithArray);
+        assertEquals("""
+            {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
+    }
+
+    public void testDisabledRootObjectWithFlatFields() throws IOException {
+        DocumentMapper documentMapper = createMapperService(topMapping(b -> {
+            b.startObject("_source").field("mode", "synthetic").endObject();
+            b.field("enabled", false);
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startObject("top");
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+        };
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"top\":{\"file.name\":\"A\",\"file.line\":10}}", syntheticSource);
+
+        CheckedConsumer<XContentBuilder, IOException> documentWithArray = b -> {
+            b.startArray("top");
+            b.startObject();
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+            b.startObject();
+            b.field("file.name", "B");
+            b.field("file.line", 20);
+            b.endObject();
+            b.endArray();
+        };
+
+        var syntheticSourceWithArray = syntheticSource(documentMapper, documentWithArray);
+        assertEquals("""
+            {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
+    }
+
+    public void testDisabledObjectWithFlatFields() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("top").field("type", "object").field("enabled", false).endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startObject("top");
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+        };
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"top\":{\"file.name\":\"A\",\"file.line\":10}}", syntheticSource);
+
+        CheckedConsumer<XContentBuilder, IOException> documentWithArray = b -> {
+            b.startArray("top");
+            b.startObject();
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+            b.startObject();
+            b.field("file.name", "B");
+            b.field("file.line", 20);
+            b.endObject();
+            b.endArray();
+        };
+
+        var syntheticSourceWithArray = syntheticSource(documentMapper, documentWithArray);
+        assertEquals("""
+            {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)

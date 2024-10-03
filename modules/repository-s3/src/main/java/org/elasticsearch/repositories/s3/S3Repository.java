@@ -314,12 +314,12 @@ class S3Repository extends MeteredBlobStoreRepository {
      * and maximum number of parts for multipart upload.
      * https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
      *
-     * @param objectSize object size limit in s3 or chunk_size
-     * @param partSize part size in s3 or buffer_size
-     * @param partsNum number of parts(buffers)
+     * @param chunkSize s3 object size
+     * @param bufferSize s3 multipart upload part size
+     * @param maxPartsNum s3 multipart upload max parts number
      */
-    static ByteSizeValue objectSizeLimit(ByteSizeValue objectSize, ByteSizeValue partSize, int partsNum) {
-        var bytes = Math.min(objectSize.getBytes(), partSize.getBytes() * partsNum);
+    private static ByteSizeValue objectSizeLimit(ByteSizeValue chunkSize, ByteSizeValue bufferSize, int maxPartsNum) {
+        var bytes = Math.min(chunkSize.getBytes(), bufferSize.getBytes() * maxPartsNum);
         return ByteSizeValue.ofBytes(bytes);
     }
 

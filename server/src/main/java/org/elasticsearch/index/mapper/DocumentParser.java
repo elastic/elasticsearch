@@ -816,9 +816,7 @@ public final class DocumentParser {
             } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
                 // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
                 // get tracked through ignored source.
-                context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken())
-                );
+                context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken()));
                 return;
             }
         }

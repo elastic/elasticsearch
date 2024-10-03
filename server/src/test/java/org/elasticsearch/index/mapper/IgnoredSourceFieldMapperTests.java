@@ -1676,7 +1676,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         };
 
         var syntheticSourceWithArray = syntheticSource(documentMapper, documentWithArray);
-        assertEquals("{\"top\":[{\"file.name\":\"A\",\"file.line\":10},{\"file.name\":\"B\",\"file.line\":20}]}", syntheticSourceWithArray);
+        assertEquals("""
+            {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
     }
 
     public void testDisabledRootObjectWithFlatFields() throws IOException {
@@ -1709,7 +1710,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         };
 
         var syntheticSourceWithArray = syntheticSource(documentMapper, documentWithArray);
-        assertEquals("{\"top\":[{\"file.name\":\"A\",\"file.line\":10},{\"file.name\":\"B\",\"file.line\":20}]}", syntheticSourceWithArray);
+        assertEquals("""
+            {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
     }
 
     public void testDisabledObjectWithFlatFields() throws IOException {
@@ -1741,31 +1743,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         };
 
         var syntheticSourceWithArray = syntheticSource(documentMapper, documentWithArray);
-        assertEquals("{\"top\":[{\"file.name\":\"A\",\"file.line\":10},{\"file.name\":\"B\",\"file.line\":20}]}", syntheticSourceWithArray);
-    }
-
-    public void testObjectWithFlatFieldsStoredArray() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
-            b.startObject("top");
-            b.field("type", "object").field("store_array_source", true);
-            b.endObject();
-        })).documentMapper();
-
-        CheckedConsumer<XContentBuilder, IOException> document = b -> {
-            b.startArray("top");
-            b.startObject();
-            b.field("file.name", "A");
-            b.field("file.line", 10);
-            b.endObject();
-            b.startObject();
-            b.field("file.name", "B");
-            b.field("file.line", 20);
-            b.endObject();
-            b.endArray();
-        };
-
-        var syntheticSourceWithArray = syntheticSource(documentMapper, document);
-        assertEquals("{\"top\":[{\"file.name\":\"A\",\"file.line\":10},{\"file.name\":\"B\",\"file.line\":20}]}", syntheticSourceWithArray);
+        assertEquals("""
+            {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)

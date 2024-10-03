@@ -193,8 +193,28 @@ public final class BulkRequestParser {
             }
             line++;
 
+            DocWriteRequest<?> request = null;
+            String action;
+            String type = null;
+            FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
+            String pipeline = defaultPipeline;
+            boolean listExecutedPipelines = defaultListExecutedPipelines != null && defaultListExecutedPipelines;
+
             // now parse the action
             try (XContentParser parser = createParser(xContent, data, from, nextMarker)) {
+                String index = defaultIndex;
+                String id = null;
+                String routing = defaultRouting;
+                String opType = null;
+                long version = Versions.MATCH_ANY;
+                VersionType versionType = VersionType.INTERNAL;
+                long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+                int retryOnConflict = 0;
+                boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                boolean requireDataStream = defaultRequireDataStream != null && defaultRequireDataStream;
+                Map<String, String> dynamicTemplates = Map.of();
+
                 // move pointers
                 from = nextMarker + 1;
 
@@ -227,7 +247,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-                String action = parser.currentName();
+                action = parser.currentName();
                 if (SUPPORTED_ACTIONS.contains(action) == false) {
                     throw new IllegalArgumentException(
                         "Malformed action/metadata line ["
@@ -237,23 +257,6 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-
-                String index = defaultIndex;
-                String type = null;
-                String id = null;
-                String routing = defaultRouting;
-                FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
-                String opType = null;
-                long version = Versions.MATCH_ANY;
-                VersionType versionType = VersionType.INTERNAL;
-                long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-                int retryOnConflict = 0;
-                String pipeline = defaultPipeline;
-                boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
-                boolean requireDataStream = defaultRequireDataStream != null && defaultRequireDataStream;
-                boolean listExecutedPipelines = defaultListExecutedPipelines != null && defaultListExecutedPipelines;
-                Map<String, String> dynamicTemplates = Map.of();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -364,22 +367,13 @@ public final class BulkRequestParser {
                             "Delete request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName()
                         );
                     }
-                    deleteRequestConsumer.accept(
-                        new DeleteRequest(index).id(id)
-                            .routing(routing)
-                            .version(version)
-                            .versionType(versionType)
-                            .setIfSeqNo(ifSeqNo)
-                            .setIfPrimaryTerm(ifPrimaryTerm)
-                    );
-                    consumed = from;
+                    request = new DeleteRequest(index).id(id)
+                        .routing(routing)
+                        .version(version)
+                        .versionType(versionType)
+                        .setIfSeqNo(ifSeqNo)
+                        .setIfPrimaryTerm(ifPrimaryTerm);
                 } else {
-                    nextMarker = findNextMarker(marker, from, data, isIncremental);
-                    if (nextMarker == -1) {
-                        break;
-                    }
-                    line++;
-
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
                     if ("index".equals(action) || "create".equals(action)) {
@@ -390,7 +384,6 @@ public final class BulkRequestParser {
                             .setPipeline(pipeline)
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)
-                            .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                             .setDynamicTemplates(dynamicTemplates)
                             .setRequireAlias(requireAlias)
                             .setRequireDataStream(requireDataStream)
@@ -400,7 +393,7 @@ public final class BulkRequestParser {
                         } else if (opType != null) {
                             indexRequest = indexRequest.create("create".equals(opType));
                         }
-                        indexRequestConsumer.accept(indexRequest, type);
+                        request = indexRequest;
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(
@@ -419,7 +412,7 @@ public final class BulkRequestParser {
                                 "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName()
                             );
                         }
-                        UpdateRequest updateRequest = new UpdateRequest().index(index)
+                        request = new UpdateRequest().index(index)
                             .id(id)
                             .routing(routing)
                             .retryOnConflict(retryOnConflict)
@@ -427,28 +420,54 @@ public final class BulkRequestParser {
                             .setIfPrimaryTerm(ifPrimaryTerm)
                             .setRequireAlias(requireAlias)
                             .routing(routing);
-                        try (
-                            XContentParser sliceParser = createParser(
-                                xContent,
-                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType)
-                            )
-                        ) {
-                            updateRequest.fromXContent(sliceParser);
-                        }
-                        if (fetchSourceContext != null) {
-                            updateRequest.fetchSource(fetchSourceContext);
-                        }
-                        IndexRequest upsertRequest = updateRequest.upsertRequest();
-                        if (upsertRequest != null) {
-                            upsertRequest.setPipeline(pipeline).setListExecutedPipelines(listExecutedPipelines);
-                        }
-
-                        updateRequestConsumer.accept(updateRequest);
                     }
                     // move pointers
                     from = nextMarker + 1;
                     consumed = from;
                 }
+            }
+
+            if (request == null) {
+                break;
+            }
+
+            if (request instanceof DeleteRequest deleteRequest) {
+                deleteRequestConsumer.accept(deleteRequest);
+                consumed = from;
+            } else {
+                nextMarker = findNextMarker(marker, from, data, isIncremental);
+                if (nextMarker == -1) {
+                    break;
+                }
+                line++;
+
+                // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
+                // of index request.
+                if (request instanceof IndexRequest indexRequest) {
+                    indexRequest.source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType);
+                    indexRequestConsumer.accept(indexRequest, type);
+                } else if (request instanceof UpdateRequest updateRequest) {
+                    try (
+                        XContentParser sliceParser = createParser(
+                            xContent,
+                            sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType)
+                        )
+                    ) {
+                        updateRequest.fromXContent(sliceParser);
+                    }
+                    if (fetchSourceContext != null) {
+                        updateRequest.fetchSource(fetchSourceContext);
+                    }
+                    IndexRequest upsertRequest = updateRequest.upsertRequest();
+                    if (upsertRequest != null) {
+                        upsertRequest.setPipeline(pipeline).setListExecutedPipelines(listExecutedPipelines);
+                    }
+
+                    updateRequestConsumer.accept(updateRequest);
+                }
+                // move pointers
+                from = nextMarker + 1;
+                consumed = from;
             }
         }
         return isIncremental ? consumed : from;

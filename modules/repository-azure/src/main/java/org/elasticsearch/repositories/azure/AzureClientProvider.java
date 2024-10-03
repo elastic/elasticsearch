@@ -51,6 +51,7 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.net.URL;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -316,12 +317,12 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
-            RequestMetrics metrics = (RequestMetrics) context.getData(RequestMetricsTracker.ES_REQUEST_METRICS_CONTEXT_KEY)
-                .orElseThrow(() -> {
-                    String errorMessage = "No metrics object associated with request " + context.getHttpRequest();
-                    assert false : errorMessage;
-                    return new IllegalStateException(errorMessage);
-                });
+            Optional<Object> metricsData = context.getData(RequestMetricsTracker.ES_REQUEST_METRICS_CONTEXT_KEY);
+            if (metricsData.isPresent() == false) {
+                assert false : "No metrics object associated with request " + context.getHttpRequest();
+                return next.process();
+            }
+            RequestMetrics metrics = (RequestMetrics) metricsData.get();
             metrics.requestCount++;
             return next.process().doOnError(throwable -> {
                 logger.debug("Detected error in RetryMetricsTracker", throwable);

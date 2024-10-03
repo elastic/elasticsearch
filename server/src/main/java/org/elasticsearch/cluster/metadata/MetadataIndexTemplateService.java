@@ -343,6 +343,7 @@ public class MetadataIndexTemplateService {
                         composableTemplate,
                         globalRetentionSettings.get()
                     );
+                    validateDataStreamOptions(tempStateWithComponentTemplateAdded.metadata(), composableTemplateName, composableTemplate);
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -685,7 +686,8 @@ public class MetadataIndexTemplateService {
         return overlaps;
     }
 
-    private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
+    // Visibility for testing
+    void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = indexTemplate.template();
@@ -721,6 +723,7 @@ public class MetadataIndexTemplateService {
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
         validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get());
+        validateDataStreamOptions(currentState.metadata(), name, templateToValidate);
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
@@ -810,6 +813,20 @@ public class MetadataIndexTemplateService {
                 // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
                 boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
                 lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+            }
+        }
+    }
+
+    // Visible for testing
+    static void validateDataStreamOptions(Metadata metadata, String indexTemplateName, ComposableIndexTemplate template) {
+        DataStreamOptions dataStreamOptions = resolveDataStreamOptions(template, metadata.componentTemplates());
+        if (dataStreamOptions != null) {
+            if (template.getDataStreamTemplate() == null) {
+                throw new IllegalArgumentException(
+                    "index template ["
+                        + indexTemplateName
+                        + "] specifies data stream options that can only be used in combination with a data stream"
+                );
             }
         }
     }
@@ -1672,14 +1689,12 @@ public class MetadataIndexTemplateService {
                 continue;
             }
             DataStreamOptions dataStreamOptions = componentTemplates.get(componentTemplateName).template().dataStreamOptions();
-            if (dataStreamOptions != null && DataStreamOptions.EMPTY.equals(dataStreamOptions) == false) {
+            if (dataStreamOptions != null) {
                 dataStreamOptionsList.add(dataStreamOptions);
             }
         }
         // The actual index template's lifecycle has the highest precedence.
-        if (template.template() != null
-            && template.template().dataStreamOptions() != null
-            && template.template().dataStreamOptions().isEmpty() == false) {
+        if (template.template() != null && template.template().dataStreamOptions() != null) {
             dataStreamOptionsList.add(template.template().dataStreamOptions());
         }
         return composeDataStreamOptions(dataStreamOptionsList);
@@ -1694,14 +1709,17 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static DataStreamOptions composeDataStreamOptions(List<DataStreamOptions> dataStreamOptionsList) {
-        if (dataStreamOptionsList.isEmpty()) {
-            return null;
+        DataStreamOptions effectiveDataStreamOptions = null;
+        for (DataStreamOptions current : dataStreamOptionsList) {
+            if (effectiveDataStreamOptions == null) {
+                effectiveDataStreamOptions = current;
+            } else {
+                if (current.failureStore() != null) {
+                    new DataStreamOptions(current.failureStore());
+                }
+            }
         }
-        DataStreamOptions current = dataStreamOptionsList.getLast();
-        if (current.failureStore() != null && current.failureStore().isNullified()) {
-            return DataStreamOptions.EMPTY;
-        }
-        return current;
+        return effectiveDataStreamOptions;
     }
 
     /**

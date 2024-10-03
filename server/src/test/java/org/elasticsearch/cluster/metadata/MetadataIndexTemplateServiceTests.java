@@ -1669,6 +1669,27 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), nullifiedFaiureStore, DataStreamOptions.EMPTY);
     }
 
+    public void testInvalidNonDataStreamTemplateWithDataStreamOptions() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        Template template = Template.builder().dataStreamOptions(DataStreamOptionsTests.randomDataStreamOptions()).build();
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+        ComposableIndexTemplate globalIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("my-index"))
+            .componentTemplates(List.of("ct-with-data-stream-options"))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().componentTemplates(Map.of("ct-with-data-stream-options", componentTemplate)))
+            .build();
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> metadataIndexTemplateService.validateIndexTemplateV2("name", globalIndexTemplate, clusterState)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("specifies data stream options that can only be used in combination with a data stream")
+        );
+    }
+
     private ClusterState addComponentTemplate(
         MetadataIndexTemplateService service,
         ClusterState state,

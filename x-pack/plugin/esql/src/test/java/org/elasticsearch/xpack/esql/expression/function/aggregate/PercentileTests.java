@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -70,20 +71,20 @@ public class PercentileTests extends AbstractAggregationTestCase {
 
             var percentile = ((Number) percentileTypedData.data()).intValue();
 
-            var digest = TDigestState.create(1000);
+            try (var digest = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), 1000)) {
+                for (var value : fieldTypedData.multiRowData()) {
+                    digest.add(((Number) value).doubleValue());
+                }
 
-            for (var value : fieldTypedData.multiRowData()) {
-                digest.add(((Number) value).doubleValue());
+                var expected = digest.size() == 0 ? null : digest.quantile((double) percentile / 100);
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(fieldTypedData, percentileTypedData),
+                    "Percentile[number=Attribute[channel=0],percentile=Attribute[channel=1]]",
+                    DataType.DOUBLE,
+                    equalTo(expected)
+                );
             }
-
-            var expected = digest.size() == 0 ? null : digest.quantile((double) percentile / 100);
-
-            return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData, percentileTypedData),
-                "Percentile[number=Attribute[channel=0],percentile=Attribute[channel=1]]",
-                DataType.DOUBLE,
-                equalTo(expected)
-            );
         });
     }
 }

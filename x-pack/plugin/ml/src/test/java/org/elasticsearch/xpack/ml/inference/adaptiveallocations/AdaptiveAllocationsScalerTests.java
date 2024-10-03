@@ -148,6 +148,8 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
     }
 
     public void testAutoscaling_scaleDownToZeroAllocations() {
+        assumeTrue("Should only run if adaptive allocations feature flag is enabled", ScaleToZeroFeatureFlag.isEnabled());
+
         AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
         // 1 hour with 1 request per 1 seconds, so don't scale.
         for (int i = 0; i < 3600; i++) {

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -781,6 +782,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             expression(ctx.valueExpression()),
             visitString(ctx.queryString).fold().toString(),
             null
+        );
+    }
+
+    @Override
+    public Expression visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source(ctx), ": operator currently requires a snapshot build");
+        }
+        return new MatchFunction(
+            source(ctx),
+            expression(ctx.valueExpression()),
+            expression(ctx.queryString)
         );
     }
 }

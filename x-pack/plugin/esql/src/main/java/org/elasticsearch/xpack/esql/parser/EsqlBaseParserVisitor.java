@@ -85,6 +85,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIsNull(EsqlBaseParser.IsNullContext ctx);
   /**
+   * Visit a parse tree produced by the {@code matchColonExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchColonExpression(EsqlBaseParser.MatchColonExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code regexExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -117,6 +124,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchOperatorExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.

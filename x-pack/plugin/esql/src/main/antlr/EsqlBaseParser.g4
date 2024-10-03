@@ -70,6 +70,7 @@ booleanExpression
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
     | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
+    | {this.isDevVersion()}? matchOperatorExpression                             #matchColonExpression
     ;
 
 regexBooleanExpression
@@ -79,6 +80,10 @@ regexBooleanExpression
 
 matchBooleanExpression
     : valueExpression DEV_MATCH queryString=string
+    ;
+
+matchOperatorExpression
+    : valueExpression COLON queryString=string
     ;
 
 valueExpression

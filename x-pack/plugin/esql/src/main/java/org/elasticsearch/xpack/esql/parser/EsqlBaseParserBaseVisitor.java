@@ -96,6 +96,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitMatchColonExpression(EsqlBaseParser.MatchColonExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -125,6 +132,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

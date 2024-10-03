@@ -107,6 +107,8 @@ WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
 
+COLON : ':';
+
 //
 // Expression - used by most command
 //
@@ -212,6 +214,7 @@ PERCENT : '%';
 
 // move it in the main section if the feature gets promoted
 DEV_MATCH_OP : {this.isDevVersion()}? DEV_MATCH -> type(DEV_MATCH);
+DEV_MATCH_COLON_OP : {this.isDevVersion()}? COLON -> type(COLON);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
@@ -490,7 +493,7 @@ META_WS
 mode SETTING_MODE;
 SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
 
-COLON : ':';
+SETTING_COLON : COLON -> type(COLON);
 
 SETTING
     : (ASPERAND | DIGIT| DOT | LETTER | UNDERSCORE)+

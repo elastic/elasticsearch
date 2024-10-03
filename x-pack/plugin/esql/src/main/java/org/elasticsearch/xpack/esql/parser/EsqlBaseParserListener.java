@@ -128,6 +128,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitIsNull(EsqlBaseParser.IsNullContext ctx);
   /**
+   * Enter a parse tree produced by the {@code matchColonExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterMatchColonExpression(EsqlBaseParser.MatchColonExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code matchColonExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitMatchColonExpression(EsqlBaseParser.MatchColonExpressionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code regexExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -183,6 +195,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchOperatorExpression}.
+   * @param ctx the parse tree
+   */
+  void enterMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchOperatorExpression}.
+   * @param ctx the parse tree
+   */
+  void exitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.

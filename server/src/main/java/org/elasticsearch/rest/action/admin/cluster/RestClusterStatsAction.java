@@ -31,7 +31,10 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterStatsAction extends BaseRestHandler {
 
-    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("human-readable-total-docs-size");
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
+        "human-readable-total-docs-size",
+        "verbose-dense-vector-mapping-stats"
+    );
     private static final Set<String> SUPPORTED_CAPABILITIES_CCS_STATS = Set.copyOf(Sets.union(SUPPORTED_CAPABILITIES, Set.of("ccs-stats")));
     public static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);

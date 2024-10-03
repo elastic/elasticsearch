@@ -430,7 +430,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
+              - openjdk21
             BWC_VERSION: ["8.15.3", "8.16.0", "9.0.0"]
         agents:
           provider: gcp

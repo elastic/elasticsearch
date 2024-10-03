@@ -138,8 +138,11 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
             if (provider instanceof Maxmind maxmind) {
                 out.writeString(maxmind.accountId);
             } else {
-                // the existence of a non-Maxmind providers is gated on Feature_XYZ, and Feature_XYZ is only available
-                // after onOrAfter TransportVersions.GEOIP_DATABASE_TYPES
+                /*
+                 * The existence of a non-Maxmind providers is gated on the feature get_database_configuration_action.multi_node, and
+                 * get_database_configuration_action.multi_node is only available on or after
+                 * TransportVersions.INGEST_GEO_DATABASE_PROVIDERS.
+                 */
                 assert false : "non-maxmind DatabaseConfiguration.Provider [" + provider.getWriteableName() + "]";
             }
         }

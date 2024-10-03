@@ -240,7 +240,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Enables support for parsing the legacy version-based node_selector format.
      */
     @Deprecated
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static Iterable<Object[]> createParametersWithLegacyNodeSelectorSupport() throws Exception {
         var executableSectionRegistry = new NamedXContentRegistry(
             Stream.concat(

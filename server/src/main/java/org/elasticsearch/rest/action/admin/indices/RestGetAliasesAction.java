@@ -52,7 +52,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    @UpdateForV9 // reject the deprecated ?local parameter
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // reject the deprecated ?local parameter
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestGetAliasesAction.class);
 
     @Override

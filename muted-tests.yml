@@ -317,6 +317,10 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
   method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
   issue: https://github.com/elastic/elasticsearch/issues/113659
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=range/20_synthetic_source/Date range}
+  issue: https://github.com/elastic/elasticsearch/issues/113874
+
 
 # Examples:
 #

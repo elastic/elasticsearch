@@ -36,6 +36,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -464,6 +465,13 @@ public final class SearchPhaseController {
                     assert shardDoc instanceof RankDoc;
                     searchHit.setRank(((RankDoc) shardDoc).rank);
                     searchHit.score(shardDoc.score);
+                    long shardAndDoc = ((long) shardDoc.shardIndex << 32) | (shardDoc.doc & 0xFFFFFFFFL);
+                    searchHit.sortValues(
+                        new SearchSortValues(
+                            new Object[] { shardDoc.score, shardAndDoc },
+                            new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }
+                        )
+                    );
                 } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);

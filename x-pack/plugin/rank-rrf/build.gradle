@@ -22,5 +22,8 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 
   clusterModules project(xpackModule('rank-rrf'))
+  clusterModules project(xpackModule('inference'))
   clusterModules project(':modules:lang-painless')
+
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }

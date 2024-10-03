@@ -401,7 +401,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
-                        context.parent().fullPath().lastIndexOf(currentFieldName),
+                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
                         XContentDataHelper.encodeToken(parser),
                         context.doc()
                     )
@@ -802,29 +802,27 @@ public final class DocumentParser {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
-                && (objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME
-                    || (getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
-                        || getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS
-                            && objectMapper instanceof NestedObjectMapper == false));
+                && ((getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
+                    || getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS
+                        && objectMapper instanceof NestedObjectMapper == false));
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             boolean fieldWithStoredArraySource = mapper instanceof FieldMapper fieldMapper
                 && getSourceKeepMode(context, fieldMapper.sourceKeepMode()) != Mapper.SourceKeepMode.NONE;
-            boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
             if (objectRequiresStoringSource
                 || fieldWithFallbackSyntheticSource
-                || dynamicRuntimeContext
                 || fieldWithStoredArraySource
                 || copyToFieldHasValuesInDocument) {
                 context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
-            } else if (mapper instanceof ObjectMapper objectMapper
-                && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
-                    );
-                    return;
-                }
+            } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
+                // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
+                // get tracked through ignored source.
+                context.addIgnoredField(
+                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
+                );
+                return;
+            }
         }
 
         // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
@@ -1118,7 +1116,15 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Optional.empty(), Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
+            super(
+                name,
+                fullPath,
+                Explicit.IMPLICIT_TRUE,
+                Optional.empty(),
+                Explicit.IMPLICIT_FALSE,
+                Dynamic.RUNTIME,
+                Collections.emptyMap()
+            );
         }
 
         @Override

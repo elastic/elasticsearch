@@ -106,9 +106,18 @@ public class BlockHashRandomizedTests extends ESTestCase {
         return params;
     }
 
+    /**
+     * The type of {@link Block} being tested.
+     */
     interface Type {
+        /**
+         * The type of the {@link ElementType elements} in the {@link Block}.
+         */
         ElementType elementType();
 
+        /**
+         * Build a random {@link Block}.
+         */
         BasicBlockTests.RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups);
     }
 

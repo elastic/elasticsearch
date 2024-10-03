@@ -70,3 +70,24 @@ setup:
   - match: { hits.hits.0.fields.error\.exception\.type: ["MyException"] }
   - match: { hits.hits.0.fields.error\.exception\.message: ["foo"] }
   - match: { hits.hits.0.fields.error\.stack_trace: ["Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)"] }
+---
+"@timestamp should be used as sort field":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "body_text":"error2"}'
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "body_text":"error1"}'
+
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["body_text"]
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.body_text: ["error1"] }
+  - match: { hits.hits.1.fields.body_text: ["error2"] }

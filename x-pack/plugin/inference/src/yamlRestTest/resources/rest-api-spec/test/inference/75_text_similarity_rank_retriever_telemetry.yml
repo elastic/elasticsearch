@@ -1,0 +1,84 @@
+setup:
+  - requires:
+      cluster_features: "text_similarity_reranker_retriever_supported"
+      test_runner_features: [ capabilities, close_to ]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "retrievers-usage-stats"
+      reason: 'semantic reranking introduced in 8.15.0 and we need the retrievers-usage-stats capability for granular retriever telemetry'
+
+  - do:
+      inference.put:
+        task_type: rerank
+        inference_id: my-rerank-model
+        body: >
+          {
+            "service": "test_reranking_service",
+            "service_settings": {
+              "model_id": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              topic:
+                type: keyword
+              subtopic:
+                type: keyword
+
+
+---
+"Telemetry for text_similarity_reranker retriever":
+
+  # search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "text_similarity_reranker" under `retrievers`, as well as
+  # 1 for "standard" under `retrievers`, and eventually 1 for "term" under `queries`
+  - do:
+      search:
+        index: test
+        body:
+          {
+            retriever: {
+              text_similarity_reranker:
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        term: {
+                          topic: "science"
+                        }
+                      }
+                    }
+                  },
+                rank_window_size: 10,
+                inference_id: my-rerank-model,
+                inference_text: "How often does the moon hide the sun?",
+                field: text
+              }
+            },
+            size: 3
+          }
+
+  - do: { cluster.stats: { } }
+
+  - match: { indices.search.total: 1 }
+
+  - length: { indices.search.sections: 1 }
+  - match: { indices.search.sections.retriever: 1 }
+
+  - length: { indices.search.retrievers: 2 }
+  - match: { indices.search.retrievers.standard: 1 }
+  - match: { indices.search.retrievers.text_similarity_reranker: 1 }
+
+  - length: { indices.search.queries: 1 }
+  - match: { indices.search.queries.term: 1 }

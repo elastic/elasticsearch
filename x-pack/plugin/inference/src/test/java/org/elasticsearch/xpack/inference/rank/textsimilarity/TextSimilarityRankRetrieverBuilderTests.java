@@ -72,8 +72,8 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
     }
 
     @Override
-    protected TextSimilarityRankRetrieverBuilder doParseInstance(XContentParser parser) {
-        return TextSimilarityRankRetrieverBuilder.PARSER.apply(
+    protected TextSimilarityRankRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
+        return (TextSimilarityRankRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),

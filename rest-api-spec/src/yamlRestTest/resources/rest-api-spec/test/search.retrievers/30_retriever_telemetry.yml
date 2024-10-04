@@ -1,0 +1,101 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "retrievers-usage-stats"
+      reason: 'kNN and standard retriever added in 8.14 and we need the retrievers-usage-stats capability for granular retriever telemetry'
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              integer:
+                type: integer
+              vector:
+                type: dense_vector
+                dims: 5
+
+---
+"Retriever telemetry for kNN and standard retrievers along with regular searches":
+  # search#1 - this will record 1 entry for "retriever" in 'sections' and 1 for "knn" under 'retrievers'
+  - do:
+      search:
+        index: test_index
+        body:
+          retriever:
+            knn:
+              field: vector
+              query_vector: [2, 2, 2, 2, 3]
+              k: 2
+              num_candidates: 3
+
+  # search#2 - this will record 1 entry for "retriever" in 'sections', 1 for "standard" under 'retrievers', and 1 for 'match' under queries
+  - do:
+      search:
+        index: test_index
+        body:
+          retriever:
+            standard:
+              query:
+                match:
+                  keyword: "physics"
+
+  # search#3 - this will record 1 entry for "retriever" in 'sections', 1 for "standard" under 'retrievers', and 1 for 'range' under queries
+  - do:
+      search:
+        index: test_index
+        body:
+          retriever:
+            standard:
+              query:
+                range:
+                  integer:
+                    gte: 2
+
+  # search#4 - this will record 1 entry for "knn" in `sections`
+  - do:
+      search:
+        index: test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [2, 2, 2, 2, 3]
+            k: 2
+            num_candidates: 3
+
+  # search#5 - this will record 1 entry for "query" in 'sections', and 1 for "knn" in `queries`
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: [2, 2, 2, 2, 3]
+              k: 2
+              num_candidates: 3
+
+  - do: { cluster.stats: { } }
+
+  - match: { indices.search.total: 5 }
+
+  - length: { indices.search.sections: 3 }
+  - match: { indices.search.sections.retriever: 3 }
+  - match: { indices.search.sections.knn: 1 }
+  - match: { indices.search.sections.query: 1 }
+
+  - length: { indices.search.retrievers: 2 }
+  - match: { indices.search.retrievers.standard: 2 }
+  - match: { indices.search.retrievers.knn: 1 }
+
+  - length: { indices.search.queries: 3 }
+  - match: { indices.search.queries.match: 1 }
+  - match: { indices.search.queries.range: 1 }
+  - match: { indices.search.queries.knn: 1 }

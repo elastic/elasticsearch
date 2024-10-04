@@ -56,7 +56,11 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
         });
 
     static {
-        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c), RETRIEVER_FIELD);
+        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
+            RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
+            c.trackRetrieverUsage(innerRetriever.getName());
+            return innerRetriever;
+        }, RETRIEVER_FIELD);
         PARSER.declareString(constructorArg(), INFERENCE_ID_FIELD);
         PARSER.declareString(constructorArg(), INFERENCE_TEXT_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);

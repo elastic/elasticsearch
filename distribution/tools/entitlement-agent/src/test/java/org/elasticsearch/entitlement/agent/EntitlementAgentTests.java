@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.agent;
 
+import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
+
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.internals.EntitlementInternals;
@@ -37,6 +39,7 @@ public class EntitlementAgentTests extends ESTestCase {
     /**
      * We can't really check that this one passes because it will just exit the JVM.
      */
+    @SuppressForbidden("Specifically testing System.exit")
     public void testSystemExitNotEntitled() {
         ENTITLEMENT_MANAGER.activate();
         assertThrows(NotEntitledException.class, () -> System.exit(123));

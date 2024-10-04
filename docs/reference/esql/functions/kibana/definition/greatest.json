@@ -212,5 +212,7 @@
   ],
   "examples" : [
     "ROW a = 10, b = 20\n| EVAL g = GREATEST(a, b)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

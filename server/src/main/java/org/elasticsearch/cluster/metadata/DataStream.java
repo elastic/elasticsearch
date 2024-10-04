@@ -1189,6 +1189,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         );
         // The fields behind the feature flag should always be last.
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            // Should be removed after backport
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(
                 ConstructingObjectParser.optionalConstructorArg(),

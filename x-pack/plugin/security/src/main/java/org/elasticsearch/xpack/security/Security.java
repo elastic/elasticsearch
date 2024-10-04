@@ -790,6 +790,7 @@ public class Security extends Plugin
 
         this.securityMigrationExecutor.set(
             new SecurityMigrationExecutor(
+                clusterService,
                 SecurityMigrationTaskParams.TASK_NAME,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT),
                 systemIndices.getMainIndexManager(),

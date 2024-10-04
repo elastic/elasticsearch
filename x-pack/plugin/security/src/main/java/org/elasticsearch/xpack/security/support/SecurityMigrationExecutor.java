@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -31,7 +32,10 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
     private final Client client;
     private final TreeMap<Integer, SecurityMigrations.SecurityMigration> migrationByVersion;
 
+    private final ClusterService clusterService;
+
     public SecurityMigrationExecutor(
+        ClusterService clusterService,
         String taskName,
         Executor executor,
         SecurityIndexManager securityIndexManager,
@@ -39,6 +43,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         TreeMap<Integer, SecurityMigrations.SecurityMigration> migrationByVersion
     ) {
         super(taskName, executor);
+        this.clusterService = clusterService;
         this.securityIndexManager = securityIndexManager;
         this.client = client;
         this.migrationByVersion = migrationByVersion;
@@ -79,6 +84,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
                 .migrate(
                     securityIndexManager,
                     client,
+                    clusterService.state(),
                     ActionListener.wrap(
                         response -> updateMigrationVersion(
                             migrationEntry.getKey(),

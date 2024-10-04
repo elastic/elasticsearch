@@ -21,9 +21,15 @@ import java.util.Set;
  * Spec for mapper-related features.
  */
 public class MapperFeatures implements FeatureSpecification {
+
+    // Used to avoid noise in mixed cluster and rest compatibility tests. Must not be backported to 8.x branch.
+    // This label gets added to tests with such failures before merging with main, then removed when backported to 8.x.
+    public static final NodeFeature BWC_WORKAROUND_9_0 = new NodeFeature("mapper.bwc_workaround_9_0");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
+            BWC_WORKAROUND_9_0,
             IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
             PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
             RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX,
@@ -52,6 +58,6 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX);
+        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX, IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE);
     }
 }

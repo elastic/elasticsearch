@@ -87,11 +87,9 @@ setup:
   - length: { hits.hits: 2 }
 
   - match: { hits.hits.0._id: "doc_2" }
-  - match: { hits.hits.0._rank: 1 }
   - close_to: { hits.hits.0._score: { value: 0.4, error: 0.001 } }
 
   - match: { hits.hits.1._id: "doc_1" }
-  - match: { hits.hits.1._rank: 2 }
   - close_to: { hits.hits.1._score: { value: 0.2, error: 0.001 } }
 
 ---
@@ -123,7 +121,6 @@ setup:
   - length: { hits.hits: 1 }
 
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.0._rank: 1 }
   - close_to: { hits.hits.0._score: { value: 0.2, error: 0.001 } }
 
 

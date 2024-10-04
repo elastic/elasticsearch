@@ -1,5 +1,5 @@
 pr: 114002
-summary: Add a `mustache.result.size.limit` option to limit the length of results from mustache scripts
+summary: Add a `mustache.max_output_size_bytes` setting to limit the length of results from mustache scripts
 area: Infra/Scripting
 type: enhancement
 issues: []

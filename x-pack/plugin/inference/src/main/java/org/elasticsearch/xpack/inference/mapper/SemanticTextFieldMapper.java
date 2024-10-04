@@ -84,6 +84,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     public static final NodeFeature SEMANTIC_TEXT_SEARCH_INFERENCE_ID = new NodeFeature("semantic_text.search_inference_id");
+    public static final NodeFeature SEMANTIC_TEXT_DEFAULT_ELSER_2 = new NodeFeature("semantic_text.default_elser_2");
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;

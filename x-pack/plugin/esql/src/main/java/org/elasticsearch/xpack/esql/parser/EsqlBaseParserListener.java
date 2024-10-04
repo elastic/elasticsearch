@@ -216,6 +216,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuzzinessValue}.
+   * @param ctx the parse tree
+   */
+  void enterFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuzzinessValue}.
+   * @param ctx the parse tree
+   */
+  void exitFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#boostExpression}.
    * @param ctx the parse tree
    */

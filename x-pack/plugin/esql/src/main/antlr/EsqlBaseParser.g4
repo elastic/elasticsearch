@@ -87,10 +87,16 @@ matchOperatorExpression
     ;
 
 fuzzinessExpression
-    : (TILDE | FUZZY) INTEGER_LITERAL;
+    : (TILDE | FUZZY) fuzzinessValue?
+    ;
+
+fuzzinessValue
+    : distance=INTEGER_LITERAL
+    | auto=AUTO(COLON INTEGER_LITERAL (COMMA INTEGER_LITERAL)?)?
+    ;
 
 boostExpression
-    : (CARET | BOOST) DECIMAL_LITERAL;
+    : (CARET | BOOST) decimalValue;
 
 valueExpression
     : operatorExpression                                                                      #valueExpressionDefault

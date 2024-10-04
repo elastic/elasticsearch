@@ -215,6 +215,7 @@ CARET : '^';
 TILDE : '~';
 BOOST : 'boost';
 FUZZY : 'fuzzy';
+AUTO : 'auto';
 
 
 // move it in the main section if the feature gets promoted

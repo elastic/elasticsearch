@@ -37,14 +37,28 @@ public class MatchQueryTests extends ESTestCase {
     }
 
     private static MatchQuery copy(MatchQuery query) {
-        return new MatchQuery(query.source(), query.name(), query.text(), query.predicate());
+        return new MatchQuery(query.source(), query.name(), query.text(), query.fuzziness(), query.boost(), query.predicate());
     }
 
     private static MatchQuery mutate(MatchQuery query) {
         List<Function<MatchQuery, MatchQuery>> options = Arrays.asList(
-            q -> new MatchQuery(SourceTests.mutate(q.source()), q.name(), q.text(), q.predicate()),
-            q -> new MatchQuery(q.source(), randomValueOtherThan(q.name(), () -> randomAlphaOfLength(5)), q.text(), q.predicate()),
-            q -> new MatchQuery(q.source(), q.name(), randomValueOtherThan(q.text(), () -> randomAlphaOfLength(5)), q.predicate())
+            q -> new MatchQuery(SourceTests.mutate(q.source()), q.name(), q.text(), q.fuzziness(), q.boost(), q.predicate()),
+            q -> new MatchQuery(
+                q.source(),
+                randomValueOtherThan(q.name(), () -> randomAlphaOfLength(5)),
+                q.text(),
+                null,
+                null,
+                q.predicate()
+            ),
+            q -> new MatchQuery(
+                q.source(),
+                q.name(),
+                randomValueOtherThan(q.text(), () -> randomAlphaOfLength(5)),
+                null,
+                null,
+                q.predicate()
+            )
         );
         // TODO mutate the predicate
         return randomFrom(options).apply(query);
@@ -69,7 +83,7 @@ public class MatchQueryTests extends ESTestCase {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
         final MatchQueryPredicate mmqp = new MatchQueryPredicate(source, fa, "eggplant", options);
-        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", mmqp);
+        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", null, null, mmqp);
         return (MatchQueryBuilder) mmq.asBuilder();
     }
 
@@ -77,7 +91,7 @@ public class MatchQueryTests extends ESTestCase {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
         final MatchQueryPredicate mmqp = new MatchQueryPredicate(source, fa, "eggplant", "");
-        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", mmqp);
+        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", null, null, mmqp);
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());
     }
 }

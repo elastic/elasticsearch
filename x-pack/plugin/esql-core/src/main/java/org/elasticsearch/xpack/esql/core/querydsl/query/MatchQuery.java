@@ -48,16 +48,20 @@ public class MatchQuery extends Query {
     private final Object text;
     private final MatchQueryPredicate predicate;
     private final Map<String, String> options;
+    private final Fuzziness fuzziness;
+    private final Double boost;
 
     public MatchQuery(Source source, String name, Object text) {
-        this(source, name, text, null);
+        this(source, name, text, null, null, null);
     }
 
-    public MatchQuery(Source source, String name, Object text, MatchQueryPredicate predicate) {
+    public MatchQuery(Source source, String name, Object text, Fuzziness fuzziness, Double boost, MatchQueryPredicate predicate) {
         super(source);
         this.name = name;
         this.text = text;
         this.predicate = predicate;
+        this.fuzziness = fuzziness;
+        this.boost = boost;
         this.options = predicate == null ? Collections.emptyMap() : predicate.optionMap();
     }
 
@@ -71,6 +75,12 @@ public class MatchQuery extends Query {
                 throw new IllegalArgumentException("illegal match option [" + k + "]");
             }
         });
+        if (fuzziness != null) {
+            queryBuilder.fuzziness(fuzziness);
+        }
+        if (boost != null) {
+            queryBuilder.boost(boost.floatValue());
+        }
         return queryBuilder;
     }
 
@@ -104,5 +114,13 @@ public class MatchQuery extends Query {
     @Override
     protected String innerToString() {
         return name + ":" + text;
+    }
+
+    public Fuzziness fuzziness() {
+        return fuzziness;
+    }
+
+    public Double boost() {
+        return boost;
     }
 }

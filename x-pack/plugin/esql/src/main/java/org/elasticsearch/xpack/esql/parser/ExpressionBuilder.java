@@ -18,6 +18,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -788,14 +789,33 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) {
         if (Build.current().isSnapshot() == false) {
-            throw new ParsingException(source(ctx), ": operator currently requires a snapshot build");
+            throw new ParsingException(source(ctx), "[:] operator currently requires a snapshot build");
         }
-        return MatchFunction.createOperator(
+        Double boost = null;
+        EsqlBaseParser.BoostExpressionContext boostCtxt = ctx.boostExpression();
+        if (boostCtxt != null) {
+            boost = (Double) visitDecimalValue(boostCtxt.decimalValue()).value();
+        }
+        Fuzziness fuzziness = null;
+        EsqlBaseParser.FuzzinessExpressionContext fuzzyCtxt = ctx.fuzzinessExpression();
+        if(fuzzyCtxt != null) {
+            if (fuzzyCtxt.fuzzinessValue() == null) {
+                // Default value for query string query
+                fuzziness = Fuzziness.TWO;
+            } else {
+                try {
+                    fuzziness = Fuzziness.fromString(fuzzyCtxt.fuzzinessValue().getText());
+                } catch (IllegalArgumentException e) {
+                    throw new ParsingException(source(ctx), "Invalid fuzziness value: [{}]", fuzzyCtxt.fuzzinessValue().getText());
+                }
+            }
+        }
+        return MatchFunction.operator(
             source(ctx),
             expression(ctx.valueExpression()),
             expression(ctx.queryString),
-            visitDecimalLiteral(ctx.boostExpression().DECIMAL_LITERAL())
-            visitIntegerLiteral(ctx.fuzzinessExpression().INTEGER_LITERAL())
+            boost,
+            fuzziness
         );
     }
 }

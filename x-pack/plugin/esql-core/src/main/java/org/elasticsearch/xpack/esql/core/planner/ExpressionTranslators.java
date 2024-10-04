@@ -99,7 +99,7 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(MatchQueryPredicate q, TranslatorHandler handler) {
-            return new MatchQuery(q.source(), handler.nameOf(q.field()), q.query(), q);
+            return new MatchQuery(q.source(), handler.nameOf(q.field()), q.query(), null, null,  q);
         }
     }
 

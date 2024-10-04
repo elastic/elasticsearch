@@ -241,6 +241,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) { }
   /**
    * {@inheritDoc}

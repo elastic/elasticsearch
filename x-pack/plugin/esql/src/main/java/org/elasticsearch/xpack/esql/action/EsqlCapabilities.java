@@ -279,6 +279,11 @@ public class EsqlCapabilities {
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * Support for datetime in least and greatest functions
+         */
+        LEAST_GREATEST_FOR_DATES,
+
+        /**
          * Support CIDRMatch in CombineDisjunctions rule.
          */
         COMBINE_DISJUNCTIVE_CIDRMATCHES,

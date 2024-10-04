@@ -32,10 +32,6 @@
 
 ---
 "cluster stats accepts timeout param":
-  - skip:
-      cluster_features: "gte_v8.16.0"
-      reason: "Suppress this test for merging & backporting https://github.com/elastic/elasticsearch/pull/113852"
-
   - do:
       cluster.stats:
         timeout: 24h

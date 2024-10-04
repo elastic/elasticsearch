@@ -50,7 +50,7 @@ import java.util.function.Predicate;
  *             <li>
  *                 The reference refers to a distance function that refers to an indexed field and a constant expression.
  *                 For example `FROM index | EVAL distance = ST_DISTANCE(field, POINT(0, 0)) | SORT distance`.
- *                 As with the previous condition, the both the attribute and the constant can be further aliased.
+ *                 As with the previous condition, both the attribute and the constant can be further aliased.
  *             </li>
  *         </ul>
  *     </li>

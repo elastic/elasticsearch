@@ -12,9 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -72,13 +74,13 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        Query luceneQuery = new KqlParser().parseKqlQuery(query, context).toQuery(context);
+        QueryBuilder queryBuilder = new KqlParser().parseKqlQuery(query, context);
 
         if (log.isTraceEnabled()) {
-            log.trace("KQL query {} translated to lucene query: {}", query, luceneQuery);
+            log.trace("KQL query {} translated to Query DSL: {}", query, Strings.toString(queryBuilder));
         }
 
-        return luceneQuery;
+        return queryBuilder.toQuery(context);
     }
 
     protected void doWriteTo(StreamOutput out) throws IOException {

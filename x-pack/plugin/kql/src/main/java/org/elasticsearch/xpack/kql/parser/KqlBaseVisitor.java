@@ -95,30 +95,39 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitFieldName(KqlBaseParser.FieldNameContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#groupingExpr}.
+     * Visit a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitGroupingExpr(KqlBaseParser.GroupingExprContext ctx);
+    T visitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
     /**
-     * Visit a parse tree produced by the {@code wildcard}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Visit a parse tree produced by {@link KqlBaseParser#termQueryValue}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitWildcard(KqlBaseParser.WildcardContext ctx);
+    T visitTermQueryValue(KqlBaseParser.TermQueryValueContext ctx);
     /**
-     * Visit a parse tree produced by the {@code quotedString}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Visit a parse tree produced by {@link KqlBaseParser#groupingTermExpression}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitQuotedString(KqlBaseParser.QuotedStringContext ctx);
+    T visitGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx);
     /**
-     * Visit a parse tree produced by the {@code defaultLiteralExpression}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Visit a parse tree produced by {@link KqlBaseParser#unquotedLiteralExpression}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitDefaultLiteralExpression(KqlBaseParser.DefaultLiteralExpressionContext ctx);
+    T visitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#quotedStringExpression}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#wildcardExpression}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx);
 }

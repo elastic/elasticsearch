@@ -51,26 +51,45 @@ parenthesizedQuery:
    LEFT_PARENTHESIS query RIGHT_PARENTHESIS;
 
 fieldRangeQuery
-    : fieldName operator=OP_COMPARE termValue=literalExpression
+    : fieldName operator=OP_COMPARE rangeQueryValue
     ;
 
 fieldTermQuery
-    : (fieldName COLON)? (termValue=literalExpression | groupingExpr)
+    : (fieldName COLON)? termQueryValue
     ;
 
 fieldName
-    : literalExpression
+    : wildcardExpression
+    | unquotedLiteralExpression
+    | quotedStringExpression
     ;
 
-groupingExpr
-    : LEFT_PARENTHESIS literalExpression+ RIGHT_PARENTHESIS
+rangeQueryValue
+    : unquotedLiteralExpression
+    | quotedStringExpression
     ;
 
-literalExpression
-    : WILDCARD                                #wildcard
-    | QUOTED_STRING                           #quotedString
-    | WILDCARD? UNQUOTED_LITERAL+ WILDCARD?   #defaultLiteralExpression
+termQueryValue
+    : wildcardExpression
+    | quotedStringExpression
+    | termValue=unquotedLiteralExpression
+    | groupingTermExpression;
+
+groupingTermExpression
+    : LEFT_PARENTHESIS unquotedLiteralExpression RIGHT_PARENTHESIS
     ;
+
+unquotedLiteralExpression
+    : UNQUOTED_LITERAL+
+    ;
+
+quotedStringExpression
+    : QUOTED_STRING
+    ;
+wildcardExpression
+    : WILDCARD
+;
+
 
 DEFAULT_SKIP: WHITESPACE -> skip;
 
@@ -86,11 +105,11 @@ RIGHT_PARENTHESIS: ')';
 LEFT_CURLY_BRACKET: '{';
 RIGHT_CURLY_BRACKET: '}';
 
-UNQUOTED_LITERAL: UNQUOTED_LITERAL_CHAR+;
+UNQUOTED_LITERAL: WILDCARD* UNQUOTED_LITERAL_CHAR+ WILDCARD*;
 
 QUOTED_STRING: '"' QUOTED_CHAR* '"';
 
-WILDCARD: WILDCARD_CHAR;
+WILDCARD: WILDCARD_CHAR+;
 
 fragment WILDCARD_CHAR: '*';
 fragment OP_LESS: '<';

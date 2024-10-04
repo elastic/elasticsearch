@@ -169,49 +169,73 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterGroupingExpr(KqlBaseParser.GroupingExprContext ctx) { }
+    @Override public void enterRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitGroupingExpr(KqlBaseParser.GroupingExprContext ctx) { }
+    @Override public void exitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterWildcard(KqlBaseParser.WildcardContext ctx) { }
+    @Override public void enterTermQueryValue(KqlBaseParser.TermQueryValueContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitWildcard(KqlBaseParser.WildcardContext ctx) { }
+    @Override public void exitTermQueryValue(KqlBaseParser.TermQueryValueContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterQuotedString(KqlBaseParser.QuotedStringContext ctx) { }
+    @Override public void enterGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitQuotedString(KqlBaseParser.QuotedStringContext ctx) { }
+    @Override public void exitGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterDefaultLiteralExpression(KqlBaseParser.DefaultLiteralExpressionContext ctx) { }
+    @Override public void enterUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitDefaultLiteralExpression(KqlBaseParser.DefaultLiteralExpressionContext ctx) { }
+    @Override public void exitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx) { }
 
     /**
      * {@inheritDoc}

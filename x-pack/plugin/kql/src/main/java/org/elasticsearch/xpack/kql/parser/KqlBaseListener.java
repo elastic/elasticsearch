@@ -144,49 +144,63 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitFieldName(KqlBaseParser.FieldNameContext ctx);
     /**
-     * Enter a parse tree produced by {@link KqlBaseParser#groupingExpr}.
+     * Enter a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
      * @param ctx the parse tree
      */
-    void enterGroupingExpr(KqlBaseParser.GroupingExprContext ctx);
+    void enterRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
     /**
-     * Exit a parse tree produced by {@link KqlBaseParser#groupingExpr}.
+     * Exit a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
      * @param ctx the parse tree
      */
-    void exitGroupingExpr(KqlBaseParser.GroupingExprContext ctx);
+    void exitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
     /**
-     * Enter a parse tree produced by the {@code wildcard}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Enter a parse tree produced by {@link KqlBaseParser#termQueryValue}.
      * @param ctx the parse tree
      */
-    void enterWildcard(KqlBaseParser.WildcardContext ctx);
+    void enterTermQueryValue(KqlBaseParser.TermQueryValueContext ctx);
     /**
-     * Exit a parse tree produced by the {@code wildcard}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Exit a parse tree produced by {@link KqlBaseParser#termQueryValue}.
      * @param ctx the parse tree
      */
-    void exitWildcard(KqlBaseParser.WildcardContext ctx);
+    void exitTermQueryValue(KqlBaseParser.TermQueryValueContext ctx);
     /**
-     * Enter a parse tree produced by the {@code quotedString}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Enter a parse tree produced by {@link KqlBaseParser#groupingTermExpression}.
      * @param ctx the parse tree
      */
-    void enterQuotedString(KqlBaseParser.QuotedStringContext ctx);
+    void enterGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx);
     /**
-     * Exit a parse tree produced by the {@code quotedString}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Exit a parse tree produced by {@link KqlBaseParser#groupingTermExpression}.
      * @param ctx the parse tree
      */
-    void exitQuotedString(KqlBaseParser.QuotedStringContext ctx);
+    void exitGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx);
     /**
-     * Enter a parse tree produced by the {@code defaultLiteralExpression}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Enter a parse tree produced by {@link KqlBaseParser#unquotedLiteralExpression}.
      * @param ctx the parse tree
      */
-    void enterDefaultLiteralExpression(KqlBaseParser.DefaultLiteralExpressionContext ctx);
+    void enterUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx);
     /**
-     * Exit a parse tree produced by the {@code defaultLiteralExpression}
-     * labeled alternative in {@link KqlBaseParser#literalExpression}.
+     * Exit a parse tree produced by {@link KqlBaseParser#unquotedLiteralExpression}.
      * @param ctx the parse tree
      */
-    void exitDefaultLiteralExpression(KqlBaseParser.DefaultLiteralExpressionContext ctx);
+    void exitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#quotedStringExpression}.
+     * @param ctx the parse tree
+     */
+    void enterQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#quotedStringExpression}.
+     * @param ctx the parse tree
+     */
+    void exitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#wildcardExpression}.
+     * @param ctx the parse tree
+     */
+    void enterWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#wildcardExpression}.
+     * @param ctx the parse tree
+     */
+    void exitWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx);
 }

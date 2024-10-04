@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -21,14 +23,20 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ql.parser.ParserUtils;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     private static final Logger log = LogManager.getLogger(KqlQueryBuilder.class);
 
     private final SearchExecutionContext searchExecutionContext;
+    private final KqlStringBuilder stringBuilder;
 
     public KqlQueryBuilder(SearchExecutionContext searchExecutionContext) {
         this.searchExecutionContext = searchExecutionContext;
+        this.stringBuilder = new KqlStringBuilder();
     }
 
     public QueryBuilder query(ParserRuleContext ctx) {
@@ -89,22 +97,114 @@ public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx) {
-        boolean isExistsQuery = ctx.termValue.wildcard() != null;
-        boolean isAllFieldsQuery = ctx.fieldName() != null && ctx.fieldName().wildcard() != null;
-
-        if ((ctx.fieldName() == null || isAllFieldsQuery) && isExistsQuery) {
+        if (isMatchAllQuery(ctx)) {
             return QueryBuilders.matchAllQuery();
         }
 
-        boolean isPhraseQuery = ctx.termValue.quotedString() != null;
+        String queryText = ctx.termQueryValue().accept(stringBuilder);
+        boolean isPhraseQuery = ctx.termQueryValue().quotedStringExpression() != null;
+        boolean isWildcardQuery = ctx.termQueryValue().wildcardExpression() != null;
 
         if (ctx.fieldName() == null) {
-            return QueryBuilders.multiMatchQuery(ctx.termValue.getText())
-                .type(isPhraseQuery ? MultiMatchQueryBuilder.Type.PHRASE : MultiMatchQueryBuilder.Type.BEST_FIELDS)
-                .lenient(true);
+            return buildMultiMatchQuery(queryText, isPhraseQuery);
         }
 
-        return new MatchNoneQueryBuilder();
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
+        resolveFields(ctx.fieldName()).forEach(fieldDefinition -> {
+            addFieldQuery(boolQueryBuilder, fieldDefinition, queryText, isPhraseQuery, isWildcardQuery);
+        });
+
+        return boolQueryBuilder.should().isEmpty() ? new MatchNoneQueryBuilder() : boolQueryBuilder;
+    }
+
+    private QueryBuilder buildMultiMatchQuery(String queryText, boolean isPhraseQuery) {
+        return QueryBuilders.multiMatchQuery(queryText)
+            .type(isPhraseQuery ? MultiMatchQueryBuilder.Type.PHRASE : MultiMatchQueryBuilder.Type.BEST_FIELDS)
+            .lenient(true);
+    }
+
+    private void addFieldQuery(
+        BoolQueryBuilder boolQueryBuilder,
+        Map.Entry<String, MappedFieldType> fieldDefinition,
+        String queryText,
+        boolean isPhraseQuery,
+        boolean isWildcardQuery) {
+
+        String fieldName = fieldDefinition.getKey();
+        MappedFieldType fieldType = fieldDefinition.getValue();
+
+        if (isRuntimeField(fieldType)) {
+            addRuntimeFieldQuery(boolQueryBuilder, fieldName, queryText, isWildcardQuery);
+            return;
+        }
+
+        if (isWildcardQuery) {
+            boolQueryBuilder.should(QueryBuilders.existsQuery(fieldName));
+            return;
+        }
+
+        if (isDateField(fieldType)) {
+            addDateFieldQuery(boolQueryBuilder, fieldName, queryText);
+            return;
+        }
+
+        if (isKeywordField(fieldType)) {
+            addKeywordFieldQuery(boolQueryBuilder, fieldName, queryText, isWildcardQuery);
+            return;
+        }
+
+        if (isPhraseQuery) {
+            boolQueryBuilder.should(QueryBuilders.matchPhraseQuery(fieldName, queryText));
+        } else {
+            boolQueryBuilder.should(QueryBuilders.matchQuery(fieldName, queryText));
+        }
+    }
+
+    private boolean isMatchAllQuery(KqlBaseParser.FieldTermQueryContext ctx) {
+        boolean isExistsQuery = ctx.termQueryValue().wildcardExpression() != null;
+        boolean isAllFieldsQuery = ctx.fieldName() != null && ctx.fieldName().wildcardExpression() != null;
+        return (ctx.fieldName() == null || isAllFieldsQuery) && isExistsQuery;
+    }
+
+    private void addRuntimeFieldQuery(
+        BoolQueryBuilder boolQueryBuilder,
+        String fieldName,
+        String queryText,
+        boolean isWildcardQuery) {
+        if (isWildcardQuery == false) {
+            // TODO: Implement runtime field query
+            log.debug("Runtime field queries not yet implemented for field: {}", fieldName);
+        }
+    }
+
+    private void addDateFieldQuery(BoolQueryBuilder boolQueryBuilder, String fieldName, String queryText) {
+        // TODO: Implement date field query
+        // range: { [field.name]: { gte: value, lte: value, ...timeZoneParam }}
+        log.debug("Date field queries not yet implemented for field: {}", fieldName);
+    }
+
+    private void addKeywordFieldQuery(
+        BoolQueryBuilder boolQueryBuilder,
+        String fieldName,
+        String queryText,
+        boolean isWildcardQuery) {
+        if (isWildcardQuery) {
+            boolQueryBuilder.should(
+                QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(true)
+            );
+        } else {
+            boolQueryBuilder.should(
+                QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(true)
+            );
+        }
+    }
+
+    private boolean isDateField(MappedFieldType fieldType) {
+        return fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE);
+    }
+
+    private boolean isKeywordField(MappedFieldType fieldType) {
+        return fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE);
     }
 
     @Override
@@ -117,97 +217,31 @@ public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         return super.visitNestedQuery(ctx);
     }
 
-//    private Iterable<Map.Entry<String, MappedFieldType>> resolveFields(KqlBaseParser.FieldNameContext fieldNameContext) {
-//
-//        Iterable<Map.Entry<String, MappedFieldType>> fields = null;
-//
-//        if (fieldNameContext == null || fieldNameContext.wildcard() != null) {
-//            // Wildcard: get all fields:
-//            log.trace("Wildcard field name : {}");
-//            fields = searchExecutionContext.getAllFields();
-//        } else if (fieldNameContext.quotedString() != null) {
-//            log.trace("Quoted field name : {}", unquote(fieldNameContext));
-//            searchExecutionContext.getFieldType(unquote(fieldNameContext));
-//        } else {
-//            log.trace("Literal field name : {}", unescapeLiteral(fieldNameContext));
-//            fields = searchExecutionContext.getMatchingFieldNames(unescapeLiteral(fieldNameContext))
-//                .stream()
-//                .map(fieldName -> Map.entry(fieldName, searchExecutionContext.getFieldType(fieldName)))
-//                .collect(Collectors.toList());;
-//        }
-//
-//        return fields;
-//    }
+    private Iterable<Map.Entry<String, MappedFieldType>> resolveFields(KqlBaseParser.FieldNameContext fieldNameContext) {
+        Iterable<Map.Entry<String, MappedFieldType>> fields = List.of();
 
-
-    private String extract
-
-    private String unescapeLiteral(KqlBaseParser.UnquotedLiteralContext ctx) {
-        String inputText = ctx.getText();
-        // TOOD: implement
-
-        return inputText;
-    }
-
-    private String unquote(ParserRuleContext ctx) {
-        String inputText = ctx.getText();
-
-        assert inputText.length() > 2 && inputText.charAt(0) == '\"' && inputText.charAt(inputText.length() -1) == '\"' ;
-        StringBuilder sb = new StringBuilder();
-
-        for (int i = 1; i < inputText.length() - 1;) {
-            if (inputText.charAt(i) == '\\') {
-                // ANTLR4 Grammar guarantees there is always a character after the `\`
-                switch (inputText.charAt(++i)) {
-                    case 't' -> sb.append('\t');
-                    case 'b' -> sb.append('\b');
-                    case 'f' -> sb.append('\f');
-                    case 'n' -> sb.append('\n');
-                    case 'r' -> sb.append('\r');
-                    case '"' -> sb.append('\"');
-                    case '\'' -> sb.append('\'');
-                    case 'u' -> i = handleUnicodePoints(ctx, sb, inputText, ++i);
-                    case '\\' -> sb.append('\\');
-
-                    // will be interpreted as regex, so we have to escape it
-                    default ->
-                        // unknown escape sequence, pass through as-is, e.g: `...\w...`
-                        sb.append('\\').append(inputText.charAt(i));
-                }
-                i++;
-            } else {
-                sb.append(inputText.charAt(i++));
+        if (fieldNameContext == null || fieldNameContext.wildcardExpression() != null) {
+            // TODO: filter out internal fields
+            fields = searchExecutionContext.getAllFields();
+        } else if (fieldNameContext.quotedStringExpression() != null) {
+            String fieldName = fieldNameContext.accept(stringBuilder);
+            log.trace("Quoted field name : {}", fieldName);
+            if (searchExecutionContext.isFieldMapped(fieldName)) {
+                fields = List.of(Map.entry(fieldName, searchExecutionContext.getFieldType(fieldName)));
             }
+        }  else {
+            String fieldPattern = fieldNameContext.accept(stringBuilder);
+            log.trace("Unquoted field name : {}", fieldPattern);
+            fields = searchExecutionContext.getMatchingFieldNames(fieldPattern)
+                .stream()
+                .map(fieldName -> Map.entry(fieldName, searchExecutionContext.getFieldType(fieldName)))
+                .collect(Collectors.toList());
         }
-        return sb.toString();
+
+        return fields;
     }
 
-    private static int handleUnicodePoints(ParserRuleContext ctx, StringBuilder sb, String text, int startIdx) {
-        int endIdx = startIdx + 4;
-        sb.append(hexToUnicode(ctx, text.substring(startIdx, endIdx)));
-        return endIdx;
-    }
-
-    private static String hexToUnicode(ParserRuleContext ctx, String hex) {
-        try {
-            int code = Integer.parseInt(hex, 16);
-            // U+D800—U+DFFF can only be used as surrogate pairs and therefore are not valid character codes
-            if (code >= 0xD800 && code <= 0xDFFF) {
-                throw new ParsingException(
-                    ctx.start.getLine(),
-                    ctx.start.getCharPositionInLine(),
-                    LoggerMessageFormat.format("Invalid unicode character code, [{}] is a surrogate code", hex),
-                    null
-                );
-            }
-            return String.valueOf(Character.toChars(code));
-        } catch (IllegalArgumentException e) {
-            throw new ParsingException(
-                ctx.start.getLine(),
-                ctx.start.getCharPositionInLine(),
-                LoggerMessageFormat.format("Invalid unicode character code [{}]", hex),
-                null
-            );
-        }
+    private boolean isRuntimeField(MappedFieldType fieldType) {
+        return fieldType instanceof AbstractScriptFieldType<?>;
     }
 }

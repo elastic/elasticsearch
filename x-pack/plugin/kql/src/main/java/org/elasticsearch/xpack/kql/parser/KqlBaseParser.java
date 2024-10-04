@@ -31,12 +31,15 @@ class KqlBaseParser extends Parser {
     public static final int
         RULE_topLevelQuery = 0, RULE_query = 1, RULE_simpleQuery = 2, RULE_expression = 3, 
         RULE_nestedQuery = 4, RULE_parenthesizedQuery = 5, RULE_fieldRangeQuery = 6, 
-        RULE_fieldTermQuery = 7, RULE_fieldName = 8, RULE_groupingExpr = 9, RULE_literalExpression = 10;
+        RULE_fieldTermQuery = 7, RULE_fieldName = 8, RULE_rangeQueryValue = 9, 
+        RULE_termQueryValue = 10, RULE_groupingTermExpression = 11, RULE_unquotedLiteralExpression = 12, 
+        RULE_quotedStringExpression = 13, RULE_wildcardExpression = 14;
     private static String[] makeRuleNames() {
         return new String[] {
             "topLevelQuery", "query", "simpleQuery", "expression", "nestedQuery", 
             "parenthesizedQuery", "fieldRangeQuery", "fieldTermQuery", "fieldName", 
-            "groupingExpr", "literalExpression"
+            "rangeQueryValue", "termQueryValue", "groupingTermExpression", "unquotedLiteralExpression", 
+            "quotedStringExpression", "wildcardExpression"
         };
     }
     public static final String[] ruleNames = makeRuleNames();
@@ -138,17 +141,17 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(23);
+            setState(31);
             _errHandler.sync(this);
             _la = _input.LA(1);
             if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 14480L) != 0)) {
                 {
-                setState(22);
+                setState(30);
                 query(0);
                 }
             }
 
-            setState(25);
+            setState(33);
             match(EOF);
             }
         }
@@ -281,7 +284,7 @@ class KqlBaseParser extends Parser {
             int _alt;
             enterOuterAlt(_localctx, 1);
             {
-            setState(31);
+            setState(39);
             _errHandler.sync(this);
             switch (_input.LA(1)) {
             case NOT:
@@ -290,9 +293,9 @@ class KqlBaseParser extends Parser {
                 _ctx = _localctx;
                 _prevctx = _localctx;
 
-                setState(28);
+                setState(36);
                 match(NOT);
-                setState(29);
+                setState(37);
                 ((LogicalNotContext)_localctx).subQuery = simpleQuery();
                 }
                 break;
@@ -304,7 +307,7 @@ class KqlBaseParser extends Parser {
                 _localctx = new QueryDefaultContext(_localctx);
                 _ctx = _localctx;
                 _prevctx = _localctx;
-                setState(30);
+                setState(38);
                 simpleQuery();
                 }
                 break;
@@ -312,7 +315,7 @@ class KqlBaseParser extends Parser {
                 throw new NoViableAltException(this);
             }
             _ctx.stop = _input.LT(-1);
-            setState(41);
+            setState(49);
             _errHandler.sync(this);
             _alt = getInterpreter().adaptivePredict(_input,3,_ctx);
             while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
@@ -320,18 +323,18 @@ class KqlBaseParser extends Parser {
                     if ( _parseListeners!=null ) triggerExitRuleEvent();
                     _prevctx = _localctx;
                     {
-                    setState(39);
+                    setState(47);
                     _errHandler.sync(this);
                     switch ( getInterpreter().adaptivePredict(_input,2,_ctx) ) {
                     case 1:
                         {
                         _localctx = new LogicalAndContext(new QueryContext(_parentctx, _parentState));
                         pushNewRecursionContext(_localctx, _startState, RULE_query);
-                        setState(33);
+                        setState(41);
                         if (!(precpred(_ctx, 4))) throw new FailedPredicateException(this, "precpred(_ctx, 4)");
-                        setState(34);
+                        setState(42);
                         match(AND);
-                        setState(35);
+                        setState(43);
                         query(5);
                         }
                         break;
@@ -339,18 +342,18 @@ class KqlBaseParser extends Parser {
                         {
                         _localctx = new LogicalOrContext(new QueryContext(_parentctx, _parentState));
                         pushNewRecursionContext(_localctx, _startState, RULE_query);
-                        setState(36);
+                        setState(44);
                         if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
-                        setState(37);
+                        setState(45);
                         match(OR);
-                        setState(38);
+                        setState(46);
                         query(4);
                         }
                         break;
                     }
                     } 
                 }
-                setState(43);
+                setState(51);
                 _errHandler.sync(this);
                 _alt = getInterpreter().adaptivePredict(_input,3,_ctx);
             }
@@ -401,27 +404,27 @@ class KqlBaseParser extends Parser {
         SimpleQueryContext _localctx = new SimpleQueryContext(_ctx, getState());
         enterRule(_localctx, 4, RULE_simpleQuery);
         try {
-            setState(47);
+            setState(55);
             _errHandler.sync(this);
             switch ( getInterpreter().adaptivePredict(_input,4,_ctx) ) {
             case 1:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(44);
+                setState(52);
                 nestedQuery();
                 }
                 break;
             case 2:
                 enterOuterAlt(_localctx, 2);
                 {
-                setState(45);
+                setState(53);
                 expression();
                 }
                 break;
             case 3:
                 enterOuterAlt(_localctx, 3);
                 {
-                setState(46);
+                setState(54);
                 parenthesizedQuery();
                 }
                 break;
@@ -469,20 +472,20 @@ class KqlBaseParser extends Parser {
         ExpressionContext _localctx = new ExpressionContext(_ctx, getState());
         enterRule(_localctx, 6, RULE_expression);
         try {
-            setState(51);
+            setState(59);
             _errHandler.sync(this);
             switch ( getInterpreter().adaptivePredict(_input,5,_ctx) ) {
             case 1:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(49);
+                setState(57);
                 fieldTermQuery();
                 }
                 break;
             case 2:
                 enterOuterAlt(_localctx, 2);
                 {
-                setState(50);
+                setState(58);
                 fieldRangeQuery();
                 }
                 break;
@@ -535,15 +538,15 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(53);
+            setState(61);
             fieldName();
-            setState(54);
+            setState(62);
             match(COLON);
-            setState(55);
+            setState(63);
             match(LEFT_CURLY_BRACKET);
-            setState(56);
+            setState(64);
             query(0);
-            setState(57);
+            setState(65);
             match(RIGHT_CURLY_BRACKET);
             }
         }
@@ -590,11 +593,11 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(59);
+            setState(67);
             match(LEFT_PARENTHESIS);
-            setState(60);
+            setState(68);
             query(0);
-            setState(61);
+            setState(69);
             match(RIGHT_PARENTHESIS);
             }
         }
@@ -612,14 +615,13 @@ class KqlBaseParser extends Parser {
     @SuppressWarnings("CheckReturnValue")
     public static class FieldRangeQueryContext extends ParserRuleContext {
         public Token operator;
-        public LiteralExpressionContext termValue;
         public FieldNameContext fieldName() {
             return getRuleContext(FieldNameContext.class,0);
         }
-        public TerminalNode OP_COMPARE() { return getToken(KqlBaseParser.OP_COMPARE, 0); }
-        public LiteralExpressionContext literalExpression() {
-            return getRuleContext(LiteralExpressionContext.class,0);
+        public RangeQueryValueContext rangeQueryValue() {
+            return getRuleContext(RangeQueryValueContext.class,0);
         }
+        public TerminalNode OP_COMPARE() { return getToken(KqlBaseParser.OP_COMPARE, 0); }
         public FieldRangeQueryContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
@@ -645,12 +647,12 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(63);
+            setState(71);
             fieldName();
-            setState(64);
+            setState(72);
             ((FieldRangeQueryContext)_localctx).operator = match(OP_COMPARE);
-            setState(65);
-            ((FieldRangeQueryContext)_localctx).termValue = literalExpression();
+            setState(73);
+            rangeQueryValue();
             }
         }
         catch (RecognitionException re) {
@@ -666,17 +668,13 @@ class KqlBaseParser extends Parser {
 
     @SuppressWarnings("CheckReturnValue")
     public static class FieldTermQueryContext extends ParserRuleContext {
-        public LiteralExpressionContext termValue;
-        public GroupingExprContext groupingExpr() {
-            return getRuleContext(GroupingExprContext.class,0);
+        public TermQueryValueContext termQueryValue() {
+            return getRuleContext(TermQueryValueContext.class,0);
         }
         public FieldNameContext fieldName() {
             return getRuleContext(FieldNameContext.class,0);
         }
         public TerminalNode COLON() { return getToken(KqlBaseParser.COLON, 0); }
-        public LiteralExpressionContext literalExpression() {
-            return getRuleContext(LiteralExpressionContext.class,0);
-        }
         public FieldTermQueryContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
@@ -702,38 +700,20 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(70);
+            setState(78);
             _errHandler.sync(this);
             switch ( getInterpreter().adaptivePredict(_input,6,_ctx) ) {
             case 1:
                 {
-                setState(67);
+                setState(75);
                 fieldName();
-                setState(68);
+                setState(76);
                 match(COLON);
                 }
                 break;
             }
-            setState(74);
-            _errHandler.sync(this);
-            switch (_input.LA(1)) {
-            case UNQUOTED_LITERAL:
-            case QUOTED_STRING:
-            case WILDCARD:
-                {
-                setState(72);
-                ((FieldTermQueryContext)_localctx).termValue = literalExpression();
-                }
-                break;
-            case LEFT_PARENTHESIS:
-                {
-                setState(73);
-                groupingExpr();
-                }
-                break;
-            default:
-                throw new NoViableAltException(this);
-            }
+            setState(80);
+            termQueryValue();
             }
         }
         catch (RecognitionException re) {
@@ -749,8 +729,14 @@ class KqlBaseParser extends Parser {
 
     @SuppressWarnings("CheckReturnValue")
     public static class FieldNameContext extends ParserRuleContext {
-        public LiteralExpressionContext literalExpression() {
-            return getRuleContext(LiteralExpressionContext.class,0);
+        public WildcardExpressionContext wildcardExpression() {
+            return getRuleContext(WildcardExpressionContext.class,0);
+        }
+        public UnquotedLiteralExpressionContext unquotedLiteralExpression() {
+            return getRuleContext(UnquotedLiteralExpressionContext.class,0);
+        }
+        public QuotedStringExpressionContext quotedStringExpression() {
+            return getRuleContext(QuotedStringExpressionContext.class,0);
         }
         public FieldNameContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
@@ -775,10 +761,32 @@ class KqlBaseParser extends Parser {
         FieldNameContext _localctx = new FieldNameContext(_ctx, getState());
         enterRule(_localctx, 16, RULE_fieldName);
         try {
-            enterOuterAlt(_localctx, 1);
-            {
-            setState(76);
-            literalExpression();
+            setState(85);
+            _errHandler.sync(this);
+            switch (_input.LA(1)) {
+            case WILDCARD:
+                enterOuterAlt(_localctx, 1);
+                {
+                setState(82);
+                wildcardExpression();
+                }
+                break;
+            case UNQUOTED_LITERAL:
+                enterOuterAlt(_localctx, 2);
+                {
+                setState(83);
+                unquotedLiteralExpression();
+                }
+                break;
+            case QUOTED_STRING:
+                enterOuterAlt(_localctx, 3);
+                {
+                setState(84);
+                quotedStringExpression();
+                }
+                break;
+            default:
+                throw new NoViableAltException(this);
             }
         }
         catch (RecognitionException re) {
@@ -793,58 +801,189 @@ class KqlBaseParser extends Parser {
     }
 
     @SuppressWarnings("CheckReturnValue")
-    public static class GroupingExprContext extends ParserRuleContext {
-        public TerminalNode LEFT_PARENTHESIS() { return getToken(KqlBaseParser.LEFT_PARENTHESIS, 0); }
-        public TerminalNode RIGHT_PARENTHESIS() { return getToken(KqlBaseParser.RIGHT_PARENTHESIS, 0); }
-        public List<LiteralExpressionContext> literalExpression() {
-            return getRuleContexts(LiteralExpressionContext.class);
+    public static class RangeQueryValueContext extends ParserRuleContext {
+        public UnquotedLiteralExpressionContext unquotedLiteralExpression() {
+            return getRuleContext(UnquotedLiteralExpressionContext.class,0);
         }
-        public LiteralExpressionContext literalExpression(int i) {
-            return getRuleContext(LiteralExpressionContext.class,i);
+        public QuotedStringExpressionContext quotedStringExpression() {
+            return getRuleContext(QuotedStringExpressionContext.class,0);
         }
-        public GroupingExprContext(ParserRuleContext parent, int invokingState) {
+        public RangeQueryValueContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
-        @Override public int getRuleIndex() { return RULE_groupingExpr; }
+        @Override public int getRuleIndex() { return RULE_rangeQueryValue; }
         @Override
         public void enterRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterGroupingExpr(this);
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterRangeQueryValue(this);
         }
         @Override
         public void exitRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitGroupingExpr(this);
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitRangeQueryValue(this);
         }
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitGroupingExpr(this);
+            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitRangeQueryValue(this);
             else return visitor.visitChildren(this);
         }
     }
 
-    public final GroupingExprContext groupingExpr() throws RecognitionException {
-        GroupingExprContext _localctx = new GroupingExprContext(_ctx, getState());
-        enterRule(_localctx, 18, RULE_groupingExpr);
-        int _la;
+    public final RangeQueryValueContext rangeQueryValue() throws RecognitionException {
+        RangeQueryValueContext _localctx = new RangeQueryValueContext(_ctx, getState());
+        enterRule(_localctx, 18, RULE_rangeQueryValue);
+        try {
+            setState(89);
+            _errHandler.sync(this);
+            switch (_input.LA(1)) {
+            case UNQUOTED_LITERAL:
+                enterOuterAlt(_localctx, 1);
+                {
+                setState(87);
+                unquotedLiteralExpression();
+                }
+                break;
+            case QUOTED_STRING:
+                enterOuterAlt(_localctx, 2);
+                {
+                setState(88);
+                quotedStringExpression();
+                }
+                break;
+            default:
+                throw new NoViableAltException(this);
+            }
+        }
+        catch (RecognitionException re) {
+            _localctx.exception = re;
+            _errHandler.reportError(this, re);
+            _errHandler.recover(this, re);
+        }
+        finally {
+            exitRule();
+        }
+        return _localctx;
+    }
+
+    @SuppressWarnings("CheckReturnValue")
+    public static class TermQueryValueContext extends ParserRuleContext {
+        public UnquotedLiteralExpressionContext termValue;
+        public WildcardExpressionContext wildcardExpression() {
+            return getRuleContext(WildcardExpressionContext.class,0);
+        }
+        public QuotedStringExpressionContext quotedStringExpression() {
+            return getRuleContext(QuotedStringExpressionContext.class,0);
+        }
+        public UnquotedLiteralExpressionContext unquotedLiteralExpression() {
+            return getRuleContext(UnquotedLiteralExpressionContext.class,0);
+        }
+        public GroupingTermExpressionContext groupingTermExpression() {
+            return getRuleContext(GroupingTermExpressionContext.class,0);
+        }
+        public TermQueryValueContext(ParserRuleContext parent, int invokingState) {
+            super(parent, invokingState);
+        }
+        @Override public int getRuleIndex() { return RULE_termQueryValue; }
+        @Override
+        public void enterRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterTermQueryValue(this);
+        }
+        @Override
+        public void exitRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitTermQueryValue(this);
+        }
+        @Override
+        public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitTermQueryValue(this);
+            else return visitor.visitChildren(this);
+        }
+    }
+
+    public final TermQueryValueContext termQueryValue() throws RecognitionException {
+        TermQueryValueContext _localctx = new TermQueryValueContext(_ctx, getState());
+        enterRule(_localctx, 20, RULE_termQueryValue);
+        try {
+            setState(95);
+            _errHandler.sync(this);
+            switch (_input.LA(1)) {
+            case WILDCARD:
+                enterOuterAlt(_localctx, 1);
+                {
+                setState(91);
+                wildcardExpression();
+                }
+                break;
+            case QUOTED_STRING:
+                enterOuterAlt(_localctx, 2);
+                {
+                setState(92);
+                quotedStringExpression();
+                }
+                break;
+            case UNQUOTED_LITERAL:
+                enterOuterAlt(_localctx, 3);
+                {
+                setState(93);
+                ((TermQueryValueContext)_localctx).termValue = unquotedLiteralExpression();
+                }
+                break;
+            case LEFT_PARENTHESIS:
+                enterOuterAlt(_localctx, 4);
+                {
+                setState(94);
+                groupingTermExpression();
+                }
+                break;
+            default:
+                throw new NoViableAltException(this);
+            }
+        }
+        catch (RecognitionException re) {
+            _localctx.exception = re;
+            _errHandler.reportError(this, re);
+            _errHandler.recover(this, re);
+        }
+        finally {
+            exitRule();
+        }
+        return _localctx;
+    }
+
+    @SuppressWarnings("CheckReturnValue")
+    public static class GroupingTermExpressionContext extends ParserRuleContext {
+        public TerminalNode LEFT_PARENTHESIS() { return getToken(KqlBaseParser.LEFT_PARENTHESIS, 0); }
+        public UnquotedLiteralExpressionContext unquotedLiteralExpression() {
+            return getRuleContext(UnquotedLiteralExpressionContext.class,0);
+        }
+        public TerminalNode RIGHT_PARENTHESIS() { return getToken(KqlBaseParser.RIGHT_PARENTHESIS, 0); }
+        public GroupingTermExpressionContext(ParserRuleContext parent, int invokingState) {
+            super(parent, invokingState);
+        }
+        @Override public int getRuleIndex() { return RULE_groupingTermExpression; }
+        @Override
+        public void enterRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterGroupingTermExpression(this);
+        }
+        @Override
+        public void exitRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitGroupingTermExpression(this);
+        }
+        @Override
+        public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitGroupingTermExpression(this);
+            else return visitor.visitChildren(this);
+        }
+    }
+
+    public final GroupingTermExpressionContext groupingTermExpression() throws RecognitionException {
+        GroupingTermExpressionContext _localctx = new GroupingTermExpressionContext(_ctx, getState());
+        enterRule(_localctx, 22, RULE_groupingTermExpression);
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(78);
+            setState(97);
             match(LEFT_PARENTHESIS);
-            setState(80); 
-            _errHandler.sync(this);
-            _la = _input.LA(1);
-            do {
-                {
-                {
-                setState(79);
-                literalExpression();
-                }
-                }
-                setState(82); 
-                _errHandler.sync(this);
-                _la = _input.LA(1);
-            } while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 14336L) != 0) );
-            setState(84);
+            setState(98);
+            unquotedLiteralExpression();
+            setState(99);
             match(RIGHT_PARENTHESIS);
             }
         }
@@ -860,150 +999,143 @@ class KqlBaseParser extends Parser {
     }
 
     @SuppressWarnings("CheckReturnValue")
-    public static class LiteralExpressionContext extends ParserRuleContext {
-        public LiteralExpressionContext(ParserRuleContext parent, int invokingState) {
-            super(parent, invokingState);
-        }
-        @Override public int getRuleIndex() { return RULE_literalExpression; }
-     
-        public LiteralExpressionContext() { }
-        public void copyFrom(LiteralExpressionContext ctx) {
-            super.copyFrom(ctx);
-        }
-    }
-    @SuppressWarnings("CheckReturnValue")
-    public static class QuotedStringContext extends LiteralExpressionContext {
-        public TerminalNode QUOTED_STRING() { return getToken(KqlBaseParser.QUOTED_STRING, 0); }
-        public QuotedStringContext(LiteralExpressionContext ctx) { copyFrom(ctx); }
-        @Override
-        public void enterRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterQuotedString(this);
-        }
-        @Override
-        public void exitRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitQuotedString(this);
-        }
-        @Override
-        public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitQuotedString(this);
-            else return visitor.visitChildren(this);
-        }
-    }
-    @SuppressWarnings("CheckReturnValue")
-    public static class DefaultLiteralExpressionContext extends LiteralExpressionContext {
-        public List<TerminalNode> WILDCARD() { return getTokens(KqlBaseParser.WILDCARD); }
-        public TerminalNode WILDCARD(int i) {
-            return getToken(KqlBaseParser.WILDCARD, i);
-        }
+    public static class UnquotedLiteralExpressionContext extends ParserRuleContext {
         public List<TerminalNode> UNQUOTED_LITERAL() { return getTokens(KqlBaseParser.UNQUOTED_LITERAL); }
         public TerminalNode UNQUOTED_LITERAL(int i) {
             return getToken(KqlBaseParser.UNQUOTED_LITERAL, i);
         }
-        public DefaultLiteralExpressionContext(LiteralExpressionContext ctx) { copyFrom(ctx); }
+        public UnquotedLiteralExpressionContext(ParserRuleContext parent, int invokingState) {
+            super(parent, invokingState);
+        }
+        @Override public int getRuleIndex() { return RULE_unquotedLiteralExpression; }
         @Override
         public void enterRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterDefaultLiteralExpression(this);
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterUnquotedLiteralExpression(this);
         }
         @Override
         public void exitRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitDefaultLiteralExpression(this);
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitUnquotedLiteralExpression(this);
         }
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitDefaultLiteralExpression(this);
-            else return visitor.visitChildren(this);
-        }
-    }
-    @SuppressWarnings("CheckReturnValue")
-    public static class WildcardContext extends LiteralExpressionContext {
-        public TerminalNode WILDCARD() { return getToken(KqlBaseParser.WILDCARD, 0); }
-        public WildcardContext(LiteralExpressionContext ctx) { copyFrom(ctx); }
-        @Override
-        public void enterRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterWildcard(this);
-        }
-        @Override
-        public void exitRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitWildcard(this);
-        }
-        @Override
-        public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitWildcard(this);
+            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitUnquotedLiteralExpression(this);
             else return visitor.visitChildren(this);
         }
     }
 
-    public final LiteralExpressionContext literalExpression() throws RecognitionException {
-        LiteralExpressionContext _localctx = new LiteralExpressionContext(_ctx, getState());
-        enterRule(_localctx, 20, RULE_literalExpression);
-        int _la;
+    public final UnquotedLiteralExpressionContext unquotedLiteralExpression() throws RecognitionException {
+        UnquotedLiteralExpressionContext _localctx = new UnquotedLiteralExpressionContext(_ctx, getState());
+        enterRule(_localctx, 24, RULE_unquotedLiteralExpression);
         try {
             int _alt;
-            setState(99);
+            enterOuterAlt(_localctx, 1);
+            {
+            setState(102); 
             _errHandler.sync(this);
-            switch ( getInterpreter().adaptivePredict(_input,12,_ctx) ) {
-            case 1:
-                _localctx = new WildcardContext(_localctx);
-                enterOuterAlt(_localctx, 1);
-                {
-                setState(86);
-                match(WILDCARD);
-                }
-                break;
-            case 2:
-                _localctx = new QuotedStringContext(_localctx);
-                enterOuterAlt(_localctx, 2);
-                {
-                setState(87);
-                match(QUOTED_STRING);
-                }
-                break;
-            case 3:
-                _localctx = new DefaultLiteralExpressionContext(_localctx);
-                enterOuterAlt(_localctx, 3);
-                {
-                setState(89);
-                _errHandler.sync(this);
-                _la = _input.LA(1);
-                if (_la==WILDCARD) {
-                    {
-                    setState(88);
-                    match(WILDCARD);
-                    }
-                }
-
-                setState(92); 
-                _errHandler.sync(this);
-                _alt = 1;
-                do {
-                    switch (_alt) {
-                    case 1:
-                        {
-                        {
-                        setState(91);
-                        match(UNQUOTED_LITERAL);
-                        }
-                        }
-                        break;
-                    default:
-                        throw new NoViableAltException(this);
-                    }
-                    setState(94); 
-                    _errHandler.sync(this);
-                    _alt = getInterpreter().adaptivePredict(_input,10,_ctx);
-                } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
-                setState(97);
-                _errHandler.sync(this);
-                switch ( getInterpreter().adaptivePredict(_input,11,_ctx) ) {
+            _alt = 1;
+            do {
+                switch (_alt) {
                 case 1:
                     {
-                    setState(96);
-                    match(WILDCARD);
+                    {
+                    setState(101);
+                    match(UNQUOTED_LITERAL);
+                    }
                     }
                     break;
+                default:
+                    throw new NoViableAltException(this);
                 }
-                }
-                break;
+                setState(104); 
+                _errHandler.sync(this);
+                _alt = getInterpreter().adaptivePredict(_input,10,_ctx);
+            } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
+            }
+        }
+        catch (RecognitionException re) {
+            _localctx.exception = re;
+            _errHandler.reportError(this, re);
+            _errHandler.recover(this, re);
+        }
+        finally {
+            exitRule();
+        }
+        return _localctx;
+    }
+
+    @SuppressWarnings("CheckReturnValue")
+    public static class QuotedStringExpressionContext extends ParserRuleContext {
+        public TerminalNode QUOTED_STRING() { return getToken(KqlBaseParser.QUOTED_STRING, 0); }
+        public QuotedStringExpressionContext(ParserRuleContext parent, int invokingState) {
+            super(parent, invokingState);
+        }
+        @Override public int getRuleIndex() { return RULE_quotedStringExpression; }
+        @Override
+        public void enterRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterQuotedStringExpression(this);
+        }
+        @Override
+        public void exitRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitQuotedStringExpression(this);
+        }
+        @Override
+        public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitQuotedStringExpression(this);
+            else return visitor.visitChildren(this);
+        }
+    }
+
+    public final QuotedStringExpressionContext quotedStringExpression() throws RecognitionException {
+        QuotedStringExpressionContext _localctx = new QuotedStringExpressionContext(_ctx, getState());
+        enterRule(_localctx, 26, RULE_quotedStringExpression);
+        try {
+            enterOuterAlt(_localctx, 1);
+            {
+            setState(106);
+            match(QUOTED_STRING);
+            }
+        }
+        catch (RecognitionException re) {
+            _localctx.exception = re;
+            _errHandler.reportError(this, re);
+            _errHandler.recover(this, re);
+        }
+        finally {
+            exitRule();
+        }
+        return _localctx;
+    }
+
+    @SuppressWarnings("CheckReturnValue")
+    public static class WildcardExpressionContext extends ParserRuleContext {
+        public TerminalNode WILDCARD() { return getToken(KqlBaseParser.WILDCARD, 0); }
+        public WildcardExpressionContext(ParserRuleContext parent, int invokingState) {
+            super(parent, invokingState);
+        }
+        @Override public int getRuleIndex() { return RULE_wildcardExpression; }
+        @Override
+        public void enterRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterWildcardExpression(this);
+        }
+        @Override
+        public void exitRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitWildcardExpression(this);
+        }
+        @Override
+        public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitWildcardExpression(this);
+            else return visitor.visitChildren(this);
+        }
+    }
+
+    public final WildcardExpressionContext wildcardExpression() throws RecognitionException {
+        WildcardExpressionContext _localctx = new WildcardExpressionContext(_ctx, getState());
+        enterRule(_localctx, 28, RULE_wildcardExpression);
+        try {
+            enterOuterAlt(_localctx, 1);
+            {
+            setState(108);
+            match(WILDCARD);
             }
         }
         catch (RecognitionException re) {
@@ -1035,63 +1167,66 @@ class KqlBaseParser extends Parser {
     }
 
     public static final String _serializedATN =
-        "\u0004\u0001\rf\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
+        "\u0004\u0001\ro\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
         "\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004\u0002"+
         "\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007\u0002"+
-        "\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0001\u0000\u0003\u0000\u0018"+
-        "\b\u0000\u0001\u0000\u0001\u0000\u0001\u0001\u0001\u0001\u0001\u0001\u0001"+
-        "\u0001\u0003\u0001 \b\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"+
-        "\u0001\u0001\u0001\u0001\u0001\u0005\u0001(\b\u0001\n\u0001\f\u0001+\t"+
-        "\u0001\u0001\u0002\u0001\u0002\u0001\u0002\u0003\u00020\b\u0002\u0001"+
-        "\u0003\u0001\u0003\u0003\u00034\b\u0003\u0001\u0004\u0001\u0004\u0001"+
+        "\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b\u0002"+
+        "\f\u0007\f\u0002\r\u0007\r\u0002\u000e\u0007\u000e\u0001\u0000\u0003\u0000"+
+        " \b\u0000\u0001\u0000\u0001\u0000\u0001\u0001\u0001\u0001\u0001\u0001"+
+        "\u0001\u0001\u0003\u0001(\b\u0001\u0001\u0001\u0001\u0001\u0001\u0001"+
+        "\u0001\u0001\u0001\u0001\u0001\u0001\u0005\u00010\b\u0001\n\u0001\f\u0001"+
+        "3\t\u0001\u0001\u0002\u0001\u0002\u0001\u0002\u0003\u00028\b\u0002\u0001"+
+        "\u0003\u0001\u0003\u0003\u0003<\b\u0003\u0001\u0004\u0001\u0004\u0001"+
         "\u0004\u0001\u0004\u0001\u0004\u0001\u0004\u0001\u0005\u0001\u0005\u0001"+
         "\u0005\u0001\u0005\u0001\u0006\u0001\u0006\u0001\u0006\u0001\u0006\u0001"+
-        "\u0007\u0001\u0007\u0001\u0007\u0003\u0007G\b\u0007\u0001\u0007\u0001"+
-        "\u0007\u0003\u0007K\b\u0007\u0001\b\u0001\b\u0001\t\u0001\t\u0004\tQ\b"+
-        "\t\u000b\t\f\tR\u0001\t\u0001\t\u0001\n\u0001\n\u0001\n\u0003\nZ\b\n\u0001"+
-        "\n\u0004\n]\b\n\u000b\n\f\n^\u0001\n\u0003\nb\b\n\u0003\nd\b\n\u0001\n"+
-        "\u0000\u0001\u0002\u000b\u0000\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012"+
-        "\u0014\u0000\u0000i\u0000\u0017\u0001\u0000\u0000\u0000\u0002\u001f\u0001"+
-        "\u0000\u0000\u0000\u0004/\u0001\u0000\u0000\u0000\u00063\u0001\u0000\u0000"+
-        "\u0000\b5\u0001\u0000\u0000\u0000\n;\u0001\u0000\u0000\u0000\f?\u0001"+
-        "\u0000\u0000\u0000\u000eF\u0001\u0000\u0000\u0000\u0010L\u0001\u0000\u0000"+
-        "\u0000\u0012N\u0001\u0000\u0000\u0000\u0014c\u0001\u0000\u0000\u0000\u0016"+
-        "\u0018\u0003\u0002\u0001\u0000\u0017\u0016\u0001\u0000\u0000\u0000\u0017"+
-        "\u0018\u0001\u0000\u0000\u0000\u0018\u0019\u0001\u0000\u0000\u0000\u0019"+
-        "\u001a\u0005\u0000\u0000\u0001\u001a\u0001\u0001\u0000\u0000\u0000\u001b"+
-        "\u001c\u0006\u0001\uffff\uffff\u0000\u001c\u001d\u0005\u0004\u0000\u0000"+
-        "\u001d \u0003\u0004\u0002\u0000\u001e \u0003\u0004\u0002\u0000\u001f\u001b"+
-        "\u0001\u0000\u0000\u0000\u001f\u001e\u0001\u0000\u0000\u0000 )\u0001\u0000"+
-        "\u0000\u0000!\"\n\u0004\u0000\u0000\"#\u0005\u0002\u0000\u0000#(\u0003"+
-        "\u0002\u0001\u0005$%\n\u0003\u0000\u0000%&\u0005\u0003\u0000\u0000&(\u0003"+
-        "\u0002\u0001\u0004\'!\u0001\u0000\u0000\u0000\'$\u0001\u0000\u0000\u0000"+
-        "(+\u0001\u0000\u0000\u0000)\'\u0001\u0000\u0000\u0000)*\u0001\u0000\u0000"+
-        "\u0000*\u0003\u0001\u0000\u0000\u0000+)\u0001\u0000\u0000\u0000,0\u0003"+
-        "\b\u0004\u0000-0\u0003\u0006\u0003\u0000.0\u0003\n\u0005\u0000/,\u0001"+
-        "\u0000\u0000\u0000/-\u0001\u0000\u0000\u0000/.\u0001\u0000\u0000\u0000"+
-        "0\u0005\u0001\u0000\u0000\u000014\u0003\u000e\u0007\u000024\u0003\f\u0006"+
-        "\u000031\u0001\u0000\u0000\u000032\u0001\u0000\u0000\u00004\u0007\u0001"+
-        "\u0000\u0000\u000056\u0003\u0010\b\u000067\u0005\u0005\u0000\u000078\u0005"+
-        "\t\u0000\u000089\u0003\u0002\u0001\u00009:\u0005\n\u0000\u0000:\t\u0001"+
-        "\u0000\u0000\u0000;<\u0005\u0007\u0000\u0000<=\u0003\u0002\u0001\u0000"+
-        "=>\u0005\b\u0000\u0000>\u000b\u0001\u0000\u0000\u0000?@\u0003\u0010\b"+
-        "\u0000@A\u0005\u0006\u0000\u0000AB\u0003\u0014\n\u0000B\r\u0001\u0000"+
-        "\u0000\u0000CD\u0003\u0010\b\u0000DE\u0005\u0005\u0000\u0000EG\u0001\u0000"+
-        "\u0000\u0000FC\u0001\u0000\u0000\u0000FG\u0001\u0000\u0000\u0000GJ\u0001"+
-        "\u0000\u0000\u0000HK\u0003\u0014\n\u0000IK\u0003\u0012\t\u0000JH\u0001"+
-        "\u0000\u0000\u0000JI\u0001\u0000\u0000\u0000K\u000f\u0001\u0000\u0000"+
-        "\u0000LM\u0003\u0014\n\u0000M\u0011\u0001\u0000\u0000\u0000NP\u0005\u0007"+
-        "\u0000\u0000OQ\u0003\u0014\n\u0000PO\u0001\u0000\u0000\u0000QR\u0001\u0000"+
-        "\u0000\u0000RP\u0001\u0000\u0000\u0000RS\u0001\u0000\u0000\u0000ST\u0001"+
-        "\u0000\u0000\u0000TU\u0005\b\u0000\u0000U\u0013\u0001\u0000\u0000\u0000"+
-        "Vd\u0005\r\u0000\u0000Wd\u0005\f\u0000\u0000XZ\u0005\r\u0000\u0000YX\u0001"+
-        "\u0000\u0000\u0000YZ\u0001\u0000\u0000\u0000Z\\\u0001\u0000\u0000\u0000"+
-        "[]\u0005\u000b\u0000\u0000\\[\u0001\u0000\u0000\u0000]^\u0001\u0000\u0000"+
-        "\u0000^\\\u0001\u0000\u0000\u0000^_\u0001\u0000\u0000\u0000_a\u0001\u0000"+
-        "\u0000\u0000`b\u0005\r\u0000\u0000a`\u0001\u0000\u0000\u0000ab\u0001\u0000"+
-        "\u0000\u0000bd\u0001\u0000\u0000\u0000cV\u0001\u0000\u0000\u0000cW\u0001"+
-        "\u0000\u0000\u0000cY\u0001\u0000\u0000\u0000d\u0015\u0001\u0000\u0000"+
-        "\u0000\r\u0017\u001f\')/3FJRY^ac";
+        "\u0007\u0001\u0007\u0001\u0007\u0003\u0007O\b\u0007\u0001\u0007\u0001"+
+        "\u0007\u0001\b\u0001\b\u0001\b\u0003\bV\b\b\u0001\t\u0001\t\u0003\tZ\b"+
+        "\t\u0001\n\u0001\n\u0001\n\u0001\n\u0003\n`\b\n\u0001\u000b\u0001\u000b"+
+        "\u0001\u000b\u0001\u000b\u0001\f\u0004\fg\b\f\u000b\f\f\fh\u0001\r\u0001"+
+        "\r\u0001\u000e\u0001\u000e\u0001\u000e\u0000\u0001\u0002\u000f\u0000\u0002"+
+        "\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a\u001c\u0000"+
+        "\u0000n\u0000\u001f\u0001\u0000\u0000\u0000\u0002\'\u0001\u0000\u0000"+
+        "\u0000\u00047\u0001\u0000\u0000\u0000\u0006;\u0001\u0000\u0000\u0000\b"+
+        "=\u0001\u0000\u0000\u0000\nC\u0001\u0000\u0000\u0000\fG\u0001\u0000\u0000"+
+        "\u0000\u000eN\u0001\u0000\u0000\u0000\u0010U\u0001\u0000\u0000\u0000\u0012"+
+        "Y\u0001\u0000\u0000\u0000\u0014_\u0001\u0000\u0000\u0000\u0016a\u0001"+
+        "\u0000\u0000\u0000\u0018f\u0001\u0000\u0000\u0000\u001aj\u0001\u0000\u0000"+
+        "\u0000\u001cl\u0001\u0000\u0000\u0000\u001e \u0003\u0002\u0001\u0000\u001f"+
+        "\u001e\u0001\u0000\u0000\u0000\u001f \u0001\u0000\u0000\u0000 !\u0001"+
+        "\u0000\u0000\u0000!\"\u0005\u0000\u0000\u0001\"\u0001\u0001\u0000\u0000"+
+        "\u0000#$\u0006\u0001\uffff\uffff\u0000$%\u0005\u0004\u0000\u0000%(\u0003"+
+        "\u0004\u0002\u0000&(\u0003\u0004\u0002\u0000\'#\u0001\u0000\u0000\u0000"+
+        "\'&\u0001\u0000\u0000\u0000(1\u0001\u0000\u0000\u0000)*\n\u0004\u0000"+
+        "\u0000*+\u0005\u0002\u0000\u0000+0\u0003\u0002\u0001\u0005,-\n\u0003\u0000"+
+        "\u0000-.\u0005\u0003\u0000\u0000.0\u0003\u0002\u0001\u0004/)\u0001\u0000"+
+        "\u0000\u0000/,\u0001\u0000\u0000\u000003\u0001\u0000\u0000\u00001/\u0001"+
+        "\u0000\u0000\u000012\u0001\u0000\u0000\u00002\u0003\u0001\u0000\u0000"+
+        "\u000031\u0001\u0000\u0000\u000048\u0003\b\u0004\u000058\u0003\u0006\u0003"+
+        "\u000068\u0003\n\u0005\u000074\u0001\u0000\u0000\u000075\u0001\u0000\u0000"+
+        "\u000076\u0001\u0000\u0000\u00008\u0005\u0001\u0000\u0000\u00009<\u0003"+
+        "\u000e\u0007\u0000:<\u0003\f\u0006\u0000;9\u0001\u0000\u0000\u0000;:\u0001"+
+        "\u0000\u0000\u0000<\u0007\u0001\u0000\u0000\u0000=>\u0003\u0010\b\u0000"+
+        ">?\u0005\u0005\u0000\u0000?@\u0005\t\u0000\u0000@A\u0003\u0002\u0001\u0000"+
+        "AB\u0005\n\u0000\u0000B\t\u0001\u0000\u0000\u0000CD\u0005\u0007\u0000"+
+        "\u0000DE\u0003\u0002\u0001\u0000EF\u0005\b\u0000\u0000F\u000b\u0001\u0000"+
+        "\u0000\u0000GH\u0003\u0010\b\u0000HI\u0005\u0006\u0000\u0000IJ\u0003\u0012"+
+        "\t\u0000J\r\u0001\u0000\u0000\u0000KL\u0003\u0010\b\u0000LM\u0005\u0005"+
+        "\u0000\u0000MO\u0001\u0000\u0000\u0000NK\u0001\u0000\u0000\u0000NO\u0001"+
+        "\u0000\u0000\u0000OP\u0001\u0000\u0000\u0000PQ\u0003\u0014\n\u0000Q\u000f"+
+        "\u0001\u0000\u0000\u0000RV\u0003\u001c\u000e\u0000SV\u0003\u0018\f\u0000"+
+        "TV\u0003\u001a\r\u0000UR\u0001\u0000\u0000\u0000US\u0001\u0000\u0000\u0000"+
+        "UT\u0001\u0000\u0000\u0000V\u0011\u0001\u0000\u0000\u0000WZ\u0003\u0018"+
+        "\f\u0000XZ\u0003\u001a\r\u0000YW\u0001\u0000\u0000\u0000YX\u0001\u0000"+
+        "\u0000\u0000Z\u0013\u0001\u0000\u0000\u0000[`\u0003\u001c\u000e\u0000"+
+        "\\`\u0003\u001a\r\u0000]`\u0003\u0018\f\u0000^`\u0003\u0016\u000b\u0000"+
+        "_[\u0001\u0000\u0000\u0000_\\\u0001\u0000\u0000\u0000_]\u0001\u0000\u0000"+
+        "\u0000_^\u0001\u0000\u0000\u0000`\u0015\u0001\u0000\u0000\u0000ab\u0005"+
+        "\u0007\u0000\u0000bc\u0003\u0018\f\u0000cd\u0005\b\u0000\u0000d\u0017"+
+        "\u0001\u0000\u0000\u0000eg\u0005\u000b\u0000\u0000fe\u0001\u0000\u0000"+
+        "\u0000gh\u0001\u0000\u0000\u0000hf\u0001\u0000\u0000\u0000hi\u0001\u0000"+
+        "\u0000\u0000i\u0019\u0001\u0000\u0000\u0000jk\u0005\f\u0000\u0000k\u001b"+
+        "\u0001\u0000\u0000\u0000lm\u0005\r\u0000\u0000m\u001d\u0001\u0000\u0000"+
+        "\u0000\u000b\u001f\'/17;NUY_h";
     public static final ATN _ATN =
         new ATNDeserializer().deserialize(_serializedATN.toCharArray());
     static {

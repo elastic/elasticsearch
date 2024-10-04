@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -112,7 +113,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         );
     }
 
-    private GetInferenceModelAction.Response parseModels(List<ModelRegistry.UnparsedModel> unparsedModels) {
+    private GetInferenceModelAction.Response parseModels(List<UnparsedModel> unparsedModels) {
         var parsedModels = new ArrayList<ModelConfigurations>();
 
         for (var unparsedModel : unparsedModels) {

@@ -1172,3 +1172,20 @@ from employees
 a:datetime
 null
 ;
+
+
+Least for dates
+required_capability: least_greatest_for_dates
+ROW a = LEAST(TO_DATETIME("1957-05-23T00:00:00Z"), TO_DATETIME("1958-02-19T00:00:00Z"));
+
+a:datetime
+1957-05-23T00:00:00
+;
+
+GREATEST for dates
+required_capability: least_greatest_for_dates
+ROW a = GREATEST(TO_DATETIME("1957-05-23T00:00:00Z"), TO_DATETIME("1958-02-19T00:00:00Z"));
+
+a:datetime
+1958-02-19T00:00:00
+;

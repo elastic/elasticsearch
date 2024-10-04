@@ -83,6 +83,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
                 }
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
+                }
 
                 return parameters;
             });
@@ -95,6 +98,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
             if (ESTestCase.randomBoolean()) {
                 parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
+            }
+            if (ESTestCase.randomBoolean()) {
+                parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, request.syntheticSourceKeepValue());
             }
 
             return parameters;

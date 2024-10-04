@@ -151,7 +151,7 @@ public class IndexVersionTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "believe this fails because index version has not yet been bumped to 9.0")
     public void testMinimumCompatibleVersion() {
         assertThat(IndexVersion.getMinimumCompatibleIndexVersion(7170099), equalTo(IndexVersion.fromId(6000099)));
@@ -193,7 +193,7 @@ public class IndexVersionTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "can be unmuted once lucene is bumped to version 10")
     public void testLuceneVersionOnUnknownVersions() {
         // between two known versions, should use the lucene version of the previous version

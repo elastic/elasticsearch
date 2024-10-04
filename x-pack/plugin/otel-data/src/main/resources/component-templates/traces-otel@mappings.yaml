@@ -8,7 +8,7 @@ template:
     index:
       mode: logsdb
       sort:
-        field: [ "resource.attributes.host.name" ]
+        field: [ "resource.attributes.host.name", "@timestamp" ]
   mappings:
     _source:
       mode: synthetic
@@ -44,7 +44,7 @@ template:
       dropped_events_count:
         type: long
       links:
-        store_array_source: true
+        synthetic_source_keep: arrays
         properties:
           trace_id:
             type: keyword

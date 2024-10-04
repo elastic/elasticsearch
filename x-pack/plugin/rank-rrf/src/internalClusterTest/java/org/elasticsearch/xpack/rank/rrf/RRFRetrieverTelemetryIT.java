@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -14,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -88,18 +91,16 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
     }
 
     public void testTelemetryForRRFRetriever() throws IOException {
-        {
-            Request request = new Request("GET", "_capabilities");
-            request.addParameter("method", "retrievers-usage-stats");
-            request.addParameter("path", "/cluster/stats");
-            Response res = getRestClient().performRequest(request);
-            System.out.println(res);
+
+        if (false == isRetrieverTelemetryEnabled()) {
+            return;
         }
+
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null));
+            source.retriever(new KnnRetrieverBuilder("vector", new float[]{1.0f}, null, 10, 15, null));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }
@@ -119,7 +120,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null)));
+            source.retriever(new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[]{1.0f}, 10, 15, null)));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }
@@ -143,7 +144,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
                 new RRFRetrieverBuilder(
                     Arrays.asList(
                         new CompoundRetrieverBuilder.RetrieverSource(
-                            new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null),
+                            new KnnRetrieverBuilder("vector", new float[]{1.0f}, null, 10, 15, null),
                             null
                         ),
                         new CompoundRetrieverBuilder.RetrieverSource(
@@ -163,7 +164,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null)));
+            source.knnSearch(List.of(new KnnSearchBuilder("vector", new float[]{1.0f}, 10, 15, null)));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }
@@ -199,5 +200,12 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
             assertThat(stats.getQueryUsage().get("match_all"), equalTo(1L));
             assertThat(stats.getQueryUsage().get("knn"), equalTo(1L));
         }
+    }
+
+    private boolean isRetrieverTelemetryEnabled() throws IOException {
+        NodesCapabilitiesResponse res = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest().method(RestRequest.Method.GET).path("_cluster/stats").capabilities("retrievers-usage-stats")
+        ).actionGet();
+        return res != null && res.isSupported().orElse(false);
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
@@ -305,7 +306,7 @@ public class EsqlSession {
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
          * specified with an index or indices that do not exist, so the search on that cluster is done.
-         * Mark it as SKIPPED with 0 shards searched and took=0.
+         * Mark it as SKIPPED with 0 shards searched, took=0 and an IndexNotFound error in the metadata failures array.
          */
         for (String c : clustersWithNoMatchingIndices) {
             executionInfo.swapCluster(
@@ -316,6 +317,7 @@ public class EsqlSession {
                     .setSuccessfulShards(0)
                     .setSkippedShards(0)
                     .setFailedShards(0)
+                    .setFailures(List.of(new ShardSearchFailure(new IndexNotFoundException(v.getIndexExpression()))))
                     .build()
             );
         }

@@ -258,6 +258,7 @@ public class ComputeService {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 // The local cluster 'took' time gets updated as part of the acquireCompute(local) call in the coordinator, so
                 // here we only need to update status for remote clusters since there are no remote ComputeListeners in this case.
+                // This happens in cross cluster searches that use LIMIT 0, e.g, FROM logs*,remote*:logs* | LIMIT 0.
                 if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
                     execInfo.swapCluster(clusterAlias, (k, v) -> {
                         if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {

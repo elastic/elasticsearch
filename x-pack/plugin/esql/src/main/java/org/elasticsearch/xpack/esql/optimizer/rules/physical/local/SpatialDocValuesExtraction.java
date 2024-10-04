@@ -32,7 +32,7 @@ import java.util.Set;
  * This rule is responsible for marking spatial fields to be extracted from doc-values instead of source values.
  * This is a very specific optimization that is only used in the context of spatial aggregations.
  * Normally spatial fields are extracted from source values because this maintains original precision, but is very slow.
- * Simply loading from doc-values looses precision for points, and looses the geometry topological information for shapes.
+ * Simply loading from doc-values loses precision for points, and loses the geometry topological information for shapes.
  * For this reason we only consider loading from doc values under very specific conditions:
  * <ul>
  *     <li>The spatial data is consumed by a spatial aggregation (eg. <code>ST_CENTROIDS_AGG</code>, negating the need for precision.</li>

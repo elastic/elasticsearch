@@ -11,7 +11,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<indices-get-index,get index API>>.
 ====
 
-Returns high-level information about indices in a cluster, including backing
+Returns high-level information about <<documents-indices,indices>> in a cluster, including backing
 indices for <<data-streams,data streams>>.
 
 

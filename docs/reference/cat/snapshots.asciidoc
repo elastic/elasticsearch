@@ -12,7 +12,7 @@ consumption, use the <<get-snapshot-api,get snapshot API>>.
 ====
 
 Returns information about the <<snapshot-restore,snapshots>> stored in one or
-more <<snapshots-register-repository,repositories>>. A snapshot is a backup of an index or running {es} cluster.
+more repositories. A snapshot is a backup of an index or running {es} cluster.
 
 
 [[cat-snapshots-api-request]]

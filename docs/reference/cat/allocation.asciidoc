@@ -11,7 +11,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-nodes-stats,node stats API>>.
 ====
 
-Provides a snapshot of the number of shards <<modules-cluster,allocated>> to each data node
+Provides a snapshot of the number of shards <<shard-allocation-relocation-recovery,allocated>> to each data node
 and their disk space.
 
 

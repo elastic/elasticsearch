@@ -1151,6 +1151,7 @@ BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | 
 
 airportsSortDistanceFromCopenhagenTrainStationInline
 required_capability: st_distance
+required_capability: spatial_distance_pushdown_enhancements
 
 FROM airports
 | SORT ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) ASC
@@ -1184,6 +1185,26 @@ GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | 
 HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
 TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf | POINT(13.2833 52.6667)  | 349.97     | 337.53
 BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen          | POINT(8.8 53.0833)      | 380.5      | 377.22
+;
+
+airportsSortDistanceFromCopenhagenTrainStationDetailsAndNonPushableEval
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), position = location::keyword
+| WHERE distance < 600000 AND SUBSTRING(position, 1, 5) == "POINT"
+| SORT distance ASC
+| LIMIT 5
+| EVAL distance = ROUND(distance/1000,2)
+| KEEP abbrev, name, position, distance
+;
+
+abbrev:k | name:text               | position:keyword                          | distance:d
+CPH      | Copenhagen              | POINT (12.6493508684508 55.6285017221528) | 7.24
+GOT      | Gothenburg              | POINT (12.2938269092573 57.6857493534879) | 224.42
+HAM      | Hamburg                 | POINT (10.005647830925 53.6320011640866)  | 280.34
+TXL      | Berlin-Tegel Int'l      | POINT (13.2903090925074 52.5544287044101) | 349.97
+BRE      | Bremen                  | POINT (8.7858617703132 53.052287104156)   | 380.5
 ;
 
 airportsSortDistanceFromAirportToCity

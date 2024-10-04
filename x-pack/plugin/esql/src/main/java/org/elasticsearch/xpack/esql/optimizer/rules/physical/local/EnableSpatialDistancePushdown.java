@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,44 +95,80 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         return filterExec;
     }
 
-    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases) {
-        LinkedHashMap<NameId, StDistance> refs = new LinkedHashMap<>();
+    private void getPushableDistances(List<Alias> aliases, Map<NameId, StDistance> distances, Map<NameId, Alias> others) {
         aliases.forEach(alias -> {
             if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, Map.of())) {
-                refs.put(alias.id(), distance);
-            } else if (alias.child() instanceof ReferenceAttribute ref && refs.containsKey(ref.id())) {
-                StDistance distance = refs.get(ref.id());
-                refs.put(alias.id(), distance);
+                distances.put(alias.id(), distance);
+            } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
+                StDistance distance = distances.get(ref.id());
+                distances.put(alias.id(), distance);
+            } else {
+                others.put(alias.id(), alias);
             }
         });
-        return refs;
     }
 
     private PhysicalPlan rewrite(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {
-        Map<NameId, StDistance> pushable = getPushableDistances(evalExec.fields());
-        if (pushable.isEmpty() == false) {
+        Map<NameId, StDistance> distances = new LinkedHashMap<>();
+        Map<NameId, Alias> others = new LinkedHashMap<>();
+        getPushableDistances(evalExec.fields(), distances, others);
+        if (distances.isEmpty() == false) {
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
                 ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
-                if (comparison.left() instanceof ReferenceAttribute r && pushable.containsKey(r.id()) && comparison.right().foldable()) {
-                    StDistance dist = pushable.get(r.id());
+                if (comparison.left() instanceof ReferenceAttribute r && distances.containsKey(r.id()) && comparison.right().foldable()) {
+                    StDistance dist = distances.get(r.id());
                     return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
                 } else if (comparison.right() instanceof ReferenceAttribute r
-                    && pushable.containsKey(r.id())
+                    && distances.containsKey(r.id())
                     && comparison.left().foldable()) {
-                        StDistance dist = pushable.get(r.id());
+                        StDistance dist = distances.get(r.id());
                         return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
                     }
                 return comparison;
             });
+            // If any pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
             if (rewritten.equals(filterExec.condition()) == false) {
-                // Rewrite the order so the EVAL is last, allowing the filter to be pushed down to lucene by PushFiltersToSource
-                // TODO: Remove the distance attribute from the EVAL if it is no longer needed
-                FilterExec filter = new FilterExec(filterExec.source(), esQueryExec, rewritten);
-                return new EvalExec(evalExec.source(), filter, evalExec.fields());
+                // Divide the aliases into those that are referenced in the filter and those that are not
+                SplitAliases split = SplitAliases.from(filterExec, evalExec, distances, others);
+
+                // If there are aliases referenced in the filter, keep them before the filter
+                FilterExec filter = split.referencedAliases.isEmpty()
+                    ? new FilterExec(filterExec.source(), esQueryExec, rewritten)
+                    : new FilterExec(filterExec.source(), new EvalExec(evalExec.source(), esQueryExec, split.referencedAliases), rewritten);
+
+                // If there are remaining aliases, we need to keep them after the filter
+                return split.remainingAliases.isEmpty() ? filter : new EvalExec(evalExec.source(), filter, split.remainingAliases);
             }
         }
         return filterExec;
+    }
+
+    private record SplitAliases(List<Alias> referencedAliases, List<Alias> remainingAliases) {
+        private static SplitAliases from(
+            FilterExec filterExec,
+            EvalExec evalExec,
+            Map<NameId, StDistance> distances,
+            Map<NameId, Alias> others
+        ) {
+            // Determine if the filter refers to any of the other fields in the EVAL
+            List<Alias> referencedAliases = new ArrayList<>();
+            filterExec.condition().forEachDown(ReferenceAttribute.class, r -> {
+                if (others.containsKey(r.id())) {
+                    referencedAliases.add(others.remove(r.id()));
+                }
+            });
+            // If there are remaining aliases, we need to keep them after the filter
+            List<Alias> remainingAliases = new ArrayList<>(others.values());
+            // Add back the distance functions, since they might be used in later clauses
+            // TODO: Remove this if we can guarantee that the distance functions are only used in the filter
+            for (Alias alias : evalExec.fields()) {
+                if (distances.containsKey(alias.id())) {
+                    remainingAliases.add(alias);
+                }
+            }
+            return new SplitAliases(referencedAliases, remainingAliases);
+        }
     }
 
     private Expression rewriteComparison(

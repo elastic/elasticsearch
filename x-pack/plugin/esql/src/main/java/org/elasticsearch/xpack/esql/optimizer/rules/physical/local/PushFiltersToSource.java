@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -80,7 +81,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         for (Expression exp : splitAnd(filterExec.condition())) {
             (canPushToSource(exp, x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
         }
-        return rewrite(filterExec, queryExec, pushable, nonPushable);
+        return rewrite(filterExec, queryExec, pushable, nonPushable, List.of());
     }
 
     private static PhysicalPlan planFilterExec(
@@ -90,12 +91,16 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LocalPhysicalOptimizerContext ctx
     ) {
         LinkedHashMap<NameId, FieldAttribute> refs = new LinkedHashMap<>();
+        List<Alias> others = new ArrayList<>();
         evalExec.fields().forEach(alias -> {
             if (alias.child() instanceof FieldAttribute fieldAttribute) {
                 refs.put(alias.id(), fieldAttribute);
             } else if (alias.child() instanceof ReferenceAttribute ref && refs.containsKey(ref.id())) {
                 FieldAttribute fieldAttribute = refs.get(ref.id());
                 refs.put(alias.id(), fieldAttribute);
+            } else {
+                // Remember all non-attribute aliases (these must be kept in the plan as an EVAL)
+                others.add(alias);
             }
         });
         List<Expression> pushable = new ArrayList<>();
@@ -107,14 +112,15 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         }
         // Replace field references with their actual field attributes
         pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> fieldAttribute(r, refs)));
-        return rewrite(filterExec, queryExec, pushable, nonPushable);
+        return rewrite(filterExec, queryExec, pushable, nonPushable, others);
     }
 
     private static PhysicalPlan rewrite(
         FilterExec filterExec,
         EsQueryExec queryExec,
         List<Expression> pushable,
-        List<Expression> nonPushable
+        List<Expression> nonPushable,
+        List<Alias> others
     ) {
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);
@@ -132,10 +138,14 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 queryExec.sorts(),
                 queryExec.estimatedRowSize()
             );
-            if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
-                return new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));
-            } else { // prune Filter entirely
-                return queryExec;
+            // If the eval contains other aliases, not just field attributes, we need to keep them in the plan
+            PhysicalPlan plan = others.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, others);
+            if (nonPushable.size() > 0) {
+                // update filter with remaining non-pushable conditions
+                return new FilterExec(filterExec.source(), plan, Predicates.combineAnd(nonPushable));
+            } else {
+                // prune Filter entirely
+                return plan;
             }
         } // else: nothing changes
         return filterExec;

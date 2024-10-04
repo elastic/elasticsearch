@@ -4841,6 +4841,69 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * This test shows that with an additional EVAL used in the filter, we can no longer push down the SORT distance.
+     * TODO: This could be optimized in future work. Consider moving much of EnableSpatialDistancePushdown into logical planning.
+     * <code>
+     * ProjectExec[[abbrev{f}#17, name{f}#18, location{f}#21, country{f}#22, city{f}#23]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#17, name{f}#18, location{f}#21, country{f}#22, city{f}#23, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#17, name{f}#18, location{f}#21, country{f}#22, city{f}#23, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#17, name{f}#18, country{f}#22, city{f}#23][]
+     *         \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],208]
+     *           \_EvalExec[[
+     *               STDISTANCE(location{f}#21,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     *             ]]
+     *             \_FilterExec[SUBSTRING(position{r}#7,1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]]
+     *               \_EvalExec[[TOSTRING(location{f}#21) AS position]]
+     *                 \_FieldExtractExec[location{f}#21][]
+     *                   \_EsQueryExec[airports], indexMode[standard], query[{
+     *                     "bool":{"must":[
+     *                       {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                       {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                     ],"boost":1.0}}][_doc{f}#35], limit[], sort[] estimatedRowSize[83]
+     * </code>
+     */
+    public void testPushTopNDistanceAndNonPushableEvalWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), position = location::keyword
+            | WHERE distance < 500000 AND SUBSTRING(position, 1, 5) == "POINT" AND distance > 10000
+            | SORT distance ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var topNChild = as(extract.child(), TopNExec.class);
+        var evalDistance = as(topNChild.child(), EvalExec.class);
+        var alias = as(evalDistance.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        var filter = as(evalDistance.child(), FilterExec.class);
+        var evalLocation = as(filter.child(), EvalExec.class);
+        extract = as(evalLocation.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // In this example TopN is not pushed down (we can optimize that in later work)
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
      * <code>
      * ProjectExec[[abbrev{f}#15, name{f}#16, location{f}#19, country{f}#20, city{f}#21]]
      * \_TopNExec[[Order[scalerank{f}#17,ASC,LAST], Order[distance{r}#4,ASC,LAST]],15[INTEGER],0]

@@ -84,7 +84,10 @@ public class BigArrayVectorTests extends SerializationTestCase {
                     assertThat(mask.mask().getBoolean(p), equalTo(values[p]));
                 }
             }
-            if (value != null) {
+            if (value == null) {
+                assertThat(vector.allTrue(), equalTo(Arrays.stream(values).allMatch(v -> v)));
+                assertThat(vector.allFalse(), equalTo(Arrays.stream(values).allMatch(v -> v == false)));
+            } else {
                 if (value) {
                     assertTrue(vector.allTrue());
                     assertFalse(vector.allFalse());

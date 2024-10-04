@@ -52,6 +52,6 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX);
+        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX, IgnoredSourceFieldMapper.IGNORED_SOURCE_ONLY_IF_REQUESTED);
     }
 }

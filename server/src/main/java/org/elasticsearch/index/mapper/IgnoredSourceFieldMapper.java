@@ -45,6 +45,7 @@ import java.util.stream.Stream;
  * if we can replace it for all use cases to avoid duplication, assuming that the storage tradeoff is favorable.
  */
 public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
+    public static final NodeFeature IGNORED_SOURCE_ONLY_IF_REQUESTED = new NodeFeature("mapper.mapper.ignored_source.only_if_requested");
     private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder().withoutPadding();
     private final IndexSettings indexSettings;
 

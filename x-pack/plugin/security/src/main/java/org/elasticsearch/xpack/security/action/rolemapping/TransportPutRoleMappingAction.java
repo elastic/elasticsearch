@@ -43,10 +43,10 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
             // Allow to define a mapping with the same name in the native role mapping store as the file_settings namespace, but add a
             // warning header to signal to the caller that this could be a problem.
             HeaderWarning.addWarning(
-                "A role mapping with the name ["
+                "A read only role mapping with the same name ["
                     + request.getName()
-                    + "] already exists in the [file_settings] namespace. "
-                    + "Both role mappings will be effective."
+                    + "] has been previously been defined in a configuration file. "
+                    + "Both role mappings will be used to determine role assignments."
             );
         }
         roleMappingStore.putRoleMapping(

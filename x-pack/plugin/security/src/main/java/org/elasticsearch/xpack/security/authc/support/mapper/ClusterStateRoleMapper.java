@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -98,12 +99,15 @@ public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache im
         return mappings.stream().filter(it -> names.contains(it.getName())).collect(Collectors.toSet());
     }
 
-    public Set<ExpressionRoleMapping> getMappings() {
+    private Set<ExpressionRoleMapping> getMappings() {
         if (enabled == false) {
             return Set.of();
         } else {
             final Set<ExpressionRoleMapping> mappings = RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
-            logger.trace("Retrieved [{}] mapping(s) from cluster state", mappings.size());
+            logger.trace(
+                "Retrieved mapping(s) {} from cluster state",
+                Arrays.toString(mappings.stream().map(ExpressionRoleMapping::getName).toArray(String[]::new))
+            );
             return mappings;
         }
     }

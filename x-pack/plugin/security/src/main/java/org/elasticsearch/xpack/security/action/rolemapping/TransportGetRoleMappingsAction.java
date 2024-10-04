@@ -65,23 +65,21 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
                 mappings.stream(),
                 clusterStateRoleMapper.getMappings(names)
                     .stream()
-                    .map(this::cloneAndAddReadOnlyMetadataFlag)
+                    .map(this::cloneAndMarkAsReadOnly)
                     .sorted(Comparator.comparing(ExpressionRoleMapping::getName))
             ).toList();
             listener.onResponse(new GetRoleMappingsResponse(combinedRoleMappings));
         }, listener::onFailure));
     }
 
-    private ExpressionRoleMapping cloneAndAddReadOnlyMetadataFlag(ExpressionRoleMapping mapping) {
-        // Mark role mappings from cluster state as "_read_only" by adding a boolean to their metadata
-        Map<String, Object> metadataWithReadOnlyFlag = new HashMap<>(mapping.getMetadata());
-        metadataWithReadOnlyFlag.put("_read_only", true);
+    private ExpressionRoleMapping cloneAndMarkAsReadOnly(ExpressionRoleMapping mapping) {
+        // Mark role mappings from cluster state as "read only" by adding a suffix to their name
         return new ExpressionRoleMapping(
-            mapping.getName(),
+            mapping.getName() + " (read only)",
             mapping.getExpression(),
             mapping.getRoles(),
             mapping.getRoleTemplates(),
-            metadataWithReadOnlyFlag,
+            mapping.getMetadata(),
             mapping.isEnabled()
         );
     }

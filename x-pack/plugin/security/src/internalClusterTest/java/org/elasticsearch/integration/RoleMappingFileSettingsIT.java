@@ -55,13 +55,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -272,7 +270,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }
 
         // the role mappings are retrievable by the role mapping action for BWC
-        assertGetResponseHasMappings("everyone_kibana", "everyone_fleet");
+        assertGetResponseHasMappings(true, "everyone_kibana", "everyone_fleet");
 
         // role mappings (with the same names) can be stored in the "native" store
         {
@@ -292,7 +290,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
     }
 
-    public void testRoleMappingsApplied() throws Exception {
+    public void testClusterStateRoleMappingsAddedThenDeleted() throws Exception {
         ensureGreen();
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
@@ -300,6 +298,12 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
         logger.info("---> cleanup cluster settings...");
+
+        {
+            // Deleting non-existent native role mappings returns not found even if they exist in config file
+            var response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).get();
+            assertFalse(response.isFound());
+        }
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
@@ -332,15 +336,6 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             );
             assertThat(resolveRolesFuture.get(), empty());
         }
-
-        {
-            // Deleting non-existent native role mappings returns not found instead of illegal arg error since there are no clashing
-            // cluster-state role mappings
-            var response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).get();
-            assertFalse(response.isFound());
-            response = client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_fleet")).get();
-            assertFalse(response.isFound());
-        }
     }
 
     public void testGetRoleMappings() throws Exception {
@@ -361,16 +356,23 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(response.hasMappings());
         assertThat(
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
-            containsInAnyOrder("everyone_kibana", "everyone_kibana", "_everyone_kibana", "everyone_fleet", "zzz_mapping", "123_mapping")
+            containsInAnyOrder(
+                "everyone_kibana",
+                "everyone_kibana (read only)",
+                "_everyone_kibana",
+                "everyone_fleet (read only)",
+                "zzz_mapping",
+                "123_mapping"
+            )
         );
 
+        int readOnlyCount = 0;
         // assert that cluster-state role mappings come last
-        List<Boolean> isReadOnlyFlags = Arrays.stream(response.mappings()).map(it -> {
-            Boolean isReadOnly = (Boolean) it.getMetadata().get("_read_only");
-            return Boolean.TRUE.equals(isReadOnly);
-        }).collect(Collectors.toList());
-        // first 4 are native (and first), last to cluster-state
-        assertThat(isReadOnlyFlags, contains(false, false, false, false, true, true));
+        for (ExpressionRoleMapping mapping : response.mappings()) {
+            readOnlyCount = mapping.getName().endsWith("(read only)") ? readOnlyCount + 1 : readOnlyCount;
+        }
+        // Two sourced from cluster-state
+        assertEquals(readOnlyCount, 2);
 
         // it's possible to delete overlapping native role mapping
         assertTrue(client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet().isFound());
@@ -472,7 +474,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             assertTrue(awaitSuccessful);
 
             // even if index is closed, cluster-state role mappings are still returned
-            assertGetResponseHasMappings("everyone_kibana", "everyone_fleet");
+            assertGetResponseHasMappings(true, "everyone_kibana", "everyone_fleet");
 
             // cluster state settings are also applied
             var clusterStateResponse = clusterAdmin().state(
@@ -536,11 +538,14 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }
     }
 
-    private static void assertGetResponseHasMappings(String... mappings) throws InterruptedException, ExecutionException {
+    private static void assertGetResponseHasMappings(boolean readOnly, String... mappings) throws InterruptedException, ExecutionException {
         var request = new GetRoleMappingsRequest();
         request.setNames(mappings);
         var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
         assertTrue(response.hasMappings());
-        assertThat(Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(), containsInAnyOrder(mappings));
+        assertThat(
+            Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
+            containsInAnyOrder(Arrays.stream(mappings).map(mapping -> mapping + (readOnly ? " (read only)" : "")).toArray(String[]::new))
+        );
     }
 }

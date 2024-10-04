@@ -103,15 +103,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return builder;
         }
 
-        private static GeoDistanceSort readFrom(StreamInput in) throws IOException {
-            return new EsQueryExec.GeoDistanceSort(
-                FieldAttribute.readFrom(in),
-                in.readEnum(Order.OrderDirection.class),
-                in.readDouble(),
-                in.readDouble()
-            );
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             field().writeTo(out);

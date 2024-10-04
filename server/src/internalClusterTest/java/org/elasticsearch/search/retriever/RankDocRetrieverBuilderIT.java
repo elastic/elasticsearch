@@ -36,6 +36,7 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -680,20 +681,12 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             for (int i = 0; i < size; i++) {
                 var hit = searchResponse.getHits().getAt(i);
                 long sortValue = (long) hit.getRawSortValues()[hit.getRawSortValues().length - 1];
-                int doc = decodeDoc(sortValue);
-                int shardRequestIndex = decodeShardRequestIndex(sortValue);
+                int doc = ShardDocSortField.decodeDoc(sortValue);
+                int shardRequestIndex = ShardDocSortField.decodeShardRequestIndex(sortValue);
                 docs[i] = new RankDoc(doc, hit.getScore(), shardRequestIndex);
                 docs[i].rank = i + 1;
             }
             return docs;
-        }
-
-        public static int decodeDoc(long value) {
-            return (int) value;
-        }
-
-        public static int decodeShardRequestIndex(long value) {
-            return (int) (value >> 32);
         }
 
         record RankDocAndHitRatio(RankDoc rankDoc, float hitRatio) {}

@@ -101,23 +101,22 @@ Conflicting attribute types:
   - match: { hits.hits.0.fields.attributes\.http\.status_code: [200] }
   - match: { hits.hits.1._ignored: ["attributes.http.status_code"] }
 ---
-"@timestamp should be used as sort field":
+"resource.attributes.host.name @timestamp should be used as sort fields":
   - do:
       bulk:
         index: traces-generic.otel-default
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "span_id":"2"}'
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "span_id":"1"}'
-
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "span_id":"1"}'
   - is_false: errors
   - do:
-      search:
-        index: traces-generic.otel-default
-        body:
-          fields: ["span_id"]
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0.fields.span_id: ["1"] }
-  - match: { hits.hits.1.fields.span_id: ["2"] }
+      indices.get_data_stream:
+        name: traces-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: datastream-backing-index }
+  - do:
+      indices.get_settings:
+        index: $datastream-backing-index
+  - is_true: $datastream-backing-index
+  - match: { .$datastream-backing-index.settings.index.sort.field.0: "resource.attributes.host.name" }
+  - match: { .$datastream-backing-index.settings.index.sort.field.1: "@timestamp" }

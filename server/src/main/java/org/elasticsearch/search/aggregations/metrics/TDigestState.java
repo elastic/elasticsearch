@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -27,11 +29,13 @@ import java.util.Iterator;
  * through factory method params, providing one optimized for performance (e.g. MergingDigest or HybridDigest) by default, or optionally one
  * that produces highly accurate results regardless of input size but its construction over the sample population takes 2x-10x longer.
  */
-public class TDigestState implements Releasable {
+public class TDigestState implements Releasable, Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TDigestState.class);
 
-    protected static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
+    private static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
 
     private final CircuitBreaker breaker;
+    private boolean closed = false;
 
     private final double compression;
 
@@ -71,7 +75,23 @@ public class TDigestState implements Releasable {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState create(CircuitBreaker breaker, double compression) {
-        return new TDigestState(breaker, Type.defaultValue(), compression);
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create");
+        try {
+            return new TDigestState(breaker, Type.defaultValue(), compression);
+        } catch (Exception e) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
+    static TDigestState create(CircuitBreaker breaker, Type type, double compression) {
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-with-type");
+        try {
+            return new TDigestState(breaker, type, compression);
+        } catch (Exception e) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     /**
@@ -80,7 +100,13 @@ public class TDigestState implements Releasable {
      * @return a TDigestState object that's optimized for performance
      */
     static TDigestState createOptimizedForAccuracy(CircuitBreaker breaker, double compression) {
-        return new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-optimized-for-accuracy");
+        try {
+            return new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+        } catch (Exception e) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     /**
@@ -114,7 +140,13 @@ public class TDigestState implements Releasable {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(state.breaker, state.type, state.compression);
+        state.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-using-params-from");
+        try {
+            return new TDigestState(state.breaker, state.type, state.compression);
+        } catch (Exception e) {
+            state.breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
+        }
     }
 
     protected TDigestState(CircuitBreaker breaker, Type type, double compression) {
@@ -128,6 +160,11 @@ public class TDigestState implements Releasable {
         };
         this.type = type;
         this.compression = compression;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + tdigest.ramBytesUsed();
     }
 
     public final double compression() {
@@ -161,11 +198,17 @@ public class TDigestState implements Releasable {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
-            size = in.readVLong();
-        } else {
-            state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-read");
+        try {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
+                size = in.readVLong();
+            } else {
+                state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+            }
+        } catch (Exception e) {
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            throw e;
         }
         int n = in.readVInt();
         if (size > 0) {
@@ -281,6 +324,10 @@ public class TDigestState implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(tdigest);
+        if (closed == false) {
+            closed = true;
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            Releasables.close(tdigest);
+        }
     }
 }

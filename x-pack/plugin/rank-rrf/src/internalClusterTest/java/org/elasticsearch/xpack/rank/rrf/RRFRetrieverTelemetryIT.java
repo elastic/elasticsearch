@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -87,7 +88,13 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
     }
 
     public void testTelemetryForRRFRetriever() throws IOException {
-
+        {
+            Request request = new Request("GET", "_capabilities");
+            request.addParameter("method", "retrievers-usage-stats");
+            request.addParameter("path", "/cluster/stats");
+            Response res = getRestClient().performRequest(request);
+            System.out.println(res);
+        }
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");

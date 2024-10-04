@@ -42,3 +42,4 @@ MAX_SHARDS_PER_NODE                                             size-your-shards
 FLOOD_STAGE_WATERMARK                                           fix-watermark-errors.html
 X_OPAQUE_ID                                                     api-conventions.html#x-opaque-id
 FORMING_SINGLE_NODE_CLUSTERS                                    modules-discovery-bootstrap-cluster.html#modules-discovery-bootstrap-cluster-joining
+CIRCUIT_BREAKER_ERRORS                                          circuit-breaker-errors.html

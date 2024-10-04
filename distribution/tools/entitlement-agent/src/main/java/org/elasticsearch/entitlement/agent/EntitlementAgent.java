@@ -27,9 +27,10 @@ public class EntitlementAgent {
         // Add the bridge library (the one with the entitlement checking interface) to the bootstrap classpath.
         // We can't actually reference the classes here for real before this point because they won't resolve.
         var jarsString = System.getProperty("es.entitlements.bridgeJars");
-        if (jarsString != null) {
-            addJarsToBootstrapClassLoader(inst, jarsString);
+        if (jarsString == null) {
+            throw new IllegalArgumentException("System property es.entitlements.bridgeJars is required");
         }
+        addJarsToBootstrapClassLoader(inst, jarsString);
 
         ConfigurationScanner.ScanResults config = ConfigurationScanner.scan(List.of(EntitlementChecks.class));
 
@@ -45,7 +46,11 @@ public class EntitlementAgent {
 
     @SuppressForbidden(reason = "The appendToBootstrapClassLoaderSearch method takes a JarFile")
     private static void addJarsToBootstrapClassLoader(Instrumentation inst, String jarsString) throws IOException {
-        for (var jar : jarsString.split(File.pathSeparator)) {
+        String[] jars = jarsString.split(File.pathSeparator);
+        if (jars.length != 1) {
+            throw new IllegalArgumentException(jarsString + " must point to a single jar file");
+        }
+        for (var jar : jars) {
             // System.out.println("Adding jar " + jar);
             inst.appendToBootstrapClassLoaderSearch(new JarFile(jar));
         }

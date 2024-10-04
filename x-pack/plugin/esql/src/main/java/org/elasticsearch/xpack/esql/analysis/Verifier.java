@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -187,6 +188,11 @@ public class Verifier {
 
             checkFilterMatchConditions(p, failures);
             checkFullTextQueryFunctions(p, failures);
+
+            // _score can only be set as metadata attribute
+            if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && !(a instanceof MetadataAttribute))) {
+                failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
+            }
         });
         checkRemoteEnrich(plan, failures);
 

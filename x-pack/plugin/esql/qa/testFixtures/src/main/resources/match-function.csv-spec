@@ -202,3 +202,17 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10053          | Sanjiv             | Zschoche
 10069          | Margareta          | Bierman
 ;
+
+testMatchAndQueryStringFunctions
+required_capability: match_function
+required_capability: qstr_function
+
+from employees 
+| where match(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) and gender: F")
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10041          | Uri                 | Lenart         
+10043          | Yishay              | Tzvieli        
+;

@@ -354,6 +354,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGet
   issue: https://github.com/elastic/elasticsearch/issues/114135
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testIncrementalBulkHighWatermarkBackOff
+  issue: https://github.com/elastic/elasticsearch/issues/114073
 
 # Examples:
 #

@@ -32,6 +32,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -48,6 +49,8 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -58,32 +61,19 @@ import static org.elasticsearch.core.Strings.format;
 public class ModelRegistry {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
 
-    /**
-     * Semi parsed model where inference entity id, task type and service
-     * are known but the settings are not parsed.
-     */
-    public record UnparsedModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        Map<String, Object> settings,
-        Map<String, Object> secrets
-    ) {
-
-        public static UnparsedModel unparsedModelFromMap(ModelConfigMap modelConfigMap) {
-            if (modelConfigMap.config() == null) {
-                throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
-            }
-            String inferenceEntityId = ServiceUtils.removeStringOrThrowIfNull(
-                modelConfigMap.config(),
-                ModelConfigurations.INDEX_ONLY_ID_FIELD_NAME
-            );
-            String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
-            String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
-            TaskType taskType = TaskType.fromString(taskTypeStr);
-
-            return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
+    public static UnparsedModel unparsedModelFromMap(ModelConfigMap modelConfigMap) {
+        if (modelConfigMap.config() == null) {
+            throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
         }
+        String inferenceEntityId = ServiceUtils.removeStringOrThrowIfNull(
+            modelConfigMap.config(),
+            ModelConfigurations.INDEX_ONLY_ID_FIELD_NAME
+        );
+        String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
+        String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
+        TaskType taskType = TaskType.fromString(taskTypeStr);
+
+        return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
     }
 
     private static final String TASK_TYPE_FIELD = "task_type";
@@ -91,9 +81,27 @@ public class ModelRegistry {
     private static final Logger logger = LogManager.getLogger(ModelRegistry.class);
 
     private final OriginSettingClient client;
+    private Map<String, UnparsedModel> defaultConfigs;
 
     public ModelRegistry(Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
+        this.defaultConfigs = new HashMap<>();
+    }
+
+    public void addDefaultConfiguration(UnparsedModel serviceDefaultConfig) {
+        if (defaultConfigs.containsKey(serviceDefaultConfig.inferenceEntityId())) {
+            throw new IllegalStateException(
+                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id ["
+                    + serviceDefaultConfig.inferenceEntityId()
+                    + "] declared by service ["
+                    + serviceDefaultConfig.service()
+                    + "]. The inference Id is already use by ["
+                    + defaultConfigs.get(serviceDefaultConfig.inferenceEntityId()).service()
+                    + "] service."
+            );
+        }
+
+        defaultConfigs.put(serviceDefaultConfig.inferenceEntityId(), serviceDefaultConfig);
     }
 
     /**
@@ -102,6 +110,11 @@ public class ModelRegistry {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        if (defaultConfigs.containsKey(inferenceEntityId)) {
+            listener.onResponse(deepCopyDefaultConfig(defaultConfigs.get(inferenceEntityId)));
+            return;
+        }
+
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
@@ -109,7 +122,7 @@ public class ModelRegistry {
                 return;
             }
 
-            delegate.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
+            delegate.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
         });
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
@@ -128,6 +141,11 @@ public class ModelRegistry {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        if (defaultConfigs.containsKey(inferenceEntityId)) {
+            listener.onResponse(deepCopyDefaultConfig(defaultConfigs.get(inferenceEntityId)));
+            return;
+        }
+
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
@@ -135,7 +153,7 @@ public class ModelRegistry {
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
             assert modelConfigs.size() == 1;
             delegate.onResponse(modelConfigs.get(0));
         });
@@ -162,14 +180,29 @@ public class ModelRegistry {
      */
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+            var defaultConfigsForTaskType = defaultConfigs.values()
+                .stream()
+                .filter(m -> m.taskType() == taskType)
+                .map(ModelRegistry::deepCopyDefaultConfig)
+                .toList();
+
             // Not an error if no models of this task_type
-            if (searchResponse.getHits().getHits().length == 0) {
+            if (searchResponse.getHits().getHits().length == 0 && defaultConfigsForTaskType.isEmpty()) {
                 delegate.onResponse(List.of());
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
-            delegate.onResponse(modelConfigs);
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
+
+            if (defaultConfigsForTaskType.isEmpty() == false) {
+                var allConfigs = new ArrayList<UnparsedModel>();
+                allConfigs.addAll(modelConfigs);
+                allConfigs.addAll(defaultConfigsForTaskType);
+                allConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
+                delegate.onResponse(allConfigs);
+            } else {
+                delegate.onResponse(modelConfigs);
+            }
         });
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
@@ -191,14 +224,19 @@ public class ModelRegistry {
      */
     public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
-            // Not an error if no models of this task_type
-            if (searchResponse.getHits().getHits().length == 0) {
+            var defaults = defaultConfigs.values().stream().map(ModelRegistry::deepCopyDefaultConfig).toList();
+
+            if (searchResponse.getHits().getHits().length == 0 && defaults.isEmpty()) {
                 delegate.onResponse(List.of());
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
-            delegate.onResponse(modelConfigs);
+            var foundConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
+            var allConfigs = new ArrayList<UnparsedModel>();
+            allConfigs.addAll(foundConfigs);
+            allConfigs.addAll(defaults);
+            allConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
+            delegate.onResponse(allConfigs);
         });
 
         // In theory the index should only contain model config documents
@@ -216,7 +254,7 @@ public class ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    private List<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
+    private ArrayList<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
         var modelConfigs = new ArrayList<ModelConfigMap>();
         for (var hit : hits) {
             modelConfigs.add(new ModelConfigMap(hit.getSourceAsMap(), Map.of()));
@@ -392,5 +430,58 @@ public class ModelRegistry {
 
     private QueryBuilder documentIdQuery(String inferenceEntityId) {
         return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(inferenceEntityId)));
+    }
+
+    static UnparsedModel deepCopyDefaultConfig(UnparsedModel other) {
+        // Because the default config uses immutable maps
+        return new UnparsedModel(
+            other.inferenceEntityId(),
+            other.taskType(),
+            other.service(),
+            copySettingsMap(other.settings()),
+            copySecretsMap(other.secrets())
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> copySettingsMap(Map<String, Object> other) {
+        var result = new HashMap<String, Object>();
+
+        var serviceSettings = (Map<String, Object>) other.get(ModelConfigurations.SERVICE_SETTINGS);
+        if (serviceSettings != null) {
+            var copiedServiceSettings = copyMap1LevelDeep(serviceSettings);
+            result.put(ModelConfigurations.SERVICE_SETTINGS, copiedServiceSettings);
+        }
+
+        var taskSettings = (Map<String, Object>) other.get(ModelConfigurations.TASK_SETTINGS);
+        if (taskSettings != null) {
+            var copiedTaskSettings = copyMap1LevelDeep(taskSettings);
+            result.put(ModelConfigurations.TASK_SETTINGS, copiedTaskSettings);
+        }
+
+        var chunkSettings = (Map<String, Object>) other.get(ModelConfigurations.CHUNKING_SETTINGS);
+        if (chunkSettings != null) {
+            var copiedChunkSettings = copyMap1LevelDeep(chunkSettings);
+            result.put(ModelConfigurations.CHUNKING_SETTINGS, copiedChunkSettings);
+        }
+
+        return result;
+    }
+
+    static Map<String, Object> copySecretsMap(Map<String, Object> other) {
+        return copyMap1LevelDeep(other);
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> copyMap1LevelDeep(Map<String, Object> other) {
+        var result = new HashMap<String, Object>();
+        for (var entry : other.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?>) {
+                result.put(entry.getKey(), new HashMap<>((Map<String, Object>) entry.getValue()));
+            } else {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
     }
 }

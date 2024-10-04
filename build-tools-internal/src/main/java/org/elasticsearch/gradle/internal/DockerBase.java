@@ -33,7 +33,11 @@ public enum DockerBase {
         "docker.elastic.co/wolfi/chainguard-base:latest@sha256:c16d3ad6cebf387e8dd2ad769f54320c4819fbbaa21e729fad087c7ae223b4d0",
         "-wolfi",
         "apk"
-    );
+    ),
+
+    // Based on WOLFI above, with more extras. We don't set a base image because
+    // we programmatically extend from the Wolfi image.
+    WOLFI_ESS(null, "-wolfi-ess", "apk");
 
     private final String image;
     private final String suffix;

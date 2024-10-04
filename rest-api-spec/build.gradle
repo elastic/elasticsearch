@@ -247,4 +247,5 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
   task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+  task.skipTest("range/20_synthetic_source/Date range", "date range breaking change causes tests to produce incorrect values for compatibility")
 })

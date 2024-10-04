@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.TransportVersions.ML_INFERENCE_AMAZON_BEDROCK_ADDED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -121,7 +120,6 @@ public class AmazonBedrockService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {

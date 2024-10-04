@@ -444,7 +444,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private ProviderDownload downloaderFor(DatabaseConfiguration database) {
-        return new MaxmindDownload(database.name(), database.maxmind());
+        assert database.provider() instanceof DatabaseConfiguration.Maxmind
+            : "Attempt to use maxmind downloader with a provider of type" + database.provider().getClass();
+        return new MaxmindDownload(database.name(), (DatabaseConfiguration.Maxmind) database.provider());
     }
 
     class MaxmindDownload implements ProviderDownload {

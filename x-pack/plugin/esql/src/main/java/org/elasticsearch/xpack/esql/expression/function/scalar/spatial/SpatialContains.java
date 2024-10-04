@@ -91,19 +91,28 @@ public class SpatialContains extends SpatialRelatesFunction {
         }
 
         @Override
-        protected boolean geometryRelatesGeometries(MultiValuesCombiner left, MultiValuesCombiner right) throws IOException {
-            Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, right.combined());
-            return geometryRelatesGeometries(left, rightComponent2Ds);
+        protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
+            throws IOException {
+            if (right.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                processSourceAndConstant(builder, position, left, asLuceneComponent2Ds(crsType, right, position));
+            }
+        }
+
+        @Override
+        protected void processPointDocValuesAndSource(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            BytesRefBlock rightValue
+        ) throws IOException {
+            processPointDocValuesAndConstant(builder, position, leftValue, asLuceneComponent2Ds(crsType, rightValue, position));
         }
 
         private boolean geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
             Geometry leftGeom = fromBytesRef(left);
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom);
-            return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
-        }
-
-        private boolean geometryRelatesGeometries(MultiValuesCombiner left, Component2D[] rightComponent2Ds) throws IOException {
-            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left.combined());
             return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }
 
@@ -123,18 +132,28 @@ public class SpatialContains extends SpatialRelatesFunction {
             if (left.getValueCount(position) < 1) {
                 builder.appendNull();
             } else {
-                MultiValuesBytesRef leftValues = new MultiValuesBytesRef(left, position);
-                builder.appendBoolean(geometryRelatesGeometries(leftValues, right));
+                final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
+                builder.appendBoolean(geometryRelatesGeometries(reader, right));
             }
         }
 
-        private void processPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D[] right)
-            throws IOException {
-            if (left.getValueCount(p) < 1) {
+        private void processPointDocValuesAndConstant(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock left,
+            @Fixed Component2D[] right
+        ) throws IOException {
+            if (left.getValueCount(position) < 1) {
                 builder.appendNull();
             } else {
-                MultiValuesLong leftValues = new MultiValuesLong(left, p, spatialCoordinateType::longAsPoint);
-                builder.appendBoolean(geometryRelatesGeometries(leftValues, right));
+                final GeometryDocValueReader reader = asGeometryDocValueReader(
+                    coordinateEncoder,
+                    shapeIndexer,
+                    left,
+                    position,
+                    spatialCoordinateType::longAsPoint
+                );
+                builder.appendBoolean(geometryRelatesGeometries(reader, right));
             }
         }
     }

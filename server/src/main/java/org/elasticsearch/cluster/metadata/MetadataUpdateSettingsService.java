@@ -176,7 +176,7 @@ public class MetadataUpdateSettingsService {
             }
             final Settings closedSettings = settingsForClosedIndices.build();
             final Settings openSettings = settingsForOpenIndices.build();
-            final boolean preserveExisting = request.isPreserveExisting();
+            final boolean preserveExisting = request.onExisting() == UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE;
 
             RoutingTable.Builder routingTableBuilder = null;
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
@@ -199,7 +199,7 @@ public class MetadataUpdateSettingsService {
             }
 
             if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
-                if (request.reopenShards()) {
+                if (request.onStaticSetting() == UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES) {
                     // We have non-dynamic settings and open indices. We will unassign all of the shards in these indices so that the new
                     // changed settings are applied when the shards are re-assigned.
                     routingTableBuilder = RoutingTable.builder(

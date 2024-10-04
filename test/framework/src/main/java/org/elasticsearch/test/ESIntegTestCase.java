@@ -122,6 +122,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -1776,11 +1777,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             );
             logger.info("Index [{}] docs async: [{}] bulk: [{}] partitions [{}]", builders.size(), false, true, partition.size());
             for (List<IndexRequestBuilder> segmented : partition) {
+                BulkResponse actionGet;
                 BulkRequestBuilder bulkBuilder = client().prepareBulk();
                 for (IndexRequestBuilder indexRequestBuilder : segmented) {
                     bulkBuilder.add(indexRequestBuilder);
                 }
-                BulkResponse actionGet = bulkBuilder.get();
+                actionGet = bulkBuilder.get();
                 assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
             }
         }
@@ -1864,7 +1866,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
             int waitFor = between(0, inFlightAsyncOperations.size() - 1);
-            safeAwait(inFlightAsyncOperations.remove(waitFor));
+            try {
+                assertTrue(
+                    "operation did not complete within timeout",
+                    inFlightAsyncOperations.remove(waitFor).await(60, TimeUnit.SECONDS)
+                );
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                fail(e, "interrupted while waiting for operation to complete");
+            }
         }
     }
 
@@ -2053,6 +2063,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE.getKey(),
                 randomFrom(1, 2, SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE)
             );
+        if (randomBoolean()) {
+            builder.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), randomFrom("256B", "512B"));
+            builder.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB");
+            builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), randomFrom("1KB", "16KB", "64KB"));
+            builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
+        }
         return builder.build();
     }
 
@@ -2657,13 +2673,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @return the result of running the {@link GetPipelineAction} on the given IDs, using the default {@link ESIntegTestCase#client()}.
      */
     protected static GetPipelineResponse getPipelines(String... ids) {
-        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(ids)));
+        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(TEST_REQUEST_TIMEOUT, ids)));
     }
 
     /**
      * Delete the ingest pipeline with the given {@code id}, the default {@link ESIntegTestCase#client()}.
      */
     protected static void deletePipeline(String id) {
-        assertAcked(safeGet(client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(id))));
+        assertAcked(
+            safeGet(
+                client().execute(
+                    DeletePipelineTransportAction.TYPE,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
+                )
+            )
+        );
     }
 }

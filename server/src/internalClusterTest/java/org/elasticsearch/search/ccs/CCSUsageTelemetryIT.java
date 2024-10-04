@@ -63,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.PIT_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -622,6 +623,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
 
         assertThat(telemetry.getTotalCount(), equalTo(2L));
         assertThat(telemetry.getSuccessCount(), equalTo(2L));
+        assertThat(telemetry.getFeatureCounts().get(PIT_FEATURE), equalTo(2L));
     }
 
     public void testCompoundRetrieverSearch() throws ExecutionException, InterruptedException {
@@ -660,7 +662,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         int numShardsRemote = randomIntBetween(2, 10);
         for (String clusterAlias : remoteClusterAlias()) {
             final InternalTestCluster remoteCluster = cluster(clusterAlias);
-            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
+            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
             assertAcked(
                 client(clusterAlias).admin()
                     .indices()

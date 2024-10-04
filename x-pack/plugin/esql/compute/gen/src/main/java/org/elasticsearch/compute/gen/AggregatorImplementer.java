@@ -353,14 +353,14 @@ public class AggregatorImplementer {
             builder.addStatement("return");
             builder.endControlFlow();
         }
-        builder.beginControlFlow("if (mask.isConstant())");
+        builder.beginControlFlow("if (mask.allFalse())");
         {
-            builder.beginControlFlow("if (mask.getBoolean(0) == false)");
-            {
-                builder.addComment("Entire page masked away");
-                builder.addStatement("return");
-            }
-            builder.endControlFlow();
+            builder.addComment("Entire page masked away");
+            builder.addStatement("return");
+        }
+        builder.endControlFlow();
+        builder.beginControlFlow("if (mask.allTrue())");
+        {
             builder.addComment("No masking");
             builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
             builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
@@ -372,6 +372,7 @@ public class AggregatorImplementer {
             builder.addStatement("return");
         }
         builder.endControlFlow();
+
         builder.addComment("Some positions masked away, others kept");
         builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));

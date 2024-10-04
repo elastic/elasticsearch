@@ -9,6 +9,8 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -23,6 +25,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
         map.put("doc_values", ESTestCase.randomBoolean());
+        if (ESTestCase.randomBoolean()) {
+            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
+        }
 
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
             case KEYWORD -> keywordMapping(request, map);
@@ -44,7 +49,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
             // If first copied value is numeric, dynamic field is created with numeric field type and then copy of text values fail.
             // Actual value being copied does not influence the core logic of copy_to anyway.
-            if (ESTestCase.randomDouble() <= 0.05) {
+            //
+            // TODO
+            // We don't use copy_to on fields that are inside an object with dynamic: strict
+            // because we'll hit https://github.com/elastic/elasticsearch/issues/113049.
+            if (request.dynamicMapping() != DynamicMapping.FORBIDDEN && ESTestCase.randomDouble() <= 0.05) {
                 var options = request.eligibleCopyToFields()
                     .stream()
                     .filter(f -> f.equals(request.fieldName()) == false)
@@ -74,6 +83,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
                 }
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
+                }
 
                 return parameters;
             });
@@ -86,6 +98,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
             if (ESTestCase.randomBoolean()) {
                 parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
+            }
+            if (ESTestCase.randomBoolean()) {
+                parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, request.syntheticSourceKeepValue());
             }
 
             return parameters;

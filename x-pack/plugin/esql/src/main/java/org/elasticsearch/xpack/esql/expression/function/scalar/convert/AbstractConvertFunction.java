@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTypeOrUnionType;
 
@@ -124,7 +123,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     protected abstract Map<DataType, BuildFactory> factories();
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 

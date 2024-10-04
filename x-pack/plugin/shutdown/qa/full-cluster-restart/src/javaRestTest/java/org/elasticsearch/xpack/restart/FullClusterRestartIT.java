@@ -90,7 +90,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     @Before
     public void checkClusterVersion() {
-        @UpdateForV9 // always true
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // always true
         var originalClusterSupportsShutdown = oldClusterHasFeature(RestTestLegacyFeatures.SHUTDOWN_SUPPORTED);
         assumeTrue("no shutdown in versions before 7.15", originalClusterSupportsShutdown);
     }

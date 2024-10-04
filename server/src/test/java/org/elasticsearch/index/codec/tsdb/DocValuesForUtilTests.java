@@ -70,11 +70,10 @@ public class DocValuesForUtilTests extends LuceneTestCase {
         {
             // decode
             IndexInput in = d.openInput("test.bin", IOContext.READONCE);
-            final DocValuesForUtil forUtil = new DocValuesForUtil();
             final long[] restored = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
             for (int i = 0; i < iterations; ++i) {
                 final int bitsPerValue = in.readByte();
-                forUtil.decode(bitsPerValue, in, restored);
+                DocValuesForUtil.decode(bitsPerValue, in, restored);
                 assertArrayEquals(
                     Arrays.toString(restored),
                     ArrayUtil.copyOfSubArray(

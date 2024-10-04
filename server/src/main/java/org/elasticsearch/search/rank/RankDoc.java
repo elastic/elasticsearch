@@ -44,7 +44,7 @@ public class RankDoc extends ScoreDoc implements VersionedNamedWriteable, ToXCon
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RRF_QUERY_REWRITE;
+        return TransportVersions.RANK_DOCS_RETRIEVER;
     }
 
     @Override

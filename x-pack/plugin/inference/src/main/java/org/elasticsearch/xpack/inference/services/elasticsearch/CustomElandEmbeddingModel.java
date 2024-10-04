@@ -15,9 +15,10 @@ public class CustomElandEmbeddingModel extends CustomElandModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        CustomElandInternalTextEmbeddingServiceSettings serviceSettings
+        CustomElandInternalTextEmbeddingServiceSettings serviceSettings,
+        String endpointVersion
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings);
+        super(inferenceEntityId, taskType, service, serviceSettings, endpointVersion);
     }
 
     @Override

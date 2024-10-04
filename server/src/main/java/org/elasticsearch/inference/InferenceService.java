@@ -36,40 +36,55 @@ public interface InferenceService extends Closeable {
      * If the map contains unrecognized configuration option an
      * {@code ElasticsearchStatusException} is thrown.
      *
-     * @param modelId               Model Id
-     * @param taskType              The model task type
-     * @param config                Configuration options including the secrets
-     * @param parsedModelListener   A listener which will handle the resulting model or failure
+     * @param modelId             Model Id
+     * @param taskType            The model task type
+     * @param config              Configuration options including the secrets
+     * @param endpointVersion
+     * @param parsedModelListener A listener which will handle the resulting model or failure
      */
-    void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
+    void parseRequestConfig(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        String endpointVersion,
+        ActionListener<Model> parsedModelListener
+    );
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
      * secrets and service settings be in two separate maps.
      * This function modifies {@code config map}, fields are removed from the map as they are read.
-     *
+     * <p>
      * If the map contains unrecognized configuration options, no error is thrown.
      *
-     * @param modelId Model Id
-     * @param taskType The model task type
-     * @param config Configuration options
-     * @param secrets Sensitive configuration options (e.g. api key)
+     * @param modelId         Model Id
+     * @param taskType        The model task type
+     * @param config          Configuration options
+     * @param secrets         Sensitive configuration options (e.g. api key)
+     * @param endpointVersion
      * @return The parsed {@link Model}
      */
-    Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
+    Model parsePersistedConfigWithSecrets(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> secrets,
+        String endpointVersion
+    );
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
      * This function modifies {@code config map}, fields are removed from the map as they are read.
-     *
+     * <p>
      * If the map contains unrecognized configuration options, no error is thrown.
      *
-     * @param modelId Model Id
-     * @param taskType The model task type
-     * @param config Configuration options
+     * @param modelId         Model Id
+     * @param taskType        The model task type
+     * @param config          Configuration options
+     * @param endpointVersion
      * @return The parsed {@link Model}
      */
-    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
+    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, String endpointVersion);
 
     /**
      * Perform inference on the model.

@@ -37,7 +37,8 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -45,7 +46,8 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             service,
             OpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
             OpenAiChatCompletionTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -55,10 +57,11 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         String service,
         OpenAiChatCompletionServiceSettings serviceSettings,
         OpenAiChatCompletionTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings,
             secrets

@@ -29,7 +29,8 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         Map<String, Object> serviceSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -37,7 +38,8 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
             service,
             HuggingFaceServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -48,10 +50,11 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         String service,
         HuggingFaceServiceSettings serviceSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings,
             secrets
@@ -65,7 +68,8 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
             model.getConfigurations().getService(),
             serviceSettings,
             model.getConfigurations().getChunkingSettings(),
-            model.getSecretSettings()
+            model.getSecretSettings(),
+            model.getConfigurations().getEndpointVersion()
         );
     }
 

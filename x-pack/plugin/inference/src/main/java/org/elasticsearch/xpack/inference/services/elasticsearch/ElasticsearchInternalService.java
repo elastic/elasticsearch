@@ -101,6 +101,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> modelListener
     ) {
         if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
@@ -134,7 +135,15 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     );
                     platformArch.accept(
                         modelListener.delegateFailureAndWrap(
-                            (delegate, arch) -> elserCase(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                            (delegate, arch) -> elserCase(
+                                inferenceEntityId,
+                                taskType,
+                                config,
+                                arch,
+                                serviceSettingsMap,
+                                modelListener,
+                                endpointVersion
+                            )
                         )
                     );
                 } else {
@@ -143,17 +152,33 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             } else if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 platformArch.accept(
                     modelListener.delegateFailureAndWrap(
-                        (delegate, arch) -> e5Case(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                        (delegate, arch) -> e5Case(
+                            inferenceEntityId,
+                            taskType,
+                            config,
+                            arch,
+                            serviceSettingsMap,
+                            modelListener,
+                            endpointVersion
+                        )
                     )
                 );
             } else if (ElserModels.isValidModel(modelId)) {
                 platformArch.accept(
                     modelListener.delegateFailureAndWrap(
-                        (delegate, arch) -> elserCase(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                        (delegate, arch) -> elserCase(
+                            inferenceEntityId,
+                            taskType,
+                            config,
+                            arch,
+                            serviceSettingsMap,
+                            modelListener,
+                            endpointVersion
+                        )
                     )
                 );
             } else {
-                customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, modelListener);
+                customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, modelListener, endpointVersion);
             }
         } catch (Exception e) {
             modelListener.onFailure(e);
@@ -165,7 +190,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TaskType taskType,
         Map<String, Object> serviceSettingsMap,
         Map<String, Object> taskSettingsMap,
-        ActionListener<Model> modelListener
+        ActionListener<Model> modelListener,
+        String endpointVersion
     ) {
         String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
         var request = new GetTrainedModelsAction.Request(modelId);
@@ -183,7 +209,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     taskType,
                     serviceSettingsMap,
                     taskSettingsMap,
-                    ConfigurationParseContext.REQUEST
+                    ConfigurationParseContext.REQUEST,
+                    endpointVersion
                 );
 
                 throwIfNotEmptyMap(serviceSettingsMap, name());
@@ -201,7 +228,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
 
         return switch (taskType) {
@@ -209,20 +237,23 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 inferenceEntityId,
                 taskType,
                 NAME,
-                CustomElandInternalTextEmbeddingServiceSettings.fromMap(serviceSettings, context)
+                CustomElandInternalTextEmbeddingServiceSettings.fromMap(serviceSettings, context),
+                endpointVersion
             );
             case SPARSE_EMBEDDING -> new CustomElandModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
-                elandServiceSettings(serviceSettings, context)
+                elandServiceSettings(serviceSettings, context),
+                endpointVersion
             );
             case RERANK -> new CustomElandRerankModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
                 elandServiceSettings(serviceSettings, context),
-                CustomElandRerankTaskSettings.fromMap(taskSettings)
+                CustomElandRerankTaskSettings.fromMap(taskSettings),
+                endpointVersion
             );
             default -> throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         };
@@ -246,7 +277,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> config,
         Set<String> platformArchitectures,
         Map<String, Object> serviceSettingsMap,
-        ActionListener<Model> modelListener
+        ActionListener<Model> modelListener,
+        String endpointVersion
     ) {
         var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
 
@@ -274,7 +306,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 inferenceEntityId,
                 taskType,
                 NAME,
-                new MultilingualE5SmallInternalServiceSettings(esServiceSettingsBuilder.build())
+                new MultilingualE5SmallInternalServiceSettings(esServiceSettingsBuilder.build()),
+                endpointVersion
             )
         );
     }
@@ -299,7 +332,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> config,
         Set<String> platformArchitectures,
         Map<String, Object> serviceSettingsMap,
-        ActionListener<Model> modelListener
+        ActionListener<Model> modelListener,
+        String endpointVersion
     ) {
         var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
         final String defaultModelId = selectDefaultModelVariantBasedOnClusterArchitecture(
@@ -355,7 +389,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 NAME,
                 new ElserInternalServiceSettings(esServiceSettingsBuilder.build()),
-                ElserMlNodeTaskSettings.DEFAULT
+                ElserMlNodeTaskSettings.DEFAULT,
+                endpointVersion
             )
         );
     }
@@ -378,13 +413,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
-        return parsePersistedConfig(inferenceEntityId, taskType, config);
+        return parsePersistedConfig(inferenceEntityId, taskType, config, endpointVersion);
     }
 
     @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -398,7 +434,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 inferenceEntityId,
                 taskType,
                 NAME,
-                new MultilingualE5SmallInternalServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap))
+                new MultilingualE5SmallInternalServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap)),
+                endpointVersion
             );
         } else if (ElserModels.isValidModel(modelId)) {
             return new ElserInternalModel(
@@ -406,7 +443,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 NAME,
                 new ElserInternalServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap)),
-                ElserMlNodeTaskSettings.DEFAULT
+                ElserMlNodeTaskSettings.DEFAULT,
+                endpointVersion
             );
         } else {
             return createCustomElandModel(
@@ -414,7 +452,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
-                ConfigurationParseContext.PERSISTENT
+                ConfigurationParseContext.PERSISTENT,
+                endpointVersion
             );
         }
     }
@@ -430,7 +469,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 elandModel.getServiceSettings().modelId(),
                 elandModel.getTaskType(),
                 elandModel.getConfigurations().getService(),
-                elandModel.getServiceSettings()
+                elandModel.getServiceSettings(),
+                elandModel.getConfigurations().getEndpointVersion()
             );
 
             ServiceUtils.getEmbeddingSize(
@@ -458,7 +498,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             model.getInferenceEntityId(),
             model.getTaskType(),
             model.getConfigurations().getService(),
-            serviceSettings
+            serviceSettings,
+            model.getConfigurations().getEndpointVersion()
         );
     }
 
@@ -729,7 +770,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 TaskType.SPARSE_EMBEDDING,
                 NAME,
                 elserSettings,
-                Map.of() // no secrets
+                Map.of(), // no secrets
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             )
         );
     }

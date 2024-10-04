@@ -137,6 +137,7 @@ public class SenderServiceTests extends ESTestCase {
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
+            String endpointVersion,
             ActionListener<Model> parsedModelListener
         ) {
             parsedModelListener.onResponse(null);
@@ -147,13 +148,14 @@ public class SenderServiceTests extends ESTestCase {
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Map<String, Object> secrets
+            Map<String, Object> secrets,
+            String endpointVersion
         ) {
             return null;
         }
 
         @Override
-        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
             return null;
         }
 

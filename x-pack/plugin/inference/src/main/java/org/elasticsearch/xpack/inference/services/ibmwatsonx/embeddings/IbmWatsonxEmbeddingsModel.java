@@ -41,7 +41,8 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -49,7 +50,8 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
             service,
             IbmWatsonxEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -64,10 +66,11 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         String service,
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -86,10 +89,11 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         String uri,
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings
         );

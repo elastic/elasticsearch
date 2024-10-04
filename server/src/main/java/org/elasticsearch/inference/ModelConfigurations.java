@@ -32,6 +32,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     public static final String PARAMETERS = "parameters";
     public static final String CHUNKING_SETTINGS = "chunking_settings";
     public static final String INCLUDE_PARAMETERS = "include_parameters";
+    public static final String ENDPOINT_VERSION_FIELD_NAME = "endpoint_version";
+    public static final String FIRST_ENDPOINT_VERSION = "2023-09-29";
+    public static final String PARAMETERS_INTRODUCED_ENDPOINT_VERSION = "2024-10-17";
     private static final String NAME = "inference_model";
 
     public static ModelConfigurations of(Model model, TaskSettings taskSettings) {
@@ -44,7 +47,8 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             model.getConfigurations().getService(),
             model.getServiceSettings(),
             taskSettings,
-            model.getConfigurations().getChunkingSettings()
+            model.getConfigurations().getChunkingSettings(),
+            model.getConfigurations().getEndpointVersion()
         );
     }
 
@@ -58,7 +62,8 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             model.getConfigurations().getService(),
             serviceSettings,
             model.getTaskSettings(),
-            model.getConfigurations().getChunkingSettings()
+            model.getConfigurations().getChunkingSettings(),
+            model.getConfigurations().getEndpointVersion()
         );
     }
 
@@ -68,22 +73,19 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     private final ServiceSettings serviceSettings;
     private final TaskSettings taskSettings;
     private final ChunkingSettings chunkingSettings;
+    private final String endpointVersion;
 
     /**
      * Allows no task settings to be defined. This will default to the {@link EmptyTaskSettings} object.
      */
-    public ModelConfigurations(String inferenceEntityId, TaskType taskType, String service, ServiceSettings serviceSettings) {
-        this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE);
-    }
-
     public ModelConfigurations(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         ServiceSettings serviceSettings,
-        ChunkingSettings chunkingSettings
+        String endpointVersion
     ) {
-        this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings);
+        this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, endpointVersion);
     }
 
     public ModelConfigurations(
@@ -91,13 +93,26 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         TaskType taskType,
         String service,
         ServiceSettings serviceSettings,
-        TaskSettings taskSettings
+        ChunkingSettings chunkingSettings,
+        String endpointVersion
+    ) {
+        this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings, endpointVersion);
+    }
+
+    public ModelConfigurations(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ServiceSettings serviceSettings,
+        TaskSettings taskSettings,
+        String endpointVersion
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
         this.service = Objects.requireNonNull(service);
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
+        this.endpointVersion = endpointVersion;
         this.chunkingSettings = null;
     }
 
@@ -107,7 +122,8 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         String service,
         ServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        ChunkingSettings chunkingSettings
+        ChunkingSettings chunkingSettings,
+        String endpointVersion
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
@@ -115,6 +131,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
         this.chunkingSettings = chunkingSettings;
+        this.endpointVersion = endpointVersion;
     }
 
     public ModelConfigurations(StreamInput in) throws IOException {
@@ -126,6 +143,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)
             ? in.readOptionalNamedWriteable(ChunkingSettings.class)
             : null;
+        this.endpointVersion = in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_PARAMATERS_INTRODUCED)
+            ? Objects.requireNonNullElse(in.readOptionalString(), FIRST_ENDPOINT_VERSION)
+            : FIRST_ENDPOINT_VERSION;
     }
 
     @Override
@@ -137,6 +157,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeNamedWriteable(taskSettings);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)) {
             out.writeOptionalNamedWriteable(chunkingSettings);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_PARAMATERS_INTRODUCED)) {
+            out.writeOptionalString(endpointVersion); // not nullable after 9.0
         }
     }
 
@@ -164,6 +187,10 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         return chunkingSettings;
     }
 
+    public String getEndpointVersion() {
+        return endpointVersion;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -182,6 +209,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (params.paramAsBoolean(INCLUDE_PARAMETERS, true)) { // default true so that REST requests get parameters
             builder.field(PARAMETERS, taskSettings);
         }
+        builder.field(ENDPOINT_VERSION_FIELD_NAME, endpointVersion);
         builder.endObject();
         return builder;
     }
@@ -204,6 +232,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (params.paramAsBoolean(INCLUDE_PARAMETERS, true)) { // default true so that REST requests get parameters
             builder.field(PARAMETERS, taskSettings);
         }
+        builder.field(ENDPOINT_VERSION_FIELD_NAME, endpointVersion);
         builder.endObject();
         return builder;
     }
@@ -227,11 +256,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             && taskType == model.taskType
             && Objects.equals(service, model.service)
             && Objects.equals(serviceSettings, model.serviceSettings)
-            && Objects.equals(taskSettings, model.taskSettings);
+            && Objects.equals(taskSettings, model.taskSettings)
+            && Objects.equals(endpointVersion, model.endpointVersion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion);
     }
 }

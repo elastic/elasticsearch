@@ -195,7 +195,9 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }
         });
 
-        service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
+        String endpointVersion = (String) config.remove(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME);
+
+        service.parseRequestConfig(inferenceEntityId, taskType, config, endpointVersion, parsedModelListener);
     }
 
     private void startInferenceEndpoint(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
@@ -210,7 +212,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         try (
             XContentParser parser = XContentHelper.createParser(
                 XContentParserConfiguration.EMPTY,
-                request.getContent(),
+                request.getRewrittenContent(), // to account for model version upgrades with BWC we need to rewrite the content
                 request.getContentType()
             )
         ) {

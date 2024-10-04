@@ -109,6 +109,7 @@ public class AzureAiStudioService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -122,7 +123,8 @@ public class AzureAiStudioService extends SenderService {
                 taskSettingsMap,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                endpointVersion
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -140,7 +142,8 @@ public class AzureAiStudioService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -152,12 +155,13 @@ public class AzureAiStudioService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 
     @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -167,7 +171,8 @@ public class AzureAiStudioService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 
@@ -188,7 +193,8 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
 
         if (taskType == TaskType.TEXT_EMBEDDING) {
@@ -199,7 +205,8 @@ public class AzureAiStudioService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             checkProviderAndEndpointTypeForTask(
                 TaskType.TEXT_EMBEDDING,
@@ -217,7 +224,8 @@ public class AzureAiStudioService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             checkProviderAndEndpointTypeForTask(
                 TaskType.COMPLETION,
@@ -236,7 +244,8 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        String endpointVersion
     ) {
         return createModel(
             inferenceEntityId,
@@ -245,7 +254,8 @@ public class AzureAiStudioService extends SenderService {
             taskSettings,
             secretSettings,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 

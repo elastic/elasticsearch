@@ -93,7 +93,8 @@ public final class Utils {
     public static void storeSparseModel(Client client) throws Exception {
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
             TestSparseInferenceServiceExtension.TestInferenceService.NAME,
-            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
+            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
         storeModel(client, model);
     }
@@ -106,7 +107,8 @@ public final class Utils {
     ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
             TestDenseInferenceServiceExtension.TestInferenceService.NAME,
-            new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
+            new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
 
         storeModel(client, model);

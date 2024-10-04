@@ -125,6 +125,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(apiKey)
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
         }
@@ -151,6 +152,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(apiKey)
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
         }
@@ -179,6 +181,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(apiKey)
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -209,6 +212,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(apiKey)
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
         }
@@ -238,6 +242,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(apiKey)
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
         }
@@ -258,6 +263,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap("secret")
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 failureListener
             );
         }
@@ -276,7 +282,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -291,7 +297,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -310,7 +316,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -329,7 +335,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -348,7 +354,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
@@ -375,7 +382,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
@@ -405,7 +413,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
@@ -436,7 +445,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
@@ -466,7 +476,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
@@ -495,7 +506,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
@@ -525,7 +537,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
@@ -551,7 +564,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
@@ -581,7 +595,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
@@ -599,7 +614,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.COMPLETION,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
@@ -622,7 +642,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 createRandomChunkingSettingsMap()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
@@ -646,7 +671,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 createRandomChunkingSettingsMap()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
@@ -666,7 +696,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
@@ -685,7 +720,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.COMPLETION,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
@@ -705,7 +745,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty());
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.COMPLETION,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
@@ -725,7 +770,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), taskSettings);
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.COMPLETION,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 

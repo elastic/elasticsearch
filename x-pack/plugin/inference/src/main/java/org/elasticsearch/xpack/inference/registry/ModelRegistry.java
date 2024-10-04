@@ -53,6 +53,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -72,8 +73,13 @@ public class ModelRegistry {
         String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
         String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
         TaskType taskType = TaskType.fromString(taskTypeStr);
+        String endpointVersion = (String) Objects.requireNonNullElse(
+            modelConfigMap.config().remove(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION // TODO in 9.0 change this to require the field, once we have updated all of the
+                                                       // stored models
+        );
 
-        return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
+        return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets(), endpointVersion);
     }
 
     private static final String TASK_TYPE_FIELD = "task_type";
@@ -446,7 +452,8 @@ public class ModelRegistry {
             other.taskType(),
             other.service(),
             copySettingsMap(other.settings()),
-            copySecretsMap(other.secrets())
+            copySecretsMap(other.secrets()),
+            other.endpointVersion()
         );
     }
 
@@ -460,16 +467,21 @@ public class ModelRegistry {
             result.put(ModelConfigurations.SERVICE_SETTINGS, copiedServiceSettings);
         }
 
-        var taskSettings = (Map<String, Object>) other.get(ModelConfigurations.TASK_SETTINGS);
+        var taskSettings = (Map<String, Object>) other.get(ModelConfigurations.OLD_TASK_SETTINGS);
         if (taskSettings != null) {
             var copiedTaskSettings = copyMap1LevelDeep(taskSettings);
-            result.put(ModelConfigurations.TASK_SETTINGS, copiedTaskSettings);
+            result.put(ModelConfigurations.OLD_TASK_SETTINGS, copiedTaskSettings);
         }
 
         var chunkSettings = (Map<String, Object>) other.get(ModelConfigurations.CHUNKING_SETTINGS);
         if (chunkSettings != null) {
             var copiedChunkSettings = copyMap1LevelDeep(chunkSettings);
             result.put(ModelConfigurations.CHUNKING_SETTINGS, copiedChunkSettings);
+        }
+
+        var endpointVersion = (String) other.get(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME);
+        if (endpointVersion != null) {
+            result.put(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME, endpointVersion);
         }
 
         return result;

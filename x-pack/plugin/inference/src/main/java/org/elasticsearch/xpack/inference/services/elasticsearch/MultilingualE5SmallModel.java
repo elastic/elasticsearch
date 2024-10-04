@@ -20,9 +20,10 @@ public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        MultilingualE5SmallInternalServiceSettings serviceSettings
+        MultilingualE5SmallInternalServiceSettings serviceSettings,
+        String endpointVersion
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings);
+        super(inferenceEntityId, taskType, service, serviceSettings, endpointVersion);
     }
 
     @Override

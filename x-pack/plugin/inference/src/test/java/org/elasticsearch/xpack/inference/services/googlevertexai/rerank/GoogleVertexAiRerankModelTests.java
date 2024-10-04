@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
@@ -45,7 +46,9 @@ public class GoogleVertexAiRerankModelTests extends ESTestCase {
             "service",
             new GoogleVertexAiRerankServiceSettings(randomAlphaOfLength(10), modelId, null),
             new GoogleVertexAiRerankTaskSettings(topN),
-            new GoogleVertexAiSecretSettings(randomSecureStringOfLength(8))
+            new GoogleVertexAiSecretSettings(randomSecureStringOfLength(8)),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
         );
     }
 
@@ -57,7 +60,9 @@ public class GoogleVertexAiRerankModelTests extends ESTestCase {
             url,
             new GoogleVertexAiRerankServiceSettings(randomAlphaOfLength(10), modelId, null),
             new GoogleVertexAiRerankTaskSettings(topN),
-            new GoogleVertexAiSecretSettings(randomSecureStringOfLength(8))
+            new GoogleVertexAiSecretSettings(randomSecureStringOfLength(8)),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
         );
     }
 

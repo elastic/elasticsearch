@@ -119,6 +119,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getEmbeddingsTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -146,6 +147,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -169,6 +171,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -194,7 +197,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.COMPLETION,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -216,7 +225,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -239,7 +254,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -265,7 +286,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -291,7 +318,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -317,7 +350,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.COMPLETION,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -343,7 +382,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.COMPLETION,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -369,7 +414,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.COMPLETION,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -387,7 +438,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -408,7 +465,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -433,7 +496,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.COMPLETION,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationListener
+            );
         }
     }
 
@@ -445,7 +514,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
@@ -469,7 +544,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.COMPLETION, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.COMPLETION,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
 
@@ -502,6 +583,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -517,7 +599,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfigWithSecrets("id", TaskType.SPARSE_EMBEDDING, config.config(), config.secrets())
+                () -> service.parsePersistedConfigWithSecrets(
+                    "id",
+                    TaskType.SPARSE_EMBEDDING,
+                    config.config(),
+                    config.secrets(),
+                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                )
             );
 
             assertThat(
@@ -535,7 +623,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
             config.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
         }
@@ -550,7 +644,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             var secretSettings = getSecretSettingsMap("secret");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
         }
@@ -565,7 +665,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             var secretSettings = getSecretSettingsMap("secret");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
         }
@@ -580,7 +686,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
         }
@@ -594,7 +706,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             var secretSettings = getSecretSettingsMap("secret");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.COMPLETION, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.COMPLETION,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
         }
@@ -608,7 +726,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             var secretSettings = getSecretSettingsMap("secret");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.COMPLETION, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.COMPLETION,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
         }
@@ -622,7 +746,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             secretSettings.put("extra_key", "value");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.COMPLETION, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.COMPLETION,
+                config.config(),
+                config.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
         }
@@ -636,7 +766,12 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
@@ -659,7 +794,12 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, config.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.COMPLETION,
+                config.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
 
@@ -779,7 +919,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
@@ -799,7 +940,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                         null,
                         null,
                         AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS,
-                        null
+                        null,
+                        ModelConfigurations.FIRST_ENDPOINT_VERSION
                     )
                 )
             );

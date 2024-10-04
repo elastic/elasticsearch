@@ -68,6 +68,7 @@ public class GoogleAiStudioService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -89,7 +90,8 @@ public class GoogleAiStudioService extends SenderService {
                 chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                endpointVersion
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -111,7 +113,8 @@ public class GoogleAiStudioService extends SenderService {
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         return switch (taskType) {
             case COMPLETION -> new GoogleAiStudioCompletionModel(
@@ -121,7 +124,8 @@ public class GoogleAiStudioService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(
                 inferenceEntityId,
@@ -131,7 +135,8 @@ public class GoogleAiStudioService extends SenderService {
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -142,7 +147,8 @@ public class GoogleAiStudioService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -160,7 +166,8 @@ public class GoogleAiStudioService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 
@@ -171,7 +178,8 @@ public class GoogleAiStudioService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        String endpointVersion
     ) {
         return createModel(
             inferenceEntityId,
@@ -181,12 +189,13 @@ public class GoogleAiStudioService extends SenderService {
             chunkingSettings,
             secretSettings,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 
     @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -202,7 +211,8 @@ public class GoogleAiStudioService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 

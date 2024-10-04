@@ -21,9 +21,10 @@ public class CustomElandModel extends ElasticsearchInternalModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElasticsearchInternalServiceSettings internalServiceSettings
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        String endpointVersion
     ) {
-        super(inferenceEntityId, taskType, service, internalServiceSettings);
+        super(inferenceEntityId, taskType, service, internalServiceSettings, endpointVersion);
     }
 
     public CustomElandModel(
@@ -31,9 +32,10 @@ public class CustomElandModel extends ElasticsearchInternalModel {
         TaskType taskType,
         String service,
         ElasticsearchInternalServiceSettings internalServiceSettings,
-        TaskSettings taskSettings
+        TaskSettings taskSettings,
+        String endpointVersion
     ) {
-        super(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings);
+        super(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings, endpointVersion);
     }
 
     @Override

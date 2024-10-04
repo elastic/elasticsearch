@@ -32,7 +32,8 @@ public class CohereCompletionModel extends CohereModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             modelId,
@@ -40,7 +41,8 @@ public class CohereCompletionModel extends CohereModel {
             service,
             CohereCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -51,10 +53,11 @@ public class CohereCompletionModel extends CohereModel {
         String service,
         CohereCompletionServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings

@@ -43,7 +43,8 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -51,7 +52,8 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
             service,
             AmazonBedrockEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             new EmptyTaskSettings(),
-            AmazonBedrockSecretSettings.fromMap(secretSettings)
+            AmazonBedrockSecretSettings.fromMap(secretSettings),
+            endpointVersion
         );
     }
 
@@ -61,10 +63,11 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         String service,
         AmazonBedrockEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        AmazonBedrockSecretSettings secrets
+        AmazonBedrockSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings(), endpointVersion),
             new ModelSecrets(secrets)
         );
     }

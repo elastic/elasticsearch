@@ -51,6 +51,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -70,7 +71,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, name()),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                endpointVersion
             );
 
             throwIfNotEmptyMap(config, name());
@@ -87,7 +89,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
@@ -104,12 +107,18 @@ public abstract class HuggingFaceBaseService extends SenderService {
             chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(inferenceEntityId, name()),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 
     @Override
-    public HuggingFaceModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public HuggingFaceModel parsePersistedConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        String endpointVersion
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
@@ -124,7 +133,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
             chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(inferenceEntityId, name()),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 
@@ -135,7 +145,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     );
 
     @Override

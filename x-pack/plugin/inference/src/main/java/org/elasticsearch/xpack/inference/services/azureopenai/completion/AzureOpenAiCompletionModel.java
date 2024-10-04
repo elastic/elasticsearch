@@ -39,7 +39,8 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -47,7 +48,8 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             service,
             AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiCompletionTaskSettings.fromMap(taskSettings),
-            AzureOpenAiSecretSettings.fromMap(secrets)
+            AzureOpenAiSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -58,10 +60,11 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiCompletionServiceSettings serviceSettings,
         AzureOpenAiCompletionTaskSettings taskSettings,
-        @Nullable AzureOpenAiSecretSettings secrets
+        @Nullable AzureOpenAiSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings
         );

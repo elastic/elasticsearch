@@ -20,5 +20,6 @@ public record UnparsedModel(
     TaskType taskType,
     String service,
     Map<String, Object> settings,
-    Map<String, Object> secrets
+    Map<String, Object> secrets,
+    String endpointVersion
 ) {}

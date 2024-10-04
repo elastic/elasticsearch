@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.azureaistudio;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -458,7 +459,8 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             topP,
             doSample,
             maxNewTokens,
-            null
+            null,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
         return new AzureAiStudioChatCompletionRequest(model, List.of(input));
     }

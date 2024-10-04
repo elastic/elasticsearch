@@ -122,6 +122,7 @@ public class MistralService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -143,7 +144,8 @@ public class MistralService extends SenderService {
                 chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                endpointVersion
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -161,7 +163,8 @@ public class MistralService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -179,12 +182,13 @@ public class MistralService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(modelId, NAME),
+            endpointVersion
         );
     }
 
     @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -200,7 +204,8 @@ public class MistralService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(modelId, NAME),
+            endpointVersion
         );
     }
 
@@ -217,7 +222,8 @@ public class MistralService extends SenderService {
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
             return new MistralEmbeddingsModel(
@@ -228,7 +234,8 @@ public class MistralService extends SenderService {
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
         }
 
@@ -242,7 +249,8 @@ public class MistralService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        String endpointVersion
     ) {
         return createModel(
             inferenceEntityId,
@@ -252,7 +260,8 @@ public class MistralService extends SenderService {
             chunkingSettings,
             secretSettings,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 

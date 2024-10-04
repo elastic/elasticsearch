@@ -120,6 +120,7 @@ public class AmazonBedrockService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -133,7 +134,8 @@ public class AmazonBedrockService extends SenderService {
                 taskSettingsMap,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                endpointVersion
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -151,7 +153,8 @@ public class AmazonBedrockService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -164,12 +167,13 @@ public class AmazonBedrockService extends SenderService {
             taskSettingsMap,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(modelId, NAME),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 
     @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -180,7 +184,8 @@ public class AmazonBedrockService extends SenderService {
             taskSettingsMap,
             null,
             parsePersistedConfigErrorMsg(modelId, NAME),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 
@@ -191,7 +196,8 @@ public class AmazonBedrockService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         switch (taskType) {
             case TEXT_EMBEDDING -> {
@@ -202,7 +208,8 @@ public class AmazonBedrockService extends SenderService {
                     serviceSettings,
                     taskSettings,
                     secretSettings,
-                    context
+                    context,
+                    endpointVersion
                 );
                 checkProviderForTask(TaskType.TEXT_EMBEDDING, model.provider());
                 return model;
@@ -215,7 +222,8 @@ public class AmazonBedrockService extends SenderService {
                     serviceSettings,
                     taskSettings,
                     secretSettings,
-                    context
+                    context,
+                    endpointVersion
                 );
                 checkProviderForTask(TaskType.COMPLETION, model.provider());
                 checkChatCompletionProviderForTopKParameter(model);

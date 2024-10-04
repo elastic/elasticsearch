@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.request.azureopenai.completio
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiCompletionRequest;
@@ -91,7 +92,8 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
             user,
             apiKey,
             entraId,
-            "id"
+            "id",
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
 
         return new AzureOpenAiCompletionRequest(List.of(input), completionModel);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
@@ -35,18 +36,48 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         var user = "user";
         var userOverride = "user override";
 
-        var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
+        var model = createCompletionModel(
+            resource,
+            deploymentId,
+            apiVersion,
+            user,
+            apiKey,
+            entraId,
+            inferenceEntityId,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+        );
         var requestTaskSettingsMap = taskSettingsMap(userOverride);
         var overriddenModel = AzureOpenAiCompletionModel.of(model, requestTaskSettingsMap);
 
         assertThat(
             overriddenModel,
-            equalTo(createCompletionModel(resource, deploymentId, apiVersion, userOverride, apiKey, entraId, inferenceEntityId))
+            equalTo(
+                createCompletionModel(
+                    resource,
+                    deploymentId,
+                    apiVersion,
+                    userOverride,
+                    apiKey,
+                    entraId,
+                    inferenceEntityId,
+                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                )
+            )
         );
     }
 
     public void testOverrideWith_EmptyMap_OverridesNothing() {
-        var model = createCompletionModel("resource", "deployment", "api version", "user", "api key", "entra id", "inference entity id");
+        var model = createCompletionModel(
+            "resource",
+            "deployment",
+            "api version",
+            "user",
+            "api key",
+            "entra id",
+            "inference entity id",
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
+        );
         var requestTaskSettingsMap = Map.<String, Object>of();
         var overriddenModel = AzureOpenAiCompletionModel.of(model, requestTaskSettingsMap);
 
@@ -54,7 +85,17 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_NullMap_OverridesNothing() {
-        var model = createCompletionModel("resource", "deployment", "api version", "user", "api key", "entra id", "inference entity id");
+        var model = createCompletionModel(
+            "resource",
+            "deployment",
+            "api version",
+            "user",
+            "api key",
+            "entra id",
+            "inference entity id",
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
+        );
         var overriddenModel = AzureOpenAiCompletionModel.of(model, null);
 
         assertThat(overriddenModel, sameInstance(model));
@@ -73,12 +114,32 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
 
         var updatedServiceSettings = new AzureOpenAiCompletionServiceSettings(resource, deploymentId, updatedApiVersion, null);
 
-        var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
+        var model = createCompletionModel(
+            resource,
+            deploymentId,
+            apiVersion,
+            user,
+            apiKey,
+            entraId,
+            inferenceEntityId,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+        );
         var overriddenModel = new AzureOpenAiCompletionModel(model, updatedServiceSettings);
 
         assertThat(
             overriddenModel,
-            is(createCompletionModel(resource, deploymentId, updatedApiVersion, user, apiKey, entraId, inferenceEntityId))
+            is(
+                createCompletionModel(
+                    resource,
+                    deploymentId,
+                    updatedApiVersion,
+                    user,
+                    apiKey,
+                    entraId,
+                    inferenceEntityId,
+                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                )
+            )
         );
     }
 
@@ -91,7 +152,16 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         var inferenceEntityId = "inference entity id";
         var apiVersion = "2024";
 
-        var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
+        var model = createCompletionModel(
+            resource,
+            deploymentId,
+            apiVersion,
+            user,
+            apiKey,
+            entraId,
+            inferenceEntityId,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+        );
 
         assertThat(
             model.buildUriString().toString(),
@@ -107,7 +177,9 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(10),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
         );
     }
 
@@ -118,7 +190,8 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         String user,
         @Nullable String apiKey,
         @Nullable String entraId,
-        String inferenceEntityId
+        String inferenceEntityId,
+        String endpointVersion
     ) {
         var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
         var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
@@ -129,7 +202,8 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             "service",
             new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
             new AzureOpenAiCompletionTaskSettings(user),
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
     }
 

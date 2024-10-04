@@ -67,6 +67,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
+            String endpointVersion,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -76,7 +77,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
+            parsedModelListener.onResponse(
+                new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings, endpointVersion)
+            );
         }
 
         @Override

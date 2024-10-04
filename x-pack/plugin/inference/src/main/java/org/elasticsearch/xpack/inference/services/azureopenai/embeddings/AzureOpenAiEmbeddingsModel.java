@@ -39,7 +39,8 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -47,7 +48,8 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             service,
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
-            AzureOpenAiSecretSettings.fromMap(secrets)
+            AzureOpenAiSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -58,10 +60,11 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiEmbeddingsServiceSettings serviceSettings,
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
-        @Nullable AzureOpenAiSecretSettings secrets
+        @Nullable AzureOpenAiSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings
         );

@@ -26,14 +26,16 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         String service,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
             HuggingFaceElserServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -42,10 +44,11 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         HuggingFaceElserServiceSettings serviceSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, endpointVersion),
             new ModelSecrets(secretSettings),
             serviceSettings,
             secretSettings

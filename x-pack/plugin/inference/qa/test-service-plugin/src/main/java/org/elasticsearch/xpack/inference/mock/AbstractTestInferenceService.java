@@ -59,7 +59,8 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
         var secretSettingsMap = (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
@@ -70,12 +71,12 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var taskSettingsMap = getTaskSettingsMap(config);
         var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
+        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings, endpointVersion);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
 
         var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
@@ -83,7 +84,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var taskSettingsMap = getTaskSettingsMap(config);
         var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
+        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null, endpointVersion);
     }
 
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
@@ -104,9 +105,13 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             String service,
             ServiceSettings serviceSettings,
             TestTaskSettings taskSettings,
-            TestSecretSettings secretSettings
+            TestSecretSettings secretSettings,
+            String endpointVersion
         ) {
-            super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+            super(
+                new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+                new ModelSecrets(secretSettings)
+            );
         }
 
         @Override

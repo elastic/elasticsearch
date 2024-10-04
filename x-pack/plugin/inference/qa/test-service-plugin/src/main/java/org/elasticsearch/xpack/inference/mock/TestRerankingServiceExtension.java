@@ -42,9 +42,9 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
     }
 
     public static class TestRerankingModel extends Model {
-        public TestRerankingModel(String inferenceEntityId, TestServiceSettings serviceSettings) {
+        public TestRerankingModel(String inferenceEntityId, TestServiceSettings serviceSettings, String endpointVersion) {
             super(
-                new ModelConfigurations(inferenceEntityId, TaskType.RERANK, TestInferenceService.NAME, serviceSettings),
+                new ModelConfigurations(inferenceEntityId, TaskType.RERANK, TestInferenceService.NAME, serviceSettings, endpointVersion),
                 new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
             );
         }
@@ -66,6 +66,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
+            String endpointVersion,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -75,7 +76,9 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
+            parsedModelListener.onResponse(
+                new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings, endpointVersion)
+            );
         }
 
         @Override

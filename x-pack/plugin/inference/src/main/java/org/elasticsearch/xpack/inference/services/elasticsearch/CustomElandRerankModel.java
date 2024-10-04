@@ -16,9 +16,10 @@ public class CustomElandRerankModel extends CustomElandModel {
         TaskType taskType,
         String service,
         CustomElandInternalServiceSettings serviceSettings,
-        CustomElandRerankTaskSettings taskSettings
+        CustomElandRerankTaskSettings taskSettings,
+        String endpointVersion
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion);
     }
 
     @Override

@@ -36,7 +36,8 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -44,7 +45,8 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
             service,
             GoogleVertexAiRerankServiceSettings.fromMap(serviceSettings, context),
             GoogleVertexAiRerankTaskSettings.fromMap(taskSettings),
-            GoogleVertexAiSecretSettings.fromMap(secrets)
+            GoogleVertexAiSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -59,10 +61,11 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         String service,
         GoogleVertexAiRerankServiceSettings serviceSettings,
         GoogleVertexAiRerankTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets
+        @Nullable GoogleVertexAiSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -81,10 +84,11 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         String uri,
         GoogleVertexAiRerankServiceSettings serviceSettings,
         GoogleVertexAiRerankTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets
+        @Nullable GoogleVertexAiSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings
         );

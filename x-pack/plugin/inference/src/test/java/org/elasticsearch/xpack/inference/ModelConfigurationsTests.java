@@ -29,7 +29,8 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
             randomAlphaOfLength(6),
             randomServiceSettings(),
             randomTaskSettings(taskType),
-            ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
+            ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
     }
 
@@ -40,21 +41,24 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
                 instance.getTaskType(),
                 instance.getService(),
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getEndpointVersion()
             );
             case 1 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
                 instance.getService(),
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getEndpointVersion()
             );
             case 2 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),
                 instance.getService() + "bar",
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getEndpointVersion()
             );
             default -> throw new IllegalStateException();
         }

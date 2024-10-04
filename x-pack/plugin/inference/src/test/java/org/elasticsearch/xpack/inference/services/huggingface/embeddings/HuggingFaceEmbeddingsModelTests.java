@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +33,8 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             "service",
             new HuggingFaceServiceSettings(url),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
     }
 
@@ -43,7 +45,9 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             "service",
             new HuggingFaceServiceSettings(createUri(url), null, null, tokenLimit, null),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
         );
     }
 
@@ -54,7 +58,9 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             "service",
             new HuggingFaceServiceSettings(createUri(url), null, dimensions, tokenLimit, null),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
         );
     }
 
@@ -71,7 +77,9 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             "service",
             new HuggingFaceServiceSettings(createUri(url), similarityMeasure, dimensions, tokenLimit, null),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
         );
     }
 }

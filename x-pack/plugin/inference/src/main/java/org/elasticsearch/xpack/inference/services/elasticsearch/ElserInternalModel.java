@@ -21,9 +21,10 @@ public class ElserInternalModel extends ElasticsearchInternalModel {
         TaskType taskType,
         String service,
         ElserInternalServiceSettings serviceSettings,
-        ElserMlNodeTaskSettings taskSettings
+        ElserMlNodeTaskSettings taskSettings,
+        String endpointVersion
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion);
     }
 
     @Override

@@ -39,7 +39,8 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -48,7 +49,8 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -60,10 +62,11 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         OpenAiEmbeddingsServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings,
             secrets

@@ -45,7 +45,8 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -53,7 +54,8 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
             service,
             AnthropicChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AnthropicChatCompletionTaskSettings.fromMap(taskSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -63,10 +65,11 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         String service,
         AnthropicChatCompletionServiceSettings serviceSettings,
         AnthropicChatCompletionTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings,
             AnthropicChatCompletionModel::buildDefaultUri,
@@ -82,10 +85,11 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         String url,
         AnthropicChatCompletionServiceSettings serviceSettings,
         AnthropicChatCompletionTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings,
             () -> ServiceUtils.createUri(url),

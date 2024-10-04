@@ -7,16 +7,27 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.utils.MlStringsTests;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.inference.ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME;
+import static org.elasticsearch.inference.ModelConfigurations.FIRST_ENDPOINT_VERSION;
+import static org.elasticsearch.inference.ModelConfigurations.OLD_TASK_SETTINGS;
+import static org.elasticsearch.inference.ModelConfigurations.PARAMETERS;
 
 public class PutInferenceModelActionTests extends ESTestCase {
     public static TaskType TASK_TYPE;
@@ -56,5 +67,56 @@ public class PutInferenceModelActionTests extends ESTestCase {
         var invalidRequest3 = new PutInferenceModelAction.Request(TASK_TYPE, null, BYTES, X_CONTENT_TYPE);
         validationException = invalidRequest3.validate();
         assertNotNull(validationException);
+    }
+
+    public void testWithParameters() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        Map<String, Object> parametersValues = Map.of("top_n", 1, "top_p", 0.1);
+        Map<String, Object> serviceSettingsValues = Map.of("model_id", "embed", "dimensions", 1024);
+        builder.map(Map.of(PARAMETERS, parametersValues, "service", "elasticsearch", "service_settings", serviceSettingsValues));
+        var request = new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID, BytesReference.bytes(builder), XContentType.JSON);
+        Map<String, Object> map = XContentHelper.convertToMap(request.getContent(), false, request.getContentType()).v2();
+        assertEquals(parametersValues, map.get(OLD_TASK_SETTINGS));
+        assertNull(map.get(PARAMETERS));
+        assertEquals("elasticsearch", map.get("service"));
+        assertEquals(serviceSettingsValues, map.get("service_settings"));
+    }
+
+    public void testWithParametersAndTaskSettings() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        Map<String, Object> parametersValues = Map.of("top_n", 1, "top_p", 0.1);
+        Map<String, Object> taskSettingsValues = Map.of("top_n", 2, "top_p", 0.2);
+        Map<String, Object> serviceSettingsValues = Map.of("model_id", "embed", "dimensions", 1024);
+        builder.map(
+            Map.of(
+                PARAMETERS,
+                parametersValues,
+                OLD_TASK_SETTINGS,
+                taskSettingsValues,
+                "service",
+                "elasticsearch",
+                "service_settings",
+                serviceSettingsValues
+            )
+        );
+        assertThrows(
+            ElasticsearchStatusException.class,
+            () -> new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID, BytesReference.bytes(builder), XContentType.JSON).getContent()
+        );
+
+    }
+
+    public void testWithTaskSettings() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        Map<String, Object> taskSettingsValues = Map.of("top_n", 2, "top_p", 0.2);
+        Map<String, Object> serviceSettingsValues = Map.of("model_id", "embed", "dimensions", 1024);
+        builder.map(Map.of(OLD_TASK_SETTINGS, taskSettingsValues, "service", "elasticsearch", "service_settings", serviceSettingsValues));
+        var request = new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID, BytesReference.bytes(builder), XContentType.JSON);
+        Map<String, Object> map = XContentHelper.convertToMap(request.getContent(), false, request.getContentType()).v2();
+        assertEquals(taskSettingsValues, map.get(OLD_TASK_SETTINGS));
+        assertNull(map.get(PARAMETERS));
+        assertEquals("elasticsearch", map.get("service"));
+        assertEquals(serviceSettingsValues, map.get("service_settings"));
+        assertEquals(ENDPOINT_VERSION_FIELD_NAME, FIRST_ENDPOINT_VERSION);
     }
 }

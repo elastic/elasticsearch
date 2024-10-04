@@ -47,7 +47,8 @@ public class TestModel extends Model {
             randomAlphaOfLength(10),
             new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
             new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+            new TestModel.TestSecretSettings(randomAlphaOfLength(4)),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
     }
 
@@ -57,10 +58,11 @@ public class TestModel extends Model {
         String service,
         TestServiceSettings serviceSettings,
         TestTaskSettings taskSettings,
-        TestSecretSettings secretSettings
+        TestSecretSettings secretSettings,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secretSettings)
         );
     }

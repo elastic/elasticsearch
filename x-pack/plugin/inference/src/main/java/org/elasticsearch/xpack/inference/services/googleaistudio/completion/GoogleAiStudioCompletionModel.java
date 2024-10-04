@@ -39,7 +39,8 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -47,7 +48,8 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
             service,
             GoogleAiStudioCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -58,10 +60,11 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         String service,
         GoogleAiStudioCompletionServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -80,10 +83,11 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         String url,
         GoogleAiStudioCompletionServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secrets),
             serviceSettings
         );

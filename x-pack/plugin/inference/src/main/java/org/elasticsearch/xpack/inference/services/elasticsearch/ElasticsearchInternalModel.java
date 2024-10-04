@@ -26,9 +26,10 @@ public abstract class ElasticsearchInternalModel extends Model {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElasticsearchInternalServiceSettings internalServiceSettings
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        String endpointVersion
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, endpointVersion));
         this.internalServiceSettings = internalServiceSettings;
     }
 
@@ -37,9 +38,10 @@ public abstract class ElasticsearchInternalModel extends Model {
         TaskType taskType,
         String service,
         ElasticsearchInternalServiceSettings internalServiceSettings,
-        TaskSettings taskSettings
+        TaskSettings taskSettings,
+        String endpointVersion
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings, endpointVersion));
         this.internalServiceSettings = internalServiceSettings;
     }
 

@@ -57,6 +57,7 @@ public class AnthropicService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -70,7 +71,8 @@ public class AnthropicService extends SenderService {
                 taskSettingsMap,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                endpointVersion
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -89,7 +91,8 @@ public class AnthropicService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        String endpointVersion
     ) {
         return createModel(
             inferenceEntityId,
@@ -98,7 +101,8 @@ public class AnthropicService extends SenderService {
             taskSettings,
             secretSettings,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 
@@ -109,7 +113,8 @@ public class AnthropicService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         return switch (taskType) {
             case COMPLETION -> new AnthropicChatCompletionModel(
@@ -119,7 +124,8 @@ public class AnthropicService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -130,7 +136,8 @@ public class AnthropicService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -142,12 +149,18 @@ public class AnthropicService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 
     @Override
-    public AnthropicModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public AnthropicModel parsePersistedConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        String endpointVersion
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -157,7 +170,8 @@ public class AnthropicService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 

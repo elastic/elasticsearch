@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
@@ -35,7 +36,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             2.0,
             false,
             512,
-            null
+            null,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
         var requestTaskSettingsMap = getTaskSettingsMap(null, null, null, null);
         var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettingsMap);
@@ -54,7 +56,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             null,
             null,
             null,
-            null
+            null,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
         var requestTaskSettings = getTaskSettingsMap(0.5, null, null, null);
         var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
@@ -71,7 +74,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    null
+                    null,
+                    ModelConfigurations.FIRST_ENDPOINT_VERSION
                 )
             )
         );
@@ -88,7 +92,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             0.8,
             null,
             null,
-            null
+            null,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
         var requestTaskSettings = getTaskSettingsMap(null, 0.5, null, null);
         var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
@@ -105,7 +110,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
                     0.5,
                     null,
                     null,
-                    null
+                    null,
+                    ModelConfigurations.FIRST_ENDPOINT_VERSION
                 )
             )
         );
@@ -122,7 +128,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             null,
             true,
             null,
-            null
+            null,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
         var requestTaskSettings = getTaskSettingsMap(null, null, false, null);
         var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
@@ -139,7 +146,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    ModelConfigurations.FIRST_ENDPOINT_VERSION
                 )
             )
         );
@@ -156,7 +164,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             null,
             null,
             512,
-            null
+            null,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
         var requestTaskSettings = getTaskSettingsMap(null, null, null, 128);
         var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
@@ -173,7 +182,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
                     null,
                     null,
                     128,
-                    null
+                    null,
+                    ModelConfigurations.FIRST_ENDPOINT_VERSION
                 )
             )
         );
@@ -207,7 +217,19 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
         AzureAiStudioEndpointType endpointType,
         String apiKey
     ) {
-        return createModel(id, target, provider, endpointType, apiKey, null, null, null, null, null);
+        return createModel(
+            id,
+            target,
+            provider,
+            endpointType,
+            apiKey,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+        );
     }
 
     public static AzureAiStudioChatCompletionModel createModel(
@@ -220,7 +242,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
         @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        String endpointVersion
     ) {
         return new AzureAiStudioChatCompletionModel(
             id,
@@ -228,7 +251,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             "azureaistudio",
             new AzureAiStudioChatCompletionServiceSettings(target, provider, endpointType, rateLimitSettings),
             new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            endpointVersion
         );
     }
 }

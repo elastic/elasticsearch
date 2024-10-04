@@ -107,6 +107,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret")),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationActionListener
             );
         }
@@ -131,6 +132,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap(), getSecretSettingsMap("secret")),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -152,6 +154,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap(), getSecretSettingsMap("secret")),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationActionListener
             );
         }
@@ -173,6 +176,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret")),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationActionListener
             );
         }
@@ -192,6 +196,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret")),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationActionListener
             );
         }
@@ -213,7 +218,13 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationActionListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationActionListener
+            );
         }
     }
 
@@ -235,7 +246,13 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationActionListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationActionListener
+            );
         }
     }
 
@@ -257,7 +274,13 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationActionListener);
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                config,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                modelVerificationActionListener
+            );
         }
     }
 
@@ -269,7 +292,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -295,7 +319,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -322,7 +347,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -344,7 +370,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -364,7 +391,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceElserModel.class));
@@ -384,7 +412,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -406,7 +435,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -426,7 +456,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -448,7 +479,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -470,7 +502,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets()
+                persistedConfig.secrets(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -485,7 +518,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -501,7 +539,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap());
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -517,7 +560,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap());
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -533,7 +581,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -548,7 +601,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>());
 
-            var model = service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.SPARSE_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(HuggingFaceElserModel.class));
 
@@ -563,7 +621,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -580,7 +643,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap);
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -597,7 +665,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), taskSettingsMap, null);
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 

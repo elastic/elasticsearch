@@ -146,7 +146,8 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                         request.getTaskType(),
                         CohereService.NAME,
                         new CohereRerankServiceSettings("uri", "model", null),
-                        topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
+                        topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null),
+                        ModelConfigurations.FIRST_ENDPOINT_VERSION
                     )
                 )
             );

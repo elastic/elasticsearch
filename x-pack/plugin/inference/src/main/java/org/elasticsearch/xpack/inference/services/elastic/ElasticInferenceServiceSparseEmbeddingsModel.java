@@ -36,7 +36,8 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -45,7 +46,8 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            elasticInferenceServiceComponents
+            elasticInferenceServiceComponents,
+            endpointVersion
         );
     }
 
@@ -69,10 +71,11 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
         @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secretSettings),
             serviceSettings,
             elasticInferenceServiceComponents

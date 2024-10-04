@@ -44,9 +44,13 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
         String service,
         AzureAiStudioEmbeddingsServiceSettings serviceSettings,
         AzureAiStudioEmbeddingsTaskSettings taskSettings,
-        DefaultSecretSettings secrets
+        DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelSecrets(secrets)
+        );
     }
 
     public AzureAiStudioEmbeddingsModel(
@@ -56,7 +60,8 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -64,7 +69,8 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
             service,
             AzureAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioEmbeddingsTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 

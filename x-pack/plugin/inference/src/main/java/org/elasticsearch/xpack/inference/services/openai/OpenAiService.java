@@ -69,6 +69,7 @@ public class OpenAiService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -92,7 +93,8 @@ public class OpenAiService extends SenderService {
                 chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                endpointVersion
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -112,7 +114,8 @@ public class OpenAiService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        String endpointVersion
     ) {
         return createModel(
             inferenceEntityId,
@@ -122,7 +125,8 @@ public class OpenAiService extends SenderService {
             chunkingSettings,
             secretSettings,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 
@@ -134,7 +138,8 @@ public class OpenAiService extends SenderService {
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(
@@ -145,7 +150,8 @@ public class OpenAiService extends SenderService {
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             case COMPLETION -> new OpenAiChatCompletionModel(
                 inferenceEntityId,
@@ -154,7 +160,8 @@ public class OpenAiService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -165,7 +172,8 @@ public class OpenAiService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -185,12 +193,18 @@ public class OpenAiService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 
     @Override
-    public OpenAiModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public OpenAiModel parsePersistedConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        String endpointVersion
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -208,7 +222,8 @@ public class OpenAiService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 

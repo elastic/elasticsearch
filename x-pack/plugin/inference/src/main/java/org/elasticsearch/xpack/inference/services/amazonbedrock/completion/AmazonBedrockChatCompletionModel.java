@@ -39,7 +39,8 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -47,7 +48,8 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
             name,
             AmazonBedrockChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AmazonBedrockChatCompletionTaskSettings.fromMap(taskSettings),
-            AmazonBedrockSecretSettings.fromMap(secretSettings)
+            AmazonBedrockSecretSettings.fromMap(secretSettings),
+            endpointVersion
         );
     }
 
@@ -57,9 +59,13 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         String service,
         AmazonBedrockChatCompletionServiceSettings serviceSettings,
         AmazonBedrockChatCompletionTaskSettings taskSettings,
-        AmazonBedrockSecretSettings secrets
+        AmazonBedrockSecretSettings secrets,
+        String endpointVersion
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelSecrets(secrets)
+        );
     }
 
     public AmazonBedrockChatCompletionModel(Model model, TaskSettings taskSettings) {

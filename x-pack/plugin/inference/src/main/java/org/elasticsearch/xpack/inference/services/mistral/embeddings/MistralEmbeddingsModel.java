@@ -40,7 +40,8 @@ public class MistralEmbeddingsModel extends Model {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -49,7 +50,8 @@ public class MistralEmbeddingsModel extends Model {
             MistralEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,    // no task settings for Mistral embeddings
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -65,10 +67,19 @@ public class MistralEmbeddingsModel extends Model {
         MistralEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        DefaultSecretSettings secrets
+        DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings(), chunkingSettings),
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                service,
+                serviceSettings,
+                new EmptyTaskSettings(),
+                chunkingSettings,
+                endpointVersion
+            ),
             new ModelSecrets(secrets)
         );
         setPropertiesFromServiceSettings(serviceSettings);

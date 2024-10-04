@@ -46,9 +46,13 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
         String service,
         AzureAiStudioChatCompletionServiceSettings serviceSettings,
         AzureAiStudioChatCompletionTaskSettings taskSettings,
-        DefaultSecretSettings secrets
+        DefaultSecretSettings secrets,
+        String endpointVersion
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelSecrets(secrets)
+        );
     }
 
     public AzureAiStudioChatCompletionModel(
@@ -58,7 +62,8 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -66,7 +71,8 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
             service,
             AzureAiStudioChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioChatCompletionTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 

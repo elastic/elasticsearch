@@ -94,6 +94,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     getSecretSettingsMap("secret")
                 ),
+                ModelConfigurations.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -189,7 +190,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 serviceSettingsMap,
                 taskSettingsMap,
                 secretSettingsMap,
-                null
+                null,
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
             ) {
                 public ExecutableAction accept(
                     AlibabaCloudSearchActionVisitor visitor,

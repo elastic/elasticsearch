@@ -53,7 +53,8 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
@@ -63,9 +64,18 @@ public class HuggingFaceService extends HuggingFaceBaseService {
                 serviceSettings,
                 chunkingSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings, context);
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                secretSettings,
+                context,
+                endpointVersion
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }

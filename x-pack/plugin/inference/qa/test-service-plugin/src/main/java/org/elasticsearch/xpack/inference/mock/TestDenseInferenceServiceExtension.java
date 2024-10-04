@@ -46,13 +46,14 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
     }
 
     public static class TestDenseModel extends Model {
-        public TestDenseModel(String inferenceEntityId, TestDenseInferenceServiceExtension.TestServiceSettings serviceSettings) {
+        public TestDenseModel(String inferenceEntityId, TestServiceSettings serviceSettings, String endpointVersion) {
             super(
                 new ModelConfigurations(
                     inferenceEntityId,
                     TaskType.TEXT_EMBEDDING,
                     TestDenseInferenceServiceExtension.TestInferenceService.NAME,
-                    serviceSettings
+                    serviceSettings,
+                    endpointVersion
                 ),
                 new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
             );
@@ -75,6 +76,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
+            String endpointVersion,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -84,7 +86,9 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
+            parsedModelListener.onResponse(
+                new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings, endpointVersion)
+            );
         }
 
         @Override

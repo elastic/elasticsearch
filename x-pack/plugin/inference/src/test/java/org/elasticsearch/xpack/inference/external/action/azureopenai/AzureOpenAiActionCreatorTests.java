@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -468,7 +469,16 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var apiKey = "api_key";
             var completionInput = "some input";
 
-            var model = createCompletionModel("resource", "deployment", "apiversion", originalUser, apiKey, null, "id");
+            var model = createCompletionModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                originalUser,
+                apiKey,
+                null,
+                "id",
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var taskSettingsWithUserOverride = createRequestTaskSettingsMap(overriddenUser);
@@ -524,7 +534,16 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createCompletionModel("resource", "deployment", "apiversion", null, apiKey, null, "id");
+            var model = createCompletionModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                null,
+                apiKey,
+                null,
+                "id",
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var requestTaskSettingsWithoutUser = createRequestTaskSettingsMap(null);
@@ -582,7 +601,16 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createCompletionModel("resource", "deployment", "apiversion", null, apiKey, null, "id");
+            var model = createCompletionModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                null,
+                apiKey,
+                null,
+                "id",
+                ModelConfigurations.FIRST_ENDPOINT_VERSION
+            );
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var requestTaskSettingsWithoutUser = createRequestTaskSettingsMap(userOverride);

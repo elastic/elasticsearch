@@ -68,6 +68,7 @@ public class AlibabaCloudSearchService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        String endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -81,7 +82,8 @@ public class AlibabaCloudSearchService extends SenderService {
                 taskSettingsMap,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                endpointVersion
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -100,7 +102,8 @@ public class AlibabaCloudSearchService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        String endpointVersion
     ) {
         return createModel(
             inferenceEntityId,
@@ -109,7 +112,8 @@ public class AlibabaCloudSearchService extends SenderService {
             taskSettings,
             secretSettings,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointVersion
         );
     }
 
@@ -120,7 +124,8 @@ public class AlibabaCloudSearchService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new AlibabaCloudSearchEmbeddingsModel(
@@ -130,7 +135,8 @@ public class AlibabaCloudSearchService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             case SPARSE_EMBEDDING -> new AlibabaCloudSearchSparseModel(
                 inferenceEntityId,
@@ -139,7 +145,8 @@ public class AlibabaCloudSearchService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             case RERANK -> new AlibabaCloudSearchRerankModel(
                 inferenceEntityId,
@@ -148,7 +155,8 @@ public class AlibabaCloudSearchService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             case COMPLETION -> new AlibabaCloudSearchCompletionModel(
                 inferenceEntityId,
@@ -157,7 +165,8 @@ public class AlibabaCloudSearchService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context
+                context,
+                endpointVersion
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -168,7 +177,8 @@ public class AlibabaCloudSearchService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        String endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -180,12 +190,18 @@ public class AlibabaCloudSearchService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 
     @Override
-    public AlibabaCloudSearchModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public AlibabaCloudSearchModel parsePersistedConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        String endpointVersion
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -195,7 +211,8 @@ public class AlibabaCloudSearchService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            endpointVersion
         );
     }
 

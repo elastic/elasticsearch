@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +76,8 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
                 rateLimitSettings
             ),
             new EmptyTaskSettings(),
-            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
+            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey)),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
         );
     }
 }

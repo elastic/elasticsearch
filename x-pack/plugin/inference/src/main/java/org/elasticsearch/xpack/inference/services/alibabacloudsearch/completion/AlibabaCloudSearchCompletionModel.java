@@ -36,7 +36,8 @@ public class AlibabaCloudSearchCompletionModel extends AlibabaCloudSearchModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        String endpointVersion
     ) {
         this(
             modelId,
@@ -44,7 +45,8 @@ public class AlibabaCloudSearchCompletionModel extends AlibabaCloudSearchModel {
             service,
             AlibabaCloudSearchCompletionServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchCompletionTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            endpointVersion
         );
     }
 
@@ -55,10 +57,11 @@ public class AlibabaCloudSearchCompletionModel extends AlibabaCloudSearchModel {
         String service,
         AlibabaCloudSearchCompletionServiceSettings serviceSettings,
         AlibabaCloudSearchCompletionTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        String endpointVersion
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),
             new ModelSecrets(secretSettings),
             serviceSettings.getCommonSettings()
         );

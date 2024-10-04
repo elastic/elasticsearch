@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -52,7 +53,9 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
             url,
             new AnthropicChatCompletionServiceSettings(modelName, null),
             new AnthropicChatCompletionTaskSettings(maxTokens, null, null, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
         );
     }
 
@@ -63,7 +66,9 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
             "service",
             new AnthropicChatCompletionServiceSettings(modelName, null),
             new AnthropicChatCompletionTaskSettings(maxTokens, null, null, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            ModelConfigurations.FIRST_ENDPOINT_VERSION
+
         );
     }
 }

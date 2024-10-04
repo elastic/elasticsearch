@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
 
@@ -116,11 +117,15 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record ObjectMappingParametersGenerator(boolean isNested, ObjectMapper.Subobjects parentSubobjects)
+    record ObjectMappingParametersGenerator(boolean isRoot, boolean isNested, ObjectMapper.Subobjects parentSubobjects)
         implements
             DataSourceRequest<DataSourceResponse.ObjectMappingParametersGenerator> {
         public DataSourceResponse.ObjectMappingParametersGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
+        }
+
+        public String syntheticSourceKeepValue() {
+            return isRoot() ? ESTestCase.randomFrom("none", "arrays") : ESTestCase.randomFrom("none", "arrays", "all");
         }
     }
 }

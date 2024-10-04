@@ -87,7 +87,7 @@ public class DoSection implements ExecutableSection {
         return parse(parser, false);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @Deprecated
     public static DoSection parseWithLegacyNodeSelectorSupport(XContentParser parser) throws IOException {
         return parse(parser, true);
@@ -371,14 +371,10 @@ public class DoSection implements ExecutableSection {
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
 
-            // #84038 and #84089 mean that this assertion fails when running against < 7.17.2 and 8.0.0 released versions
-            // This is really difficult to express just with features, so I will break it down into 2 parts: version check for v7,
-            // and feature check for v8. This way the version check can be removed once we move to v9
-            @UpdateForV9
-            var fixedInV7 = executionContext.clusterHasFeature("gte_v7.17.2", false)
-                && executionContext.clusterHasFeature("gte_v8.0.0", false) == false;
-            var fixedProductionHeader = fixedInV7
-                || executionContext.clusterHasFeature(RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id(), false);
+            var fixedProductionHeader = executionContext.clusterHasFeature(
+                RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id(),
+                false
+            );
             if (fixedProductionHeader) {
                 checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             }

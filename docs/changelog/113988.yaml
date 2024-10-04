@@ -1,0 +1,5 @@
+pr: 113988
+summary: Track search and fetch failure stats
+area: Stats
+type: enhancement
+issues: []

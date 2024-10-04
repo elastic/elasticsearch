@@ -87,6 +87,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
                 }
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
+                }
 
                 return parameters;
             });
@@ -112,9 +115,22 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             if (ESTestCase.randomBoolean()) {
                 parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
             }
-            // Changing subobjects from subobjects: false is not supported, but we can f.e. go from "auto" to "true".
+            // Changing subobjects from subobjects: false is not supported, but we can f.e. go from "true" to "false".
+            // TODO enable subobjects: auto
+            // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using
+            // copy_to.
             if (ESTestCase.randomBoolean()) {
-                parameters.put("subobjects", ESTestCase.randomFrom(ObjectMapper.Subobjects.values()).toString());
+                parameters.put(
+                    "subobjects",
+                    ESTestCase.randomValueOtherThan(
+                        ObjectMapper.Subobjects.AUTO,
+                        () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
+                    ).toString()
+                );
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, request.syntheticSourceKeepValue());
             }
 
             return parameters;

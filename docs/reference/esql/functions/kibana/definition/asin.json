@@ -56,5 +56,6 @@
   "examples" : [
     "ROW a=.9\n| EVAL asin=ASIN(a)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

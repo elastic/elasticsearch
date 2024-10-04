@@ -28,7 +28,7 @@ public class NestedFieldDataGenerator implements FieldDataGenerator {
 
         this.mappingParameters = context.specification()
             .dataSource()
-            .get(new DataSourceRequest.ObjectMappingParametersGenerator(true, context.getCurrentSubobjectsConfig()))
+            .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, true, context.getCurrentSubobjectsConfig()))
             .mappingGenerator()
             .get();
         var dynamicMapping = context.determineDynamicMapping(mappingParameters);

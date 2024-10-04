@@ -41,7 +41,7 @@ public class TopLevelObjectFieldDataGenerator {
                 // Value of subobjects here is for a parent of this object.
                 // Since there is no parent we pass ENABLED to allow to set subobjects to any value at top level.
                 specification.dataSource()
-                    .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, ObjectMapper.Subobjects.ENABLED))
+                    .get(new DataSourceRequest.ObjectMappingParametersGenerator(true, false, ObjectMapper.Subobjects.ENABLED))
                     .mappingGenerator()
                     .get()
             );

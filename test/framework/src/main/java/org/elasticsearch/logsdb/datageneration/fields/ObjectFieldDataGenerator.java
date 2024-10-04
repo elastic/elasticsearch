@@ -28,7 +28,7 @@ public class ObjectFieldDataGenerator implements FieldDataGenerator {
 
         this.mappingParameters = context.specification()
             .dataSource()
-            .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, context.getCurrentSubobjectsConfig()))
+            .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, false, context.getCurrentSubobjectsConfig()))
             .mappingGenerator()
             .get();
         var dynamicMapping = context.determineDynamicMapping(mappingParameters);

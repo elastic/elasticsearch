@@ -115,6 +115,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             && storedFieldsContext.fieldNames().isEmpty() == false) {
             // Collect metadata fields requested via 'stored_fields'
             final List<String> storedFieldNames = storedFieldsContext.fieldNames();
+            // If a field already exists because fetched via 'fields` it won't be added here
             metadataFields.addAll(getMetadataFields(storedFieldNames, sec));
         }
 

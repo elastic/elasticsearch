@@ -53,7 +53,10 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .put(CLIENT_SOCKET_TIMEOUT, "120s")  // Long timeout for model download
+            .build();
     }
 
     static String mockSparseServiceModelConfig() {
@@ -163,6 +166,26 @@ public class InferenceBaseRestTest extends ESRestTestCase {
                 }
             }
             """, endpointId);
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+    }
+
+    protected void putSemanticText(String endpointId, String searchEndpointId, String indexName) throws IOException {
+        var request = new Request("PUT", Strings.format("%s", indexName));
+        String body = Strings.format("""
+            {
+                "mappings": {
+                "properties": {
+                    "inference_field": {
+                        "type": "semantic_text",
+                            "inference_id": "%s",
+                            "search_inference_id": "%s"
+                    }
+                }
+                }
+            }
+            """, endpointId, searchEndpointId);
         request.setJsonEntity(body);
         var response = client().performRequest(request);
         assertOkOrCreated(response);

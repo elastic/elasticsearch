@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rank.rrf;
+package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.client.Request;
@@ -23,10 +23,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -34,7 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
+public class TextSimilarityRankRetrieverTelemetryIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_index";
 
@@ -45,7 +45,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(RRFRankPlugin.class, XPackPlugin.class);
+        return List.of(InferencePlugin.class, XPackPlugin.class, TextSimilarityTestPlugin.class);
     }
 
     @Override
@@ -127,26 +127,22 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
             getRestClient().performRequest(request);
         }
 
-        // search#5 - this will record 1 entry for "retriever" in `sections`, and 1 for "rrf" under `retrievers`, as well as
-        // 1 for "knn" and 1 for "standard" under `retrievers`, and eventually 1 for "match" under `queries`
+        // search#5 - this will record 1 entry for "retriever" in `sections`, and 1 for "text_similarity_reranker" under `retrievers`, as well as
+        // 1 "standard" under `retrievers`, and eventually 1 for "match" under `queries`
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
             source.retriever(
-                new RRFRetrieverBuilder(
-                    Arrays.asList(
-                        new CompoundRetrieverBuilder.RetrieverSource(
-                            new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null),
-                            null
-                        ),
+                new TextSimilarityRankRetrieverBuilder(
+                    List.of(
                         new CompoundRetrieverBuilder.RetrieverSource(
                             new StandardRetrieverBuilder(QueryBuilders.matchQuery("text", "foo")),
                             null
                         )
-                    ),
-                    10,
-                    10
-                )
+                    )
+                ),
+                10,
+                10
             );
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
@@ -182,8 +178,8 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
 
             assertThat(stats.getRetrieversUsage().size(), equalTo(3));
             assertThat(stats.getRetrieversUsage().get("standard"), equalTo(4L));
-            assertThat(stats.getRetrieversUsage().get("knn"), equalTo(2L));
-            assertThat(stats.getRetrieversUsage().get("rrf"), equalTo(1L));
+            assertThat(stats.getRetrieversUsage().get("knn"), equalTo(1L));
+            assertThat(stats.getRetrieversUsage().get("text_similarity_reranker"), equalTo(1L));
 
             assertThat(stats.getQueryUsage().size(), equalTo(5));
             assertThat(stats.getQueryUsage().get("range"), equalTo(1L));

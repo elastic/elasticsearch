@@ -807,3 +807,151 @@ setup:
   - match: { docs.0.doc._source.foo: "FOO" }
   - match: { docs.0.doc.executed_pipelines: ["foo-pipeline-2"] }
   - not_exists: docs.0.doc.error
+
+---
+"Test ingest simulate with index template substitutions":
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.index.template.substitutions"]
+      reason: "ingest simulate index template substitutions added in 8.16"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "foo-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "foo",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.put_component_template:
+        name: settings_template
+        body:
+          template:
+            settings:
+              index:
+                default_pipeline: "foo_pipeline"
+
+  - do:
+      cluster.put_component_template:
+        name: mappings_template
+        body:
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-1] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-1
+        body:
+          index_patterns:
+            - foo*
+          composed_of:
+            - mappings_template
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": "FOO"
+                }
+              }
+            ],
+            "component_template_substitutions": {
+              "settings_template": {
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": null
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "foo_index_template": {
+                "index_patterns":[
+                  "foo*"
+                ],
+                "composed_of": ["settings_template"]
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: "FOO" }
+  - match: { docs.0.doc.executed_pipelines: [] }
+  - not_exists: docs.0.doc.error
+
+  - do:
+      indices.create:
+        index: foo-1
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": "FOO"
+                }
+              }
+            ],
+            "component_template_substitutions": {
+              "settings_template": {
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": null
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "foo_index_template": {
+                "index_patterns":[
+                  "foo*"
+                ],
+                "composed_of": ["settings_template"]
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: "FOO" }
+  - match: { docs.0.doc.executed_pipelines: [] }
+  - not_exists: docs.0.doc.error

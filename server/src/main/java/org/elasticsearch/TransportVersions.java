@@ -233,7 +233,8 @@ public class TransportVersions {
     public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_757_00_0);
     public static final TransportVersion RRF_QUERY_REWRITE = def(8_758_00_0);
     public static final TransportVersion SEARCH_FAILURE_STATS = def(8_759_00_0);
-    public static final TransportVersion INGEST_GEO_DATABASE_PROVIDERS = def(8_760_00_0);
+    public static final TransportVersion SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS = def(8_760_00_0);
+    public static final TransportVersion INGEST_GEO_DATABASE_PROVIDERS = def(8_761_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

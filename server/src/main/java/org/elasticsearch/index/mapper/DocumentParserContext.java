@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -110,7 +111,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
-    private String parentArrayField;
+    private boolean inArrayScope;
 
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
@@ -142,7 +143,7 @@ public abstract class DocumentParserContext {
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
-        String parentArrayField,
+        boolean inArrayScope,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -163,7 +164,7 @@ public abstract class DocumentParserContext {
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
-        this.parentArrayField = parentArrayField;
+        this.inArrayScope = inArrayScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
@@ -187,7 +188,7 @@ public abstract class DocumentParserContext {
             in.ignoredFields,
             in.ignoredFieldValues,
             in.ignoredFieldsMissingValues,
-            in.parentArrayField,
+            in.inArrayScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
@@ -218,7 +219,7 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new ArrayList<>(),
             new ArrayList<>(),
-            null,
+            false,
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
@@ -323,10 +324,7 @@ public abstract class DocumentParserContext {
     public final DocumentParserContext addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource)
         throws IOException {
         if (canAddIgnoredField()) {
-            if (parentArrayField != null
-                && parent != null
-                && parentArrayField.equals(parent.fullPath())
-                && parent instanceof NestedObjectMapper == false) {
+            if (inArrayScope) {
                 // The field is an array within an array, store all sub-array elements.
                 ignoredFieldsMissingValues.add(ignoredFieldWithNoSource);
                 return cloneWithRecordedSource();
@@ -342,6 +340,20 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Wraps {@link XContentDataHelper#encodeToken}, disabling dot expansion from {@link DotExpandingXContentParser}.
+     * This helps avoid producing duplicate names in the same scope, due to expanding dots to objects.
+     * For instance: { "a.b": "b", "a.c": "c" } => { "a": { "b": "b" }, "a": { "c": "c" } }
+     * This can happen when storing parts of document source that are not indexed (e.g. disabled objects).
+     */
+    BytesRef encodeFlattenedToken() throws IOException {
+        boolean old = path().isWithinLeafObject();
+        path().setWithinLeafObject(true);
+        BytesRef encoded = XContentDataHelper.encodeToken(parser());
+        path().setWithinLeafObject(old);
+        return encoded;
+    }
+
+    /**
      * Return the collection of fields that are missing their source values.
      */
     public final Collection<IgnoredSourceFieldMapper.NameValue> getIgnoredFieldsMissingValues() {
@@ -349,14 +361,17 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Clones the current context to mark it as an array. Records the full name of the array field, to check for sub-arrays.
+     * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
      * Applies to synthetic source only.
      */
-    public final DocumentParserContext cloneForArray(String fullName) throws IOException {
-        if (canAddIgnoredField()) {
-            DocumentParserContext subcontext = switchParser(parser());
-            subcontext.parentArrayField = fullName;
-            return subcontext;
+    public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
+        if (canAddIgnoredField() && mapper instanceof ObjectMapper) {
+            boolean isNested = mapper instanceof NestedObjectMapper;
+            if ((inArrayScope == false && isNested == false) || (inArrayScope && isNested)) {
+                DocumentParserContext subcontext = switchParser(parser());
+                subcontext.inArrayScope = inArrayScope == false;
+                return subcontext;
+            }
         }
         return this;
     }

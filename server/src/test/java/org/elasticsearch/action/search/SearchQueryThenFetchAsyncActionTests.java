@@ -493,53 +493,56 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         };
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            task::isCancelled,
-            task.getProgressListener(),
-            shardsIter.size(),
-            exc -> {}
-        );
-        CountDownLatch latch = new CountDownLatch(1);
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
-            logger,
-            null,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", AliasFilter.EMPTY),
-            Collections.emptyMap(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer,
-            searchRequest,
-            null,
-            shardsIter,
-            timeProvider,
-            new ClusterState.Builder(new ClusterName("test")).build(),
-            task,
-            SearchResponse.Clusters.EMPTY,
-            null
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                controller,
+                task::isCancelled,
+                task.getProgressListener(),
+                shardsIter.size(),
+                exc -> {}
+            )
         ) {
-            @Override
-            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                return new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        latch.countDown();
-                    }
-                };
-            }
-        };
+            CountDownLatch latch = new CountDownLatch(1);
+            SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+                logger,
+                null,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
+                Collections.emptyMap(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                resultConsumer,
+                searchRequest,
+                null,
+                shardsIter,
+                timeProvider,
+                new ClusterState.Builder(new ClusterName("test")).build(),
+                task,
+                SearchResponse.Clusters.EMPTY,
+                null
+            ) {
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            latch.countDown();
+                        }
+                    };
+                }
+            };
 
-        action.start();
-        latch.await();
-        assertThat(successfulOps.get(), equalTo(2));
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-        assertThat(phase.totalHits().value, equalTo(2L));
-        assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            action.start();
+            latch.await();
+            assertThat(successfulOps.get(), equalTo(2));
+            SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+            assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
+            assertThat(phase.totalHits().value, equalTo(2L));
+            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+        }
     }
 
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {

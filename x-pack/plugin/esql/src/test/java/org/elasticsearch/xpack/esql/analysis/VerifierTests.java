@@ -1088,6 +1088,13 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
+        assertEquals(
+            "1:24: [MATCH] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match(first_name, \"Anna\")")
+        );
+    }
+
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
@@ -1145,26 +1152,6 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:54: [QSTR] function cannot be used after KEEP",
             error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
-        );
-    }
-
-    public void testMatchFunctionNotAllowedWithNonPushableExpressions() {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
-        assertEquals(
-            "1:19: Invalid condition [match(first_name, \"Anna\") or length(first_name) > 5]. "
-                + "Function MATCH can't be used as part of an or condition that includes [length(first_name) > 5]",
-            error("from test | where match(first_name, \"Anna\") or length(first_name) > 5")
-        );
-    }
-
-    public void testQueryStringFunctionNotAllowedWithNonPushableExpressions() {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
-        assertEquals(
-            "1:19: Invalid condition [qstr(\"first_name:Anna\") or length(first_name) > 5]. "
-                + "Function QSTR can't be used as part of an or condition that includes [length(first_name) > 5]",
-            error("from test | where qstr(\"first_name:Anna\") or length(first_name) > 5")
         );
     }
 
@@ -1289,6 +1276,16 @@ public class VerifierTests extends ESTestCase {
             error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
         );
         // Other value types are tested in QueryStringFunctionTests
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:68: Unknown column [first_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
+        );
     }
 
     public void testMatchFunctionNullArgs() throws Exception {

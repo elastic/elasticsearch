@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
@@ -297,7 +298,7 @@ public class Verifier {
         }
     }
 
-    // traverse the expression and look either for an agg " + ftf.functionType() + " or a grouping match
+    // traverse the expression and look either for an agg function or a grouping match
     // stop either when no children are left, the leafs are literals or a reference attribute is given
     private static void checkInvalidNamedExpressionUsage(
         Expression e,
@@ -650,7 +651,8 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkCommandsAfterQueryStringFunction(plan, condition, failures);
+            checkCommandsBeforeQueryStringFunction(plan, condition, failures);
+            checkCommandsBeforeMatchFunction(plan, condition, failures);
             checkFullTextFunctionsConditions(condition, failures);
             checkFullTextFunctionsParents(condition, failures);
         } else {
@@ -660,7 +662,7 @@ public class Verifier {
         }
     }
 
-    private static void checkCommandsAfterQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
+    private static void checkCommandsBeforeQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
         condition.forEachDown(QueryStringFunction.class, qsf -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
@@ -678,38 +680,46 @@ public class Verifier {
         });
     }
 
+    private static void checkCommandsBeforeMatchFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
+        condition.forEachDown(MatchFunction.class, qsf -> {
+            plan.forEachDown(LogicalPlan.class, lp -> {
+                if (lp instanceof Limit) {
+                    failures.add(
+                        fail(
+                            plan,
+                            "[{}] function cannot be used after {}",
+                            qsf.functionName(),
+                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                        )
+                    );
+                }
+            });
+        });
+    }
+
     private static void checkFullTextFunctionsConditions(Expression condition, Set<Failure> failures) {
         condition.forEachUp(Or.class, or -> {
             Expression left = or.left();
             Expression right = or.right();
-            left.forEachDown(FullTextFunction.class, ftf -> {
-                if (canPushToSource(right, x -> false) == false) {
-                    failures.add(
-                        fail(
-                            or,
-                            "Invalid condition [{}]. [{}] {} can't be used as part of an or condition that includes [{}]",
-                            or.sourceText(),
-                            ftf.functionName(),
-                            ftf.functionType(),
-                            right.sourceText()
-                        )
-                    );
-                }
-            });
-            right.forEachDown(FullTextFunction.class, ftf -> {
-                if (canPushToSource(left, x -> false) == false) {
-                    failures.add(
-                        fail(
-                            or,
-                            "Invalid condition [{}]. [{}] {} can't be used as part of an or condition that includes [{}]",
-                            or.sourceText(),
-                            ftf.functionName(),
-                            ftf.functionType(),
-                            right.sourceText()
-                        )
-                    );
-                }
-            });
+            checkDisjunction(failures, or, left, right);
+            checkDisjunction(failures, or, right, left);
+        });
+    }
+
+    private static void checkDisjunction(Set<Failure> failures, Or or, Expression left, Expression right) {
+        left.forEachDown(FullTextFunction.class, ftf -> {
+            if (canPushToSource(right, x -> false) == false) {
+                failures.add(
+                    fail(
+                        or,
+                        "Invalid condition [{}]. [{}] {} can't be used as part of an or condition that includes [{}]",
+                        or.sourceText(),
+                        ftf.functionName(),
+                        ftf.functionType(),
+                        right.sourceText()
+                    )
+                );
+            }
         });
     }
 

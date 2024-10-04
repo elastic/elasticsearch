@@ -29,6 +29,23 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDataStreamsAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
+        Sets.union(
+            RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
+            Set.of(
+                "name",
+                "include_defaults",
+                "timeout",
+                "master_timeout",
+                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+                "verbose"
+            )
+        )
+    );
+
     @Override
     public String getName() {
         return "get_data_streams_action";
@@ -63,19 +80,6 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Sets.union(
-            RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
-            Set.of(
-                "name",
-                "include_defaults",
-                "timeout",
-                "master_timeout",
-                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
-                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
-                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
-                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
-                "verbose"
-            )
-        );
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 }

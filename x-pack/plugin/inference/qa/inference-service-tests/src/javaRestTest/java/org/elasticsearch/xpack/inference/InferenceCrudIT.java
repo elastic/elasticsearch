@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -154,30 +155,51 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testDeleteEndpointWhileReferencedBySemanticText() throws IOException {
-        String endpointId = "endpoint_referenced_by_semantic_text";
+        final String endpointId = "endpoint_referenced_by_semantic_text";
+        final String searchEndpointId = "search_endpoint_referenced_by_semantic_text";
+        final String indexName = randomAlphaOfLength(10).toLowerCase();
+        final Function<String, String> buildErrorString = endpointName -> " Inference endpoint "
+            + endpointName
+            + " is being used in the mapping for indexes: "
+            + Set.of(indexName)
+            + ". Ensure that no index mappings are using this inference endpoint, or use force to ignore this warning and delete the"
+            + " inference endpoint.";
+
         putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        String indexName = randomAlphaOfLength(10).toLowerCase();
         putSemanticText(endpointId, indexName);
         {
-
-            var errorString = new StringBuilder().append(" Inference endpoint ")
-                .append(endpointId)
-                .append(" is being used in the mapping for indexes: ")
-                .append(Set.of(indexName))
-                .append(". ")
-                .append("Ensure that no index mappings are using this inference endpoint, ")
-                .append("or use force to ignore this warning and delete the inference endpoint.");
             var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
-            assertThat(e.getMessage(), containsString(errorString.toString()));
+            assertThat(e.getMessage(), containsString(buildErrorString.apply(endpointId)));
         }
         {
             var response = deleteModel(endpointId, "dry_run=true");
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":false"));
             assertThat(entityString, containsString(indexName));
+            assertThat(entityString, containsString(endpointId));
         }
         {
             var response = deleteModel(endpointId, "force=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":true"));
+        }
+        deleteIndex(indexName);
+
+        putModel(searchEndpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putSemanticText(endpointId, searchEndpointId, indexName);
+        {
+            var e = expectThrows(ResponseException.class, () -> deleteModel(searchEndpointId));
+            assertThat(e.getMessage(), containsString(buildErrorString.apply(searchEndpointId)));
+        }
+        {
+            var response = deleteModel(searchEndpointId, "dry_run=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":false"));
+            assertThat(entityString, containsString(indexName));
+            assertThat(entityString, containsString(searchEndpointId));
+        }
+        {
+            var response = deleteModel(searchEndpointId, "force=true");
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":true"));
         }
@@ -217,6 +239,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             assertThat(entityString, containsString("\"acknowledged\":false"));
             assertThat(entityString, containsString(indexName));
             assertThat(entityString, containsString(pipelineId));
+            assertThat(entityString, containsString(endpointId));
         }
         {
             var response = deleteModel(endpointId, "force=true");

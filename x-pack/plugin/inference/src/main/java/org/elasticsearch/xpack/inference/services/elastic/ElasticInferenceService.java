@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -110,7 +109,6 @@ public class ElasticInferenceService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {

@@ -54,6 +54,7 @@ ROW d=-9.81, i=25324, l=TO_LONG(-9)
 
 topRowWithNull
 required_capability: agg_top
+required_capability: extend_aggs_on_constants_support
 ROW d=-9.81, i=25324, l=TO_LONG(-9), n=null
 | EVAL x=d+1+null, y=i/2+n, z=l+3, t=null
 | STATS double = TOP(x, 2, "asc"),
@@ -71,6 +72,7 @@ null           |-6             |null           |null           |null           |
 
 topRowWithNull_WithBY
 required_capability: agg_top
+required_capability: extend_aggs_on_constants_support
 ROW d=-9.81, i=25324, l=TO_LONG(-9), n=null, `by` = [1,2,3]
 | EVAL x=d+1+null, y=i/2+n, z=l+3, t=null
 | STATS double = TOP(x, 2, "asc"), 

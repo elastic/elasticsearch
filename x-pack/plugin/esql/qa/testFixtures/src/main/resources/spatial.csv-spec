@@ -38,6 +38,7 @@ wkt:keyword                                                                     
 ;
 
 centroidOfNull
+required_capability: extend_aggs_on_constants_support
 FROM airports 
 | eval z = TO_GEOPOINT(null) 
 | STATS centroidNull = ST_CENTROID_AGG(null), 

@@ -1,4 +1,5 @@
 madOfNulls
+required_capability: extend_aggs_on_constants_support
 row x = null::integer, y = null, z = 123 - null, a = [1,2,3], b = 5 
 | stats x = MEDIAN_ABSOLUTE_DEVIATION(x), 
         y = MEDIAN_ABSOLUTE_DEVIATION(y), 

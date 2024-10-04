@@ -187,6 +187,7 @@ count_distinct(salary, x*100):long
 ;
 
 foldablePrecisionWithGroupings
+required_capability: extend_aggs_on_constants_support
 from employees | eval x = 82+8 | stats cd1=count_distinct(salary, x*100), cd2=count_distinct(salary, 10+10) by gender, languages | sort gender, languages;
 
    cd1:long    |    cd2:long   |gender:keyword |languages:integer   

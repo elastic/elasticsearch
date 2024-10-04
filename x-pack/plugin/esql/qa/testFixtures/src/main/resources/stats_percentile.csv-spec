@@ -1,4 +1,5 @@
 percentileOfNull
+required_capability: extend_aggs_on_constants_support
 row x = null::integer, y = null, z = 123 - null 
 | stats percIntNull = percentile(y, 90), 
         percNull = percentile(y, 90), 
@@ -286,6 +287,7 @@ constant_single:double
 ;
 
 foldablePercentileValue
+required_capability: extend_aggs_on_constants_support
 from employees | eval x = 82+8 | stats percentile(salary, x), percentile(salary, 90);
 
 percentile(salary, x):double|percentile(salary, 90):double
@@ -294,6 +296,7 @@ percentile(salary, x):double|percentile(salary, 90):double
 
 
 foldablePercentileValue_WithGrouping
+required_capability: extend_aggs_on_constants_support
 from employees | eval x = 82+8 | stats percentile(salary, x), percentile(salary, 90) by languages | sort languages desc;
 
 percentile(salary, x):double|percentile(salary, 90):double|languages:integer   
@@ -318,6 +321,7 @@ null           |null               |null
 ;
 
 nullPercentileValue_WithGrouping
+required_capability: extend_aggs_on_constants_support
 from employees 
 | eval x = null + 1 
 | stats pNull = percentile(salary_change, null), 

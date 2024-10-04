@@ -18,8 +18,10 @@ import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -50,8 +52,8 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     }
 
     private static List<AutoCloseable> registerAsyncMetrics(MeterRegistry registry, IndicesStatsCache cache) {
-        List<AutoCloseable> metrics = new ArrayList<>(IndexMode.values().length * 3);
-        assert IndexMode.values().length == 3 : "index modes have changed";
+        final int TOTAL_METRICS = 36;
+        List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
         for (IndexMode indexMode : IndexMode.values()) {
             String name = indexMode.getName();
             metrics.add(
@@ -72,13 +74,89 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             );
             metrics.add(
                 registry.registerLongGauge(
-                    "es.indices." + name + ".bytes.total",
+                    "es.indices." + name + ".size",
                     "total size in bytes of " + name + " indices",
-                    "unit",
+                    "bytes",
                     () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).numBytes)
                 )
             );
+            // query (count, took, failures) - use gauges as shards can be removed
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".query.total",
+                    "total queries of " + name + " indices",
+                    "unit",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getQueryCount())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".query.time",
+                    "total query time of " + name + " indices",
+                    "ms",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getQueryTimeInMillis())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".query.failure.total",
+                    "total query failures of " + name + " indices",
+                    "unit",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getQueryFailure())
+                )
+            );
+            // fetch (count, took, failures) - use gauges as shards can be removed
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".fetch.total",
+                    "total fetches of " + name + " indices",
+                    "unit",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getFetchCount())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".fetch.time",
+                    "total fetch time of " + name + " indices",
+                    "ms",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getFetchTimeInMillis())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".fetch.failure.total",
+                    "total fetch failures of " + name + " indices",
+                    "unit",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).search.getFetchFailure())
+                )
+            );
+            // indexing
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".indexing.total",
+                    "total indexing operations of " + name + " indices",
+                    "unit",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).indexing.getIndexCount())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".indexing.time",
+                    "total indexing time of " + name + " indices",
+                    "ms",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).indexing.getIndexTime().millis())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".indexing.failure.total",
+                    "total indexing failures of " + name + " indices",
+                    "unit",
+                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).indexing.getIndexFailedCount())
+                )
+            );
         }
+        assert metrics.size() == TOTAL_METRICS : "total number of metrics has changed";
         return metrics;
     }
 
@@ -107,6 +185,8 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         int numIndices = 0;
         long numDocs = 0;
         long numBytes = 0;
+        SearchStats.Stats search = new SearchStats().getTotal();
+        IndexingStats.Stats indexing = new IndexingStats().getTotal();
     }
 
     private static class IndicesStatsCache extends SingleObjectCache<Map<IndexMode, IndexStats>> {
@@ -152,6 +232,8 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     try {
                         indexStats.numDocs += indexShard.commitStats().getNumDocs();
                         indexStats.numBytes += indexShard.storeStats().sizeInBytes();
+                        indexStats.search.add(indexShard.searchStats().getTotal());
+                        indexStats.indexing.add(indexShard.indexingStats().getTotal());
                     } catch (IllegalIndexShardStateException | AlreadyClosedException ignored) {
                         // ignored
                     }

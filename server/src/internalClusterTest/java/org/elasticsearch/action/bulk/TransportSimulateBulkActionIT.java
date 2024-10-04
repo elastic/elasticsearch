@@ -90,7 +90,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testMappingValidationIndexExistsWithComponentTemplate() throws IOException {
+    public void testMappingValidationIndexExistsTemplateSubstitutions() throws IOException {
         /*
          * This test simulates a BulkRequest of two documents into an existing index. Then we make sure the index contains no documents, and
          * that the index's mapping in the cluster state has not been updated with the two new field. With the mapping from the template
@@ -205,8 +205,10 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         }
 
         {
-            // Now we substitute a "test-component-template-2" that defines both fields, and a "test-index-template" that pulls it in, so
-            // we expect no exception:
+            /*
+             * Now we substitute a "test-component-template-2" that defines both fields, and an index template that pulls it in, so we
+             * expect no exception:
+             */
             BulkRequest bulkRequest = new SimulateBulkRequest(
                 Map.of(),
                 Map.of(
@@ -224,10 +226,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
                         )
                     )
                 ),
-                Map.of(
-                    "test-index-template",
-                    Map.of("index_patterns", List.of(indexName), "composed_of", List.of("test-component-template-2"))
-                )
+                Map.of(indexTemplateName, Map.of("index_patterns", List.of(indexName), "composed_of", List.of("test-component-template-2")))
             );
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);

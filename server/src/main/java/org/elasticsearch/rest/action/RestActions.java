@@ -64,9 +64,9 @@ public class RestActions {
         return (version == Versions.MATCH_ANY) ? defaultVersion : version;
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
+    public static XContentBuilder buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
         throws IOException {
-        buildBroadcastShardsHeader(
+        return buildBroadcastShardsHeader(
             builder,
             params,
             response.getTotalShards(),
@@ -77,7 +77,7 @@ public class RestActions {
         );
     }
 
-    public static void buildBroadcastShardsHeader(
+    public static XContentBuilder buildBroadcastShardsHeader(
         XContentBuilder builder,
         Params params,
         int total,
@@ -100,7 +100,7 @@ public class RestActions {
             }
             builder.endArray();
         }
-        builder.endObject();
+        return builder.endObject();
     }
 
     /**

@@ -1935,7 +1935,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
      * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
         + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
         + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
@@ -2394,7 +2394,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 assertThat("Expecting non-null license status", status, notNullValue());
                 assertThat("Expecting active license", status, equalTo("active"));
             }
-        });
+        }, 10, TimeUnit.MINUTES);
     }
 
     // TODO: replace usages of this with warning_regex or allowed_warnings_regex

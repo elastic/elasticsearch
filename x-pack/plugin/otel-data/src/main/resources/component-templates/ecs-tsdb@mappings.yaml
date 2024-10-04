@@ -1,7 +1,7 @@
 version: ${xpack.oteldata.template.version}
 _meta:
   description: |
-    Default mappings that can't be changed by users for
+    Default mappings that can be changed by users for
     the OpenTelemetry metrics index template installed by x-pack
   managed: true
 template:

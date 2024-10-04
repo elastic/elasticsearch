@@ -9,7 +9,7 @@ component-templates:
   - semconv-resource-to-ecs@mappings
   - metrics-otel@mappings
   - traces-otel@mappings
-  - metrics-otel-fixed@mappings
+  - ecs-tsdb@mappings
 index-templates:
   - logs-otel@template
   - metrics-otel@template

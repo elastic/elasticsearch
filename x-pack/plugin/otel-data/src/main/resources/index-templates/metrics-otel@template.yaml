@@ -14,7 +14,7 @@ composed_of:
   - semconv-resource-to-ecs@mappings
   - metrics@custom
   - metrics-otel@custom
-  - metrics-otel-fixed@mappings
+  - ecs-tsdb@mappings
 ignore_missing_component_templates:
   - metrics@custom
   - metrics-otel@custom

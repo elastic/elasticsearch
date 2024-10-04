@@ -16,7 +16,7 @@ composed_of:
   - metrics@custom
   - metrics-otel@custom
   - metrics-60m.otel@custom
-  - metrics-otel-fixed@mappings
+  - ecs-tsdb@mappings
 ignore_missing_component_templates:
   - metrics@custom
   - metrics-otel@custom

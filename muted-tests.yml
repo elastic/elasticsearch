@@ -351,6 +351,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/114105
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testGet
+  issue: https://github.com/elastic/elasticsearch/issues/114135
 
 # Examples:
 #

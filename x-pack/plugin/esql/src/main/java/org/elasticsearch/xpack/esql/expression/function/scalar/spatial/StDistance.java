@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
@@ -185,9 +184,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (right().foldable()) {
             return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(right()), leftDocValues);
         } else if (left().foldable()) {
@@ -217,7 +214,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        ToEvaluator toEvaluator,
         Expression field,
         Geometry geometry,
         boolean docValues
@@ -230,7 +227,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        ToEvaluator toEvaluator,
         Expression field,
         Point point,
         boolean docValues

@@ -131,7 +131,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                                             .stream()
                                             .filter(t -> t.getKey().equals(entry.getKey()))
                                             .map(Tag::getValue)
-                                            .toList()
+                                            .collect(Collectors.toList())
                                             .containsAll(entry.getValue())
                                     )
                             )

@@ -470,12 +470,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         long initialMappingVersion
     ) {
         Engine.Result r = exceptionToResult(e, primary, false, version, result.getId());
-        DocumentMapper documentMapper = primary.mapperService().documentMapper();
-        boolean mappingWasConcurrentlyUpdated = false;
-        if (documentMapper != null) {
-            long currentMappingVersion = primary.mapperService().mappingVersion();
-            mappingWasConcurrentlyUpdated = currentMappingVersion > initialMappingVersion;
-        }
+        long currentMappingVersion = primary.mapperService().mappingVersion();
+        boolean mappingWasConcurrentlyUpdated = currentMappingVersion > initialMappingVersion;
         if (mappingWasConcurrentlyUpdated) {
             // retry current index request if the mapping was updated concurrently
             // when two index requests race to add a conflicting dynamic mapping for the same field,

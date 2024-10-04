@@ -239,7 +239,7 @@ public interface DocValueFormat extends NamedWriteable {
             String formatterPattern = in.readString();
             Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)
                 ? LocaleUtils.parse(in.readString())
-                : Locale.ENGLISH;   // default to english (also see DateFieldMapper.Builder)
+                : DateFieldMapper.DEFAULT_LOCALE;
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
             this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone).withLocale(locale);

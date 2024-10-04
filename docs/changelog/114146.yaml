@@ -1,0 +1,20 @@
+pr: 114146 
+summary: Snowball stemmers have been upgraded 
+area: Analysis
+type: breaking
+issues: []
+breaking:
+  title: Snowball stemmers have been upgraded
+  area: Analysis
+  details: >-
+    Lucene 10 ships with an upgrade of its Snowball stemmers. 
+    For details see https://github.com/apache/lucene/issues/13209. Users using
+    Snowball stemmers that are experiencing changes in search behaviour on 
+    existing data are advised to reindex.
+  impact: >-
+    The upgrade should generally provide improved stemming results. Small changes
+    in token analysis can lead to mismatches with previously index data, so
+    existing indices using Snowball stemmers as part of their analysis chain
+    should be reindexed.
+  notable: false
+

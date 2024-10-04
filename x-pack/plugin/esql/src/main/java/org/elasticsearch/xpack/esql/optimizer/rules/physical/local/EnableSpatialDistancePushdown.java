@@ -97,7 +97,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
 
     private void getPushableDistances(List<Alias> aliases, Map<NameId, StDistance> distances, Map<NameId, Alias> others) {
         aliases.forEach(alias -> {
-            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, Map.of())) {
+            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance)) {
                 distances.put(alias.id(), distance);
             } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
                 StDistance distance = distances.get(ref.id());

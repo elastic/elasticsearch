@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
@@ -53,9 +54,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
@@ -90,28 +89,27 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         EsQueryExec queryExec,
         LocalPhysicalOptimizerContext ctx
     ) {
-        LinkedHashMap<NameId, FieldAttribute> refs = new LinkedHashMap<>();
+        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
         List<Alias> others = new ArrayList<>();
         evalExec.fields().forEach(alias -> {
-            if (alias.child() instanceof FieldAttribute fieldAttribute) {
-                refs.put(alias.id(), fieldAttribute);
-            } else if (alias.child() instanceof ReferenceAttribute ref && refs.containsKey(ref.id())) {
-                FieldAttribute fieldAttribute = refs.get(ref.id());
-                refs.put(alias.id(), fieldAttribute);
+            if (alias.child() instanceof Attribute attr) {
+                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
             } else {
                 // Remember all non-attribute aliases (these must be kept in the plan as an EVAL)
                 others.add(alias);
             }
         });
+        AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
-            (canPushToSource(exp, refs, x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(
+            Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+            (canPushToSource(resExp, x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(
                 exp
             );
         }
         // Replace field references with their actual field attributes
-        pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> fieldAttribute(r, refs)));
+        pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
         return rewrite(filterExec, queryExec, pushable, nonPushable, others);
     }
 
@@ -149,15 +147,6 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         } // else: nothing changes
         return filterExec;
-    }
-
-    private static FieldAttribute fieldAttribute(Expression exp, Map<NameId, FieldAttribute> refs) {
-        if (exp instanceof FieldAttribute fa) {
-            return fa;
-        } else if (exp instanceof ReferenceAttribute ra) {
-            return refs.get(ra.id());
-        }
-        return null;
     }
 
     private static List<Expression> combineEligiblePushableToRange(List<Expression> pushable) {
@@ -234,24 +223,16 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return canPushToSource(exp, Map.of(), hasIdenticalDelegate);
-    }
-
-    public static boolean canPushToSource(
-        Expression exp,
-        Map<NameId, FieldAttribute> refs,
-        Predicate<FieldAttribute> hasIdenticalDelegate
-    ) {
         if (exp instanceof BinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, refs, hasIdenticalDelegate) && bc.right().foldable();
+            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
         } else if (exp instanceof InsensitiveBinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, refs, hasIdenticalDelegate) && bc.right().foldable();
+            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
         } else if (exp instanceof BinaryLogic bl) {
-            return canPushToSource(bl.left(), refs, hasIdenticalDelegate) && canPushToSource(bl.right(), refs, hasIdenticalDelegate);
+            return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
         } else if (exp instanceof In in) {
-            return isAttributePushable(in.value(), null, refs, hasIdenticalDelegate) && Expressions.foldable(in.list());
+            return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
         } else if (exp instanceof Not not) {
-            return canPushToSource(not.field(), refs, hasIdenticalDelegate);
+            return canPushToSource(not.field(), hasIdenticalDelegate);
         } else if (exp instanceof UnaryScalarFunction usf) {
             if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
                 if (usf instanceof IsNull || usf instanceof IsNotNull) {
@@ -259,13 +240,12 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                         return true;
                     }
                 }
-                return isAttributePushable(usf.field(), usf, refs, hasIdenticalDelegate);
+                return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
             }
         } else if (exp instanceof CIDRMatch cidrMatch) {
-            return isAttributePushable(cidrMatch.ipField(), cidrMatch, refs, hasIdenticalDelegate)
-                && Expressions.foldable(cidrMatch.matches());
+            return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate) && Expressions.foldable(cidrMatch.matches());
         } else if (exp instanceof SpatialRelatesFunction spatial) {
-            return canPushSpatialFunctionToSource(spatial, refs);
+            return canPushSpatialFunctionToSource(spatial);
         } else if (exp instanceof MatchQueryPredicate mqp) {
             return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
         } else if (exp instanceof StringQueryPredicate) {
@@ -279,35 +259,15 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     /**
      * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
      */
-    public static boolean canPushSpatialFunctionToSource(BinarySpatialFunction s, Map<NameId, FieldAttribute> refs) {
+    public static boolean canPushSpatialFunctionToSource(BinarySpatialFunction s) {
         // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
         // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
         // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableSpatialAttribute(s.left(), refs) && s.right().foldable()
-            || isPushableSpatialAttribute(s.right(), refs) && s.left().foldable();
-    }
-
-    private static boolean isPushableSpatialAttribute(Expression exp, Map<NameId, FieldAttribute> refs) {
-        if (exp instanceof ReferenceAttribute ref && refs.containsKey(ref.id())) {
-            return isPushableSpatialAttribute(refs.get(ref.id()));
-        }
-        return isPushableSpatialAttribute(exp);
+        return isPushableSpatialAttribute(s.left()) && s.right().foldable() || isPushableSpatialAttribute(s.right()) && s.left().foldable();
     }
 
     private static boolean isPushableSpatialAttribute(Expression exp) {
         return exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa) && DataType.isSpatial(fa.dataType());
-    }
-
-    private static boolean isAttributePushable(
-        Expression expression,
-        Expression operation,
-        Map<NameId, FieldAttribute> attributeMap,
-        Predicate<FieldAttribute> hasIdenticalDelegate
-    ) {
-        if (expression instanceof ReferenceAttribute ref && attributeMap.containsKey(ref.id())) {
-            return isAttributePushable(attributeMap.get(ref.id()), operation, hasIdenticalDelegate);
-        }
-        return isAttributePushable(expression, operation, hasIdenticalDelegate);
     }
 
     private static boolean isAttributePushable(

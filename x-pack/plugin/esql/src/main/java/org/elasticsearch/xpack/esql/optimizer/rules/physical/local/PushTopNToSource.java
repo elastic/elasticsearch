@@ -11,6 +11,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -30,9 +31,33 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 
+/**
+ * We handle two main scenarios here:
+ * <ol>
+ *     <li>
+ *         Queries like `FROM index | SORT field` will be pushed to the source if the field is an indexed field.
+ *     </li>
+ *     <li>
+ *         Queries like `FROM index | EVAL ref = ... | SORT ref` will be pushed to the source if the reference function is pushable,
+ *         which can happen under two conditions:
+ *         <ul>
+ *             <li>
+ *                 The reference refers linearly to an indexed field.
+ *                 For example: `FROM index | EVAL ref = field | SORT ref`
+ *             </li>
+ *             <li>
+ *                 The reference refers to a distance function that refers to an indexed field and a constant expression.
+ *                 For example `FROM index | EVAL distance = ST_DISTANCE(field, POINT(0, 0)) | SORT distance`.
+ *                 As with the previous condition, the both the attribute and the constant can be further aliased.
+ *             </li>
+ *         </ul>
+ *     </li>
+ *     <li>
+ *     </li>
+ * </ol>
+ */
 public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
@@ -49,7 +74,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         PhysicalPlan rewrite(TopNExec topNExec);
     }
 
-    private static Pushable NO_OP = new NoOpPushable();
+    private static final Pushable NO_OP = new NoOpPushable();
 
     record NoOpPushable() implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
@@ -78,36 +103,21 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             return new EsQueryExec.GeoDistanceSort(fieldAttribute.exactAttribute(), order.direction(), point.getLat(), point.getLon());
         }
 
-        private static PushableGeoDistance from(StDistance distance, Order order, Map<NameId, FieldAttribute> refAttributes) {
+        private static PushableGeoDistance from(StDistance distance, Order order) {
             if (distance.left() instanceof Attribute attr && distance.right().foldable()) {
-                return from(attr, distance.right(), order, refAttributes);
+                return from(attr, distance.right(), order);
             } else if (distance.right() instanceof Attribute attr && distance.left().foldable()) {
-                return from(attr, distance.left(), order, refAttributes);
+                return from(attr, distance.left(), order);
             }
             return null;
         }
 
-        private static PushableGeoDistance from(
-            Attribute attr,
-            Expression literal,
-            Order order,
-            Map<NameId, FieldAttribute> refAttributes
-        ) {
-            FieldAttribute fieldAttribute = fieldAttribute(attr, refAttributes);
-            if (fieldAttribute != null) {
+        private static PushableGeoDistance from(Attribute attr, Expression literal, Order order) {
+            if (attr instanceof FieldAttribute fieldAttribute) {
                 Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literal);
                 if (geometry instanceof Point point) {
                     return new PushableGeoDistance(fieldAttribute, order, point);
                 }
-            }
-            return null;
-        }
-
-        private static FieldAttribute fieldAttribute(Attribute attr, Map<NameId, FieldAttribute> refAttributes) {
-            if (attr instanceof FieldAttribute fieldAttribute) {
-                return fieldAttribute;
-            } else if (attr instanceof ReferenceAttribute ref && refAttributes.containsKey(ref.id())) {
-                return refAttributes.get(ref.id());
             }
             return null;
         }
@@ -140,19 +150,18 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             // a distance function defined in the EVAL. We also move the EVAL to after the SORT.
             List<Order> orders = topNExec.order();
             List<Alias> fields = evalExec.fields();
-            LinkedHashMap<NameId, StDistance> refs = new LinkedHashMap<>();
-            LinkedHashMap<NameId, FieldAttribute> refAttributes = new LinkedHashMap<>();
+            LinkedHashMap<NameId, StDistance> distances = new LinkedHashMap<>();
+            AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
             fields.forEach(alias -> {
                 // TODO: can we support CARTESIAN also?
                 if (alias.child() instanceof StDistance distance && distance.crsType() == BinarySpatialFunction.SpatialCrsType.GEO) {
-                    refs.put(alias.id(), distance);
-                } else if (alias.child() instanceof FieldAttribute fieldAttribute) {
-                    refAttributes.put(alias.id(), fieldAttribute);
-                } else if (alias.child() instanceof ReferenceAttribute ref && refAttributes.containsKey(ref.id())) {
-                    FieldAttribute fieldAttribute = refAttributes.get(ref.id());
-                    refAttributes.put(alias.id(), fieldAttribute);
+                    distances.put(alias.id(), distance);
+                } else if (alias.child() instanceof Attribute attr) {
+                    aliasReplacedByBuilder.put(alias.toAttribute(), attr.toAttribute());
                 }
             });
+            AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
+
             List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
             for (Order order : orders) {
                 if (LucenePushDownUtils.isPushableFieldAttribute(order.child(), hasIdenticalDelegate)) {
@@ -164,28 +173,27 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                         )
                     );
                 } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
-                    if (refs.containsKey(referenceAttribute.id())) {
-                        StDistance distance = refs.get(referenceAttribute.id());
-                        PushableGeoDistance pushableGeoDistance = PushableGeoDistance.from(distance, order, refAttributes);
+                    if (distances.containsKey(referenceAttribute.id())) {
+                        StDistance distance = distances.get(referenceAttribute.id());
+                        StDistance d = (StDistance) distance.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+                        PushableGeoDistance pushableGeoDistance = PushableGeoDistance.from(d, order);
                         if (pushableGeoDistance != null) {
                             pushableSorts.add(pushableGeoDistance.sort());
                         } else {
                             // As soon as we see a non-pushable sort, we know we need a final SORT command
                             break;
                         }
-                    } else if (refAttributes.containsKey(referenceAttribute.id())) {
-                        // If the SORT refers to a reference to a pushable field, we can push it down
-                        FieldAttribute fieldAttribute = refAttributes.get(referenceAttribute.id());
-                        if (LucenePushDownUtils.isPushableFieldAttribute(fieldAttribute, hasIdenticalDelegate)) {
+                    } else if (aliasReplacedBy.resolve(referenceAttribute, referenceAttribute) instanceof FieldAttribute fieldAttribute
+                        && LucenePushDownUtils.isPushableFieldAttribute(fieldAttribute, hasIdenticalDelegate)) {
+                            // If the SORT refers to a reference to a pushable field, we can push it down
                             pushableSorts.add(
                                 new EsQueryExec.FieldSort(fieldAttribute.exactAttribute(), order.direction(), order.nullsPosition())
                             );
+                        } else {
+                            // If the SORT refers to a non-pushable reference function, the EVAL must remain before the SORT,
+                            // and we can no longer push down anything
+                            break;
                         }
-                    } else {
-                        // If the SORT refers to a non-pushable reference function, the EVAL must remain before the SORT,
-                        // and we can no longer push down anything
-                        break;
-                    }
                 } else {
                     // As soon as we see a non-pushable sort, we know we need a final SORT command
                     break;

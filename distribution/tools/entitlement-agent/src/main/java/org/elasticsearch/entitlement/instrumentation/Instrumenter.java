@@ -148,17 +148,34 @@ public class Instrumenter {
 
         private void pushCallerClass() {
             if (hasCallerSensitiveAnnotation) {
-                mv.visitMethodInsn(INVOKESTATIC, "jdk/internal/reflect/Reflection", "getCallerClass", "()Ljava/lang/Class;", false);
-            } else {
-                mv.visitFieldInsn(GETSTATIC, "java/lang/StackWalker$Option", "RETAIN_CLASS_REFERENCE", "Ljava/lang/StackWalker$Option;");
                 mv.visitMethodInsn(
                     INVOKESTATIC,
-                    "java/lang/StackWalker",
-                    "getInstance",
-                    "(Ljava/lang/StackWalker$Option;)Ljava/lang/StackWalker;",
+                    "jdk/internal/reflect/Reflection",
+                    "getCallerClass",
+                    Type.getMethodDescriptor(Type.getType(Class.class)),
                     false
                 );
-                mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StackWalker", "getCallerClass", "()Ljava/lang/Class;", false);
+            } else {
+                mv.visitFieldInsn(
+                    GETSTATIC,
+                    Type.getInternalName(StackWalker.Option.class),
+                    "RETAIN_CLASS_REFERENCE",
+                    Type.getDescriptor(StackWalker.Option.class)
+                );
+                mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    Type.getInternalName(StackWalker.class),
+                    "getInstance",
+                    Type.getMethodDescriptor(Type.getType(StackWalker.class), Type.getType(StackWalker.Option.class)),
+                    false
+                );
+                mv.visitMethodInsn(
+                    INVOKEVIRTUAL,
+                    Type.getInternalName(StackWalker.class),
+                    "getCallerClass",
+                    Type.getMethodDescriptor(Type.getType(Class.class)),
+                    false
+                );
             }
         }
 

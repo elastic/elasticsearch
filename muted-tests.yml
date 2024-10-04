@@ -351,9 +351,6 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderIT
   method: testRRFWithCollapse
   issue: https://github.com/elastic/elasticsearch/issues/114074
-- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderIT
-  method: testMultipleRRFRetrievers
-  issue: https://github.com/elastic/elasticsearch/issues/114079
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950

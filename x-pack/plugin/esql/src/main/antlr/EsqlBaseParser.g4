@@ -83,7 +83,12 @@ matchBooleanExpression
     ;
 
 matchOperatorExpression
-    : valueExpression COLON queryString=string (boostExpression)? (fuzzinessExpression)?
+    : valueExpression COLON queryString=string matchOptions
+    ;
+
+matchOptions
+    : (boostExpression)? (fuzzinessExpression)?
+    | (fuzzinessExpression)? (boostExpression)?
     ;
 
 fuzzinessExpression

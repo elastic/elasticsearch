@@ -229,6 +229,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMatchOptions(EsqlBaseParser.MatchOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchOptions(EsqlBaseParser.MatchOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx) { }
   /**
    * {@inheritDoc}

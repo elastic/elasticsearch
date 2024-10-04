@@ -792,21 +792,24 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source(ctx), "[:] operator currently requires a snapshot build");
         }
         Double boost = null;
-        EsqlBaseParser.BoostExpressionContext boostCtxt = ctx.boostExpression();
-        if (boostCtxt != null) {
-            boost = (Double) visitDecimalValue(boostCtxt.decimalValue()).value();
-        }
         Fuzziness fuzziness = null;
-        EsqlBaseParser.FuzzinessExpressionContext fuzzyCtxt = ctx.fuzzinessExpression();
-        if(fuzzyCtxt != null) {
-            if (fuzzyCtxt.fuzzinessValue() == null) {
-                // Default value for query string query
-                fuzziness = Fuzziness.TWO;
-            } else {
-                try {
-                    fuzziness = Fuzziness.fromString(fuzzyCtxt.fuzzinessValue().getText());
-                } catch (IllegalArgumentException e) {
-                    throw new ParsingException(source(ctx), "Invalid fuzziness value: [{}]", fuzzyCtxt.fuzzinessValue().getText());
+        EsqlBaseParser.MatchOptionsContext matchOptionsCtxt = ctx.matchOptions();
+        if (matchOptionsCtxt != null) {
+            EsqlBaseParser.BoostExpressionContext boostCtxt = matchOptionsCtxt.boostExpression();
+            if (boostCtxt != null) {
+                boost = (Double) visitDecimalValue(boostCtxt.decimalValue()).value();
+            }
+            EsqlBaseParser.FuzzinessExpressionContext fuzzyCtxt = matchOptionsCtxt.fuzzinessExpression();
+            if(fuzzyCtxt != null) {
+                if (fuzzyCtxt.fuzzinessValue() == null) {
+                    // Default value for query string query
+                    fuzziness = Fuzziness.TWO;
+                } else {
+                    try {
+                        fuzziness = Fuzziness.fromString(fuzzyCtxt.fuzzinessValue().getText());
+                    } catch (IllegalArgumentException e) {
+                        throw new ParsingException(source(ctx), "Invalid fuzziness value: [{}]", fuzzyCtxt.fuzzinessValue().getText());
+                    }
                 }
             }
         }

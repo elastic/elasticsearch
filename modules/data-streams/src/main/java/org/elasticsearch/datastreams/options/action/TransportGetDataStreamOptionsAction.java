@@ -10,7 +10,6 @@ package org.elasticsearch.datastreams.options.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
-import org.elasticsearch.action.datastreams.options.GetDataStreamOptionsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;

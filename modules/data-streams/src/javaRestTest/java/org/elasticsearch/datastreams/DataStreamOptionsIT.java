@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This should be a yaml test, but in order to write one we would need to expose the new APIs in the rest-api-spec.
@@ -64,21 +65,11 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
         assertThat(failureStore.size(), is(1));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEnableDisableFailureStore() throws IOException {
         {
             assertAcknowledged(client().performRequest(new Request("DELETE", "/_data_stream/" + DATA_STREAM_NAME + "/_options")));
-            final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
-            List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
-            assertThat(dataStreams.size(), is(1));
-            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-            assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-            assertThat(dataStream.containsKey("failure_store"), is(true));
-            // Ensure the failure store is disabled
-            assertThat(((Map<String, Object>) dataStream.get("failure_store")).get("enabled"), equalTo(false));
-            // And the failure indices preserved
-            List<String> failureStore = getFailureStore(dataStream);
-            assertThat(failureStore.size(), is(1));
+            assertFailureStore(false, 1);
+            assertDataStreamOptions(null);
         }
         {
             Request enableRequest = new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME + "/_options");
@@ -89,17 +80,8 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
                   }
                 }""");
             assertAcknowledged(client().performRequest(enableRequest));
-            final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
-            List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
-            assertThat(dataStreams.size(), is(1));
-            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-            assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-            assertThat(dataStream.containsKey("failure_store"), is(true));
-            // Ensure the failure store is enabled
-            assertThat(((Map<String, Object>) dataStream.get("failure_store")).get("enabled"), equalTo(true));
-            // And the failure indices preserved
-            List<String> failureStore = getFailureStore(dataStream);
-            assertThat(failureStore.size(), is(1));
+            assertFailureStore(true, 1);
+            assertDataStreamOptions(true);
         }
 
         {
@@ -111,17 +93,39 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
                   }
                 }""");
             assertAcknowledged(client().performRequest(disableRequest));
-            final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
-            List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
-            assertThat(dataStreams.size(), is(1));
-            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-            assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-            assertThat(dataStream.containsKey("failure_store"), is(true));
-            // Ensure the failure store is disabled
-            assertThat(((Map<String, Object>) dataStream.get("failure_store")).get("enabled"), equalTo(false));
-            // And the failure indices preserved
-            List<String> failureStore = getFailureStore(dataStream);
-            assertThat(failureStore.size(), is(1));
+            assertFailureStore(false, 1);
+            assertDataStreamOptions(false);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertFailureStore(boolean failureStoreEnabled, int failureStoreSize) throws IOException {
+        final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
+        List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
+        assertThat(dataStreams.size(), is(1));
+        Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
+        assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
+        assertThat(dataStream.containsKey("failure_store"), is(true));
+        // Ensure the failure store is set to the provided value
+        assertThat(((Map<String, Object>) dataStream.get("failure_store")).get("enabled"), equalTo(failureStoreEnabled));
+        // And the failure indices preserved
+        List<String> failureStore = getFailureStore(dataStream);
+        assertThat(failureStore.size(), is(failureStoreSize));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertDataStreamOptions(Boolean failureStoreEnabled) throws IOException {
+        final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME + "/_options"));
+        List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
+        assertThat(dataStreams.size(), is(1));
+        Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
+        assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
+        Map<String, Map<String, Object>> options = (Map<String, Map<String, Object>>) dataStream.get("options");
+        if (failureStoreEnabled == null) {
+            assertThat(options, nullValue());
+        } else {
+            assertThat(options.containsKey("failure_store"), is(true));
+            assertThat(options.get("failure_store").get("enabled"), equalTo(failureStoreEnabled));
         }
     }
 

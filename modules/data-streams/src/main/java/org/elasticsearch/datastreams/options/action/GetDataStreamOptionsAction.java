@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.action.datastreams.options;
+package org.elasticsearch.datastreams.options.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -151,7 +151,7 @@ public class GetDataStreamOptionsAction {
             public static final ParseField OPTIONS_FIELD = new ParseField("options");
 
             DataStreamEntry(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalWriteable(org.elasticsearch.cluster.metadata.DataStreamOptions::read));
+                this(in.readString(), in.readOptionalWriteable(DataStreamOptions::read));
             }
 
             @Override
@@ -164,7 +164,7 @@ public class GetDataStreamOptionsAction {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
-                if (dataStreamOptions != null && DataStreamOptions.EMPTY.equals(dataStreamOptions)) {
+                if (dataStreamOptions != null && dataStreamOptions.isEmpty() == false) {
                     builder.field(OPTIONS_FIELD.getPreferredName(), dataStreamOptions);
                 }
                 builder.endObject();

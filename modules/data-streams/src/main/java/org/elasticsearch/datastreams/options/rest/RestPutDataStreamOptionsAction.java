@@ -8,10 +8,10 @@
  */
 package org.elasticsearch.datastreams.options.rest;
 
-import org.elasticsearch.action.datastreams.options.PutDataStreamOptionsAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.datastreams.options.action.PutDataStreamOptionsAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;

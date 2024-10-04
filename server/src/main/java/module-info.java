@@ -388,7 +388,6 @@ module org.elasticsearch.server {
 
     exports org.elasticsearch.action.datastreams.lifecycle;
     exports org.elasticsearch.action.datastreams.autosharding;
-    exports org.elasticsearch.action.datastreams.options;
     exports org.elasticsearch.action.downsample;
     exports org.elasticsearch.plugins.internal
         to

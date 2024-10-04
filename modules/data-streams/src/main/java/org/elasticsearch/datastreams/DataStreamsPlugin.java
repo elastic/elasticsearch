@@ -22,8 +22,6 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
-import org.elasticsearch.action.datastreams.options.GetDataStreamOptionsAction;
-import org.elasticsearch.action.datastreams.options.PutDataStreamOptionsAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -60,6 +58,8 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecyc
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.PutDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportDeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportGetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportPutDataStreamOptionsAction;

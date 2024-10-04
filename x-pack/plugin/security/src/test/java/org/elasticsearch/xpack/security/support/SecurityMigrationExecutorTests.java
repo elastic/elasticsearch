@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -74,6 +76,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testSuccessfulMigration() {
         final int[] migrateInvocations = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
+            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -91,6 +94,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testNoMigrationMeetsRequirements() {
         final int[] migrateInvocationsCounter = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
+            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -117,6 +121,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testPartialMigration() {
         final int[] migrateInvocations = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
+            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -147,6 +152,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testNoMigrationNeeded() {
         final int[] migrateInvocations = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
+            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -164,13 +170,14 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testMigrationThrowsRuntimeException() {
         when(securityIndexManager.isReadyForSecurityMigration(any())).thenReturn(true);
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
+            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
             client,
             new TreeMap<>(Map.of(1, new SecurityMigrations.SecurityMigration() {
                 @Override
-                public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+                public void migrate(SecurityIndexManager indexManager, Client client, ClusterState state, ActionListener<Void> listener) {
                     throw new IllegalStateException("Oh no, this is a terrible state");
                 }
 
@@ -199,6 +206,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testUpdateMigrationVersionThrowsException() {
         final int[] migrateInvocations = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
+            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -214,7 +222,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     private SecurityMigrations.SecurityMigration generateMigration(int[] migrateInvocationsCounter, boolean isEligible) {
         SecurityMigrations.SecurityMigration migration = new SecurityMigrations.SecurityMigration() {
             @Override
-            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+            public void migrate(SecurityIndexManager indexManager, Client client, ClusterState state, ActionListener<Void> listener) {
                 migrateInvocationsCounter[0]++;
                 listener.onResponse(null);
             }

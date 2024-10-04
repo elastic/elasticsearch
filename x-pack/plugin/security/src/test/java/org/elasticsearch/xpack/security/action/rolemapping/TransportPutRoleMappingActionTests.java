@@ -93,6 +93,19 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
     }
 
+    public void testPutMappingWithInvalidName() {
+        final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> put("anarchy (read only)", expression, "superuser", Collections.singletonMap("dumb", true))
+        );
+
+        assertThat(
+            illegalArgumentException.getMessage(),
+            equalTo("Invalid mapping name [anarchy (read only)]. [ (read only)] is not an allowed suffix")
+        );
+    }
+
     private PutRoleMappingResponse put(String name, FieldExpression expression, String role, Map<String, Object> metadata)
         throws Exception {
         final PutRoleMappingRequest request = new PutRoleMappingRequest();

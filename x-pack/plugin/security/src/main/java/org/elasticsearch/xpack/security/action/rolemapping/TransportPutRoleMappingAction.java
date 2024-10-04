@@ -39,6 +39,7 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
 
     @Override
     protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
+        validateMappingName(request.getName());
         if (clusterStateRoleMapper.hasMapping(request.getName())) {
             // Allow to define a mapping with the same name in the native role mapping store as the file_settings namespace, but add a
             // warning header to signal to the caller that this could be a problem.
@@ -53,5 +54,14 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
             request,
             ActionListener.wrap(created -> listener.onResponse(new PutRoleMappingResponse(created)), listener::onFailure)
         );
+    }
+
+    private void validateMappingName(String mappingName) {
+        String reservedSuffix = " (read only)";
+        if (mappingName.endsWith(reservedSuffix)) {
+            throw new IllegalArgumentException(
+                "Invalid mapping name [" + mappingName + "]. [" + reservedSuffix + "] is not an allowed suffix"
+            );
+        }
     }
 }

@@ -10,6 +10,6 @@
 module org.elasticsearch.entitlement.agent {
     requires java.instrument;
     requires org.objectweb.asm;
-    requires org.elasticsearch.entitlement.trampoline;
+    requires org.elasticsearch.entitlement.bridge;
     requires org.elasticsearch.base; // for @SuppressForbidden
 }

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlement.trampoline {
+module org.elasticsearch.entitlement.bridge {
     uses org.elasticsearch.entitlement.checks.EntitlementChecks;
 
     exports org.elasticsearch.entitlement.checks;

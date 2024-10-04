@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
-  compileOnly project(':distribution:tools:entitlement-trampoline')
+  compileOnly project(':distribution:tools:entitlement-bridge')
 
   testImplementation project(":test:framework")
 }

@@ -11,7 +11,7 @@ import org.elasticsearch.entitlement.runtime.checks.EntitlementChecksService;
 
 module org.elasticsearch.entitlement.runtime {
     requires org.elasticsearch.base;
-    requires org.elasticsearch.entitlement.trampoline;
+    requires org.elasticsearch.entitlement.bridge;
 
     exports org.elasticsearch.entitlement.runtime.api;
 

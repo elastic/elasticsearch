@@ -24,9 +24,9 @@ import static java.util.stream.Collectors.toSet;
 public class EntitlementAgent {
 
     public static void premain(String agentArgs, Instrumentation inst) throws Exception {
-        // Add the trampoline library (the one with the entitlement checking interface) to the bootstrap classpath.
+        // Add the bridge library (the one with the entitlement checking interface) to the bootstrap classpath.
         // We can't actually reference the classes here for real before this point because they won't resolve.
-        var jarsString = System.getProperty("entitlements.trampolineJars");
+        var jarsString = System.getProperty("es.entitlements.bridgeJars");
         if (jarsString != null) {
             addJarsToBootstrapClassLoader(inst, jarsString);
         }

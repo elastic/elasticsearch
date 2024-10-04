@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -37,6 +38,7 @@ public class MistralEmbeddingsModel extends Model {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -46,6 +48,7 @@ public class MistralEmbeddingsModel extends Model {
             service,
             MistralEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,    // no task settings for Mistral embeddings
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -61,10 +64,11 @@ public class MistralEmbeddingsModel extends Model {
         String service,
         MistralEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings(), chunkingSettings),
             new ModelSecrets(secrets)
         );
         setPropertiesFromServiceSettings(serviceSettings);

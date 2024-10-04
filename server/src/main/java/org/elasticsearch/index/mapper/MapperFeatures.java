@@ -21,9 +21,15 @@ import java.util.Set;
  * Spec for mapper-related features.
  */
 public class MapperFeatures implements FeatureSpecification {
+
+    // Used to avoid noise in mixed cluster and rest compatibility tests. Must not be backported to 8.x branch.
+    // This label gets added to tests with such failures before merging with main, then removed when backported to 8.x.
+    public static final NodeFeature BWC_WORKAROUND_9_0 = new NodeFeature("mapper.bwc_workaround_9_0");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
+            BWC_WORKAROUND_9_0,
             IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
             PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
             RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX,
@@ -36,6 +42,7 @@ public class MapperFeatures implements FeatureSpecification {
             NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
             BooleanFieldMapper.BOOLEAN_DIMENSION,
             ObjectMapper.SUBOBJECTS_AUTO,
+            ObjectMapper.SUBOBJECTS_AUTO_FIXES,
             KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
             SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
             Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE,
@@ -44,7 +51,13 @@ public class MapperFeatures implements FeatureSpecification {
             FlattenedFieldMapper.IGNORE_ABOVE_SUPPORT,
             IndexSettings.IGNORE_ABOVE_INDEX_LEVEL_SETTING,
             SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX,
-            TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF
+            TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
+            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX, IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE);
     }
 }

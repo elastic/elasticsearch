@@ -39,17 +39,9 @@ public interface InferenceService extends Closeable {
      * @param modelId               Model Id
      * @param taskType              The model task type
      * @param config                Configuration options including the secrets
-     * @param platformArchitectures The Set of platform architectures (OS name and hardware architecture)
-     *                              the cluster nodes and models are running on.
      * @param parsedModelListener   A listener which will handle the resulting model or failure
      */
-    void parseRequestConfig(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Set<String> platformArchitectures,
-        ActionListener<Model> parsedModelListener
-    );
+    void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
@@ -85,6 +77,7 @@ public interface InferenceService extends Closeable {
      * @param model        The model
      * @param query        Inference query, mainly for re-ranking
      * @param input        Inference input
+     * @param stream       Stream inference results
      * @param taskSettings Settings in the request to override the model's defaults
      * @param inputType    For search, ingest etc
      * @param timeout      The timeout for the request
@@ -94,6 +87,7 @@ public interface InferenceService extends Closeable {
         Model model,
         @Nullable String query,
         List<String> input,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -154,17 +148,6 @@ public interface InferenceService extends Closeable {
     }
 
     /**
-     * Checks if the modelId has been downloaded to the local Elasticsearch cluster using the trained models API
-     * The default action does nothing except acknowledge the request (false).
-     * Any internal services should Override this method.
-     * @param model
-     * @param listener The listener
-     */
-    default void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
-        listener.onResponse(false);
-    };
-
-    /**
      * Optionally test the new model configuration in the inference service.
      * This function should be called when the model is first created, the
      * default action is to do nothing.
@@ -176,11 +159,14 @@ public interface InferenceService extends Closeable {
     };
 
     /**
-     * Return true if this model is hosted in the local Elasticsearch cluster
-     * @return True if in cluster
+     * Update a text embedding model's dimensions based on a provided embedding
+     * size and set the default similarity if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @param embeddingSize The embedding size to update the model with
+     * @return The model with updated embedding details
      */
-    default boolean isInClusterService() {
-        return false;
+    default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        return model;
     }
 
     /**

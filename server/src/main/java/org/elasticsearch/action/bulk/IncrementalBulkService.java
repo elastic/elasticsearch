@@ -105,6 +105,7 @@ public class IncrementalBulkService {
         private boolean closed = false;
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
+        private boolean bulkInProgress = false;
         private ThreadContext.StoredContext requestContext;
         private Exception bulkActionLevelFailure = null;
         private long currentBulkSize = 0L;
@@ -130,6 +131,7 @@ public class IncrementalBulkService {
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
             assert closed == false;
+            assert bulkInProgress == false;
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
@@ -143,6 +145,7 @@ public class IncrementalBulkService {
                             requestContext.restore();
                             final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                             releasables.clear();
+                            bulkInProgress = true;
                             client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                                 @Override
@@ -158,6 +161,7 @@ public class IncrementalBulkService {
                                     handleBulkFailure(isFirstRequest, e);
                                 }
                             }, () -> {
+                                bulkInProgress = false;
                                 requestContext = threadContext.newStoredContext();
                                 toRelease.forEach(Releasable::close);
                                 nextItems.run();
@@ -177,6 +181,7 @@ public class IncrementalBulkService {
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
+            assert bulkInProgress == false;
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 errorResponse(listener);
@@ -187,7 +192,9 @@ public class IncrementalBulkService {
                         requestContext.restore();
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
-                        client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
+                        // We do not need to set this back to false as this will be the last request.
+                        bulkInProgress = true;
+                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                             private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 

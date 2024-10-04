@@ -50,6 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
@@ -63,6 +64,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -188,6 +191,38 @@ public class DynamicMappingIT extends ESIntegTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         return properties;
+    }
+
+    public void testConcurrentDynamicMappingsWithConflictingType() throws Throwable {
+        int numberOfDocsToCreate = 16;
+        indicesAdmin().prepareCreate("index").setSettings(Settings.builder()).get();
+        ensureGreen("index");
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        startInParallel(numberOfDocsToCreate, i -> {
+            try {
+                Object value = 0;
+                if (randomBoolean()) {
+                    value = 0.1;
+                }
+                assertEquals(
+                    DocWriteResponse.Result.CREATED,
+                    prepareIndex("index").setId(Integer.toString(i)).setSource("field", value).get().getResult()
+                );
+            } catch (Exception e) {
+                error.compareAndSet(null, e);
+            }
+        });
+        if (error.get() != null) {
+            throw error.get();
+        }
+        client().admin().indices().prepareRefresh("index").get();
+        for (int i = 0; i < numberOfDocsToCreate; ++i) {
+            assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
+        }
+        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings("index").get();
+
+        Object type = new WriteField("properties.field.type", () -> mappings.getMappings().get("index").getSourceAsMap()).get(null);
+        assertThat(type, is(oneOf("long", "float")));
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException, IOException {

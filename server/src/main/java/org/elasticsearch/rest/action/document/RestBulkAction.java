@@ -231,7 +231,7 @@ public class RestBulkAction extends BaseRestHandler {
                 items.clear();
                 handler.addItems(toPass, () -> Releasables.close(releasables), () -> request.contentStream().next());
             } else {
-                assert releasables.isEmpty();
+                Releasables.close(releasables);
                 request.contentStream().next();
             }
         }

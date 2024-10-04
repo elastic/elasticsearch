@@ -177,7 +177,15 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                             new ElasticsearchStatusException(
                                 "One or more nodes in your cluster does not support chunking_settings. "
                                     + "Please update all nodes in your cluster to the latest version to use chunking_settings.",
-                                RestStatus.BAD_REQUEST
+                                RestStatus.CONFLICT
+                            )
+                        );
+                    } else if (e.getCause() instanceof StrictDynamicMappingException) {
+                        delegate.onFailure(
+                            new ElasticsearchStatusException(
+                                "One or more nodes in your cluster is not on the latest version "
+                                    + "Please update all nodes in your cluster to the latest version to put inference endpoints.",
+                                RestStatus.CONFLICT
                             )
                         );
                     } else {

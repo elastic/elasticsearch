@@ -259,6 +259,18 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
 
+        var inferenceIndexV2Descriptor = SystemIndexDescriptor.builder()
+            .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+            .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+            .setAliasName(InferenceIndex.INDEX_ALIAS)
+            .setPrimaryIndex(InferenceIndex.INDEX_NAME)
+            .setDescription("Contains inference service and model configuration")
+            .setMappings(InferenceIndex.mappingsV2())
+            .setSettings(InferenceIndex.settings())
+            .setVersionMetaKey("version")
+            .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+            .build();
+
         var inferenceIndexV1Descriptor = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
@@ -282,7 +294,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
                 .setSettings(InferenceIndex.settings())
                 .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
+                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor, inferenceIndexV2Descriptor))
                 .build(),
             SystemIndexDescriptor.builder()
                 .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

@@ -44,7 +44,7 @@ template:
       dropped_events_count:
         type: long
       links:
-        store_array_source: true
+        synthetic_source_keep: arrays
         properties:
           trace_id:
             type: keyword

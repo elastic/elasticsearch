@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -65,11 +64,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         Order.OrderDirection direction();
 
         FieldAttribute field();
-
-        void writeTo(StreamOutput out) throws IOException;
     }
 
-    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Writeable, Sort {
+    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Sort {
         @Override
         public SortBuilder<?> sortBuilder() {
             FieldSortBuilder builder = new FieldSortBuilder(field.name());
@@ -86,29 +83,14 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
                 in.readEnum(Order.NullsPosition.class)
             );
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            field().writeTo(out);
-            out.writeEnum(direction());
-            out.writeEnum(nulls());
-        }
     }
 
-    public record GeoDistanceSort(FieldAttribute field, Order.OrderDirection direction, double lat, double lon) implements Writeable, Sort {
+    public record GeoDistanceSort(FieldAttribute field, Order.OrderDirection direction, double lat, double lon) implements Sort {
         @Override
         public SortBuilder<?> sortBuilder() {
             GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder(field.name(), lat, lon);
             builder.order(Direction.from(direction).asOrder());
             return builder;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            field().writeTo(out);
-            out.writeEnum(direction());
-            out.writeDouble(lat);
-            out.writeDouble(lon);
         }
     }
 

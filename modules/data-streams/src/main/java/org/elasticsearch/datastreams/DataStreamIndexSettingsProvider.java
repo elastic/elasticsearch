@@ -59,7 +59,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
-        boolean isTimeSeries,
+        @Nullable IndexMode templateIndexMode,
         Metadata metadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
@@ -70,6 +70,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             // First backing index is created and then data stream is rolled over (in a single cluster state update).
             // So at this point we can't check index_mode==time_series,
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
+            boolean isTimeSeries = templateIndexMode == IndexMode.TIME_SERIES;
             boolean migrating = dataStream != null
                 && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
                 && isTimeSeries;

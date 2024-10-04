@@ -681,32 +681,24 @@ public class Verifier {
         condition.forEachUp(Or.class, or -> {
             Expression left = or.left();
             Expression right = or.right();
-            left.forEachDown(FullTextFunction.class, ftf -> {
-                if (canPushToSource(right, x -> false) == false) {
-                    failures.add(
-                        fail(
-                            or,
-                            "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
-                            or.sourceText(),
-                            ftf.functionName(),
-                            right.sourceText()
-                        )
-                    );
-                }
-            });
-            right.forEachDown(FullTextFunction.class, ftf -> {
-                if (canPushToSource(left, x -> false) == false) {
-                    failures.add(
-                        fail(
-                            or,
-                            "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
-                            or.sourceText(),
-                            ftf.functionName(),
-                            left.sourceText()
-                        )
-                    );
-                }
-            });
+            checkDisjunction(failures, or, left, right);
+            checkDisjunction(failures, or, right, left);
+        });
+    }
+
+    private static void checkDisjunction(Set<Failure> failures, Or or, Expression left, Expression right) {
+        left.forEachDown(FullTextFunction.class, ftf -> {
+            if (canPushToSource(right, x -> false) == false) {
+                failures.add(
+                    fail(
+                        or,
+                        "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
+                        or.sourceText(),
+                        ftf.functionName(),
+                        right.sourceText()
+                    )
+                );
+            }
         });
     }
 

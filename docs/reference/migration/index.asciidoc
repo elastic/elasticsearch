@@ -1,6 +1,5 @@
 include::migration_intro.asciidoc[]
 
-
 * <<migrating-8.16,Migrating to 8.16>>
 * <<migrating-8.15,Migrating to 8.15>>
 * <<migrating-8.14,Migrating to 8.14>>

@@ -65,7 +65,7 @@ public class Elasticsearch900Codec extends CodecService.DeduplicateFieldInfosCod
      */
     public Elasticsearch900Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch900", new Lucene100Codec());
-        this.storedFieldsFormat = new Zstd814StoredFieldsFormat(mode);
+        this.storedFieldsFormat = mode.getFormat();
         this.defaultPostingsFormat = new Lucene912PostingsFormat();
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();

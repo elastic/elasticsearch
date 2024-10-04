@@ -43,7 +43,7 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
         description = "Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>>\n"
             + "except it is intended to run on multiple columns at once.",
         note = "When run on `keyword` or `text` fields, this returns the last string in alphabetical order. "
@@ -54,12 +54,12 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(
             name = "first",
-            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "First of the columns to evaluate."
         ) Expression first,
         @Param(
             name = "rest",
-            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "The rest of the columns to evaluate.",
             optional = true
         ) List<Expression> rest
@@ -152,7 +152,7 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         if (dataType == DataType.INTEGER) {
             return new GreatestIntEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.LONG) {
+        if (dataType == DataType.LONG || dataType == DataType.DATETIME) {
             return new GreatestLongEvaluator.Factory(source(), factories);
         }
         if (dataType == DataType.KEYWORD

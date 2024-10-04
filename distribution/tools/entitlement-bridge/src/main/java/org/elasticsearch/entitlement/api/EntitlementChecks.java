@@ -7,11 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.api;
+package org.elasticsearch.entitlement.api;
 
-/**
- * A simple kind of entitlement that is either present or absent, with no additional structure.
- */
-public enum FlagEntitlement implements Entitlement {
-    EXIT_JVM,
+public interface EntitlementChecks {
+    void checkSystemExit(Class<?> callerClass, System system, int status);
 }

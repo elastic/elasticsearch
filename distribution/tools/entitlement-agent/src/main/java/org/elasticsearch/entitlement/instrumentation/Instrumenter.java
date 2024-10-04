@@ -9,8 +9,8 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
-import org.elasticsearch.entitlement.checks.EntitlementChecks;
-import org.elasticsearch.entitlement.checks.EntitlementProvider;
+import org.elasticsearch.entitlement.api.EntitlementChecks;
+import org.elasticsearch.entitlement.api.EntitlementProvider;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;

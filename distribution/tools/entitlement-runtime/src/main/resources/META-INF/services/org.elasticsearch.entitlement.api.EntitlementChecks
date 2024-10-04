@@ -7,4 +7,4 @@
  # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-org.elasticsearch.entitlement.runtime.checks.EntitlementChecksService
+org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager

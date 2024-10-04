@@ -8,7 +8,7 @@
  */
 
 module org.elasticsearch.entitlement.bridge {
-    uses org.elasticsearch.entitlement.checks.EntitlementChecks;
+    uses org.elasticsearch.entitlement.api.EntitlementChecks;
 
-    exports org.elasticsearch.entitlement.checks;
+    exports org.elasticsearch.entitlement.api;
 }

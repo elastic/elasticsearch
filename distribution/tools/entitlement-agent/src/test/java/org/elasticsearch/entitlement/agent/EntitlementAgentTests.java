@@ -9,15 +9,12 @@
 
 package org.elasticsearch.entitlement.agent;
 
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
-import org.elasticsearch.entitlement.runtime.checks.EntitlementChecksService;
 import org.elasticsearch.entitlement.runtime.internals.EntitlementInternals;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.junit.After;
-
-import static org.elasticsearch.entitlement.runtime.api.FlagEntitlement.EXIT_JVM;
 
 /**
  * This is an end-to-end test of the agent and entitlement runtime.
@@ -28,42 +25,20 @@ import static org.elasticsearch.entitlement.runtime.api.FlagEntitlement.EXIT_JVM
  * See {@code build.gradle} for how we set the command line arguments for this test.
  */
 @WithoutSecurityManager
-@SuppressForbidden(reason = "Some of the sensitive functionality we're locking down is in forbidden APIs")
 public class EntitlementAgentTests extends ESTestCase {
 
-    public static final EntitlementChecksService CHECKS = EntitlementChecksService.get();
+    public static final ElasticsearchEntitlementManager ENTITLEMENT_MANAGER = ElasticsearchEntitlementManager.get();
 
     @After
     public void resetEverything() {
         EntitlementInternals.reset();
     }
 
-    public void testFreezeForbidsGrant() {
-        CHECKS.activate();
-        assertThrows(NotEntitledException.class, () -> CHECKS.checkSystemExit(null, null, 456));
-
-        CHECKS.freeze();
-
-        assertThrows(IllegalStateException.class, () -> CHECKS.grant(getClass().getModule(), EXIT_JVM));
-        assertThrows("Grant should not take effect when frozen", NotEntitledException.class, () -> System.exit(123));
-    }
-
-    public void testFreezeForbidsRevokeAll() {
-        CHECKS.activate();
-        CHECKS.grant(getClass().getModule(), EXIT_JVM);
-        CHECKS.checkSystemExit(null, null, 456); // Should not throw
-
-        CHECKS.freeze();
-
-        assertThrows(IllegalStateException.class, CHECKS::revokeAll);
-        CHECKS.checkSystemExit(null, null, 456); // Revoke should not take effect
-    }
-
     /**
      * We can't really check that this one passes because it will just exit the JVM.
      */
     public void test_exitNotEntitled_throws() {
-        CHECKS.activate();
+        ENTITLEMENT_MANAGER.activate();
         assertThrows(NotEntitledException.class, () -> System.exit(123));
     }
 

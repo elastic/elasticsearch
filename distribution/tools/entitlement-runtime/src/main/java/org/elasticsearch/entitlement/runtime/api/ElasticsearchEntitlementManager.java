@@ -7,57 +7,26 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.checks;
+package org.elasticsearch.entitlement.runtime.api;
 
-import org.elasticsearch.entitlement.checks.EntitlementChecks;
-import org.elasticsearch.entitlement.checks.EntitlementProvider;
-import org.elasticsearch.entitlement.runtime.api.Entitlement;
-import org.elasticsearch.entitlement.runtime.api.FlagEntitlement;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.api.EntitlementChecks;
+import org.elasticsearch.entitlement.api.EntitlementProvider;
 
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
-import static java.util.Collections.newSetFromMap;
 import static org.elasticsearch.entitlement.runtime.internals.EntitlementInternals.isActive;
-import static org.elasticsearch.entitlement.runtime.internals.EntitlementInternals.isFrozen;
 
 /**
- * Implementation of the {@link EntitlementChecks} interface.
+ * Implementation of the {@link EntitlementChecks} interface, providing additional
+ * API methods for managing the checks.
  * The trampoline module loads this object via SPI.
  */
-public class EntitlementChecksService implements EntitlementChecks {
+public class ElasticsearchEntitlementManager implements EntitlementChecks {
     /**
-     * @return the same instance of {@link EntitlementChecksService} returned by {@link EntitlementProvider}.
+     * @return the same instance of {@link ElasticsearchEntitlementManager} returned by {@link EntitlementProvider}.
      */
-    public static EntitlementChecksService get() {
-        return (EntitlementChecksService) EntitlementProvider.checks();
-    }
-
-    private final Set<Module> entitledToExit = newSetFromMap(new ConcurrentHashMap<>());
-
-    public void grant(Module module, Entitlement e) {
-        if (isFrozen) {
-            throw new IllegalStateException("Entitlement grants are frozen");
-        }
-        switch (e) {
-            case FlagEntitlement f -> {
-                switch (f) {
-                    case EXIT_JVM -> entitledToExit.add(module);
-                }
-            }
-        }
-    }
-
-    /**
-     * Mainly for testing purposes.
-     */
-    public void revokeAll() {
-        if (isFrozen) {
-            throw new IllegalStateException("Entitlement grants are frozen");
-        }
-        entitledToExit.clear();
+    public static ElasticsearchEntitlementManager get() {
+        return (ElasticsearchEntitlementManager) EntitlementProvider.checks();
     }
 
     /**
@@ -67,27 +36,14 @@ public class EntitlementChecksService implements EntitlementChecks {
         isActive = true;
     }
 
-    /**
-     * Disallows changes to the entitlement grants.
-     */
-    public void freeze() {
-        isFrozen = true;
-    }
-
     @Override
     public void checkSystemExit(Class<?> callerClass, System system, int status) {
-        checkFlagEntitlement(callerClass, entitledToExit);
-    }
-
-    private void checkFlagEntitlement(Class<?> callerClass, Set<Module> entitledModules) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             // System.out.println(" - Trivially allowed");
             return;
         }
-        if (entitledModules.contains(requestingModule)) {
-            return;
-        }
+        // Hard-forbidden until we develop the permission granting scheme
         throw new NotEntitledException("Missing entitlement for " + requestingModule);
     }
 

@@ -10,13 +10,17 @@
 package org.elasticsearch.entitlement.agent;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.checks.EntitlementChecks;
+import org.elasticsearch.entitlement.api.EntitlementChecks;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
 import java.io.File;
 import java.io.IOException;
 import java.lang.instrument.Instrumentation;
+import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.jar.JarFile;
 
 import static java.util.stream.Collectors.toSet;
@@ -32,16 +36,19 @@ public class EntitlementAgent {
         }
         addJarsToBootstrapClassLoader(inst, jarsString);
 
-        ConfigurationScanner.ScanResults config = ConfigurationScanner.scan(List.of(EntitlementChecks.class));
+        Method targetMethod = System.class.getDeclaredMethod("exit", int.class);
+        Method instrumentationMethod = EntitlementChecks.class.getDeclaredMethod(
+            "checkSystemExit", Class.class, System.class, int.class);
+        Map<MethodKey, Method> methodMap = Map.of(MethodKey.forTargetMethod(targetMethod), instrumentationMethod);
 
         inst.addTransformer(
             new Transformer(
-                new Instrumenter("", config.methodMap()),
-                config.classesToInstrument().stream().map(EntitlementAgent::internalName).collect(toSet())
+                new Instrumenter("", methodMap),
+                Set.of(internalName(System.class))
             ),
             true
         );
-        inst.retransformClasses(config.classesToInstrument().toArray(new Class<?>[0]));
+        inst.retransformClasses(System.class);
     }
 
     @SuppressForbidden(reason = "The appendToBootstrapClassLoaderSearch method takes a JarFile")

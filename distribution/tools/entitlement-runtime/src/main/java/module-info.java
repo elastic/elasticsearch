@@ -7,13 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.entitlement.runtime.checks.EntitlementChecksService;
-
 module org.elasticsearch.entitlement.runtime {
-    requires org.elasticsearch.base;
     requires org.elasticsearch.entitlement.bridge;
+    requires org.elasticsearch.server;
 
     exports org.elasticsearch.entitlement.runtime.api;
 
-    provides org.elasticsearch.entitlement.checks.EntitlementChecks with EntitlementChecksService;
+    provides org.elasticsearch.entitlement.api.EntitlementChecks with org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
 }

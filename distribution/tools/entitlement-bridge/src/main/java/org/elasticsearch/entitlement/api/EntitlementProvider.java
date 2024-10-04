@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.checks;
+package org.elasticsearch.entitlement.api;
 
 import java.util.List;
 import java.util.ServiceLoader;

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.internals;
 
-import org.elasticsearch.entitlement.runtime.checks.EntitlementChecksService;
-
 /**
  * Don't export this from the module. Just don't.
  */
@@ -20,14 +18,7 @@ public class EntitlementInternals {
      */
     public static volatile boolean isActive = false;
 
-    /**
-     * When true, no changes are allowed to the permissions
-     */
-    public static volatile boolean isFrozen = false;
-
     public static void reset() {
-        isFrozen = false;
         isActive = false;
-        EntitlementChecksService.get().revokeAll();
     }
 }

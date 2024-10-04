@@ -156,8 +156,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
         }
 
         public boolean shouldLogException(Throwable e) {
-            return e.getCause() != null
-                && e.getCause() instanceof MustacheInvalidParameterException == false;
+            return e.getCause() != null && e.getCause() instanceof MustacheInvalidParameterException == false;
         }
     }
 

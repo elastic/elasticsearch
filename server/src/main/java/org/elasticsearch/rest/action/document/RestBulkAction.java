@@ -151,8 +151,7 @@ public class RestBulkAction extends BaseRestHandler {
 
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
-            // TODO: Fix type deprecation logging
-            this.parser = new BulkRequestParser(false, request.getRestApiVersion()).incrementalParser(
+            this.parser = new BulkRequestParser(true, request.getRestApiVersion(), handler::loadRequestContext).incrementalParser(
                 request.param("index"),
                 request.param("routing"),
                 FetchSourceContext.parseFromRestRequest(request),

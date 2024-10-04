@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -61,30 +63,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             : fetchFieldsContext.fields().isEmpty() ? null
             : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields());
 
-        final FieldFetcher metadataFieldFetcher;
-        if (storedFieldsContext != null
-            && storedFieldsContext.fieldNames() != null
-            && storedFieldsContext.fieldNames().isEmpty() == false) {
-            final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
-            for (final String storedField : storedFieldsContext.fieldNames()) {
-                final Set<String> matchingFieldNames = searchExecutionContext.getMatchingFieldNames(storedField);
-                for (final String matchingFieldName : matchingFieldNames) {
-                    if (SourceFieldMapper.NAME.equals(matchingFieldName) || IdFieldMapper.NAME.equals(matchingFieldName)) {
-                        continue;
-                    }
-                    final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
-                    // NOTE: checking if the field is stored is required for backward compatibility reasons and to make
-                    // sure we also handle here stored fields requested via `stored_fields`, which was previously a
-                    // responsibility of StoredFieldsPhase.
-                    if (searchExecutionContext.isMetadataField(matchingFieldName) && fieldType.isStored()) {
-                        metadataFields.add(new FieldAndFormat(matchingFieldName, null));
-                    }
-                }
-            }
-            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields);
-        } else {
-            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, DEFAULT_METADATA_FIELDS);
-        }
+        final FieldFetcher metadataFieldFetcher = createMetadataFieldFetcher(
+            searchExecutionContext,
+            storedFieldsContext,
+            fetchFieldsContext
+        );
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
@@ -111,5 +94,65 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 hitContext.hit().addDocumentFields(fields, metadataFields);
             }
         };
+    }
+
+    private static FieldFetcher createMetadataFieldFetcher(
+        final SearchExecutionContext sec,
+        final StoredFieldsContext storedFieldsContext,
+        final FetchFieldsContext fetchFieldsContext
+    ) {
+        final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
+
+        // If a field is requested both via 'fields' and 'stored_fields', the field will be fetched as if requested by 'fields'.
+        // We check the FetchFieldsContext first for this reason, as we prefer going through the ValueFetcher interface.
+        if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
+            // Collect metadata fields requested via 'fields'
+            final List<String> fetchFieldNames = extractFieldNames(fetchFieldsContext.fields());
+            metadataFields.addAll(getMetadataFields(fetchFieldNames, sec));
+        }
+        if (storedFieldsContext != null
+            && storedFieldsContext.fieldNames() != null
+            && storedFieldsContext.fieldNames().isEmpty() == false) {
+            // Collect metadata fields requested via 'stored_fields'
+            final List<String> storedFieldNames = storedFieldsContext.fieldNames();
+            metadataFields.addAll(getMetadataFields(storedFieldNames, sec));
+        }
+
+        // If no fields is requested via 'fields' or 'stored_fields', return the default metadata fields anyway
+        return FieldFetcher.create(sec, metadataFields);
+    }
+
+    // Helper method to extract field names from FieldAndFormat list
+    private static List<String> extractFieldNames(List<FieldAndFormat> fieldAndFormats) {
+        List<String> fieldNames = new ArrayList<>();
+        for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
+            fieldNames.add(fieldAndFormat.field);
+        }
+        return fieldNames;
+    }
+
+    private static Set<FieldAndFormat> getMetadataFields(final List<String> fields, final SearchExecutionContext searchExecutionContext) {
+        final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
+        for (final String field : fields) {
+            final Set<String> matchingFieldNames = searchExecutionContext.getMatchingFieldNames(field);
+            for (final String matchingFieldName : matchingFieldNames) {
+                if (SourceFieldMapper.NAME.equals(matchingFieldName) || IdFieldMapper.NAME.equals(matchingFieldName)) {
+                    continue;
+                }
+                if ("*".equals(field) && IgnoredSourceFieldMapper.NAME.equals(matchingFieldName)) {
+                    // _ignored_source file must be requested explicitly through 'stored_fields' or 'fields'
+                    // and not returned if requested via wildcard "*"
+                    continue;
+                }
+                final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
+                // NOTE: checking if the field is stored is required for backward compatibility reasons and to make
+                // sure we also handle here stored fields requested via `stored_fields`, which was previously a
+                // responsibility of StoredFieldsPhase.
+                if (searchExecutionContext.isMetadataField(matchingFieldName) && fieldType.isStored()) {
+                    metadataFields.add(new FieldAndFormat(matchingFieldName, null));
+                }
+            }
+        }
+        return metadataFields;
     }
 }

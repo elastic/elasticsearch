@@ -30,6 +30,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -853,6 +854,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             // TODO: can we avoid having an exception here?
             if (field.getName().equals(IgnoredFieldMapper.NAME)) {
                 builder.field(field.getName(), field.getValues());
+            } else if (field.getName().equals(IgnoredSourceFieldMapper.NAME)) {
+                builder.field(field.getName(), IgnoredSourceFieldMapper.base64Encode(field.getValue()));
             } else {
                 builder.field(field.getName(), field.<Object>getValue());
             }

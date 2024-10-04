@@ -10,5 +10,5 @@
 package org.elasticsearch.entitlement.api;
 
 public interface EntitlementChecks {
-    void checkSystemExit(Class<?> callerClass, System system, int status);
+    void checkSystemExit(Class<?> callerClass, int status);
 }

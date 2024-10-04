@@ -37,7 +37,7 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
     }
 
     @Override
-    public void checkSystemExit(Class<?> callerClass, System system, int status) {
+    public void checkSystemExit(Class<?> callerClass, int status) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             // System.out.println(" - Trivially allowed");

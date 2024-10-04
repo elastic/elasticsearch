@@ -18,12 +18,9 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarFile;
-
-import static java.util.stream.Collectors.toSet;
 
 public class EntitlementAgent {
 
@@ -38,7 +35,7 @@ public class EntitlementAgent {
 
         Method targetMethod = System.class.getDeclaredMethod("exit", int.class);
         Method instrumentationMethod = EntitlementChecks.class.getDeclaredMethod(
-            "checkSystemExit", Class.class, System.class, int.class);
+            "checkSystemExit", Class.class, int.class);
         Map<MethodKey, Method> methodMap = Map.of(MethodKey.forTargetMethod(targetMethod), instrumentationMethod);
 
         inst.addTransformer(

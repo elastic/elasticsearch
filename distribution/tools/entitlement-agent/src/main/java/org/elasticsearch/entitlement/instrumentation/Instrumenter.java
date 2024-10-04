@@ -181,11 +181,7 @@ public class Instrumenter {
 
         private void forwardIncomingArguments() {
             int localVarIndex = 0;
-            if (instrumentedMethodIsStatic) {
-                // To keep things consistent between static and virtual methods, we pass a null in here,
-                // analogous to how Field and Method accept nulls for static fields/methods.
-                mv.visitInsn(Opcodes.ACONST_NULL);
-            } else {
+            if (instrumentedMethodIsStatic == false) {
                 mv.visitVarInsn(Opcodes.ALOAD, localVarIndex++);
             }
             for (Type type : Type.getArgumentTypes(instrumentedMethodDescriptor)) {

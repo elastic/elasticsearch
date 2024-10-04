@@ -541,7 +541,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         List<Measurement> measurements = plugin.getDoubleGaugeMeasurement(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME);
         assertThat(measurements.size(), equalTo(numNodes));
         measurements.forEach(measurement -> assertThat(measurement.attributes().get("adjusted"), is(false)));
-        measurements.forEach(measurement -> assertThat(measurement.attributes().get("quality"), is(MetricQuality.EXACT)));
+        measurements.forEach(measurement -> assertThat(measurement.attributes().get("quality"), is(MetricQuality.EXACT.getLabel())));
 
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(
@@ -580,9 +580,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         final Map<Object, List<Measurement>> groupedMeasurements = measurements.stream()
             .collect(Collectors.groupingBy(m -> m.attributes().get("adjusted")));
         assertThat(groupedMeasurements.get(false), hasSize(numNodes));
-        groupedMeasurements.get(false).forEach(m -> assertThat(m.attributes().get("quality"), is(MetricQuality.EXACT)));
+        groupedMeasurements.get(false).forEach(m -> assertThat(m.attributes().get("quality"), is(MetricQuality.EXACT.getLabel())));
         assertThat(groupedMeasurements.get(true), hasSize(numNodes));
-        groupedMeasurements.get(true).forEach(m -> assertThat(m.attributes().get("quality"), is(MetricQuality.MINIMUM)));
+        groupedMeasurements.get(true).forEach(m -> assertThat(m.attributes().get("quality"), is(MetricQuality.MINIMUM.getLabel())));
 
         // Add replacement nodes to the cluster and ensure master is not shutting down
         final List<String> newNodeNames = IntStream.range(0, shuttingDownNodes.size())

@@ -178,7 +178,7 @@ public class IngestMetricsService implements ClusterStateListener {
                 "node_name",
                 nodeIngestLoadSnapshot.nodeName(),
                 "quality",
-                nodeIngestLoadSnapshot.metricQuality(),
+                nodeIngestLoadSnapshot.metricQuality().getLabel(),
                 "adjusted",
                 adjusted
             )

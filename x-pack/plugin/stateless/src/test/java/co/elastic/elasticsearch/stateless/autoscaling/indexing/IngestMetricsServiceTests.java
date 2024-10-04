@@ -833,7 +833,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         );
         assertThat(
             measurements.stream().filter(measurement -> (boolean) measurement.attributes().get("adjusted") == false).peek(measurement -> {
-                assertThat(measurement.attributes().get("quality"), is(MetricQuality.EXACT));
+                assertThat(measurement.attributes().get("quality"), is(MetricQuality.EXACT.getLabel()));
                 assertThat(measurement.attributes().get("node_name"), notNullValue());
             }).collect(Collectors.toUnmodifiableMap(m -> m.attributes().get("node_id"), Measurement::getDouble)),
             equalTo(publishedLoads)
@@ -855,7 +855,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             );
             assertThat(measurements, hasSize(publishedLoads.size() * 2));
             assertThat(measurements.stream().filter(measurement -> (boolean) measurement.attributes().get("adjusted")).peek(measurement -> {
-                assertThat(measurement.attributes().get("quality"), is(MetricQuality.MINIMUM));
+                assertThat(measurement.attributes().get("quality"), is(MetricQuality.MINIMUM.getLabel()));
                 assertThat(measurement.attributes().get("node_name"), notNullValue());
             }).collect(Collectors.toUnmodifiableMap(m -> m.attributes().get("node_id"), Measurement::getDouble)),
                 equalTo(

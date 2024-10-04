@@ -103,7 +103,7 @@ setup:
   - match: { hits.hits.0._ignored_source: null }
 
 ---
-"fields with ignored source combination (stored first)":
+"fields with ignored source in stored fields":
 
   - do:
       search:
@@ -117,7 +117,7 @@ setup:
   - match: { hits.hits.0.fields: null }
 
 ---
-"fields with ignored source combination (fields first)":
+"fields with ignored source in fields":
 
   - do:
       search:

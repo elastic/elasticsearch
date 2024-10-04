@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
@@ -74,7 +75,7 @@ public final class BulkRequestParser {
      * Configuration for {@link XContentParser}.
      */
     private final XContentParserConfiguration config;
-    private final Releasable loggingContext;
+    private final Supplier<Releasable> loggingContext;
 
     /**
      * Create a new parser.
@@ -83,7 +84,7 @@ public final class BulkRequestParser {
      * @param restApiVersion
      */
     public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
-        this(deprecateOrErrorOnType, restApiVersion, () -> {});
+        this(deprecateOrErrorOnType, restApiVersion, () -> () -> {});
     }
 
     /**
@@ -92,7 +93,7 @@ public final class BulkRequestParser {
      * @param deprecateOrErrorOnType whether to allow _type information in the index line; used by BulkMonitoring
      * @param restApiVersion
      */
-    public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion, Releasable loggingContext) {
+    public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion, Supplier<Releasable> loggingContext) {
         this.deprecateOrErrorOnType = deprecateOrErrorOnType;
         this.config = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRestApiVersion(restApiVersion);
@@ -169,13 +170,13 @@ public final class BulkRequestParser {
 
     @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
     // Warnings will need to be replaced with XContentEOFException from 9.x
-    private static void warnBulkActionNotProperlyClosed(String message, Releasable loggingContext) {
-        try (Releasable ignore = loggingContext) {
+    private static void warnBulkActionNotProperlyClosed(String message, Supplier<Releasable> loggingContext) {
+        try (Releasable ignore = loggingContext.get()) {
             deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);
         }
     }
 
-    private static void checkBulkActionIsProperlyClosed(XContentParser parser, Releasable loggingContext) throws IOException {
+    private static void checkBulkActionIsProperlyClosed(XContentParser parser, Supplier<Releasable> loggingContext) throws IOException {
         XContentParser.Token token;
         try {
             token = parser.nextToken();
@@ -409,8 +410,10 @@ public final class BulkRequestParser {
                                 if (parser.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
                                     // for bigger bulks, deprecation throttling might not be enough
                                     if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
-                                        deprecationLogger.compatibleCritical("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-                                        typesDeprecationLogged = true;
+                                        try (Releasable ignore = loggingContext.get()) {
+                                            deprecationLogger.compatibleCritical("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+                                            typesDeprecationLogged = true;
+                                        }
                                     }
                                 } else if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
                                     && deprecateOrErrorOnType) {

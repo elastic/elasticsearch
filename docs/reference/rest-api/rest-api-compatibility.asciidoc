@@ -78,6 +78,8 @@ can enable REST API compatibility for all requests.
 To enable REST API compatibility for all requests received
 by {es} set the environment variable `ELASTIC_CLIENT_APIVERSIONING` to true.
 
+include::{es-ref-dir}/rest-api/rest-api-changes.asciidoc[]
+
 [discrete]
 === REST API compatibility workflow
 

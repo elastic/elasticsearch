@@ -80,6 +80,7 @@ public enum ReferenceDocs {
     FLOOD_STAGE_WATERMARK,
     X_OPAQUE_ID,
     FORMING_SINGLE_NODE_CLUSTERS,
+    CIRCUIT_BREAKER_ERRORS,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

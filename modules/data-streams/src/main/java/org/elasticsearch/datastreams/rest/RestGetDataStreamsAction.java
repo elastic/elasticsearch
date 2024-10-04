@@ -41,9 +41,9 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
                 IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
                 IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
                 IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
-                DataStream.isFailureStoreFeatureFlagEnabled() ? IndicesOptions.FailureStoreOptions.FAILURE_STORE : "name",
                 "verbose"
-            )
+            ),
+            DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(IndicesOptions.FailureStoreOptions.FAILURE_STORE) : Set.of()
         )
     );
 

@@ -71,6 +71,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
                 new SearchUsage(),
                 nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED
                     || nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED
+                    || nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED
             )
         );
     }

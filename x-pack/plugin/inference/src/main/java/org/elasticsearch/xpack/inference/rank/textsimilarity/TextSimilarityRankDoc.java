@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -92,5 +94,10 @@ public class TextSimilarityRankDoc extends RankDoc {
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("inferenceId", inferenceId);
         builder.field("field", field);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.TEXT_SIMILARITY_RERANKER_QUERY_REWRITE;
     }
 }

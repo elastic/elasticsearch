@@ -654,6 +654,39 @@ public class SecurityIndexManagerTests extends ESTestCase {
         }));
     }
 
+    public void testNotReadyForMigrationBecauseOfPrecondition() {
+        final ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            IndexMetadata.State.OPEN
+        );
+        clusterStateBuilder.nodeFeatures(
+            Map.of("1", new SecurityFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet()))
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+        assertFalse(manager.isReadyForSecurityMigration(new SecurityMigrations.SecurityMigration() {
+            @Override
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public Set<NodeFeature> nodeFeaturesRequired() {
+                return Set.of();
+            }
+
+            @Override
+            public int minMappingVersion() {
+                return 0;
+            }
+
+            @Override
+            public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
+                return false;
+            }
+        }));
+    }
+
     public void testProcessClosedIndexState() {
         // Index initially exists
         final ClusterState.Builder indexAvailable = createClusterState(

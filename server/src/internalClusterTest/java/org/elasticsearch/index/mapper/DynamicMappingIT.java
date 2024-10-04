@@ -199,13 +199,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
         final AtomicReference<Throwable> error = new AtomicReference<>();
         startInParallel(numberOfDocsToCreate, i -> {
             try {
-                Object value = 0;
-                if (randomBoolean()) {
-                    value = 0.1;
-                }
                 assertEquals(
                     DocWriteResponse.Result.CREATED,
-                    prepareIndex("index").setId(Integer.toString(i)).setSource("field", value).get().getResult()
+                    prepareIndex("index").setId(Integer.toString(i)).setSource("field" + i, 0, "field" + (i + 1), 0.1).get().getResult()
                 );
             } catch (Exception e) {
                 error.compareAndSet(null, e);
@@ -218,10 +214,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfDocsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
-        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings("index").get();
-
-        Object type = new WriteField("properties.field.type", () -> mappings.getMappings().get("index").getSourceAsMap()).get(null);
-        assertThat(type, is(oneOf("long", "float")));
+        Map<String, Object> index = indicesAdmin().prepareGetMappings("index").get().getMappings().get("index").getSourceAsMap();
+        for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
+            assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
+            assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
+        }
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException, IOException {

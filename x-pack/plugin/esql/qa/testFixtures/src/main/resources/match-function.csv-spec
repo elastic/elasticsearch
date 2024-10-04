@@ -169,3 +169,36 @@ book_no:keyword | title:text
 4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
 7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
+
+matchMultivaluedField
+required_capability: match_function
+
+from employees 
+| where match(job_positions, "Tech Lead") and match(job_positions, "Reporting Analyst") 
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10004          | Chirstian          | Koblick        
+10010          | Duangkaew          | Piveteau       
+10011          | Mary               | Sluis          
+10088          | Jungsoon           | Syrzycki       
+10093          | Sailaja            | Desikan        
+10097          | Remzi              | Waschkowski    
+;
+
+testMultiValuedFieldWithConjunction
+required_capability: match_function
+
+from employees 
+| where (match(job_positions, "Data Scientist") or match(job_positions, "Support Engineer")) and gender == "F"
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10023          | Bojan              | Montemayor
+10041          | Uri                | Lenart
+10044          | Mingsen            | Casley
+10053          | Sanjiv             | Zschoche
+10069          | Margareta          | Bierman
+;

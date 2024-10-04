@@ -15,6 +15,7 @@ import com.github.mustachejava.MustacheFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.SizeLimitingStringWriter;
@@ -141,11 +142,13 @@ public final class MustacheScriptEngine implements ScriptEngine {
             try {
                 template.execute(writer, params);
             } catch (Exception e) {
+                // size limit exception can appear at several places in the causal list depending on script & context
+                if (ExceptionsHelper.unwrap(e, SizeLimitingStringWriter.SizeLimitExceededException.class) != null) {
+                    // don't log, client problem
+                    throw new ElasticsearchParseException("Mustache script result size limit exceeded", e);
+                }
                 if (shouldLogException(e)) {
                     logger.error(() -> format("Error running %s", template), e);
-                }
-                if (e.getCause() instanceof SizeLimitingStringWriter.SizeLimitExceededException) {
-                    throw new ElasticsearchParseException("Mustache script result size limit exceeded", e);
                 }
                 throw new GeneralScriptException("Error running " + template, e);
             }
@@ -154,8 +157,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
 
         public boolean shouldLogException(Throwable e) {
             return e.getCause() != null
-                && e.getCause() instanceof MustacheInvalidParameterException == false
-                && e.getCause() instanceof SizeLimitingStringWriter.SizeLimitExceededException == false;
+                && e.getCause() instanceof MustacheInvalidParameterException == false;
         }
     }
 

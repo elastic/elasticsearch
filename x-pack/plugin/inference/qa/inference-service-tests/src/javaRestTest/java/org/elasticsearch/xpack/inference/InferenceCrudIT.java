@@ -38,10 +38,12 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        assertThat(getAllModels, hasSize(9));
+        int numModels = DefaultElserFeatureFlag.isEnabled() ? 10 : 9;
+        assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
-        assertThat(getSparseModels, hasSize(5));
+        int numSparseModels = DefaultElserFeatureFlag.isEnabled() ? 6 : 5;
+        assertThat(getSparseModels, hasSize(numSparseModels));
         for (var sparseModel : getSparseModels) {
             assertEquals("sparse_embedding", sparseModel.get("task_type"));
         }
@@ -99,7 +101,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
-        var inference = inferOnMockService(modelId, List.of(randomAlphaOfLength(10)));
+        var inference = infer(modelId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
         deleteModel(modelId);
     }

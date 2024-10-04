@@ -31,9 +31,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -64,9 +62,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
@@ -169,14 +165,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             queryTokens.add(randomAlphaOfLength(QUERY_TOKEN_LENGTH));
         }
 
-        SemanticQueryInnerHitBuilder innerHitBuilder = null;
-        if (randomBoolean()) {
-            innerHitBuilder = new SemanticQueryInnerHitBuilder();
-            innerHitBuilder.setFrom(randomIntBetween(0, 100));
-            innerHitBuilder.setSize(randomIntBetween(0, 100));
-        }
-
-        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD, String.join(" ", queryTokens), innerHitBuilder);
+        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD, String.join(" ", queryTokens));
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -200,21 +189,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             case NONE -> assertThat(nestedQuery.getChildQuery(), instanceOf(MatchNoDocsQuery.class));
             case SPARSE_EMBEDDING -> assertSparseEmbeddingLuceneQuery(nestedQuery.getChildQuery());
             case TEXT_EMBEDDING -> assertTextEmbeddingLuceneQuery(nestedQuery.getChildQuery());
-        }
-
-        if (queryBuilder.innerHit() != null) {
-            // Rewrite to a nested query
-            QueryBuilder rewrittenQueryBuilder = rewriteQuery(queryBuilder, createQueryRewriteContext(), createSearchExecutionContext());
-            assertThat(rewrittenQueryBuilder, instanceOf(NestedQueryBuilder.class));
-
-            NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) rewrittenQueryBuilder;
-            Map<String, InnerHitContextBuilder> innerHitInternals = new HashMap<>();
-            InnerHitContextBuilder.extractInnerHits(nestedQueryBuilder, innerHitInternals);
-            assertThat(innerHitInternals.size(), equalTo(1));
-
-            InnerHitContextBuilder innerHits = innerHitInternals.get(queryBuilder.innerHit().getFieldName());
-            assertNotNull(innerHits);
-            assertThat(innerHits.innerHitBuilder(), equalTo(queryBuilder.innerHit().toInnerHitBuilder()));
         }
     }
 
@@ -336,20 +310,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
               "semantic": {
                 "field": "foo",
                 "query": "bar"
-              }
-            }""", queryBuilder);
-
-        SemanticQueryInnerHitBuilder innerHitBuilder = new SemanticQueryInnerHitBuilder().setFrom(1).setSize(2);
-        queryBuilder = new SemanticQueryBuilder("foo", "bar", innerHitBuilder);
-        checkGeneratedJson("""
-            {
-              "semantic": {
-                "field": "foo",
-                "query": "bar",
-                "inner_hits": {
-                  "from": 1,
-                  "size": 2
-                }
               }
             }""", queryBuilder);
     }

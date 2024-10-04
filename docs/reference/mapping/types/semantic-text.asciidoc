@@ -63,12 +63,14 @@ PUT my-index-000002
 `inference_id`::
 (Required, string)
 {infer-cap} endpoint that will be used to generate the embeddings for the field.
+This parameter cannot be updated.
 Use the <<put-inference-api>> to create the endpoint.
 If `search_inference_id` is specified, the {infer} endpoint defined by `inference_id` will only be used at index time.
 
 `search_inference_id`::
 (Optional, string)
 {infer-cap} endpoint that will be used to generate embeddings at query time.
+You can update this parameter by using the <<indices-put-mapping, Update mapping API>>.
 Use the <<put-inference-api>> to create the endpoint.
 If not specified, the {infer} endpoint defined by `inference_id` will be used at both index and query time.
 

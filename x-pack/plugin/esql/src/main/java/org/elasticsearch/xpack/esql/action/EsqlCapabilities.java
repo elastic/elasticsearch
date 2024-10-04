@@ -169,6 +169,11 @@ public class EsqlCapabilities {
         FIXED_PUSHDOWN_PAST_PROJECT,
 
         /**
+         * Support for datetime in least and greatest functions
+         */
+        LEAST_GREATEST_FOR_DATES,
+
+        /**
          * Changed error messages for fields with conflicting types in different indices.
          */
         SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,

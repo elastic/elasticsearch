@@ -427,7 +427,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } catch (Exception e) {
             logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
             assert result.getId() != null;
-            onComplete(exceptionToResult(e, primary, false, version, result.getId()), context, updateResult);
+            onMappingUpdateFailure(e, primary, version, result, context, updateResult, initialMappingVersion);
             return true;
         }
 
@@ -451,7 +451,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             public void onFailure(Exception e) {
-                onComplete(exceptionToResult(e, primary, false, version, result.getId()), context, updateResult);
+                onMappingUpdateFailure(e, primary, version, result, context, updateResult, initialMappingVersion);
                 // Requesting mapping update failed, so we don't have to wait for a cluster state update
                 assert context.isInitial();
                 itemDoneListener.onResponse(null);
@@ -459,6 +459,35 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         });
         return false;
     }
+
+    private static void onMappingUpdateFailure(
+        Exception e,
+        IndexShard primary,
+        long version,
+        Engine.Result result,
+        BulkPrimaryExecutionContext context,
+        UpdateHelper.Result updateResult,
+        long initialMappingVersion) {
+        Engine.Result r = exceptionToResult(e, primary, false, version, result.getId());
+        DocumentMapper documentMapper = primary.mapperService().documentMapper();
+        boolean mappingWasConcurrentlyUpdated = false;
+        if (documentMapper != null) {
+            long currentMappingVersion = primary.mapperService().mappingVersion();
+            mappingWasConcurrentlyUpdated = currentMappingVersion > initialMappingVersion;
+        }
+        if (mappingWasConcurrentlyUpdated) {
+            // retry current index request if the mapping was updated concurrently
+            // when two index requests race to add a conflicting dynamic mapping for the same field,
+            // the index request whose dynamic mapping update loses the race will fail
+            // retrying the index request ensures that it sees the updated mappings,
+            // which it can take into account when parsing the document (for example by coercing the value or ignore_malformed values)
+            context.markOperationAsExecuted(r);
+            context.resetForMappingUpdateRetry();
+        } else {
+            onComplete(r, context, updateResult);
+        }
+    }
+
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {
         assert id != null;

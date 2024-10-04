@@ -166,4 +166,3 @@ The `elser` service of the inference API will be removed in an upcoming release.
 In the current version there is no impact. In a future version, users of the `elser` service will no longer be able to use it, and will be required to use the `elasticsearch` service to access elser through the inference API.
 ====
 
-include::transient-settings-migration-guide.asciidoc[]

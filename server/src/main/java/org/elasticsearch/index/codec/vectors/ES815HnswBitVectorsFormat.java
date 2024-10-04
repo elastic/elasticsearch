@@ -30,7 +30,7 @@ public class ES815HnswBitVectorsFormat extends KnnVectorsFormat {
     private final int maxConn;
     private final int beamWidth;
 
-    private final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatVectorsFormat();
+    private static final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatVectorsFormat();
 
     public ES815HnswBitVectorsFormat() {
         this(16, 100);

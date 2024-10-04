@@ -191,4 +191,13 @@ public interface InferenceService extends Closeable {
     default boolean canStream(TaskType taskType) {
         return supportedStreamingTasks().contains(taskType);
     }
+
+    /**
+     * A service can define default configurations that can be
+     * used out of the box without creating an endpoint first.
+     * @return Default configurations provided by this service
+     */
+    default List<UnparsedModel> defaultConfigs() {
+        return List.of();
+    }
 }

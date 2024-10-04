@@ -129,8 +129,8 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
         // TODO: adapt assertion to assert only that it is not stateless (ES-9563)
         assert DiscoveryNode.isStateless(clusterService.getSettings()) == false || indexShard.indexSettings().isFastRefresh()
-            : "in Stateless a promotable to primary shard can receive a TransportShardMultiGetAction only if an index has the fast "
-                + "refresh setting";
+            : "in Stateless a promotable to primary shard can receive a TransportShardMultiGetAction only if an index has "
+                + "the fast refresh setting";
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
             asyncShardMultiGet(request, shardId, listener);
         } else {

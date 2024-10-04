@@ -311,20 +311,14 @@ include::repository-shared-settings.asciidoc[]
 
 `delete_objects_max_size`::
 
-    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
-    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
-    supported by the
-    https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
-    DeleteObjects API].
+    (integer) Sets the maxmimum batch size, betewen 1 and 1000, used for `DeleteObjects` requests. Defaults to 1000 which is the maximum
+    number supported by the https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS DeleteObjects API].
 
 `max_multipart_upload_cleanup_size`::
 
-    (<<number,numeric>>) Sets the maximum number of possibly-dangling multipart
-    uploads to clean up in each batch of snapshot deletions. Defaults to `1000`
-    which is the maximum number supported by the
-    https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[AWS
-    ListMultipartUploads API]. If set to `0`, {es} will not attempt to clean up
-    dangling multipart uploads.
+    (integer) Sets the maximum number of possibly-dangling multipart uploads to clean up in each batch of snapshot deletions. Defaults to
+    `1000` which is the maximum number supported by the https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[AWS
+    ListMultipartUploads API]. If set to `0`, {es} will not attempt to clean up dangling multipart uploads.
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future

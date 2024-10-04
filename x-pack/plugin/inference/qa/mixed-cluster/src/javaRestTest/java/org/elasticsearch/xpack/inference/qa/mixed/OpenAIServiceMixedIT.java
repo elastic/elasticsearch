@@ -32,6 +32,7 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
     private static final String OPEN_AI_EMBEDDINGS_CHUNKING_SETTINGS_ADDED = "8.16.0";
     private static final String OPEN_AI_COMPLETIONS_ADDED = "8.14.0";
     private static final String MINIMUM_SUPPORTED_VERSION = "8.15.0";
+    private static final String ENDPOINT_VERSION_ADDED = "8.16.0";
 
     private static MockWebServer openAiEmbeddingsServer;
     private static MockWebServer openAiChatCompletionsServer;
@@ -115,8 +116,19 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
 
         // queue a response as PUT will call the service
         openAiChatCompletionsServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionsResponse()));
-        put(inferenceId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
-
+        try {
+            put(inferenceId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
+        } catch (Exception e) {
+            if (bwcVersion.before(Version.fromString(ENDPOINT_VERSION_ADDED))) {
+                // endpoint version was added in 8.16.0. if the version is before that, an exception will be thrown if the index mapping
+                // was created based on a mapping from an old node
+                assertThat(
+                    e.getMessage(),
+                    containsString("Please update all nodes in your cluster to the latest version to put inference endpoints.")
+                );
+                return;
+            }
+        }
         var configsMap = get(TaskType.COMPLETION, inferenceId);
         logger.warn("Configs: {}", configsMap);
         var configs = (List<Map<String, Object>>) configsMap.get("endpoints");

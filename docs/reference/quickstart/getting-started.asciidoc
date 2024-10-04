@@ -1,103 +1,150 @@
 [[getting-started]]
-== Quick start guide
+== Index and search data using {es} APIs
+++++
+<titleabbrev>Basics: Index and search using APIs</titleabbrev>
+++++
 
-This guide helps you learn how to:
+This quick start guide is a hands-on introduction to the fundamental concepts of Elasticsearch: <<documents-indices,indices, documents and field type mappings>>.
 
-* Run {es} and {kib} (using {ecloud} or in a local Docker dev environment),
-* add simple (non-timestamped) dataset to {es},
-* run basic searches.
+You'll learn how to create an index, add data as documents, work with dynamic and explicit mappings, and perform your first basic searches.
 
 [TIP]
 ====
-If you're interested in using {es} with Python, check out Elastic Search Labs. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
-
-* https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[Tutorial]: this walks you through building a complete search solution with {es}, from the ground up.
-* https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs` repository]: it contains a range of Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].
+The code examples in this tutorial are in {kibana-ref}/console-kibana.html[Console] syntax by default.
+You can {kibana-ref}/console-kibana.html#import-export-console-requests[convert into other programming languages] in the Console UI.
 ====
 
 [discrete]
-[[run-elasticsearch]]
-=== Run {es}
+[[getting-started-prerequisites]]
+=== Prerequisites
 
-The simplest way to set up {es} is to create a managed deployment with {ess} on
-{ecloud}. If you prefer to manage your own test environment, install and
-run {es} using Docker.
-
-include::{es-ref-dir}/tab-widgets/code.asciidoc[]
-include::{es-ref-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
-
-[discrete]
-[[send-requests-to-elasticsearch]]
-=== Send requests to {es}
-
-You send data and other requests to {es} using REST APIs. This lets you interact
-with {es} using any client that sends HTTP requests, such as
-https://curl.se[curl]. You can also use {kib}'s Console to send requests to
-{es}.
-
-include::{es-ref-dir}/tab-widgets/api-call-widget.asciidoc[]
-
-[discrete]
-[[add-data]]
-=== Add data
-
-You add data to {es} as JSON objects called documents. {es} stores these
-documents in searchable indices.
-
-[discrete]
-[[add-single-document]]
-==== Add a single document
-
-Submit the following indexing request to add a single document to the
-`books` index.
-The request automatically creates the index.
+Before you begin, you need to have a running {es} cluster.
+The fastest way to get started is with a <<run-elasticsearch-locally,local development environment>>.
+Refer to <<elasticsearch-intro-deploy,Run {es}>> for other deployment options.
 
 ////
 [source,console]
 ----
 PUT books
+PUT my-explicit-mappings-books
 ----
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE books
+DELETE my-explicit-mappings-books
+--------------------------------------------------
+// TEARDOWN
+
 ////
+
+[discrete]
+[[getting-started-index-creation]]
+=== Step 1: Create an index
+
+Create a new index named `books`:
 
 [source,console]
 ----
-POST books/_doc
-{"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+PUT /books
 ----
-// TEST[s/_doc/_doc?refresh=wait_for/]
+// TEST[skip: index already setup]
 
-The response includes metadata that {es} generates for the document including a unique `_id` for the document within the index.
+The following response indicates the index was created successfully.
 
-.Expand to see example response
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
 ----
 {
-  "_index": "books",
-  "_id": "O0lG2IsBaSa7VYx_rEia",
-  "_version": 1,
-  "result": "created",
-  "_shards": {
-    "total": 2,
-    "successful": 2,
-    "failed": 0
-  },
-  "_seq_no": 0,
-  "_primary_term": 1
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "index": "books"
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip: index already setup]
 ===============
 
 [discrete]
-[[add-multiple-documents]]
+[[getting-started-add-documents]]
+=== Step 2: Add data to your index
+
+[TIP]
+====
+This tutorial uses {es} APIs, but there are many other ways to
+<<es-ingestion-overview,add data to {es}>>.
+====
+
+You add data to {es} as JSON objects called documents.
+{es} stores these
+documents in searchable indices.
+
+[discrete]
+[[getting-started-add-single-document]]
+==== Add a single document
+
+Submit the following indexing request to add a single document to the
+`books` index.
+
+[TIP]
+====
+If the index didn't already exist, this request would automatically create it.
+====
+
+[source,console]
+----
+POST books/_doc
+{
+  "name": "Snow Crash",
+  "author": "Neal Stephenson",
+  "release_date": "1992-06-01",
+  "page_count": 470
+}
+----
+// TEST[continued]
+
+The response includes metadata that {es} generates for the document, including a unique `_id` for the document within the index.
+
+.Example response
+[%collapsible]
+===============
+[source,console-result]
+----
+{
+  "_index": "books", <1>
+  "_id": "O0lG2IsBaSa7VYx_rEia", <2>
+  "_version": 1, <3>
+  "result": "created", <4>
+  "_shards": { <5>
+    "total": 2, <6>
+    "successful": 2, <7>
+    "failed": 0 <8>
+  },
+  "_seq_no": 0, <9>
+  "_primary_term": 1 <10>
+}
+----
+// TEST[s/O0lG2IsBaSa7VYx_rEia/*/]
+<1> The `_index` field indicates the index the document was added to.
+<2> The `_id` field is the unique identifier for the document.
+<3> The `_version` field indicates the version of the document.
+<4> The `result` field indicates the result of the indexing operation.
+<5> The `_shards` field contains information about the number of <<scalability,shards>> that the indexing operation was executed on and the number that succeeded.
+<6> The `total` field indicates the total number of shards for the index.
+<7> The `successful` field indicates the number of shards that the indexing operation was executed on.
+<8> The `failed` field indicates the number of shards that failed during the indexing operation. '0' indicates no failures.
+<9> The `_seq_no` field holds a monotonically increasing number incremented for each indexing operation on a shard.
+<10> The `_primary_term` field is a monotonically increasing number incremented each time a primary shard is assigned to a different node.
+===============
+
+[discrete]
+[[getting-started-add-multiple-documents]]
 ==== Add multiple documents
 
-Use the `_bulk` endpoint to add multiple documents in one request. Bulk data
-must be newline-delimited JSON (NDJSON). Each line must end in a newline
-character (`\n`), including the last line.
+Use the <<docs-bulk,`_bulk` endpoint>> to add multiple documents in one request. Bulk data
+must be formatted as newline-delimited JSON (NDJSON).
 
 [source,console]
 ----
@@ -117,7 +164,7 @@ POST /_bulk
 
 You should receive a response indicating there were no errors.
 
-.Expand to see example response
+.Example response
 [%collapsible]
 ===============
 [source,console-result]
@@ -213,33 +260,221 @@ You should receive a response indicating there were no errors.
 ===============
 
 [discrete]
-[[qs-search-data]]
-=== Search data
+[[getting-started-mappings-and-data-types]]
+=== Step 3: Define mappings and data types
 
-Indexed documents are available for search in near real-time.
+<<elasticsearch-intro-documents-fields-mappings,Mappings>> define how data is stored and indexed in {es}, like a schema in a relational database.
 
 [discrete]
-[[search-all-documents]]
+[[getting-started-dynamic-mapping]]
+==== Use dynamic mapping
+
+When using dynamic mapping, {es} automatically creates mappings for new fields by default.
+The documents we've added so far have used dynamic mapping, because we didn't specify a mapping when creating the index.
+
+To see how dynamic mapping works, add a new document to the `books` index with a field that doesn't appear in the existing documents.
+
+[source,console]
+----
+POST /books/_doc
+{
+  "name": "The Great Gatsby",
+  "author": "F. Scott Fitzgerald",
+  "release_date": "1925-04-10",
+  "page_count": 180,
+  "language": "EN" <1>
+}
+----
+// TEST[continued]
+<1> The new field.
+
+View the mapping for the `books` index with the <<indices-get-mapping, Get mapping API>>. The new field `new_field` has been added to the mapping with a `text` data type.
+
+[source,console]
+----
+GET /books/_mapping
+----
+// TEST[continued]
+
+.Example response
+[%collapsible]
+===============
+[source,console-result]
+----
+{
+  "books": {
+    "mappings": {
+      "properties": {
+        "author": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "new_field": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "page_count": {
+          "type": "long"
+        },
+        "release_date": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+===============
+
+[discrete]
+[[getting-started-explicit-mapping]]
+==== Define explicit mapping
+
+Create an index named `my-explicit-mappings-books` with explicit mappings.
+Pass each field's properties as a JSON object. This object should contain the <<mapping-types,field data type>> and any additional <<mapping-params,mapping parameters>>.
+
+[source,console]
+----
+PUT /my-explicit-mappings-books
+{
+  "mappings": {
+    "dynamic": false,  <1>
+    "properties": {  <2>
+      "name": { "type": "text" },
+      "author": { "type": "text" },
+      "release_date": { "type": "date", "format": "yyyy-MM-dd" },
+      "page_count": { "type": "integer" }
+    }
+  }
+}
+----
+// TEST[continued]
+<1> Disables dynamic mapping for the index. Documents containing fields not defined in the mapping will be rejected.
+<2> The `properties` object defines the fields and their data types for documents in this index.
+
+.Example response
+[%collapsible]
+===============
+[source,console-result]
+----
+{
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "index": "my-explicit-mappings-books"
+}
+----
+// TEST[skip:already created in setup]
+===============
+
+[discrete]
+[[getting-started-combined-mapping]]
+==== Combine dynamic and explicit mappings
+
+Explicit mappings are defined at index creation, and documents must conform to these mappings.
+You can also use the <<indices-put-mapping,Update mapping API>>.
+When an index has the `dynamic` flag set to `true`, you can add new fields to documents without updating the mapping.
+
+This allows you to combine explicit and dynamic mappings.
+Learn more about <<mapping-manage-update,managing and updating mappings>>.
+
+[discrete]
+[[getting-started-search-data]]
+=== Step 4: Search your index
+
+Indexed documents are available for search in near real-time, using the <<search-your-data,`_search` API>>.
+// TODO: You'll find more detailed quick start guides in TODO
+
+[discrete]
+[[getting-started-search-all-documents]]
 ==== Search all documents
 
 Run the following command to search the `books` index for all documents:
+
 [source,console]
 ----
 GET books/_search
 ----
 // TEST[continued]
 
-The `_source` of each hit contains the original
-JSON object submitted during indexing.
+.Example response
+[%collapsible]
+===============
+[source,console-result]
+----
+{
+  "took": 2, <1>
+  "timed_out": false, <2>
+  "_shards": { <3>
+    "total": 5,
+    "successful": 5,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": { <4>
+    "total": { <5>
+      "value": 7,
+      "relation": "eq"
+    },
+    "max_score": 1, <6>
+    "hits": [
+      {
+        "_index": "books", <7>
+        "_id": "CwICQpIBO6vvGGiC_3Ls", <8>
+        "_score": 1, <9>
+        "_source": { <10>
+          "name": "Brave New World",
+          "author": "Aldous Huxley",
+          "release_date": "1932-06-01",
+          "page_count": 268
+        }
+      },
+      ... (truncated)
+    ]
+  }
+}
+----
+// TEST[continued]
+<1> The `took` field indicates the time in milliseconds for {es} to execute the search
+<2> The `timed_out` field indicates whether the search timed out
+<3> The `_shards` field contains information about the number of <<glossary,shards>> that the search was executed on and the number that succeeded
+<4> The `hits` object contains the search results
+<5> The `total` object provides information about the total number of matching documents
+<6> The `max_score` field indicates the highest relevance score among all matching documents
+<7> The `_index` field indicates the index the document belongs to
+<8> The `_id` field is the document's unique identifier
+<9> The `_score` field indicates the relevance score of the document
+<10> The `_source` field contains the original JSON object submitted during indexing
+===============
 
 [discrete]
-[[qs-match-query]]
+[[getting-started-match-query]]
 ==== `match` query
 
-You can use the `match` query to search for documents that contain a specific value in a specific field.
-This is the standard query for performing full-text search, including fuzzy matching and phrase searches.
+You can use the <<query-dsl-match-query,`match` query>> to search for documents that contain a specific value in a specific field.
+This is the standard query for full-text searches.
 
 Run the following command to search the `books` index for documents containing `brave` in the `name` field:
+
 [source,console]
 ----
 GET books/_search
@@ -253,32 +488,63 @@ GET books/_search
 ----
 // TEST[continued]
 
+.Example response
+[%collapsible]
+===============
+[source,console-result]
+----
+{
+  "took": 9,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 0.6931471, <1>
+    "hits": [
+      {
+        "_index": "books",
+        "_id": "CwICQpIBO6vvGGiC_3Ls",
+        "_score": 0.6931471,
+        "_source": {
+          "name": "Brave New World",
+          "author": "Aldous Huxley",
+          "release_date": "1932-06-01",
+          "page_count": 268
+        }
+      }
+    ]
+  }
+}
+----
+// TEST[continued]
+<1> The `max_score` is the score of the highest-scoring document in the results. In this case, there is only one matching document, so the `max_score` is the score of that document.
+===============
+
 [discrete]
-[[whats-next]]
-=== Next steps
+[[getting-started-delete-indices]]
+=== Step 5: Delete your indices (optional)
 
-Now that {es} is up and running and you've learned the basics, you'll probably want to test out larger datasets, or index your own data.
+When following along with examples, you might want to delete an index to start from scratch.
+You can delete indices using the <<indices-delete-index,Delete index API>>.
 
-[discrete]
-[[whats-next-search-learn-more]]
-==== Learn more about search queries
+For example, run the following command to delete the indices created in this tutorial:
 
-* <<search-with-elasticsearch>>. Jump here to learn about exact value search, full-text search, vector search, and more, using the <<search-search,search API>>.
+[source,console]
+----
+DELETE /books
+DELETE /my-explicit-mappings-books
+----
+// TEST[skip:handled by setup/teardown]
 
-[discrete]
-[[whats-next-more-data]]
-==== Add more data
-
-* Learn how to {kibana-ref}/sample-data.html[install sample data] using {kib}. This is a quick way to test out {es} on larger workloads.
-* Learn how to use the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[upload data UI] in {kib} to add your own CSV, TSV, or JSON files.
-* Use the https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html[bulk API] to ingest your own datasets to {es}.
-
-[discrete]
-[[whats-next-client-libraries]]
-==== {es} programming language clients
-
-* Check out our https://www.elastic.co/guide/en/elasticsearch/client/index.html[client library] to work with your {es} instance in your preferred programming language.
-* If you're using Python, check out https://www.elastic.co/search-labs[Elastic Search Labs] for a range of examples that use the {es} Python client. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
-** This extensive, hands-on https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[tutorial] 
-walks you through building a complete search solution with {es}, from the ground up.
-** https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] contains a range of executable Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].
+[CAUTION]
+====
+Deleting an index permanently deletes its documents, shards, and metadata.
+====

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -36,6 +37,10 @@ abstract class AbstractStatementParserTests extends ESTestCase {
             throw new AssertionError("parsing error for [" + statement + "]", e);
         }
         assertThat(statement, actual, equalTo(expected));
+    }
+
+    LogicalPlan statement(String query, String arg) {
+        return statement(LoggerMessageFormat.format(null, query, arg), new QueryParams());
     }
 
     LogicalPlan statement(String e) {
@@ -123,5 +128,13 @@ abstract class AbstractStatementParserTests extends ESTestCase {
             () -> statement(query, new QueryParams(params))
         );
         assertThat(e.getMessage(), containsString(errorMessage));
+    }
+
+    void expectInvalidIndexNameErrorWithLineNumber(String query, String arg, String lineNumber, String indexString) {
+        expectError(LoggerMessageFormat.format(null, query, arg), lineNumber + "Invalid index name [" + indexString);
+    }
+
+    void expectDateMathErrorWithLineNumber(String query, String arg, String lineNumber, String error) {
+        expectError(LoggerMessageFormat.format(null, query, arg), lineNumber + error);
     }
 }

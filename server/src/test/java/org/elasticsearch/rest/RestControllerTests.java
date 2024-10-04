@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -85,6 +87,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -349,18 +352,22 @@ public class RestControllerTests extends ESTestCase {
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
-        RestApiVersion deprecatedInVersion = RestApiVersion.current();
 
-        Route route = Route.builder(method, path).deprecated(deprecationMessage, deprecatedInVersion).build();
+        List<RestApiVersion> replacedInVersions = List.of(RestApiVersion.current(), RestApiVersion.minimumSupported());
+        for (RestApiVersion replacedInVersion : replacedInVersions) {
+            Level level = replacedInVersion == RestApiVersion.current() ? Level.WARN : DeprecationLogger.CRITICAL;
+            clearInvocations(controller);
+            Route route = Route.builder(method, path).deprecatedForRemoval(deprecationMessage, replacedInVersion).build();
 
-        // don't want to test everything -- just that it actually wraps the handler
-        doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller)
-            .registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage, null);
+            // don't want to test everything -- just that it actually wraps the handler
+            doCallRealMethod().when(controller).registerHandler(route, handler);
+            doCallRealMethod().when(controller)
+                .registerAsDeprecatedHandler(method, path, replacedInVersion, handler, deprecationMessage, level);
 
-        controller.registerHandler(route, handler);
+            controller.registerHandler(route, handler);
 
-        verify(controller).registerHandler(eq(method), eq(path), eq(deprecatedInVersion), any(DeprecationRestHandler.class));
+            verify(controller).registerHandler(eq(method), eq(path), eq(replacedInVersion), any(DeprecationRestHandler.class));
+        }
     }
 
     public void testRegisterAsReplacedHandler() {
@@ -383,17 +390,40 @@ public class RestControllerTests extends ESTestCase {
             + path
             + "] instead.";
 
-        final Route route = Route.builder(method, path).replaces(replacedMethod, replacedPath, previous).build();
+        List<RestApiVersion> replacedInVersions = List.of(current, previous);
+        for (RestApiVersion replacedInVersion : replacedInVersions) {
+            clearInvocations(controller);
+            Route route = Route.builder(method, path).replaces(replacedMethod, replacedPath, replacedInVersion).build();
+            // don't want to test everything -- just that it actually wraps the handler
+            doCallRealMethod().when(controller).registerHandler(route, handler);
+            Level level = replacedInVersion == current ? Level.WARN : DeprecationLogger.CRITICAL;
+            doCallRealMethod().when(controller)
+                .registerAsReplacedHandler(
+                    method,
+                    path,
+                    current,
+                    handler,
+                    replacedMethod,
+                    replacedPath,
+                    replacedInVersion,
+                    deprecationMessage,
+                    level
+                );
 
-        // don't want to test everything -- just that it actually wraps the handlers
-        doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller)
-            .registerAsReplacedHandler(method, path, current, handler, replacedMethod, replacedPath, previous);
+            controller.registerHandler(route, handler);
 
-        controller.registerHandler(route, handler);
-
-        verify(controller).registerHandler(method, path, current, handler);
-        verify(controller).registerAsDeprecatedHandler(replacedMethod, replacedPath, previous, handler, deprecationMessage);
+            // verify we registered the primary handler
+            verify(controller).registerHandler(method, path, current, handler);
+            // verify we register the replaced handler with the correct deprecation message and level
+            verify(controller).registerAsDeprecatedHandler(
+                replacedMethod,
+                replacedPath,
+                replacedInVersion,
+                handler,
+                deprecationMessage,
+                level
+            );
+        }
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {

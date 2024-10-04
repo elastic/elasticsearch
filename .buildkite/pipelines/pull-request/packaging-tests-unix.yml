@@ -10,8 +10,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -39,8 +37,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -68,8 +64,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7

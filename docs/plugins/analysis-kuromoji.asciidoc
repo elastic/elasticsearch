@@ -86,7 +86,7 @@ The `kuromoji_iteration_mark` normalizes Japanese horizontal iteration marks
 
 `normalize_kanji`::
 
-    Indicates whether kanji iteration marks should be normalize. Defaults to `true`.
+    Indicates whether kanji iteration marks should be normalized. Defaults to `true`.
 
 `normalize_kana`::
 
@@ -194,7 +194,7 @@ PUT kuromoji_sample
 +
 --
 Additional expert user parameters `nbest_cost` and `nbest_examples` can be used
-to include additional tokens that most likely according to the statistical model.
+to include additional tokens that are most likely according to the statistical model.
 If both parameters are used, the largest number of both is applied.
 
 `nbest_cost`::

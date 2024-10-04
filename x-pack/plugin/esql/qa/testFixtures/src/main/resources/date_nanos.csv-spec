@@ -70,3 +70,196 @@ FROM date_nanos | SORT millis asc | EVAL nanos = MV_LAST(nanos) | KEEP nanos | L
 nanos:date_nanos
 2023-03-23T12:15:03.360103847Z
 ;
+
+string to date nanos
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS("2023-03-23T12:15:03.360103847");
+
+d:date_nanos
+2023-03-23T12:15:03.360103847Z
+;
+
+string to date nanos, :: notation
+required_capability: to_date_nanos
+
+ROW d = "2023-03-23T12:15:03.360103847"::date_nanos;
+
+d:date_nanos
+2023-03-23T12:15:03.360103847Z
+;
+
+string to date nanos, milliseconds only
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS("2023-03-23T12:15:03.360");
+
+d:date_nanos
+2023-03-23T12:15:03.360Z
+;
+
+string to date nanos, out of range
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS("2262-04-12T00:00:00.000");
+warning:Line 1:9: evaluation of [TO_DATE_NANOS(\"2262-04-12T00:00:00.000\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: date[2262-04-12T00:00:00Z] is after 2262-04-11T23:47:16.854775807 and cannot be stored in nanosecond resolution
+
+d:date_nanos
+null
+;
+
+string to date nanos, pre 1970
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS("1969-04-12T00:00:00.000");
+warning:Line 1:9: evaluation of [TO_DATE_NANOS(\"1969-04-12T00:00:00.000\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: date[1969-04-12T00:00:00Z] is before the epoch in 1970 and cannot be stored in nanosecond resolution 
+
+d:date_nanos
+null
+;
+
+long to date nanos
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS(1724160894123456789);
+
+d:date_nanos
+2024-08-20T13:34:54.123456789Z
+;
+
+long to date nanos, :: notation
+required_capability: to_date_nanos
+
+ROW d = 1724160894123456789::date_nanos;
+
+d:date_nanos
+2024-08-20T13:34:54.123456789Z
+;
+
+
+long to date nanos, before 1970
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS(TO_LONG(-1));
+
+warning:Line 1:9: evaluation of [TO_DATE_NANOS(TO_LONG(-1))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported.
+d:date_nanos
+null
+;
+
+unsigned long to date nanos
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS(TO_UNSIGNED_LONG(1724160894123456789));
+
+d:date_nanos
+2024-08-20T13:34:54.123456789Z
+;
+
+double to date nanos
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS(1724160894123456789.0);
+
+d:date_nanos
+# Note we've lost some precision here
+2024-08-20T13:34:54.123456768Z
+;
+
+datetime to date nanos, in range
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS(TO_DATETIME("2024-08-20T13:34:54.123Z"));
+
+d:date_nanos
+2024-08-20T13:34:54.123000000Z
+;
+
+datetime to date nanos, with overflow
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS(TO_DATETIME("2262-04-12T00:00:00.000")); 
+warning:Line 1:9: evaluation of [TO_DATE_NANOS(TO_DATETIME(\"2262-04-12T00:00:00.000\"))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: milliSeconds [9223372800000] are after 2262-04-11T23:47:16.854775807 and cannot be converted to nanoseconds
+
+d:date_nanos
+null
+;
+
+datetime to date nanos, pre 1970
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS(TO_DATETIME("1969-04-12T00:00:00.000")); 
+warning:Line 1:9: evaluation of [TO_DATE_NANOS(TO_DATETIME(\"1969-04-12T00:00:00.000\"))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: milliSeconds [-22809600000] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+d:date_nanos
+null
+;
+
+
+date nanos to long, index version
+required_capability: to_date_nanos
+
+FROM date_nanos | WHERE millis > "2020-02-02" | EVAL l = TO_LONG(nanos) | SORT nanos DESC | KEEP l;
+
+l:long
+1698069301543123456
+1698069235832987654
+1698069175015787878
+1698069114732102837
+1698068014937193000
+1698064048948000000
+1698063303360103847
+;
+
+long to date nanos, index version
+required_capability: to_date_nanos
+
+FROM date_nanos | WHERE millis > "2020-02-02" | EVAL d = TO_DATE_NANOS(num) | SORT nanos DESC | KEEP d;
+
+d:date_nanos
+2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360103847Z
+;
+
+date_nanos to date nanos, index version
+required_capability: to_date_nanos
+
+FROM date_nanos | WHERE millis > "2020-02-02" | EVAL d = TO_DATE_NANOS(nanos) | SORT nanos DESC | KEEP d;
+
+d:date_nanos
+2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360103847Z
+;
+
+attempt to cast the result of a fold to date nanos
+required_capability: to_date_nanos
+
+ROW d = TO_DATE_NANOS(CONCAT("2023-01-01","T12:12:12"));
+
+d:date_nanos
+2023-01-01T12:12:12.000000000Z
+;
+
+attempt to cast nulls to date nanos
+required_capability: to_date_nanos
+
+ROW a = TO_DATE_NANOS(null), b = TO_DATE_NANOS(null + 1::long), c = TO_DATE_NANOS(CONCAT("2024", null));
+
+a:date_nanos | b:date_nanos | c:date_nanos
+null         | null         | null
+;

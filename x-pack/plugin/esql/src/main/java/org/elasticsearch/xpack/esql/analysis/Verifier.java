@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
@@ -650,7 +651,8 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkCommandsAfterQueryStringFunction(plan, condition, failures);
+            checkCommandsBeforeQueryStringFunction(plan, condition, failures);
+            checkCommandsBeforeMatchFunction(plan, condition, failures);
             checkFullTextFunctionsConditions(condition, failures);
             checkFullTextFunctionsParents(condition, failures);
         } else {
@@ -660,10 +662,27 @@ public class Verifier {
         }
     }
 
-    private static void checkCommandsAfterQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
+    private static void checkCommandsBeforeQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
         condition.forEachDown(QueryStringFunction.class, qsf -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
+                    failures.add(
+                        fail(
+                            plan,
+                            "[{}] function cannot be used after {}",
+                            qsf.functionName(),
+                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                        )
+                    );
+                }
+            });
+        });
+    }
+
+    private static void checkCommandsBeforeMatchFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
+        condition.forEachDown(MatchFunction.class, qsf -> {
+            plan.forEachDown(LogicalPlan.class, lp -> {
+                if (lp instanceof Limit) {
                     failures.add(
                         fail(
                             plan,

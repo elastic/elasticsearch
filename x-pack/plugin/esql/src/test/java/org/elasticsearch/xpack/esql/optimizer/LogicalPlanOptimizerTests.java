@@ -5565,6 +5565,27 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
     }
 
+    // These should pass eventually once we lift some restrictions on match function
+    public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
+        final String header = "Found 1 problem\nline ";
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test | eval initial = substring(first_name, 1) | where match(initial, "A")"""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "1:67: [MATCH] cannot operate on [initial], which is not a field from an index mapping",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> plan("""
+            from test | eval text=concat(first_name, last_name) | where match(text, "cat")"""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "1:67: [MATCH] cannot operate on [text], which is not a field from an index mapping",
+            e.getMessage().substring(header.length())
+        );
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

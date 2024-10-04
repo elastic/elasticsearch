@@ -1088,6 +1088,13 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
+        assertEquals(
+            "1:24: [MATCH] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match(first_name, \"Anna\")")
+        );
+    }
+
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
@@ -1269,6 +1276,16 @@ public class VerifierTests extends ESTestCase {
             error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
         );
         // Other value types are tested in QueryStringFunctionTests
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:68: Unknown column [first_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
+        );
     }
 
     public void testMatchFunctionNullArgs() throws Exception {

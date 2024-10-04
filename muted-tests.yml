@@ -26,9 +26,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testPreload
   issue: https://github.com/elastic/elasticsearch/issues/110211
-- class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
-  method: testMetadataMigratedAfterUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/110232
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/95384

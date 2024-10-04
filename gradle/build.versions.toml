@@ -14,7 +14,7 @@ asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
 bytebuddy = "net.bytebuddy:byte-buddy:1.14.12"
 checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
 commons-codec = "commons-codec:commons-codec:1.11"
-commmons-io = "commons-io:commons-io:2.2"
+commmons-io = "commons-io:commons-io:2.16.1"
 docker-compose = "com.avast.gradle:gradle-docker-compose-plugin:0.17.5"
 forbiddenApis = "de.thetaphi:forbiddenapis:3.6"
 gradle-enterprise = "com.gradle:develocity-gradle-plugin:3.17.4"

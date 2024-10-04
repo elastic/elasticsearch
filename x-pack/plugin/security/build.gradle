@@ -98,7 +98,7 @@ dependencies {
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
   // Test dependencies for Kerberos (MiniKdc)
-  testImplementation('commons-io:commons-io:2.5')
+  testImplementation("commons-io:commons-io:2.16.1")
   testImplementation('org.apache.kerby:kerb-simplekdc:1.1.1')
   testImplementation('org.apache.kerby:kerb-client:1.1.1')
   testImplementation('org.apache.kerby:kerby-config:1.1.1')

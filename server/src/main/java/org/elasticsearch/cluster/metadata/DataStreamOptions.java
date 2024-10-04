@@ -103,13 +103,15 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     }
 
     /**
-     * Creates class the composes the different fields of the data stream options and normalises explicitly nullified fields.
-     * @return a class that will compose the provided data stream options to a normalised version of the data stream options
+     * Creates a class that composes the different fields of the data stream options and normalises explicitly nullified fields.
      */
     public static Composer composer(DataStreamOptions options) {
         return new Composer(options);
     }
 
+    /**
+     * Composes different data stream options to a normalised final value.
+     */
     public static class Composer {
         private DataStreamFailureStore failureStore;
 

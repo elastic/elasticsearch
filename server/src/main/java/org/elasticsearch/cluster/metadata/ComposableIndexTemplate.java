@@ -365,7 +365,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         private static final ParseField HIDDEN = new ParseField("hidden");
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
-        private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
@@ -376,9 +375,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
-            }
         }
 
         private final boolean hidden;

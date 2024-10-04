@@ -1701,9 +1701,9 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * This method composes a series of data streams options to a final one. Since currently the data stream options list
-     * contains only the failure store configuration which also contains only one field, so it has to be set, returning the
-     * last non-null configuration is (for now) sufficient. But we keep this method in order to build on it.
+     * This method composes a series of data streams options to a final one. Since currently the data stream options
+     * contains only the failure store configuration which also contains only one field, the composition is a bit trivial.
+     * But we introduce the mechanics that will help extend it really easily.
      * @param dataStreamOptionsList a sorted list of data stream options in the order that they will be composed
      * @return the final data stream option configuration
      */

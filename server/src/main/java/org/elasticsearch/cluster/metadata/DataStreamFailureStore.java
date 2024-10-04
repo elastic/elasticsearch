@@ -78,7 +78,7 @@ public class DataStreamFailureStore implements SimpleDiffable<DataStreamFailureS
     }
 
     /**
-     * @return iff the user the value represents a user explicitly nullifying the failure store.
+     * @return iff the value represents a user explicitly nullifying the failure store.
      */
     public boolean isNullified() {
         return equals(NULL);

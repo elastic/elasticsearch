@@ -53,16 +53,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestSimulateIngestAction extends BaseRestHandler {
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
-        "source_content_type",
-        "source",
-        "index",
-        "pipeline",
-        "pretty",
-        "pipeline_substitutions",
-        "component_template_substitutions",
-        "index_template_substitutions"
-        );
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("index", "pipeline");
 
     @Override
     public List<Route> routes() {

@@ -186,8 +186,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
         if (bulkRequest.isSimulated()
-            && (componentTemplateSubstitutions.isEmpty() == false
-            || indexTemplateSubstitutions.isEmpty() == false)) {
+            && (componentTemplateSubstitutions.isEmpty() == false || indexTemplateSubstitutions.isEmpty() == false)) {
             /*
              * If this is a simulated request, and there are template substitutions, then we want to create and use a new metadata that has
              * those templates. That is, we want to add the new templates (which will replace any that already existed with the same name),

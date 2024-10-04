@@ -468,26 +468,33 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             return;
         }
 
-        var configUpdate = chunkingOptions != null
-            ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : new TokenizationConfigUpdate(null, null);
+        if (model instanceof ElasticsearchInternalModel esModel) {
 
-        var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
-            configUpdate,
-            input,
-            inputType,
-            timeout,
-            true
-        );
+            var configUpdate = chunkingOptions != null
+                ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
+                : new TokenizationConfigUpdate(null, null);
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
+            var request = buildInferenceRequest(
+                model.getConfigurations().getInferenceEntityId(),
+                configUpdate,
+                input,
+                inputType,
+                timeout,
+                true
+            );
+
+            ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
                 (l, inferenceResult) -> l.onResponse(translateToChunkedResults(inferenceResult.getInferenceResults()))
-            )
-        );
+            );
+
+            var maybeDeployListener = mlResultsListener.delegateResponse(
+                (l, exception) -> maybeStartDeployment(esModel, exception, request, mlResultsListener)
+            );
+
+            client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
+        } else {
+            listener.onFailure(notElasticsearchModelException(model));
+        }
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(List<InferenceResults> inferenceResults) {

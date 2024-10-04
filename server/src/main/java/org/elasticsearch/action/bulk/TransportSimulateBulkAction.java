@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -197,12 +198,33 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * path for when the index does not exist). And it does not deal with system indices since we do not intend for users to
                  * simulate writing to system indices.
                  */
-                // First, we remove the index from the cluster state if necessary (since we're going to use the templates)
-                ClusterState simulatedState = indexAbstraction == null
-                    ? state
-                    : new ClusterState.Builder(state).metadata(Metadata.builder(state.metadata()).remove(request.index()).build()).build();
+                ClusterState.Builder simulatedClusterStateBuilder = new ClusterState.Builder(state);
+                Metadata.Builder simulatedMetadata = Metadata.builder(state.metadata());
+                if (indexAbstraction != null) {
+                    /*
+                     * We remove the index or data stream from the cluster state so that we are forced to fall back to the templates to get
+                     * mappings.
+                     */
+                    String indexRequest = request.index();
+                    assert indexRequest != null : "Index requests cannot be null in a simulate bulk call";
+                    if (indexRequest != null) {
+                        simulatedMetadata.remove(indexRequest);
+                        simulatedMetadata.removeDataStream(indexRequest);
+                    }
+                }
+                if (componentTemplateSubstitutions.isEmpty() == false) {
+                    /*
+                     * We put the template substitutions into the cluster state. If they have the same name as an existing one, the
+                     * existing one is replaced.
+                     */
+                    Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
+                    updatedComponentTemplates.putAll(state.metadata().componentTemplates());
+                    updatedComponentTemplates.putAll(componentTemplateSubstitutions);
+                    simulatedMetadata.componentTemplates(updatedComponentTemplates);
+                }
+                ClusterState simulatedState = simulatedClusterStateBuilder.metadata(simulatedMetadata).build();
 
-                String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
+                String matchingTemplate = findV2Template(simulatedState.metadata(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
                         matchingTemplate,
@@ -212,8 +234,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         xContentRegistry,
                         indicesService,
                         systemIndices,
-                        indexSettingProviders,
-                        componentTemplateSubstitutions
+                        indexSettingProviders
                     );
                     CompressedXContent mappings = template.mappings();
                     if (mappings != null) {
@@ -247,7 +268,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         });
                     }
                 } else {
-                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(state.metadata(), request.index(), false);
+                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedState.metadata(), request.index(), false);
                     final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
                         "{}",
                         matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),

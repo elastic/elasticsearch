@@ -26,7 +26,7 @@ setup:
             value: 10
 
 ---
-001_fetch_stored_fields_wildcard:
+"fetch stored fields wildcard":
 
   - do:
       search:
@@ -38,7 +38,7 @@ setup:
   - match: { hits.hits.0._ignored_source: null }
 
 ---
-002_fetch_fields_wildcard:
+"fetch fields wildcard":
 
   - do:
       search:
@@ -50,7 +50,7 @@ setup:
   - match: { hits.hits.0._ignored_source: null }
 
 ---
-003_fetch_stored_fields_by_name:
+"fetch stored fields by name":
 
   - do:
       search:
@@ -62,7 +62,7 @@ setup:
   - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
 
 ---
-004_fetch_fields_by_name:
+"fetch fields by name":
 
   - do:
       search:
@@ -74,23 +74,23 @@ setup:
   - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
 
 ---
-005_fields_and_stored_fields_combination:
+"fields and stored fields combination":
 
   - do:
       search:
         index: test
         body:
-          stored_fields: [ object ]
-          fields: [ object ]
+          stored_fields: [ _ignored_source ]
+          fields: [ _ignored_source ]
           query:
             match_all: {}
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields.object: null }
-  - match: { hits.hits.0._ignored_source: null }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
 
 ---
-006_wildcard_fields_and_stored_fields_combination:
+"wildcard fields and stored fields combination":
 
   - do:
       search:
@@ -103,7 +103,7 @@ setup:
   - match: { hits.hits.0._ignored_source: null }
 
 ---
-007_fields_with_ignored_source_combination:
+"fields with ignored source combination (stored first)":
 
   - do:
       search:
@@ -117,20 +117,33 @@ setup:
   - match: { hits.hits.0.fields: null }
 
 ---
-008_ignored_source_via_fields_and_wildcard_stored_fields:
+"fields with ignored source combination (fields first)":
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: [ object ]
+          fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
+
+---
+"ignored source via fields and wildcard stored fields":
 
   - do:
       search:
         index: test
         body:
           stored_fields: [ "*" ]
-          fields: [ _ignored_source, object ]
+          fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
 
 ---
-009_wildcard_fields_and_ignored_source_via_stored_fields:
+"wildcard fields and ignored source via stored fields":
 
   - do:
       search:

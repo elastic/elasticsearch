@@ -107,16 +107,14 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         // We check the FetchFieldsContext first for this reason, as we prefer going through the ValueFetcher interface.
         if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
             // Collect metadata fields requested via 'fields'
-            final List<String> fetchFieldNames = fieldAndFormatsToFieldNames(fetchFieldsContext.fields());
-            metadataFields.addAll(getMetadataFields(fetchFieldNames, sec));
+            metadataFields.addAll(getMetadataFields(fieldAndFormatsToFieldNames(fetchFieldsContext.fields()), sec));
         }
         if (storedFieldsContext != null
             && storedFieldsContext.fieldNames() != null
             && storedFieldsContext.fieldNames().isEmpty() == false) {
             // Collect metadata fields requested via 'stored_fields'
-            final List<String> storedFieldNames = storedFieldsContext.fieldNames();
             // If a field already exists because fetched via 'fields` it won't be added here
-            metadataFields.addAll(getMetadataFields(storedFieldNames, sec));
+            metadataFields.addAll(getMetadataFields(storedFieldsContext.fieldNames(), sec));
         }
 
         return FieldFetcher.create(sec, metadataFields);

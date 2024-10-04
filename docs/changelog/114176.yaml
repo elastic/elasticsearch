@@ -1,0 +1,11 @@
+pr: 114176
+summary: "[Inference API ] Add `endpoint_version` to deprecate task settings"
+area: Machine Learning
+type: deprecation
+issues: []
+deprecation:
+  title: "[Inference API ] Add `endpoint_version` to deprecate task settings"
+  area: Machine Learning
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

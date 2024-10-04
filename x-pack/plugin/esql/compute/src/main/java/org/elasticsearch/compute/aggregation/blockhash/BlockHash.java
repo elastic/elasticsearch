@@ -34,9 +34,7 @@ import java.util.List;
  * @see LongHash
  * @see BytesRefHash
  */
-public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
-    permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash, BytesRef3BlockHash, //
-    NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash, TimeSeriesBlockHash {
+public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     protected final BlockFactory blockFactory;
 

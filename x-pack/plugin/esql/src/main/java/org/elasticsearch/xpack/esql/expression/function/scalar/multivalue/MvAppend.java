@@ -150,19 +150,11 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(dataType())) {
-            case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(
-                source(),
-                toEvaluator.toEvaluator(field1),
-                toEvaluator.toEvaluator(field2)
-            );
-            case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(
-                source(),
-                toEvaluator.toEvaluator(field1),
-                toEvaluator.toEvaluator(field2)
-            );
-            case DOUBLE -> new MvAppendDoubleEvaluator.Factory(source(), toEvaluator.toEvaluator(field1), toEvaluator.toEvaluator(field2));
-            case INT -> new MvAppendIntEvaluator.Factory(source(), toEvaluator.toEvaluator(field1), toEvaluator.toEvaluator(field2));
-            case LONG -> new MvAppendLongEvaluator.Factory(source(), toEvaluator.toEvaluator(field1), toEvaluator.toEvaluator(field2));
+            case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case DOUBLE -> new MvAppendDoubleEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case INT -> new MvAppendIntEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case LONG -> new MvAppendLongEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };

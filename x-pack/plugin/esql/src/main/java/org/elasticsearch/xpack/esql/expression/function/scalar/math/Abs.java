@@ -69,7 +69,7 @@ public class Abs extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var field = toEvaluator.toEvaluator(field());
+        var field = toEvaluator.apply(field());
         if (dataType() == DataType.DOUBLE) {
             return new AbsDoubleEvaluator.Factory(source(), field);
         }

@@ -67,9 +67,9 @@ public class Floor extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (dataType().isWholeNumber()) {
-            return toEvaluator.toEvaluator(field());
+            return toEvaluator.apply(field());
         }
-        return new FloorDoubleEvaluator.Factory(source(), toEvaluator.toEvaluator(field()));
+        return new FloorDoubleEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

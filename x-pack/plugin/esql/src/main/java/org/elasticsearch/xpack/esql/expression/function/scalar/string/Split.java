@@ -158,9 +158,9 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var str = toEvaluator.toEvaluator(left());
+        var str = toEvaluator.apply(left());
         if (right().foldable() == false) {
-            return new SplitVariableEvaluator.Factory(source(), str, toEvaluator.toEvaluator(right()), context -> new BytesRef());
+            return new SplitVariableEvaluator.Factory(source(), str, toEvaluator.apply(right()), context -> new BytesRef());
         }
         BytesRef delim = (BytesRef) right().fold();
         checkDelimiter(delim);

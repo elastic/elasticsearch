@@ -79,6 +79,6 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return AutomataMatch.toEvaluator(source(), toEvaluator.toEvaluator(field()), pattern().createAutomaton());
+        return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton());
     }
 }

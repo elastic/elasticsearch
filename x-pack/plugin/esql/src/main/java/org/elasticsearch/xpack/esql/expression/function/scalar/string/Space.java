@@ -115,11 +115,11 @@ public class Space extends UnaryScalarFunction {
             Object folded = field.fold();
             if (folded instanceof Integer num) {
                 checkNumber(num);
-                return toEvaluator.toEvaluator(new Literal(source(), " ".repeat(num), KEYWORD));
+                return toEvaluator.apply(new Literal(source(), " ".repeat(num), KEYWORD));
             }
         }
 
-        ExpressionEvaluator.Factory numberExpr = toEvaluator.toEvaluator(field);
+        ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(field);
         return new SpaceEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "space"), numberExpr);
     }
 

@@ -96,7 +96,7 @@ public class ToLower extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var fieldEvaluator = toEvaluator.toEvaluator(field);
+        var fieldEvaluator = toEvaluator.apply(field);
         return new ToLowerEvaluator.Factory(source(), fieldEvaluator, configuration().locale());
     }
 

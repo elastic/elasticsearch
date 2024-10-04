@@ -113,11 +113,11 @@ public class CIDRMatch extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var ipEvaluatorSupplier = toEvaluator.toEvaluator(ipField);
+        var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         return new CIDRMatchEvaluator.Factory(
             source(),
             ipEvaluatorSupplier,
-            matches.stream().map(toEvaluator::toEvaluator).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
+            matches.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
         );
     }
 

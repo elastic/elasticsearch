@@ -180,12 +180,12 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var strFactory = toEvaluator.toEvaluator(str);
-        var startFactory = toEvaluator.toEvaluator(start);
+        var strFactory = toEvaluator.apply(str);
+        var startFactory = toEvaluator.apply(start);
         if (length == null) {
             return new SubstringNoLengthEvaluator.Factory(source(), strFactory, startFactory);
         }
-        var lengthFactory = toEvaluator.toEvaluator(length);
+        var lengthFactory = toEvaluator.apply(length);
         return new SubstringEvaluator.Factory(source(), strFactory, startFactory, lengthFactory);
     }
 

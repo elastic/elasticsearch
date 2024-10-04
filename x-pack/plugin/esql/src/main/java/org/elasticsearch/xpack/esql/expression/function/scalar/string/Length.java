@@ -87,6 +87,6 @@ public class Length extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new LengthEvaluator.Factory(source(), toEvaluator.toEvaluator(field()));
+        return new LengthEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 }

@@ -109,7 +109,7 @@ public class Categorize extends GroupingFunction implements Validatable {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new CategorizeEvaluator.Factory(
             source(),
-            toEvaluator.toEvaluator(field),
+            toEvaluator.apply(field),
             context -> new CategorizationAnalyzer(
                 // TODO(jan): get the correct analyzer in here, see CategorizationAnalyzerConfig::buildStandardCategorizationAnalyzer
                 new CustomAnalyzer(

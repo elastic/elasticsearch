@@ -124,7 +124,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return evaluator(toEvaluator.toEvaluator(field()));
+        return evaluator(toEvaluator.apply(field()));
     }
 
     public abstract static class AbstractEvaluator implements EvalOperator.ExpressionEvaluator {

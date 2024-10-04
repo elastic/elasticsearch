@@ -103,8 +103,8 @@ public class Right extends EsqlScalarFunction {
             source(),
             context -> new BytesRef(),
             context -> new UnicodeUtil.UTF8CodePoint(),
-            toEvaluator.toEvaluator(str),
-            toEvaluator.toEvaluator(length)
+            toEvaluator.apply(str),
+            toEvaluator.apply(length)
         );
     }
 

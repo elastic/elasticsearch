@@ -199,7 +199,7 @@ public class DateTrunc extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var fieldEvaluator = toEvaluator.toEvaluator(timestampField);
+        var fieldEvaluator = toEvaluator.apply(timestampField);
         if (interval.foldable() == false) {
             throw new IllegalArgumentException("Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "].");
         }

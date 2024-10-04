@@ -186,33 +186,33 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSliceBooleanEvaluator.Factory(
                 source(),
-                toEvaluator.toEvaluator(field),
-                toEvaluator.toEvaluator(start),
-                toEvaluator.toEvaluator(end)
+                toEvaluator.apply(field),
+                toEvaluator.apply(start),
+                toEvaluator.apply(end)
             );
             case BYTES_REF -> new MvSliceBytesRefEvaluator.Factory(
                 source(),
-                toEvaluator.toEvaluator(field),
-                toEvaluator.toEvaluator(start),
-                toEvaluator.toEvaluator(end)
+                toEvaluator.apply(field),
+                toEvaluator.apply(start),
+                toEvaluator.apply(end)
             );
             case DOUBLE -> new MvSliceDoubleEvaluator.Factory(
                 source(),
-                toEvaluator.toEvaluator(field),
-                toEvaluator.toEvaluator(start),
-                toEvaluator.toEvaluator(end)
+                toEvaluator.apply(field),
+                toEvaluator.apply(start),
+                toEvaluator.apply(end)
             );
             case INT -> new MvSliceIntEvaluator.Factory(
                 source(),
-                toEvaluator.toEvaluator(field),
-                toEvaluator.toEvaluator(start),
-                toEvaluator.toEvaluator(end)
+                toEvaluator.apply(field),
+                toEvaluator.apply(start),
+                toEvaluator.apply(end)
             );
             case LONG -> new MvSliceLongEvaluator.Factory(
                 source(),
-                toEvaluator.toEvaluator(field),
-                toEvaluator.toEvaluator(start),
-                toEvaluator.toEvaluator(end)
+                toEvaluator.apply(field),
+                toEvaluator.apply(start),
+                toEvaluator.apply(end)
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());

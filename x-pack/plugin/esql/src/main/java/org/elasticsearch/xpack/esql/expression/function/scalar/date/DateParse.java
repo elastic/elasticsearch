@@ -137,7 +137,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ZoneId zone = UTC; // TODO session timezone?
-        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.toEvaluator(field);
+        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
             return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
@@ -152,7 +152,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
-        ExpressionEvaluator.Factory formatEvaluator = toEvaluator.toEvaluator(format);
+        ExpressionEvaluator.Factory formatEvaluator = toEvaluator.apply(format);
         return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, zone);
     }
 

@@ -126,7 +126,7 @@ public class EndsWith extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new EndsWithEvaluator.Factory(source(), toEvaluator.toEvaluator(str), toEvaluator.toEvaluator(suffix));
+        return new EndsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(suffix));
     }
 
     Expression str() {

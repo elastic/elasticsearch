@@ -108,7 +108,7 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var fieldEvaluator = toEvaluator.toEvaluator(children().get(1));
+        var fieldEvaluator = toEvaluator.apply(children().get(1));
         if (children().get(0).foldable()) {
             ChronoField chrono = chronoField();
             if (chrono == null) {
@@ -117,7 +117,7 @@ public class DateExtract extends EsqlConfigurationFunction {
             }
             return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
         }
-        var chronoEvaluator = toEvaluator.toEvaluator(children().get(0));
+        var chronoEvaluator = toEvaluator.apply(children().get(0));
         return new DateExtractEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
     }
 

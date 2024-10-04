@@ -161,12 +161,12 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ExpressionEvaluator.Factory strExpr = toEvaluator.toEvaluator(str);
-        ExpressionEvaluator.Factory substrExpr = toEvaluator.toEvaluator(substr);
+        ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
+        ExpressionEvaluator.Factory substrExpr = toEvaluator.apply(substr);
         if (start == null) {
             return new LocateNoStartEvaluator.Factory(source(), strExpr, substrExpr);
         }
-        return new LocateEvaluator.Factory(source(), strExpr, substrExpr, toEvaluator.toEvaluator(start));
+        return new LocateEvaluator.Factory(source(), strExpr, substrExpr, toEvaluator.apply(start));
     }
 
     Expression str() {

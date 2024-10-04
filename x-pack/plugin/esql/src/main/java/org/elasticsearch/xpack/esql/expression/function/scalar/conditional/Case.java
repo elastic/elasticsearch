@@ -51,7 +51,7 @@ public final class Case extends EsqlScalarFunction {
 
     record Condition(Expression condition, Expression value) {
         ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
-            return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.toEvaluator(condition), toEvaluator.toEvaluator(value));
+            return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
         }
     }
 
@@ -313,7 +313,7 @@ public final class Case extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
-        ExpressionEvaluator.Factory elseValueFactory = toEvaluator.toEvaluator(elseValue);
+        ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
         ElementType resultType = PlannerUtils.toElementType(dataType());
 
         if (conditionsFactories.size() == 1

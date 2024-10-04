@@ -174,8 +174,8 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         var leftType = left().dataType();
         if (leftType.isNumeric()) {
 
-            var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.toEvaluator(left()));
-            var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.toEvaluator(right()));
+            var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
+            var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
 
             BinaryEvaluator eval;
             if (commonType == INTEGER) {

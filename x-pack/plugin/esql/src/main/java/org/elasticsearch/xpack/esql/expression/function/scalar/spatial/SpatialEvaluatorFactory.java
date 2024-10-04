@@ -147,7 +147,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         @Override
         public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
-            return factoryCreator.apply(s.source(), toEvaluator.toEvaluator(s.left()), toEvaluator.toEvaluator(s.right()));
+            return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), toEvaluator.apply(s.right()));
         }
     }
 
@@ -171,7 +171,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         @Override
         public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
-            return factoryCreator.apply(s.source(), toEvaluator.toEvaluator(s.left()), asLuceneComponent2D(s.crsType(), s.right()));
+            return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLuceneComponent2D(s.crsType(), s.right()));
         }
     }
 
@@ -197,7 +197,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         @Override
         public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
-            return factoryCreator.apply(s.source(), toEvaluator.toEvaluator(s.left()), asLuceneComponent2Ds(s.crsType(), s.right()));
+            return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLuceneComponent2Ds(s.crsType(), s.right()));
         }
     }
 

@@ -41,7 +41,7 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        EvalOperator.ExpressionEvaluator.Factory childEval = toEvaluator.toEvaluator(child());
+        EvalOperator.ExpressionEvaluator.Factory childEval = toEvaluator.apply(child());
         return ctx -> new EvalOperator.ExpressionEvaluator() {
             private final EvalOperator.ExpressionEvaluator child = childEval.get(ctx);
 

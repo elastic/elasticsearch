@@ -128,8 +128,8 @@ public class Pow extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.toEvaluator(base));
-        var expEval = Cast.cast(source(), exponent.dataType(), DataType.DOUBLE, toEvaluator.toEvaluator(exponent));
+        var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.apply(base));
+        var expEval = Cast.cast(source(), exponent.dataType(), DataType.DOUBLE, toEvaluator.apply(exponent));
         return new PowEvaluator.Factory(source(), baseEval, expEval);
     }
 }

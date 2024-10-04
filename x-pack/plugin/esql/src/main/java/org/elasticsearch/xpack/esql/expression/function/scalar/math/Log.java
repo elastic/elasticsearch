@@ -145,9 +145,9 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var valueEval = Cast.cast(source(), value.dataType(), DataType.DOUBLE, toEvaluator.toEvaluator(value));
+        var valueEval = Cast.cast(source(), value.dataType(), DataType.DOUBLE, toEvaluator.apply(value));
         if (base != null) {
-            var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.toEvaluator(base));
+            var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.apply(base));
             return new LogEvaluator.Factory(source(), baseEval, valueEval);
         }
         return new LogConstantEvaluator.Factory(source(), valueEval);

@@ -123,7 +123,7 @@ public class StartsWith extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new StartsWithEvaluator.Factory(source(), toEvaluator.toEvaluator(str), toEvaluator.toEvaluator(prefix));
+        return new StartsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(prefix));
     }
 
     Expression str() {

@@ -141,7 +141,7 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         // force datatype initialization
         var dataType = dataType();
         ExpressionEvaluator.Factory[] factories = children().stream()
-            .map(e -> toEvaluator.toEvaluator(new MvMax(e.source(), e)))
+            .map(e -> toEvaluator.apply(new MvMax(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
         if (dataType == DataType.BOOLEAN) {
             return new GreatestBooleanEvaluator.Factory(source(), factories);

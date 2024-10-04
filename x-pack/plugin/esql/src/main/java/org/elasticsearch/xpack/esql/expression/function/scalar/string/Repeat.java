@@ -143,7 +143,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ExpressionEvaluator.Factory strExpr = toEvaluator.toEvaluator(str);
+        ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
 
         if (number.foldable()) {
             int num = (int) number.fold();
@@ -158,7 +158,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
             );
         }
 
-        ExpressionEvaluator.Factory numberExpr = toEvaluator.toEvaluator(number);
+        ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(number);
         return new RepeatEvaluator.Factory(
             source(),
             context -> new BreakingBytesRefBuilder(context.breaker(), "repeat"),

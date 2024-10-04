@@ -118,8 +118,8 @@ public class Atan2 extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var yEval = Cast.cast(source(), y.dataType(), DataType.DOUBLE, toEvaluator.toEvaluator(y));
-        var xEval = Cast.cast(source(), x.dataType(), DataType.DOUBLE, toEvaluator.toEvaluator(x));
+        var yEval = Cast.cast(source(), y.dataType(), DataType.DOUBLE, toEvaluator.apply(y));
+        var xEval = Cast.cast(source(), x.dataType(), DataType.DOUBLE, toEvaluator.apply(x));
         return new Atan2Evaluator.Factory(source(), yEval, xEval);
     }
 

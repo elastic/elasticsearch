@@ -139,7 +139,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var fieldEvaluator = toEvaluator.toEvaluator(field);
+        var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
             return new DateFormatConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
@@ -150,7 +150,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             DateFormatter formatter = toFormatter(format.fold(), configuration().locale());
             return new DateFormatConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
         }
-        var formatEvaluator = toEvaluator.toEvaluator(format);
+        var formatEvaluator = toEvaluator.apply(format);
         return new DateFormatEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
     }
 

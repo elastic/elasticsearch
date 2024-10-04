@@ -140,7 +140,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         var dataType = dataType();
 
         ExpressionEvaluator.Factory[] factories = children().stream()
-            .map(e -> toEvaluator.toEvaluator(new MvMin(e.source(), e)))
+            .map(e -> toEvaluator.apply(new MvMin(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
         if (dataType == DataType.BOOLEAN) {
             return new LeastBooleanEvaluator.Factory(source(), factories);

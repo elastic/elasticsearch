@@ -171,7 +171,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
                 temporalAmountArgument = left();
             }
 
-            return datetimes.apply(source(), toEvaluator.toEvaluator(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
+            return datetimes.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else {
             return super.toEvaluator(toEvaluator);
         }

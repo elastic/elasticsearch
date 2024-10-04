@@ -188,11 +188,11 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> noDecimals,
         TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> withDecimals
     ) {
-        var fieldEvaluator = toEvaluator.toEvaluator(field());
+        var fieldEvaluator = toEvaluator.apply(field());
         if (decimals == null) {
             return noDecimals.apply(source(), fieldEvaluator);
         }
-        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataType.LONG, toEvaluator.toEvaluator(decimals()));
+        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataType.LONG, toEvaluator.apply(decimals()));
         return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
     }
 }

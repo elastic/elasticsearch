@@ -132,9 +132,9 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new MvZipEvaluator.Factory(
             source(),
-            toEvaluator.toEvaluator(mvLeft),
-            toEvaluator.toEvaluator(mvRight),
-            toEvaluator.toEvaluator(delim == null ? COMMA : delim)
+            toEvaluator.apply(mvLeft),
+            toEvaluator.apply(mvRight),
+            toEvaluator.apply(delim == null ? COMMA : delim)
         );
     }
 

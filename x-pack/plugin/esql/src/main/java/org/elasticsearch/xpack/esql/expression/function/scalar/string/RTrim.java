@@ -69,7 +69,7 @@ public class RTrim extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new RTrimEvaluator.Factory(source(), toEvaluator.toEvaluator(field()));
+        return new RTrimEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

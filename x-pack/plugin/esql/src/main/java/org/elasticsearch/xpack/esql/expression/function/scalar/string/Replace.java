@@ -146,8 +146,8 @@ public class Replace extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var strEval = toEvaluator.toEvaluator(str);
-        var newStrEval = toEvaluator.toEvaluator(newStr);
+        var strEval = toEvaluator.apply(str);
+        var newStrEval = toEvaluator.apply(newStr);
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
             Pattern regexPattern;
@@ -162,7 +162,7 @@ public class Replace extends EsqlScalarFunction {
             return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
         }
 
-        var regexEval = toEvaluator.toEvaluator(regex);
+        var regexEval = toEvaluator.apply(regex);
         return new ReplaceEvaluator.Factory(source(), strEval, regexEval, newStrEval);
     }
 

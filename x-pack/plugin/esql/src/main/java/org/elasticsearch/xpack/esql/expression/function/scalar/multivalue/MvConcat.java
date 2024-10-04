@@ -87,7 +87,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new EvaluatorFactory(toEvaluator.toEvaluator(left()), toEvaluator.toEvaluator(right()));
+        return new EvaluatorFactory(toEvaluator.apply(left()), toEvaluator.apply(right()));
     }
 
     @Override

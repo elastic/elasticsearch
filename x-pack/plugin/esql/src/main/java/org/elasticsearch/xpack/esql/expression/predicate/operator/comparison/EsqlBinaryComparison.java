@@ -174,11 +174,11 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         EvalOperator.ExpressionEvaluator.Factory rhs;
 
         if (commonType.isNumeric()) {
-            lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.toEvaluator(left()));
-            rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.toEvaluator(right()));
+            lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
+            rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
         } else {
-            lhs = toEvaluator.toEvaluator(left());
-            rhs = toEvaluator.toEvaluator(right());
+            lhs = toEvaluator.apply(left());
+            rhs = toEvaluator.apply(right());
         }
 
         if (evaluatorMap.containsKey(commonType) == false) {

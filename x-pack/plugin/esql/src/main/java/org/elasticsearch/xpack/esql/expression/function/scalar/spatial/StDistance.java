@@ -182,8 +182,8 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         } else if (left().foldable()) {
             return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(left()), rightDocValues);
         } else {
-            EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.toEvaluator(left());
-            EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.toEvaluator(right());
+            EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
+            EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());
             if (crsType() == SpatialCrsType.GEO) {
                 if (leftDocValues) {
                     return new StDistanceGeoPointDocValuesAndSourceEvaluator.Factory(source(), leftE, rightE);
@@ -224,7 +224,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         Point point,
         boolean docValues
     ) {
-        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.toEvaluator(field);
+        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (crsType() == SpatialCrsType.GEO) {
             if (docValues) {
                 return new StDistanceGeoPointDocValuesAndConstantEvaluator.Factory(source(), fieldEvaluator, point);

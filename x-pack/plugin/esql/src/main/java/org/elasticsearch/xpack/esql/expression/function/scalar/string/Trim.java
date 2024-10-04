@@ -69,7 +69,7 @@ public final class Trim extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var field = toEvaluator.toEvaluator(field());
+        var field = toEvaluator.apply(field());
         return new TrimEvaluator.Factory(source(), field);
     }
 

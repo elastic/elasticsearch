@@ -64,7 +64,7 @@ public class Neg extends UnaryScalarFunction {
         DataType type = dataType();
 
         if (type.isNumeric()) {
-            var f = toEvaluator.toEvaluator(field());
+            var f = toEvaluator.apply(field());
             ExpressionEvaluator.Factory factory = null;
 
             if (type == DataType.INTEGER) {
@@ -81,7 +81,7 @@ public class Neg extends UnaryScalarFunction {
                 return factory;
             }
         } else if (isTemporalAmount(type)) {
-            return toEvaluator.toEvaluator(field());
+            return toEvaluator.apply(field());
         }
         throw new EsqlIllegalArgumentException("arithmetic negation operator with unsupported data type [" + type + "]");
     }

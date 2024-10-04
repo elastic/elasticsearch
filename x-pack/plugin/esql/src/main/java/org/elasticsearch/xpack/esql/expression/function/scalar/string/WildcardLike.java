@@ -87,7 +87,7 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return AutomataMatch.toEvaluator(
             source(),
-            toEvaluator.toEvaluator(field()),
+            toEvaluator.apply(field()),
             // The empty pattern will accept the empty string
             pattern().pattern().length() == 0 ? Automata.makeEmptyString() : pattern().createAutomaton()
         );

@@ -165,7 +165,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSort.EvaluatorFactory(
-                toEvaluator.toEvaluator(field),
+                toEvaluator.apply(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeBoolean((BooleanBlock) fieldBlock).sortToBlock(
                     blockFactory,
@@ -174,7 +174,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 ElementType.BOOLEAN
             );
             case BYTES_REF -> new MvSort.EvaluatorFactory(
-                toEvaluator.toEvaluator(field),
+                toEvaluator.apply(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeBytesRef((BytesRefBlock) fieldBlock).sortToBlock(
                     blockFactory,
@@ -183,7 +183,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 ElementType.BYTES_REF
             );
             case INT -> new MvSort.EvaluatorFactory(
-                toEvaluator.toEvaluator(field),
+                toEvaluator.apply(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeInt((IntBlock) fieldBlock).sortToBlock(
                     blockFactory,
@@ -192,7 +192,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 ElementType.INT
             );
             case LONG -> new MvSort.EvaluatorFactory(
-                toEvaluator.toEvaluator(field),
+                toEvaluator.apply(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeLong((LongBlock) fieldBlock).sortToBlock(
                     blockFactory,
@@ -201,7 +201,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                 ElementType.LONG
             );
             case DOUBLE -> new MvSort.EvaluatorFactory(
-                toEvaluator.toEvaluator(field),
+                toEvaluator.apply(field),
                 ordering,
                 (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeDouble((DoubleBlock) fieldBlock).sortToBlock(
                     blockFactory,

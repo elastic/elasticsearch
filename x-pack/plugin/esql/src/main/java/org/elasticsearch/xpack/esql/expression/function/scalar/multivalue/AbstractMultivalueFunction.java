@@ -85,7 +85,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
 
     @Override
     public final ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return evaluator(toEvaluator.toEvaluator(field()));
+        return evaluator(toEvaluator.apply(field()));
     }
 
     /**

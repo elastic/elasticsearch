@@ -120,8 +120,8 @@ public class MvPercentile extends EsqlScalarFunction {
 
     @Override
     public final ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var fieldEval = toEvaluator.toEvaluator(field);
-        var percentileEval = Cast.cast(source(), percentile.dataType(), DOUBLE, toEvaluator.toEvaluator(percentile));
+        var fieldEval = toEvaluator.apply(field);
+        var percentileEval = Cast.cast(source(), percentile.dataType(), DOUBLE, toEvaluator.apply(percentile));
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case INT -> new MvPercentileIntegerEvaluator.Factory(source(), fieldEval, percentileEval, (d) -> new IntSortingScratch());

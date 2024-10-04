@@ -96,7 +96,7 @@ public class ToUpper extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var fieldEvaluator = toEvaluator.toEvaluator(field);
+        var fieldEvaluator = toEvaluator.apply(field);
         return new ToUpperEvaluator.Factory(source(), fieldEvaluator, configuration().locale());
     }
 

@@ -120,9 +120,9 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var ipEvaluatorSupplier = toEvaluator.toEvaluator(ipField);
-        var prefixLengthV4EvaluatorSupplier = toEvaluator.toEvaluator(prefixLengthV4Field);
-        var prefixLengthV6EvaluatorSupplier = toEvaluator.toEvaluator(prefixLengthV6Field);
+        var ipEvaluatorSupplier = toEvaluator.apply(ipField);
+        var prefixLengthV4EvaluatorSupplier = toEvaluator.apply(prefixLengthV4Field);
+        var prefixLengthV6EvaluatorSupplier = toEvaluator.apply(prefixLengthV6Field);
 
         return new IpPrefixEvaluator.Factory(
             source(),

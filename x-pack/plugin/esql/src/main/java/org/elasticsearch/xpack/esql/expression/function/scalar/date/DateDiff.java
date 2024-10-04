@@ -227,8 +227,8 @@ public class DateDiff extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ExpressionEvaluator.Factory startTimestampEvaluator = toEvaluator.toEvaluator(startTimestamp);
-        ExpressionEvaluator.Factory endTimestampEvaluator = toEvaluator.toEvaluator(endTimestamp);
+        ExpressionEvaluator.Factory startTimestampEvaluator = toEvaluator.apply(startTimestamp);
+        ExpressionEvaluator.Factory endTimestampEvaluator = toEvaluator.apply(endTimestamp);
 
         if (unit.foldable()) {
             try {
@@ -238,7 +238,7 @@ public class DateDiff extends EsqlScalarFunction {
                 throw new InvalidArgumentException("invalid unit format for [{}]: {}", sourceText(), e.getMessage());
             }
         }
-        ExpressionEvaluator.Factory unitEvaluator = toEvaluator.toEvaluator(unit);
+        ExpressionEvaluator.Factory unitEvaluator = toEvaluator.apply(unit);
         return new DateDiffEvaluator.Factory(source(), unitEvaluator, startTimestampEvaluator, endTimestampEvaluator);
     }
 

@@ -62,7 +62,7 @@ public class Log10 extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var field = toEvaluator.toEvaluator(field());
+        var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
 
         if (fieldType == DataType.DOUBLE) {

@@ -112,7 +112,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(
                 source(),
-                toEvaluator.toEvaluator(field),
+                toEvaluator.apply(field),
                 ctx -> new CompensatedSum(),
                 (Double) p.fold()
             );

@@ -252,7 +252,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
                 preparedRounding = DateTrunc.createRounding(buckets.fold(), DEFAULT_TZ);
             }
-            return DateTrunc.evaluator(source(), toEvaluator.toEvaluator(field), preparedRounding);
+            return DateTrunc.evaluator(source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
             double roundTo;
@@ -270,7 +270,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             Div div = new Div(source(), field, rounding);
             Floor floor = new Floor(source(), div);
             Mul mul = new Mul(source(), floor, rounding);
-            return toEvaluator.toEvaluator(mul);
+            return toEvaluator.apply(mul);
         }
         throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
     }

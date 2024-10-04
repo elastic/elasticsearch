@@ -22,7 +22,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
  */
 public interface EvaluatorMapper {
     interface ToEvaluator {
-        ExpressionEvaluator.Factory toEvaluator(Expression expression);
+        ExpressionEvaluator.Factory apply(Expression expression);
     }
 
     /**

@@ -217,13 +217,13 @@ public class In extends EsqlScalarFunction {
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
         if (commonType.isNumeric()) {
-            lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.toEvaluator(value));
+            lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
             factories = list.stream()
-                .map(e -> Cast.cast(source(), e.dataType(), commonType, toEvaluator.toEvaluator(e)))
+                .map(e -> Cast.cast(source(), e.dataType(), commonType, toEvaluator.apply(e)))
                 .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         } else {
-            lhs = toEvaluator.toEvaluator(value);
-            factories = list.stream().map(toEvaluator::toEvaluator).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            lhs = toEvaluator.apply(value);
+            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         }
 
         if (commonType == BOOLEAN) {
@@ -244,7 +244,7 @@ public class In extends EsqlScalarFunction {
             || commonType == VERSION
             || commonType == UNSUPPORTED
             || DataType.isSpatial(commonType)) {
-            return new InBytesRefEvaluator.Factory(source(), toEvaluator.toEvaluator(value), factories);
+            return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
         }
         if (commonType == NULL) {
             return EvalOperator.CONSTANT_NULL_FACTORY;

@@ -33,9 +33,9 @@ double e()
 "double exp(number:double|integer|long|unsigned_long)"
 "double|integer|long|unsigned_long floor(number:double|integer|long|unsigned_long)"
 "keyword from_base64(string:keyword|text)"
-"boolean|double|integer|ip|keyword|long|text|version greatest(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
+"boolean|date|double|integer|ip|keyword|long|text|version greatest(first:boolean|date|double|integer|ip|keyword|long|text|version, ?rest...:boolean|date|double|integer|ip|keyword|long|text|version)"
 "ip ip_prefix(ip:ip, prefixLengthV4:integer, prefixLengthV6:integer)"
-"boolean|double|integer|ip|keyword|long|text|version least(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
+"boolean|date|double|integer|ip|keyword|long|text|version least(first:boolean|date|double|integer|ip|keyword|long|text|version, ?rest...:boolean|date|double|integer|ip|keyword|long|text|version)"
 "keyword left(string:keyword|text, length:integer)"
 "integer length(string:keyword|text)"
 "integer locate(string:keyword|text, substring:keyword|text, ?start:integer)"
@@ -165,9 +165,9 @@ ends_with     |[str, suffix]                       |["keyword|text", "keyword|te
 exp           |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 from_base64   |string                              |"keyword|text"                                                                                                                    |A base64 string.
-greatest      |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
+greatest      |first                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |First of the columns to evaluate.
 ip_prefix     |[ip, prefixLengthV4, prefixLengthV6]|[ip, integer, integer]                                                                                                            |[IP address of type `ip` (both IPv4 and IPv6 are supported)., Prefix length for IPv4 addresses., Prefix length for IPv6 addresses.]
-least         |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
+least         |first                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |First of the columns to evaluate.
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
 length        |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 locate        |[string, substring, start]          |["keyword|text", "keyword|text", "integer"]                                                                                       |[An input string, A substring to locate in the input string, The start index]
@@ -431,9 +431,9 @@ ends_with     |boolean                                                          
 exp           |double                                                                                         |false                       |false           |false
 floor         |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 from_base64   |keyword                                                                                                                     |false                       |false           |false
-greatest      |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
+greatest      |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |true            |false
 ip_prefix     |ip                                                                                                                          |[false, false, false]       |false           |false
-least         |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
+least         |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |true            |false
 left          |keyword                                                                                                                     |[false, false]              |false           |false
 length        |integer                                                                                                                     |false                       |false           |false
 locate        |integer                                                                                                                     |[false, false, true]        |false           |false

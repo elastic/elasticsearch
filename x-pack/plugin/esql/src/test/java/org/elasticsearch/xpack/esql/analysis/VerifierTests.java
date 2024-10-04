@@ -1360,18 +1360,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testNonMetadataScore() {
-        assertEquals(
-            "1:12: `_score` is a reserved METADATA attribute",
-            error("from foo | eval _score = 10")
-        );
-
-        assertEquals(
-            "1:48: `_score` is a reserved METADATA attribute",
-            error("from foo metadata _score | where qstr(\"bar\") | eval _score = _score + 1")
-        );
-    }
-
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

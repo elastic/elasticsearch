@@ -152,10 +152,10 @@ book_no:keyword | author:text | _score:double
 singleQstrScoringManipulated
 required_capability: metadata_score
 required_capability: qstr_function
-from books METADATA _score | where qstr("author:William Faulkner") | eval add_score = _score + 1 
-| keep book_no, author, add_score | sort book_no | LIMIT 5;
+from books METADATA _score | where qstr("author:William Faulkner") | eval _score = _score + 1 
+| keep book_no, author, _score | sort book_no | LIMIT 5;
 
-book_no:keyword | author:text | add_score:double
+book_no:keyword | author:text | _score:double
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 1.9976131916046143
 2713            | William Faulkner                                   | 6.9556169509887695
 2847            | Colleen Faulkner                                   | 2.7401835918426514

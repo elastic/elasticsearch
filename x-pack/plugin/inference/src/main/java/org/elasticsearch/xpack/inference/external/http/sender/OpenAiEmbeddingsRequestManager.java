@@ -33,7 +33,7 @@ public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new OpenAiResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
+        return new OpenAiResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse, false);
     }
 
     public static OpenAiEmbeddingsRequestManager of(OpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {

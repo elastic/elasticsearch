@@ -467,7 +467,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Engine.Result result,
         BulkPrimaryExecutionContext context,
         UpdateHelper.Result updateResult,
-        long initialMappingVersion) {
+        long initialMappingVersion
+    ) {
         Engine.Result r = exceptionToResult(e, primary, false, version, result.getId());
         DocumentMapper documentMapper = primary.mapperService().documentMapper();
         boolean mappingWasConcurrentlyUpdated = false;
@@ -487,7 +488,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             onComplete(r, context, updateResult);
         }
     }
-
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {
         assert id != null;

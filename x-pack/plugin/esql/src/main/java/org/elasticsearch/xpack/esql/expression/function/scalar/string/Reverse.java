@@ -123,7 +123,7 @@ public class Reverse extends UnaryScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         return new ReverseEvaluator.Factory(source(), fieldEvaluator);
     }

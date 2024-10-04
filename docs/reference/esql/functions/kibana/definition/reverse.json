@@ -33,5 +33,6 @@
     "ROW message = \"Some Text\" | EVAL message_reversed = REVERSE(message);",
     "ROW bending_arts = \"💧🪨🔥💨\" | EVAL bending_arts_reversed = REVERSE(bending_arts);"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

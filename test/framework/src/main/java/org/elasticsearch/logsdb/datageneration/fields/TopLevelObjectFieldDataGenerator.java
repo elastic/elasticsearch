@@ -37,7 +37,7 @@ public class TopLevelObjectFieldDataGenerator {
             this.mappingParameters = Map.of();
         } else {
             this.mappingParameters = new HashMap<>(
-                specification.dataSource().get(new DataSourceRequest.ObjectMappingParametersGenerator(false)).mappingGenerator().get()
+                specification.dataSource().get(new DataSourceRequest.ObjectMappingParametersGenerator(true, false)).mappingGenerator().get()
             );
             // Top-level object can't be disabled because @timestamp is a required field in data streams.
             this.mappingParameters.remove("enabled");

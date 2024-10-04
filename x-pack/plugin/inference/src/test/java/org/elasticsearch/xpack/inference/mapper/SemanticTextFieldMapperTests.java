@@ -81,8 +81,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_S
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_INFERENCE_ID;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_SEARCH_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -166,7 +165,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = mapperService.documentMapper();
         assertEquals(Strings.toString(fieldMapping), mapper.mappingSource().toString());
         assertSemanticTextField(mapperService, fieldName, false);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_INFERENCE_ID, DEFAULT_SEARCH_INFERENCE_ID);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
@@ -205,7 +204,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
             final MapperService mapperService = createMapperService(fieldMapping);
             assertSemanticTextField(mapperService, fieldName, false);
-            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_INFERENCE_ID, searchInferenceId);
+            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
             assertSerialization.accept(fieldMapping, mapperService);
         }
         {

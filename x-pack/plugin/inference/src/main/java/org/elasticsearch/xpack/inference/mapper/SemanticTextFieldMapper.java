@@ -77,6 +77,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FI
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_ELSER_ID;
 
 /**
  * A {@link FieldMapper} for semantic text fields.
@@ -85,8 +86,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_SEARCH_INFERENCE_ID = new NodeFeature("semantic_text.search_inference_id");
 
     public static final String CONTENT_TYPE = "semantic_text";
-    public static final String DEFAULT_INFERENCE_ID = ".elser_default_ingest";
-    public static final String DEFAULT_SEARCH_INFERENCE_ID = ".elser_default_search";
+    public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
 
     private final IndexSettings indexSettings;
 
@@ -103,7 +103,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             INFERENCE_ID_FIELD,
             false,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
-            DEFAULT_INFERENCE_ID
+            DEFAULT_ELSER_2_INFERENCE_ID
         ).addValidator(v -> {
             if (Strings.isEmpty(v)) {
                 throw new IllegalArgumentException(
@@ -112,11 +112,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         });
 
-        private final Parameter<String> searchInferenceId = Parameter.stringParamDefaultSupplier(
+        private final Parameter<String> searchInferenceId = Parameter.stringParam(
             SEARCH_INFERENCE_ID_FIELD,
             true,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).searchInferenceId,
-            () -> inferenceId.isConfigured() ? null : DEFAULT_SEARCH_INFERENCE_ID
+            null
         ).acceptsNull().addValidator(v -> {
             if (v != null && Strings.isEmpty(v)) {
                 throw new IllegalArgumentException(

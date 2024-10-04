@@ -80,7 +80,7 @@ For syntax, refer to <<esql-locale-param>>.
 with information about how the query was executed. It provides insight into the performance
 of each part of the query. This is for human debugging as the object's format might change at any time.
 Think of this like https://www.postgresql.org/docs/current/sql-explain.html[EXPLAIN ANALYZE] or
-https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/EXPLAIN-PLAN.html[EXPLAIN PLAN].
+https://en.wikipedia.org/wiki/Query_plan[EXPLAIN PLAN].
 
 `query`::
 (Required, string) {esql} query to run. For syntax, refer to <<esql-syntax>>.
@@ -113,4 +113,4 @@ Values for the search results.
 Profile describing the execution of the query. Only returned if `profile` was sent in the body.
 The object itself is for human debugging and can change at any time. Think of this like
 https://www.postgresql.org/docs/current/sql-explain.html[EXPLAIN ANALYZE] or
-https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/EXPLAIN-PLAN.html[EXPLAIN PLAN].
+https://en.wikipedia.org/wiki/Query_plan[EXPLAIN PLAN].

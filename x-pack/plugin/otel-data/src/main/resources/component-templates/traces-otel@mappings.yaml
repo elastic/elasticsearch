@@ -8,7 +8,7 @@ template:
     index:
       mode: logsdb
       sort:
-        field: [ "@timestamp", "resource.attributes.host.name" ]
+        field: [ "resource.attributes.host.name", "@timestamp" ]
   mappings:
     _source:
       mode: synthetic

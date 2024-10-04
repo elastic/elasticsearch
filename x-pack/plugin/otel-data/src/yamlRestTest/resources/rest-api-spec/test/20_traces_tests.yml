@@ -92,3 +92,28 @@ setup:
           fields: ["data_stream.type"]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.data_stream\.type: ["traces"] }
+---
+Conflicting attribute types:
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2024-10-04T00:00:00
+            attributes:
+              http.status_code: 200
+          - create: {}
+          - "@timestamp": 2024-10-04T01:00:00
+            attributes:
+              http.status_code: "foo"
+  - is_false: errors
+  - do:
+      search:
+        index: traces-generic.otel-default
+        body:
+          fields: ["*"]
+          "sort" : [ "@timestamp" ]
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.attributes\.http\.status_code: [200] }
+  - match: { hits.hits.1._ignored: ["attributes.http.status_code"] }

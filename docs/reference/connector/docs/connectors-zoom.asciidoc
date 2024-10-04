@@ -74,7 +74,10 @@ cloud_recording:read:list_user_recordings:admin
 team_chat:read:list_user_channels:admin
 team_chat:read:list_user_messages:admin
 ----
-*Note:* the connector requires a minimum scope of `user:read:list_users:admin` to ingest data into Elasticsearch.
+[NOTE]
+====
+The connector requires a minimum scope of `user:read:list_users:admin` to ingest data into Elasticsearch.
+====
 
 10. Click on the "Done" button to add the selected scopes to your app.
 11. Navigate to the "Activation" section and input the necessary information to activate the app.
@@ -232,7 +235,10 @@ cloud_recording:read:list_user_recordings:admin
 team_chat:read:list_user_channels:admin
 team_chat:read:list_user_messages:admin
 ----
-*Note:* the connector requires a minimum scope of `user:read:list_users:admin` to ingest data into Elasticsearch.
+[NOTE]
+====
+The connector requires a minimum scope of `user:read:list_users:admin` to ingest data into Elasticsearch.
+====
 
 10. Click on the "Done" button to add the selected scopes to your app.
 11. Navigate to the "Activation" section and input the necessary information to activate the app.

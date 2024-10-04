@@ -130,6 +130,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("is_not_null", IsNotNull.class)
     );
 
+    private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
+
     protected TestCaseSupplier.TestCase testCase;
 
     /**
@@ -1148,6 +1150,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             builder.endArray();
         }
+        builder.field("preview", info.preview());
+        builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));
 
         String rendered = Strings.toString(builder.endObject());
         LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", functionName(), rendered);
@@ -1193,9 +1197,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static FunctionDefinition definition(String name) {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
-        if (registry.functionExists(name)) {
-            return registry.resolveFunction(name);
+        if (functionRegistry.functionExists(name)) {
+            return functionRegistry.resolveFunction(name);
         }
         return null;
     }

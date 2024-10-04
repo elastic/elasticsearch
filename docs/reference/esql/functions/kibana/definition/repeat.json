@@ -44,5 +44,6 @@
   "examples" : [
     "ROW a = \"Hello!\"\n| EVAL triple_a = REPEAT(a, 3);"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -11,6 +11,23 @@ template:
         field: [ "resource.attributes.host.name" ]
   mappings:
     properties:
+      attributes:
+        type: passthrough
+        dynamic: true
+        priority: 10
+        time_series_dimension: true
+        properties:
+          exception.type:
+            type: keyword
+            ignore_above: 1024
+          exception.message:
+            type: keyword
+            ignore_above: 1024
+          exception.stacktrace:
+            type: wildcard
+            fields:
+              text:
+                type: match_only_text
       data_stream.type:
         type: constant_keyword
         value: logs
@@ -40,3 +57,12 @@ template:
       span.id:
         type: alias
         path: span_id
+      error.exception.type:
+        type: alias
+        path: attributes.exception.type
+      error.exception.message:
+        type: alias
+        path: attributes.exception.message
+      error.stack_trace:
+        type: alias
+        path: attributes.exception.stacktrace

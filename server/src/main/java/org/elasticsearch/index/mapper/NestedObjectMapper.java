@@ -98,6 +98,17 @@ public class NestedObjectMapper extends ObjectMapper {
             } else {
                 nestedTypePath = fullPath;
             }
+            if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ARRAYS) {
+                throw new MapperException(
+                    "parameter [ "
+                        + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                        + " ] can't be set to ["
+                        + SourceKeepMode.ARRAYS
+                        + "] for nested object ["
+                        + fullPath
+                        + "]"
+                );
+            }
             final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
@@ -115,7 +126,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 buildMappers(nestedContext),
                 enabled,
                 dynamic,
-                storeArraySource,
+                sourceKeepMode,
                 includeInParent,
                 includeInRoot,
                 parentTypeFilter,
@@ -213,7 +224,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Map<String, Mapper> mappers,
         Explicit<Boolean> enabled,
         ObjectMapper.Dynamic dynamic,
-        Explicit<Boolean> storeArraySource,
+        Optional<SourceKeepMode> sourceKeepMode,
         Explicit<Boolean> includeInParent,
         Explicit<Boolean> includeInRoot,
         Query parentTypeFilter,
@@ -222,7 +233,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Function<Query, BitSetProducer> bitsetProducer,
         IndexSettings indexSettings
     ) {
-        super(name, fullPath, enabled, Optional.empty(), storeArraySource, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.empty(), sourceKeepMode, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
@@ -283,7 +294,7 @@ public class NestedObjectMapper extends ObjectMapper {
             Map.of(),
             enabled,
             dynamic,
-            storeArraySource,
+            sourceKeepMode,
             includeInParent,
             includeInRoot,
             parentTypeFilter,
@@ -310,8 +321,8 @@ public class NestedObjectMapper extends ObjectMapper {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
-            builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());
+        if (sourceKeepMode.isPresent()) {
+            builder.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, sourceKeepMode.get());
         }
         serializeMappers(builder, params);
         return builder.endObject();
@@ -359,7 +370,7 @@ public class NestedObjectMapper extends ObjectMapper {
             mergeResult.mappers(),
             mergeResult.enabled(),
             mergeResult.dynamic(),
-            mergeResult.trackArraySource(),
+            mergeResult.sourceKeepMode(),
             incInParent,
             incInRoot,
             parentTypeFilter,
@@ -393,8 +404,8 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (storeArraySource()) {
-            // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
+        if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
+            // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 

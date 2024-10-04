@@ -211,6 +211,11 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
+CARET : '^';
+TILDE : '~';
+BOOST : 'boost';
+FUZZY : 'fuzzy';
+
 
 // move it in the main section if the feature gets promoted
 DEV_MATCH_OP : {this.isDevVersion()}? DEV_MATCH -> type(DEV_MATCH);

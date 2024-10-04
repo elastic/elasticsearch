@@ -49,6 +49,10 @@ public class MatchFunction extends FullTextFunction implements Validatable {
 
     private final boolean isOperator;
 
+    private Integer fuzzy;
+
+    private Double boost;
+
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -64,17 +68,19 @@ public class MatchFunction extends FullTextFunction implements Validatable {
             description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
-        this(source, field, matchQuery, false);
+        this(source, field, matchQuery, false, null, null);
     }
 
-    public static MatchFunction createOperator(Source source, Expression field, Expression matchQuery) {
-        return new MatchFunction(source, field, matchQuery, true);
+    public static MatchFunction operator(Source source, Expression field, Expression matchQuery, Double boost, Integer fuzzy) {
+        return new MatchFunction(source, field, matchQuery, true, boost, fuzzy);
     }
 
-    private MatchFunction(Source source, Expression field, Expression matchQuery, boolean isOperator) {
+    private MatchFunction(Source source, Expression field, Expression matchQuery, boolean isOperator, Double boost, Integer fuzzy) {
         super(source, matchQuery, List.of(matchQuery, field));
         this.field = field;
         this.isOperator = isOperator;
+        this.fuzzy = fuzzy;
+        this.boost = boost;
     }
 
     private MatchFunction(StreamInput in) throws IOException {
@@ -82,7 +88,9 @@ public class MatchFunction extends FullTextFunction implements Validatable {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readBoolean()
+            in.readBoolean(),
+            in.readOptionalDouble(),
+            in.readOptionalInt()
         );
     }
 
@@ -92,6 +100,8 @@ public class MatchFunction extends FullTextFunction implements Validatable {
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(query());
         out.writeBoolean(isOperator);
+        out.writeOptionalInt(fuzzy);
+        out.writeOptionalDouble(boost);
     }
 
     @Override
@@ -131,7 +141,11 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         // Query is the first child, field is the second child
-        return new MatchFunction(source(), newChildren.get(1), newChildren.getFirst(), isOperator);
+        MatchFunction matchFunction = new MatchFunction(source(), newChildren.get(1), newChildren.getFirst(), isOperator);
+        matchFunction.setFuzzy(fuzzy);
+        matchFunction.setBoost(boost);
+
+        return matchFunction;
     }
 
     @Override
@@ -150,5 +164,21 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     public String functionType() {
         return isOperator ? "operator" : super.functionType();
+    }
+
+    public Integer fuzzy() {
+        return fuzzy;
+    }
+
+    public void setFuzzy(Integer fuzzy) {
+        this.fuzzy = fuzzy;
+    }
+
+    public Double boost() {
+        return boost;
+    }
+
+    public void setBoost(Double boost) {
+        this.boost = boost;
     }
 }

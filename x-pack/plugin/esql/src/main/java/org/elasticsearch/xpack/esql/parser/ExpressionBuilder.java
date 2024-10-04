@@ -793,7 +793,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return MatchFunction.createOperator(
             source(ctx),
             expression(ctx.valueExpression()),
-            expression(ctx.queryString)
+            expression(ctx.queryString),
+            visitDecimalLiteral(ctx.boostExpression().DECIMAL_LITERAL())
+            visitIntegerLiteral(ctx.fuzzinessExpression().INTEGER_LITERAL())
         );
     }
 }

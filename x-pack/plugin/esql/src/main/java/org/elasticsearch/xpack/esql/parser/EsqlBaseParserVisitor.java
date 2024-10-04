@@ -131,6 +131,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuzzinessExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#boostExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.
    * @param ctx the parse tree

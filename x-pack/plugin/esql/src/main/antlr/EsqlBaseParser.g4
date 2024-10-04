@@ -83,8 +83,14 @@ matchBooleanExpression
     ;
 
 matchOperatorExpression
-    : valueExpression COLON queryString=string
+    : valueExpression COLON queryString=string (boostExpression)? (fuzzinessExpression)?
     ;
+
+fuzzinessExpression
+    : (TILDE | FUZZY) INTEGER_LITERAL;
+
+boostExpression
+    : (CARET | BOOST) DECIMAL_LITERAL;
 
 valueExpression
     : operatorExpression                                                                      #valueExpressionDefault

@@ -121,17 +121,12 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         for (ElasticsearchDistribution distribution : testDistributions) {
             String taskname = destructiveDistroTestTaskName(distribution);
-            TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
-            // explicitly depend on the archive not on the implicit extracted distribution
-            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies()));
-            depsTask.configure(t -> t.dependsOn(examplePlugin.getDependencies()));
-            depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
                 addSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
-            }, depsTask);
+            }, distribution, examplePlugin.getDependencies());
 
             if (distribution.getPlatform() == Platform.WINDOWS) {
                 windowsTestTasks.add(destructiveTask);
@@ -159,14 +154,11 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     }
                     String upgradeTaskname = destructiveDistroUpgradeTestTaskName(distribution, version.toString());
-                    TaskProvider<?> upgradeDepsTask = project.getTasks().register(upgradeTaskname + "#deps");
-                    upgradeDepsTask.configure(t -> t.dependsOn(distribution, bwcDistro));
-                    depsTasks.put(upgradeTaskname, upgradeDepsTask);
                     TaskProvider<Test> upgradeTest = configureTestTask(project, upgradeTaskname, distribution, t -> {
                         addSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                         addSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::getFilepath);
                         t.include("**/PackageUpgradeTests.class");
-                    }, upgradeDepsTask);
+                    }, distribution, bwcDistro);
                     versionTasks.get(version.toString()).configure(t -> t.dependsOn(upgradeTest));
                     upgradeTestTasks.computeIfAbsent(version.toString(), k -> new ArrayList<>()).add(upgradeTest);
                 }
@@ -447,6 +439,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             if (isDocker == false) {
                 d.setBundledJdk(bundledJdk);
             }
+            d.setPreferArchive(true);
             d.setVersion(version);
         });
 

@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.aggregations.InternalAggregation.EXCLUDE_DELETED_DOCS;
+
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
@@ -113,6 +115,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
     private boolean showTermDocCountError = false;
+    private boolean excludeDeletedDocs = false;
 
     public TermsAggregationBuilder(String name) {
         super(name);
@@ -153,6 +156,14 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
+        // 7.17.x serialization compatibility
+        // due to a long-standing issue with transport serialization, you can not introduce new serialization in 7.17.x since it will break
+        // serialization for mixed clusters with 7.17.x and earlier versions of 8.x. This hack uses the metadata field to serialize
+        // the excludeDeletedDocs flag.
+        if (metadata != null && metadata.get(EXCLUDE_DELETED_DOCS) != null) {
+            excludeDeletedDocs = true;
+        }
+        // end 7.17.x serialization compatibility
     }
 
     @Override
@@ -168,6 +179,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
+
     }
 
     /**
@@ -349,6 +361,18 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         return this;
     }
 
+    /**
+     * Set whether deleted documents should be explicitly excluded from the aggregation results
+     */
+    public TermsAggregationBuilder excludeDeletedDocs(boolean excludeDeletedDocs) {
+        this.excludeDeletedDocs = excludeDeletedDocs;
+        return this;
+    }
+
+    public boolean excludeDeletedDocs() {
+        return excludeDeletedDocs;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -375,7 +399,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             parent,
             subFactoriesBuilder,
             metadata,
-            aggregatorSupplier
+            aggregatorSupplier,
+            excludeDeletedDocs
         );
     }
 
@@ -406,7 +431,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             executionHint,
             includeExclude,
             order,
-            showTermDocCountError
+            showTermDocCountError,
+            excludeDeletedDocs
         );
     }
 
@@ -421,7 +447,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             && Objects.equals(executionHint, other.executionHint)
             && Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(order, other.order)
-            && Objects.equals(showTermDocCountError, other.showTermDocCountError);
+            && Objects.equals(showTermDocCountError, other.showTermDocCountError)
+            && Objects.equals(excludeDeletedDocs, other.excludeDeletedDocs);
     }
 
     @Override

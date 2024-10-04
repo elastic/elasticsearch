@@ -22,6 +22,7 @@ import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -39,6 +40,7 @@ final class ESPolicy extends Policy {
     final Policy system;
     final PermissionCollection dynamic;
     final PermissionCollection dataPathPermission;
+    final PermissionCollection forbiddenFilePermission;
     final Map<String, Policy> plugins;
 
     ESPolicy(
@@ -46,10 +48,12 @@ final class ESPolicy extends Policy {
         PermissionCollection dynamic,
         Map<String, Policy> plugins,
         boolean filterBadDefaults,
-        PermissionCollection dataPathPermission
+        PermissionCollection dataPathPermission,
+        List<FilePermission> forbiddenFilePermissions
     ) {
         this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
         this.dataPathPermission = dataPathPermission;
+        this.forbiddenFilePermission = createPermission(forbiddenFilePermissions);
         this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
@@ -80,6 +84,21 @@ final class ESPolicy extends Policy {
         return frame.isPresent();
     }
 
+    private static PermissionCollection createPermission(List<FilePermission> permissions) {
+        PermissionCollection coll = null;
+        for (FilePermission permission : permissions) {
+            if (coll == null) {
+                coll = permission.newPermissionCollection();
+            }
+            coll.add(permission);
+        }
+        if (coll == null) {
+            coll = new Permissions();
+        }
+        coll.setReadOnly();
+        return coll;
+    }
+
     @Override
     @SuppressForbidden(reason = "fast equals check is desired")
     public boolean implies(ProtectionDomain domain, Permission permission) {
@@ -89,9 +108,12 @@ final class ESPolicy extends Policy {
             return false;
         }
 
+        // completely deny access to specific files that are forbidden
+        if (forbiddenFilePermission.implies(permission)) {
+            return false;
+        }
+
         URL location = codeSource.getLocation();
-        // location can be null... ??? nobody knows
-        // https://bugs.openjdk.java.net/browse/JDK-8129972
         if (location != null) {
             // run scripts with limited permissions
             if (BootstrapInfo.UNTRUSTED_CODEBASE.equals(location.getFile())) {

@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,9 @@ import static java.util.Objects.requireNonNull;
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
+
+    public static final String EXCLUDE_DELETED_DOCS = "_exclude_deleted_docs";
+
     /**
      * Builds {@link ReduceContext}.
      */
@@ -359,8 +363,18 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             builder.startObject(getName());
         }
         if (this.metadata != null) {
-            builder.field(CommonFields.META.getPreferredName());
-            builder.map(this.metadata);
+            if (this.metadata.containsKey(EXCLUDE_DELETED_DOCS)) {
+                Map<String, Object> mutableMetaData = new HashMap<>(this.metadata);
+                mutableMetaData.remove(EXCLUDE_DELETED_DOCS);
+                if (mutableMetaData.isEmpty() == false) {
+                    builder.field(CommonFields.META.getPreferredName());
+                    builder.map(mutableMetaData);
+                }
+            } else {
+                builder.field(CommonFields.META.getPreferredName());
+                builder.map(this.metadata);
+            }
+
         }
         doXContentBody(builder, params);
         builder.endObject();

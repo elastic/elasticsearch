@@ -218,6 +218,9 @@ tasks.named('licenseHeaders').configure {
  *****************************************************************************/
 
 repositories {
+  maven {
+    url 'https://jitpack.io'
+  }
   mavenCentral()
   gradlePluginPortal()
 }

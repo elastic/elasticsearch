@@ -453,17 +453,23 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testExpiredAuthnStatementSessionIsRejected() throws Exception {
-        Instant now = clock.instant();
-        String xml = getSimpleResponseAsString(now);
+        final Instant now = clock.instant();
+        final int sessionExpirySeconds = 60;
+        final Instant subjectConfirmationValidUntil = now.plusSeconds(500);
+        final Instant sessionValidUntil = now.plusSeconds(sessionExpirySeconds);
+        final String xml = SamlUtils.getXmlContent(
+            getSimpleResponse(now, randomId(), randomId(), subjectConfirmationValidUntil, sessionValidUntil),
+            false
+        );
         SamlToken token = token(signResponse(xml));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance partway through the session expiry time
-        clock.fastForwardSeconds(30);
+        clock.fastForwardSeconds(sessionExpirySeconds / 2);
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance past the expiry time, but allow for clock skew
-        clock.fastForwardSeconds((int) (30 + maxSkew.seconds() / 2));
+        clock.fastForwardSeconds((int) (sessionExpirySeconds / 2 + maxSkew.seconds() / 2));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // but fails once we get past the clock skew allowance
@@ -1305,8 +1311,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private Response getSimpleResponse(Instant now, String nameId, String sessionindex) {
-        Instant subjectConfirmationValidUntil = now.plusSeconds(120);
-        Instant sessionValidUntil = now.plusSeconds(60);
+        Instant subjectConfirmationValidUntil = now.plusSeconds(500);
+        Instant sessionValidUntil = now.plusSeconds(300);
         return getSimpleResponse(now, nameId, sessionindex, subjectConfirmationValidUntil, sessionValidUntil);
     }
 
@@ -1409,7 +1415,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private String getSimpleResponseFromXmlTemplate(Instant now, String nameId, String sessionindex) {
-        Instant validUntil = now.plusSeconds(30);
+        Instant validUntil = now.plusSeconds(300);
         String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
             + "<proto:Response"
             + "    Destination='%(SP_ACS_URL)'"

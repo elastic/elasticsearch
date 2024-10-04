@@ -17,7 +17,11 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+
 public class StringProcessor implements Processor {
+
+    static final long MAX_RESULT_LENGTH = MB.toBytes(1);
 
     private interface StringFunction<R> {
         default R apply(Object o) {
@@ -60,6 +64,7 @@ public class StringProcessor implements Processor {
             if (i < 0) {
                 return null;
             }
+            checkResultLength(n.longValue());
             char[] spaces = new char[i];
             char whitespace = ' ';
             Arrays.fill(spaces, whitespace);
@@ -123,6 +128,17 @@ public class StringProcessor implements Processor {
 
     StringOperation processor() {
         return processor;
+    }
+
+    static void checkResultLength(long needed) {
+        if (needed > MAX_RESULT_LENGTH) {
+            throw new SqlIllegalArgumentException(
+                "Required result length [{}] exceeds implementation limit [{}] bytes",
+                needed,
+                MAX_RESULT_LENGTH
+            );
+        }
+
     }
 
     @Override

@@ -119,4 +119,9 @@ if [ "$RESTART_ON_UPGRADE" = "true" ]; then
     echo " OK"
 fi
 
+# For SysV compatibility on systemd systems ensure that all rc*.d directories exist
+if [ -x /usr/lib/systemd/systemd-sysv-install ]; then
+    mkdir -p /etc/init.d/rc{0..6}.d
+fi
+
 @scripts.footer@

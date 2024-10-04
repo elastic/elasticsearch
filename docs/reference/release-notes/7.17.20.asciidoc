@@ -1,8 +1,17 @@
 [[release-notes-7.17.20]]
 == {es} version 7.17.20
 
-coming[7.17.20]
-
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
+[[known-issues-7.17.20]]
+[discrete]
+=== Known issues
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
+[[bug-7.17.20]]
+[float]
+=== Bug fixes
+
+Packaging::
+* Downgrade JDK to JDK 21.0.2 {es-pull}107137[#107137] (issue: {es-issue}106987[#106987])

@@ -23,6 +23,14 @@ is due to https://github.com/FasterXML/jackson-core/issues/882[a bug in Jackson 
 Fixed in {es} 8.6.1 ({es-pull}92480[#91456])
 // end::jackson-filtering-bug[]
 
+// tag::index-mapper-dynamic-bug[]
+* The deprecated `index.mapper.dynamic` setting can break your cluster. It can only 
+be set using the *Update index settings API*. Symptoms include nodes failing to start 
+or shards failing to allocate. Do not use this setting in versions prior to 7.17.22. 
+The bug is fixed in 7.17.22.
+(issue: {es-issue}109160[#109160])
+// end::index-mapper-dynamic-bug[]
+
 [[enhancement-7.7.1]]
 [discrete]
 === Enhancements
@@ -169,6 +177,8 @@ We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[breaking-7.7.0]]
 [discrete]

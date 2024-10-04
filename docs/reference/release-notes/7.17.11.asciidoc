@@ -10,6 +10,8 @@ Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 === Known issues
 include::7.17.10.asciidoc[tag=no-preventive-gc-issue]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[bug-7.17.11]]
 [float]
 === Bug fixes

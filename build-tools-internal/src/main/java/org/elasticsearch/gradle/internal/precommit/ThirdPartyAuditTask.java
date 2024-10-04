@@ -188,6 +188,11 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     @SkipWhenEmpty
     public abstract ConfigurableFileCollection getJarsToScan();
 
+    @Classpath
+    public FileCollection getClasspath() {
+        return classpath;
+    }
+
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
         Set<File> jars = getJarsToScan().getFiles();

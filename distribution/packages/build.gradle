@@ -42,23 +42,13 @@ import java.util.regex.Pattern
  *    dpkg -c path/to/elasticsearch.deb
  */
 
-buildscript {
-  repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
-    mavenCentral()
-  }
-  dependencies {
-    classpath "com.github.breskeby:gradle-ospackage-plugin:2da19425133"
-  }
+plugins {
+  id "com.netflix.nebula.ospackage-base" version "11.9.1"
 }
 
-apply plugin: "com.netflix.nebula.ospackage-base"
 
 void addProcessFilesTask(String type, boolean oss, boolean jdk) {
   String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
-
   String taskName = "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
   tasks.register(taskName, Copy) {
     into packagingFiles
@@ -147,7 +137,9 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
       }
       from(rootProject.projectDir) {
         include 'README.asciidoc'
-        fileMode 0644
+        filePermissions {
+          unix 0644
+        }
       }
       into('lib') {
         with libFiles(oss)
@@ -170,9 +162,13 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
             directory('/' + segments[0..i].join('/'), 0755)
           }
           if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
-            fcp.mode = 0755
+            fcp.permissions {
+              unix(0755)
+            }
           } else {
-            fcp.mode = 0644
+            fcp.permissions {
+              unix(0644)
+            }
           }
         }
       }
@@ -182,7 +178,9 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     if (type == 'deb') {
       into("/usr/share/doc/${packageName}") {
         from "${packagingFiles}/copyright"
-        fileMode 0644
+        filePermissions {
+          unix(0644)
+        }
       }
     } else {
       assert type == 'rpm'
@@ -191,7 +189,9 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
           include oss ? 'SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }
-        fileMode 0644
+        filePermissions {
+          unix(0644)
+        }
       }
     }
 
@@ -207,7 +207,9 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
       configurationFile '/etc/elasticsearch/users_roles'
     }
     from("${packagingFiles}") {
-      dirMode 02750
+      dirPermissions {
+        unix(02750)
+      }
       into('/etc')
       permissionGroup 'elasticsearch'
       setgid true
@@ -218,9 +220,13 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     }
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
-      dirMode 02750
+      dirPermissions {
+        unix(02750)
+      }
       setgid = true
-      fileMode 0660
+      filePermissions {
+        unix(0660)
+      }
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
@@ -231,34 +237,46 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
       permissionGroup 'elasticsearch'
-      fileMode 0660
+      filePermissions {
+        unix(0660)
+      }
       from "${packagingFiles}/env/elasticsearch"
     }
 
     // ========= systemd =========
     into('/usr/lib/tmpfiles.d') {
       from "${packagingFiles}/systemd/elasticsearch.conf"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/lib/systemd/system') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/lib/sysctl.d') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/share/elasticsearch/bin') {
       from "${packagingFiles}/systemd/systemd-entrypoint"
-      fileMode 0755
+      filePermissions {
+        unix(0755)
+      }
     }
 
     // ========= sysV init =========
     configurationFile '/etc/init.d/elasticsearch'
     into('/etc/init.d') {
-      fileMode 0750
+      filePermissions {
+        unix(0750)
+      }
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/init.d/elasticsearch"
     }
@@ -274,7 +292,9 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
         createDirectoryEntry true
         user u
         permissionGroup g
-        dirMode mode
+        dirPermissions {
+          unix(mode)
+        }
         setgid (mode == 02750)
       }
     }
@@ -348,7 +368,9 @@ Closure commonDebConfig(boolean oss, boolean jdk, String architecture) {
       if (oss) {
         rename('elasticsearch', 'elasticsearch-oss')
       }
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
   }
 }

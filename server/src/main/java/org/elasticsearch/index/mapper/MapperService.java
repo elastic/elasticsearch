@@ -59,6 +59,8 @@ import java.util.stream.Collectors;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(MapperService.class);
+
     /**
      * The reason why a mapping is being merged.
      */
@@ -205,7 +207,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())
             && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-            throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
+            DEPRECATION_LOGGER.warn(
+                DeprecationCategory.MAPPINGS,
+                "index.mapper.dynamic",
+                "Setting {} was removed after version 6.0.0",
+                INDEX_MAPPER_DYNAMIC_SETTING.getKey()
+            );
         }
         defaultMappingSource = "{\"_default_\":{}}";
         if (logger.isTraceEnabled()) {

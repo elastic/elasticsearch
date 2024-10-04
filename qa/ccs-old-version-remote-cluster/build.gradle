@@ -23,30 +23,29 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
   String bwcVersionStr = "${bwcVersion}"
 
-  testClusters {
-    "${baseName}-local" {
+  def localCluster = testClusters.register("${baseName}-local") {
       numberOfNodes = 2
       versions = [project.version]
       setting 'cluster.remote.node.attr', 'gateway'
       setting 'xpack.security.enabled', 'false'
-    }
-    "${baseName}-remote" {
-      numberOfNodes = 2 
+  }
+
+  def remoteCluster = testClusters.register("${baseName}-remote") {
+      numberOfNodes = 2
       versions = [bwcVersionStr]
       firstNode.setting 'node.attr.gateway', 'true'
       lastNode.setting 'node.attr.gateway', 'true'
       setting 'xpack.security.enabled', 'false'
-    }
   }
 
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
-    useCluster testClusters."${baseName}-local"
-    useCluster testClusters."${baseName}-remote"
+    useCluster localCluster
+    useCluster remoteCluster
     systemProperty 'tests.upgrade_from_version', bwcVersionStr.replace('-SNAPSHOT', '')
 
     doFirst {
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}-local".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', "${-> testClusters."${baseName}-remote".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
     }
   }
 

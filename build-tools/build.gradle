@@ -6,6 +6,15 @@
  * Side Public License, v 1.
  */
 
+buildscript {
+  repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+    mavenCentral()
+  }
+}
+
 plugins {
     id 'java-gradle-plugin'
     id 'groovy'
@@ -107,6 +116,9 @@ configurations {
 }
 
 repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
     mavenCentral()
     gradlePluginPortal()
 }

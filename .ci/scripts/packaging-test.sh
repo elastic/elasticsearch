@@ -3,7 +3,7 @@
 # opensuse 15 has a missing dep for systemd
 
 if which zypper > /dev/null ; then
-    sudo zypper install -y insserv-compat
+    sudo zypper install -y insserv-compat systemd-sysvcompat
 fi
 
 if [ -e /etc/sysctl.d/99-gce.conf ]; then
@@ -40,7 +40,7 @@ if [ -f "/etc/os-release" ] ; then
         # Work around incorrect lintian version
         #  https://github.com/elastic/elasticsearch/issues/48573
         if [ $VERSION_ID == 10 ] ; then
-            sudo apt-get update -y
+            sudo apt-get update -y || true
             sudo apt-get install -y --allow-downgrades lintian=2.15.0
         fi
     fi

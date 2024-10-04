@@ -22,15 +22,18 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+import static org.elasticsearch.xpack.security.Security.DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS;
 
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
     public static final Version VERSION_SHARD_SEARCH_INTERCEPTOR = Version.V_7_11_2;
     private final ClusterService clusterService;
+    private final boolean forceTermsAggsToExcludeDeleteDocsEnabled;
 
     public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService) {
         super(threadPool.getThreadContext(), licenseState);
         this.clusterService = clusterService;
+        forceTermsAggsToExcludeDeleteDocsEnabled = DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS.get(clusterService.getSettings());
     }
 
     @Override
@@ -65,6 +68,11 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
                     )
                 );
             } else {
+                if (forceTermsAggsToExcludeDeleteDocsEnabled && hasZeroMinDocTermsAggregation(request)) {
+                    assert request.source() != null && request.source().aggregations() != null;
+                    request.source().aggregations().forceTermsAggsToExcludeDeletedDocs();
+                }
+
                 listener.onResponse(null);
             }
         } else {
@@ -81,4 +89,11 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     boolean hasRemoteIndices(SearchRequest request) {
         return Arrays.stream(request.indices()).anyMatch(name -> name.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0);
     }
+
+    private static boolean hasZeroMinDocTermsAggregation(SearchRequest searchRequest) {
+        return searchRequest.source() != null
+            && searchRequest.source().aggregations() != null
+            && searchRequest.source().aggregations().hasZeroMinDocTermsAggregation();
+    }
+
 }

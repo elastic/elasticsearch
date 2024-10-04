@@ -11,6 +11,8 @@ import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.component.ComponentIdentifier;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
@@ -18,7 +20,9 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -40,6 +44,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFileCollectionFromNonTransitiveArtifactsView;
 
 /**
  * A task to check licenses for dependencies.
@@ -83,7 +89,7 @@ import javax.inject.Inject;
  * for the dependency. This artifact will be redistributed by us with the release to
  * comply with the license terms.
  */
-public class DependencyLicensesTask extends DefaultTask {
+public abstract class DependencyLicensesTask extends DefaultTask {
 
     private final Pattern regex = Pattern.compile("-v?\\d+.*");
 
@@ -182,6 +188,10 @@ public class DependencyLicensesTask extends DefaultTask {
     public void ignoreFile(String file) {
         ignoreFiles.add(file);
     }
+
+    @Input
+    @Optional
+    public abstract Property<Spec<ComponentIdentifier>> getComponentFilter();
 
     @TaskAction
     public void checkDependencies() {
@@ -297,7 +307,6 @@ public class DependencyLicensesTask extends DefaultTask {
             // try the other suffix...TODO: get rid of this, just support ending in .txt
             return fileName + ".txt";
         }
-
         return fileName;
     }
 
@@ -310,6 +319,17 @@ public class DependencyLicensesTask extends DefaultTask {
     @Input
     public LinkedHashMap<String, String> getMappings() {
         return new LinkedHashMap<>(mappings);
+    }
+
+    /**
+     * Convencience method for configuring dependencies to be checked and ignoring transitive dependencies for now.
+     * */
+    public void configureDependencies(
+        Configuration plusConfiguration,
+        Configuration minusConfiguration,
+        Spec<ComponentIdentifier> componentFilter
+    ) {
+        setDependencies(createFileCollectionFromNonTransitiveArtifactsView(plusConfiguration, componentFilter).minus(minusConfiguration));
     }
 
 }

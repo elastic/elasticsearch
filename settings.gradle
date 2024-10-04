@@ -4,6 +4,9 @@ import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 
 pluginManagement {
   repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
     mavenCentral()
     gradlePluginPortal()
   }

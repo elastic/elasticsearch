@@ -41,6 +41,7 @@ public class WellKnownText {
     public static final String RPAREN = ")";
     public static final String COMMA = ",";
     public static final String NAN = "NaN";
+    public static final int MAX_NESTED_DEPTH = 1000;
 
     private static final String NUMBER = "<NUMBER>";
     private static final String EOF = "END-OF-STREAM";
@@ -233,7 +234,7 @@ public class WellKnownText {
             tokenizer.whitespaceChars('\r', '\r');
             tokenizer.whitespaceChars('\n', '\n');
             tokenizer.commentChar('#');
-            Geometry geometry = parseGeometry(tokenizer, coerce);
+            Geometry geometry = parseGeometry(tokenizer, coerce, 0);
             validator.validate(geometry);
             return geometry;
         } finally {
@@ -244,7 +245,7 @@ public class WellKnownText {
     /**
      * parse geometry from the stream tokenizer
      */
-    private static Geometry parseGeometry(StreamTokenizer stream, boolean coerce) throws IOException, ParseException {
+    private static Geometry parseGeometry(StreamTokenizer stream, boolean coerce, int depth) throws IOException, ParseException {
         final String type = nextWord(stream).toLowerCase(Locale.ROOT);
         switch (type) {
             case "point":
@@ -262,22 +263,25 @@ public class WellKnownText {
             case "bbox":
                 return parseBBox(stream);
             case "geometrycollection":
-                return parseGeometryCollection(stream, coerce);
+                return parseGeometryCollection(stream, coerce, depth + 1);
             case "circle": // Not part of the standard, but we need it for internal serialization
                 return parseCircle(stream);
         }
         throw new IllegalArgumentException("Unknown geometry type: " + type);
     }
 
-    private static GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream, boolean coerce) throws IOException,
-        ParseException {
+    private static GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream, boolean coerce, int depth)
+        throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return GeometryCollection.EMPTY;
         }
+        if (depth > MAX_NESTED_DEPTH) {
+            throw new ParseException("maximum nested depth of " + MAX_NESTED_DEPTH + " exceeded", stream.lineno());
+        }
         List<Geometry> shapes = new ArrayList<>();
-        shapes.add(parseGeometry(stream, coerce));
+        shapes.add(parseGeometry(stream, coerce, depth));
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            shapes.add(parseGeometry(stream, coerce));
+            shapes.add(parseGeometry(stream, coerce, depth));
         }
         return new GeometryCollection<>(shapes);
     }

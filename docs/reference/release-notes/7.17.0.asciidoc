@@ -19,6 +19,8 @@ release of 7.17 before upgrading to 8.x.
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[deprecation-7.17.0]]
 [float]
 === Deprecations

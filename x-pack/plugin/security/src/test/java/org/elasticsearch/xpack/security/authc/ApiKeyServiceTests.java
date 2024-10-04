@@ -50,6 +50,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -97,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
@@ -105,6 +107,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static junit.framework.TestCase.fail;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -118,6 +121,7 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_METADATA_KEY;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -142,6 +146,8 @@ import static org.mockito.Mockito.when;
 
 public class ApiKeyServiceTests extends ESTestCase {
 
+    private static final int TEST_THREADPOOL_QUEUE_SIZE = 1000;
+
     private ThreadPool threadPool;
     private XPackLicenseState licenseState;
     private Client client;
@@ -157,7 +163,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     Settings.EMPTY,
                     SECURITY_CRYPTO_THREAD_POOL_NAME,
                     1,
-                    1000,
+                    TEST_THREADPOOL_QUEUE_SIZE,
                     "xpack.security.crypto.thread_pool",
                     false
                 )
@@ -178,6 +184,90 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
+    }
+
+    public void testFloodThreadpool() throws Exception {
+        // We're going to be blocking the security-crypto threadpool so we need a new one for the client
+        ThreadPool clientThreadpool = new TestThreadPool(
+            this.getClass().getName(),
+            new FixedExecutorBuilder(Settings.EMPTY, this.getClass().getName(), 1, 100, "no_settings_used", false)
+        );
+        try {
+            when(client.threadPool()).thenReturn(clientThreadpool);
+
+            // setup copied from testAuthenticateWithApiKey
+            final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+            final ApiKeyService service = createApiKeyService(settings);
+
+            final String id = randomAlphaOfLength(12);
+            final String key = randomAlphaOfLength(16);
+
+            final User user;
+            if (randomBoolean()) {
+                user = new User(
+                    new User("hulk", new String[] { "superuser" }, "Bruce Banner", "hulk@test.com", org.elasticsearch.core.Map.of(), true),
+                    new User("authenticated_user", new String[] { "other" })
+                );
+            } else {
+                user = new User(
+                    "hulk",
+                    new String[] { "superuser" },
+                    "Bruce Banner",
+                    "hulk@test.com",
+                    org.elasticsearch.core.Map.of(),
+                    true
+                );
+            }
+            final Map<String, Object> metadata = mockKeyDocument(service, id, key, user);
+
+            // Block the security crypto threadpool
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(() -> safeAwait(barrier));
+            // Now fill it up while the one thread is blocked
+            for (int i = 0; i < TEST_THREADPOOL_QUEUE_SIZE; i++) {
+                threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(() -> {});
+            }
+
+            // Check that it's full
+            for (ThreadPoolStats.Stats stat : threadPool.stats()) {
+                if (stat.getName().equals(SECURITY_CRYPTO_THREAD_POOL_NAME)) {
+                    assertThat(stat.getQueue(), equalTo(TEST_THREADPOOL_QUEUE_SIZE));
+                    assertThat(stat.getRejected(), equalTo(0L));
+                }
+            }
+
+            // now try to auth with an API key
+            final AuthenticationResult auth = tryAuthenticate(service, id, key);
+            assertThat(auth.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+
+            // Make sure one was rejected and the queue is still full
+            for (ThreadPoolStats.Stats stat : threadPool.stats()) {
+                if (stat.getName().equals(SECURITY_CRYPTO_THREAD_POOL_NAME)) {
+                    assertThat(stat.getQueue(), equalTo(TEST_THREADPOOL_QUEUE_SIZE));
+                    assertThat(stat.getRejected(), equalTo(1L));
+                }
+            }
+            ListenableFuture<CachedApiKeyHashResult> cachedValue = service.getApiKeyAuthCache().get(id);
+            assertThat("since the request was rejected, there should be no cache entry for this key", cachedValue, nullValue());
+
+            // unblock the threadpool
+            safeAwait(barrier);
+
+            // wait for the threadpool queue to drain & check that the stats as as expected
+            flushThreadPoolExecutor(threadPool, SECURITY_CRYPTO_THREAD_POOL_NAME);
+            for (ThreadPoolStats.Stats stat : threadPool.stats()) {
+                if (stat.getName().equals(SECURITY_CRYPTO_THREAD_POOL_NAME)) {
+                    assertThat(stat.getRejected(), equalTo(1L));
+                    assertThat(stat.getQueue(), equalTo(0));
+                }
+            }
+
+            // try to authenticate again with the same key - if this hangs, check the future caching
+            final AuthenticationResult shouldSucceed = tryAuthenticate(service, id, key);
+            assertThat(shouldSucceed.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        } finally {
+            terminate(clientThreadpool);
+        }
     }
 
     public void testCreateApiKeyWillUseBulkAction() throws Exception {
@@ -1697,5 +1787,30 @@ public class ApiKeyServiceTests extends ESTestCase {
                 equalTo(XContentTestUtils.convertToXContent((Map<String, Object>) metadata, XContentType.JSON))
             );
         }
+    }
+
+    private static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
+        final int maxThreads = threadPool.info(executorName).getMax();
+        final CyclicBarrier barrier = new CyclicBarrier(maxThreads + 1);
+        final ExecutorService executor = threadPool.executor(executorName);
+        for (int i = 0; i < maxThreads; i++) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    safeAwait(barrier);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e.toString());
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+            });
+        }
+        safeAwait(barrier);
     }
 }

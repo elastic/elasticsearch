@@ -8,8 +8,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -29,7 +27,8 @@ steps:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
-          machineType: custom-16-32768
+          machineType: n1-standard-8
+        env: {}
   - group: packaging-tests-upgrade
     steps:
       - label: "{{matrix.image}} / 6.0.1 / packaging-tests-upgrade"
@@ -448,8 +447,8 @@ steps:
         env:
           BWC_VERSION: 7.16.3
 
-      - label: "{{matrix.image}} / 7.17.19 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.19
+      - label: "{{matrix.image}} / 7.17.24 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.24
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -462,7 +461,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 7.17.19
+          BWC_VERSION: 7.17.24
 
   - group: packaging-tests-windows
     steps:

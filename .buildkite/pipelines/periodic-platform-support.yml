@@ -7,8 +7,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -49,7 +47,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: n1-standard-32
+          machineType: n1-standard-16
           diskType: pd-ssd
           diskSizeGb: 350
         env:

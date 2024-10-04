@@ -7,8 +7,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -28,7 +26,8 @@ steps:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
-          machineType: custom-16-32768
+          machineType: n1-standard-8
+        env: {}
   - group: packaging-tests-upgrade
     steps: $BWC_STEPS
   - group: packaging-tests-windows

@@ -12,27 +12,23 @@ import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.artifacts.component.ComponentIdentifier;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.TaskProvider;
 
 public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
+    private static Spec<ComponentIdentifier> COMPONENT_FILTER = identifier -> (identifier instanceof ModuleComponentIdentifier)
+        && ((ModuleComponentIdentifier) identifier).getGroup().startsWith("org.elasticsearch") == false;
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
-        TaskProvider<DependencyLicensesTask> dependencyLicenses = project.getTasks()
-            .register("dependencyLicenses", DependencyLicensesTask.class);
-
-        // only require dependency licenses for non-elasticsearch deps
-        dependencyLicenses.configure(t -> {
-            Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
-            Configuration compileOnly = project.getConfigurations()
-                .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
-            t.setDependencies(
-                runtimeClasspath.fileCollection(dependency -> dependency instanceof ProjectDependency == false).minus(compileOnly)
-            );
+        var dependencyLicenses = project.getTasks().register("dependencyLicenses", DependencyLicensesTask.class, t -> {
+            var runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
+            var compileOnly = project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+            t.configureDependencies(runtimeClasspath, compileOnly, COMPONENT_FILTER);
         });
         return dependencyLicenses;
     }

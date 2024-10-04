@@ -24,8 +24,24 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.ProjectDependency
+import org.elasticsearch.gradle.DistributionDownloadPlugin
+
 import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
+
+buildscript {
+  repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+
+    mavenCentral()
+  }
+}
 
 plugins {
   id 'lifecycle-base'
@@ -263,10 +279,15 @@ allprojects {
   }
 
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
-    configs = project.configurations
+    def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
+    configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
+    if (project.path.contains(":distribution:docker")) {
+      enabled = false
+    }
+
   }
 
   def checkPart1 = tasks.register('checkPart1')
@@ -313,7 +334,7 @@ allprojects {
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
 
-    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
+/*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
         if (project.path != upstreamProject?.path) {
@@ -324,7 +345,7 @@ allprojects {
           }
         }
       }
-    }
+    }*/
   }
 
   apply plugin: 'elasticsearch.formatting'

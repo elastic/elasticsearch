@@ -214,7 +214,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -881,10 +880,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return a random instant between a min and a max value with a random nanosecond precision
      */
     public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
-        return Instant.ofEpochSecond(
-            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
-            randomLongBetween(0, 999999999)
-        );
+        long nanos_per_second = 1_000_000_000;
+        long minNanos = Math.addExact(Math.multiplyExact(minInstant.getEpochSecond(), nanos_per_second), minInstant.getNano());
+        long maxNanos = Math.addExact(Math.multiplyExact(maxInstant.getEpochSecond(), nanos_per_second), maxInstant.getNano());
+        long epochNanos = randomLongBetween(minNanos, maxNanos);
+        return Instant.ofEpochSecond(epochNanos / nanos_per_second, epochNanos % nanos_per_second);
     }
 
     /**

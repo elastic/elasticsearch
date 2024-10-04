@@ -53,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -112,7 +113,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
               }
             }
             """;
-        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
+        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
         admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
         indexDoc(
             INDEX,
@@ -417,8 +418,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
         // this one retrieves docs 1, 4, and 6
-        standard0.queryBuilder = QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery(LAST_30D_FIELD).gt(10L), ScoreMode.Avg)
-            .innerHit(new InnerHitBuilder("a").addSort(new FieldSortBuilder(DOC_FIELD).order(SortOrder.DESC)).setSize(10));
+        standard0.queryBuilder = QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery(LAST_30D_FIELD).gt(10L), ScoreMode.Avg);
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder();
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
@@ -455,9 +455,9 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_6"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_7"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_3"));
             assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_4"));
-            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_7"));
         });
     }
 

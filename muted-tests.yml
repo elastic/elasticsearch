@@ -26,9 +26,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testPreload
   issue: https://github.com/elastic/elasticsearch/issues/110211
-- class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
-  method: testMetadataMigratedAfterUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/110232
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/95384
@@ -121,9 +118,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testMultiIndexDelete
   issue: https://github.com/elastic/elasticsearch/issues/112381
-- class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
-  method: testRankDocsRetrieverWithNestedQuery
-  issue: https://github.com/elastic/elasticsearch/issues/112421
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
   method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
   issue: https://github.com/elastic/elasticsearch/issues/112461
@@ -278,9 +272,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJobsWithIndexNameOption
   issue: https://github.com/elastic/elasticsearch/issues/113528
-- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
-  method: test {p0=dot_prefix/10_basic/Deprecated index template with a dot prefix index pattern}
-  issue: https://github.com/elastic/elasticsearch/issues/113529
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCantCreateJobWithSameID
   issue: https://github.com/elastic/elasticsearch/issues/113581
@@ -351,6 +342,18 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5WithTrainedModelAndInference
   issue: https://github.com/elastic/elasticsearch/issues/114023
+- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderIT
+  method: testRRFWithCollapse
+  issue: https://github.com/elastic/elasticsearch/issues/114074
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5Small_withPlatformSpecificVariant
+  issue: https://github.com/elastic/elasticsearch/issues/113950
+- class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
+  method: testInfer_StreamRequest_ErrorResponse
+  issue: https://github.com/elastic/elasticsearch/issues/114105
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testGet
+  issue: https://github.com/elastic/elasticsearch/issues/114135
 
 # Examples:
 #

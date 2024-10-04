@@ -44,15 +44,18 @@
   - do:
       inference.get:
         inference_id: "*"
-  - length: { endpoints: 0}
+  - length: { endpoints: 1}
+  - match: { endpoints.0.inference_id: ".elser-2" }
 
   - do:
       inference.get:
         inference_id: _all
-  - length: { endpoints: 0}
+  - length: { endpoints: 1}
+  - match: { endpoints.0.inference_id: ".elser-2" }
 
   - do:
       inference.get:
         inference_id: ""
-  - length: { endpoints: 0}
+  - length: { endpoints: 1}
+  - match: { endpoints.0.inference_id: ".elser-2" }
 

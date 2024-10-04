@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -375,11 +376,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.array("drivers", drivers.iterator(), params),
-                ChunkedToXContentHelper.endObject()
-            );
+            return ChunkedToXContent.builder(params)
+                .object(ob -> ob.array("drivers", drivers.iterator(), ChunkedToXContentBuilder::append));
         }
 
         List<DriverProfile> drivers() {

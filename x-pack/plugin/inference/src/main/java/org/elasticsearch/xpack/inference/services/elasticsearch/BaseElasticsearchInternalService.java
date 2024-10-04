@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
@@ -80,7 +82,6 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     @Override
     public void start(Model model, ActionListener<Boolean> finalListener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
-
             if (supportedTaskTypes().contains(model.getTaskType()) == false) {
                 finalListener.onFailure(
                     new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()))
@@ -149,7 +150,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         }
     }
 
-    private void putBuiltInModel(String modelId, ActionListener<Boolean> listener) {
+    protected void putBuiltInModel(String modelId, ActionListener<Boolean> listener) {
         var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
         var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
         PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
@@ -257,5 +258,28 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         request.setHighPriority(InputType.SEARCH == inputType);
         request.setChunked(chunk);
         return request;
+    }
+
+    protected abstract boolean isDefaultId(String inferenceId);
+
+    protected void maybeStartDeployment(
+        ElasticsearchInternalModel model,
+        Exception e,
+        InferModelAction.Request request,
+        ActionListener<InferModelAction.Response> listener
+    ) {
+        if (DefaultElserFeatureFlag.isEnabled() == false) {
+            listener.onFailure(e);
+            return;
+        }
+
+        if (isDefaultId(model.getInferenceEntityId()) && ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+            this.start(
+                model,
+                listener.delegateFailureAndWrap((l, started) -> { client.execute(InferModelAction.INSTANCE, request, listener); })
+            );
+        } else {
+            listener.onFailure(e);
+        }
     }
 }

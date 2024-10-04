@@ -232,30 +232,7 @@ setup:
   - length: { aggregations.intervals.buckets: 1 }
   - match: { aggregations.intervals.buckets.0.key: "1m" }
   - match: { aggregations.intervals.buckets.0.doc_count: 1 }
----
-"Terms aggregation on metricset.interval from metrics-transaction must with hidden data streams contain all aggregations":
-  - do:
-      bulk:
-        index: metrics-transaction.60m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
-  - do:
-      bulk:
-        index: metrics-transaction.10m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
-  - do:
-      bulk:
-        index: metrics-transaction.1m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "transaction"},"resource":{"attributes":{ "metricset.interval": "1m" } } }'
-  - is_false: errors
+  # With including hidden indices, 10m and 60m aggregation also show up
   - do:
       search:
         index: metrics-*.otel-default
@@ -314,30 +291,7 @@ setup:
   - length: { aggregations.intervals.buckets: 1 }
   - match: { aggregations.intervals.buckets.0.key: "1m" }
   - match: { aggregations.intervals.buckets.0.doc_count: 1 }
----
-"Terms aggregation on metricset.interval from metrics-service_transaction must with hidden data streams contain all aggregations":
-  - do:
-      bulk:
-        index: metrics-service_transaction.60m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
-  - do:
-      bulk:
-        index: metrics-service_transaction.10m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
-  - do:
-      bulk:
-        index: metrics-service_transaction.1m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_transaction"},"resource":{"attributes":{ "metricset.interval": "1m" } } }'
-  - is_false: errors
+  # With including hidden indices, 10m and 60m aggregation also show up
   - do:
       search:
         index: metrics-*.otel-default
@@ -396,30 +350,7 @@ setup:
   - length: { aggregations.intervals.buckets: 1 }
   - match: { aggregations.intervals.buckets.0.key: "1m" }
   - match: { aggregations.intervals.buckets.0.doc_count: 1 }
----
-"Terms aggregation on metricset.interval from metrics-service_summary must with hidden data streams contain all aggregations":
-  - do:
-      bulk:
-        index: metrics-service_summary.60m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
-  - do:
-      bulk:
-        index: metrics-service_summary.10m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
-  - do:
-      bulk:
-        index: metrics-service_summary.1m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_summary"},"resource":{"attributes":{ "metricset.interval": "1m" } } }'
-  - is_false: errors
+  # With including hidden indices, 10m and 60m aggregation also show up
   - do:
       search:
         index: metrics-*.otel-default
@@ -478,30 +409,7 @@ setup:
   - length: { aggregations.intervals.buckets: 1 }
   - match: { aggregations.intervals.buckets.0.key: "1m" }
   - match: { aggregations.intervals.buckets.0.doc_count: 1 }
----
-"Terms aggregation on metricset.interval from metrics-service_destination must with hidden data streams contain all aggregations":
-  - do:
-      bulk:
-        index: metrics-service_destination.60m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination"},"resource":{"attributes":{ "metricset.interval": "60m" } } }'
-  - do:
-      bulk:
-        index: metrics-service_destination.10m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination"},"resource":{"attributes":{ "metricset.interval": "10m" } } }'
-  - do:
-      bulk:
-        index: metrics-service_destination.1m.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z" ,"attributes":{"processor.event":"metric","transaction.root":false, "metricset.name" : "service_destination"},"resource":{"attributes":{ "metricset.interval": "1m" } } }'
-  - is_false: errors
+  # With including hidden indices, 10m and 60m aggregation also show up
   - do:
       search:
         index: metrics-*.otel-default

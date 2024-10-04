@@ -24,7 +24,7 @@ import java.util.Objects;
  * {@code RankDoc} is the base class for all ranked results.
  * Subclasses should extend this with additional information required for their global ranking method.
  */
-public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragment {
+public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragment, Comparable<RankDoc> {
 
     public static final String NAME = "rank_doc";
 
@@ -38,6 +38,17 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public final int compareTo(RankDoc other) {
+        if (score != other.score) {
+            return score < other.score ? 1 : -1;
+        }
+        if (shardIndex != other.shardIndex) {
+            return shardIndex < other.shardIndex ? -1 : 1;
+        }
+        return doc < other.doc ? -1 : 1;
     }
 
     public record RankKey(int doc, int shardIndex) {}
@@ -65,8 +76,12 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
     /**
      * Explain the ranking of this document.
      */
-    public Explanation explain() {
-        return Explanation.match(rank, "doc [" + doc + "] with an original score of [" + score + "] is at rank [" + rank + "].");
+    public Explanation explain(Explanation[] sourceExplanations, String[] queryNames) {
+        return Explanation.match(
+            rank,
+            "doc [" + doc + "] with an original score of [" + score + "] is at rank [" + rank + "] from the following source queries.",
+            sourceExplanations
+        );
     }
 
     @Override
@@ -104,6 +119,6 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
 
     @Override
     public String toString() {
-        return "RankDoc{" + "_rank=" + rank + ", _doc=" + doc + ", _shard=" + shardIndex + ", _score=" + score + '}';
+        return "RankDoc{" + "_rank=" + rank + ", _doc=" + doc + ", _shard=" + shardIndex + ", _score=" + score + "}";
     }
 }

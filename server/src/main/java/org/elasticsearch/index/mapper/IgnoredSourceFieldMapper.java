@@ -57,6 +57,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static final TypeParser PARSER = new FixedTypeParser(context -> new IgnoredSourceFieldMapper(context.getIndexSettings()));
 
     static final NodeFeature TRACK_IGNORED_SOURCE = new NodeFeature("mapper.track_ignored_source");
+    static final NodeFeature DONT_EXPAND_DOTS_IN_IGNORED_SOURCE = new NodeFeature("mapper.ignored_source.dont_expand_dots");
 
     /*
         Setting to disable encoding and writing values for this field.

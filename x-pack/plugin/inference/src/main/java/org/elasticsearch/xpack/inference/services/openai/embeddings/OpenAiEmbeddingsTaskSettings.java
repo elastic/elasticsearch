@@ -38,7 +38,7 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
     public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER, ModelConfigurations.OLD_TASK_SETTINGS, validationException);
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }

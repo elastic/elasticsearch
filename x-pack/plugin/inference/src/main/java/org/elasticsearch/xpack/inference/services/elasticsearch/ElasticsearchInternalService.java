@@ -116,7 +116,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
+            Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.OLD_TASK_SETTINGS);
             String serviceName = (String) config.remove(ModelConfigurations.SERVICE); // required for elser service in elasticsearch service
 
             throwIfNotEmptyMap(config, name());
@@ -386,7 +386,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
         String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
         if (modelId == null) {

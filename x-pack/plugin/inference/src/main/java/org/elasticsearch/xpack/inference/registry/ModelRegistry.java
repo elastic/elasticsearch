@@ -418,7 +418,14 @@ public class ModelRegistry {
             var request = new IndexRequest(indexName);
             XContentBuilder source = body.toXContent(
                 builder,
-                new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString()))
+                new ToXContent.MapParams(
+                    Map.of(
+                        ModelConfigurations.USE_ID_FOR_INDEX,
+                        Boolean.TRUE.toString(),
+                        ModelConfigurations.INCLUDE_PARAMETERS, // we are going to continue to write the parameters field as `task_settings`
+                        Boolean.FALSE.toString()
+                    )
+                )
             );
             var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
 

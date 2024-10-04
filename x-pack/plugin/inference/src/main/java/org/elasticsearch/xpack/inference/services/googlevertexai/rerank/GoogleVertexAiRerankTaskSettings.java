@@ -32,7 +32,7 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
     public static GoogleVertexAiRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
+        Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.OLD_TASK_SETTINGS, validationException);
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }

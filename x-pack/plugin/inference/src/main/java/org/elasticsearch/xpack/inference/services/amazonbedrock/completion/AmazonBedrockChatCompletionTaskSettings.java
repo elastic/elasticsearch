@@ -48,7 +48,7 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
             TEMPERATURE_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.OLD_TASK_SETTINGS,
             validationException
         );
         Double topP = extractOptionalDoubleInRange(
@@ -56,7 +56,7 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
             TOP_P_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.OLD_TASK_SETTINGS,
             validationException
         );
         Double topK = extractOptionalDoubleInRange(
@@ -64,13 +64,13 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
             TOP_K_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.OLD_TASK_SETTINGS,
             validationException
         );
         Integer maxNewTokens = extractOptionalPositiveInteger(
             settings,
             MAX_NEW_TOKENS_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.OLD_TASK_SETTINGS,
             validationException
         );
 

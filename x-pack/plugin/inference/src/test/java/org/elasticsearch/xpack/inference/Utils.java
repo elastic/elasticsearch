@@ -194,7 +194,9 @@ public final class Utils {
         var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
 
         return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
+            new HashMap<>(
+                Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.OLD_TASK_SETTINGS, taskSettings)
+            ),
             secrets
         );
     }
@@ -205,7 +207,9 @@ public final class Utils {
 
     public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
         return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
+            new HashMap<>(
+                Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.OLD_TASK_SETTINGS, taskSettings)
+            ),
             null
         );
     }
@@ -232,7 +236,7 @@ public final class Utils {
         builtServiceSettings.putAll(secretSettings);
 
         return new HashMap<>(
-            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
+            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.OLD_TASK_SETTINGS, taskSettings)
         );
     }
 

@@ -28,8 +28,10 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     public static final String USE_ID_FOR_INDEX = "for_index";
     public static final String SERVICE = "service";
     public static final String SERVICE_SETTINGS = "service_settings";
-    public static final String TASK_SETTINGS = "task_settings";
+    public static final String OLD_TASK_SETTINGS = "task_settings";
+    public static final String PARAMETERS = "parameters";
     public static final String CHUNKING_SETTINGS = "chunking_settings";
+    public static final String INCLUDE_PARAMETERS = "include_parameters";
     private static final String NAME = "inference_model";
 
     public static ModelConfigurations of(Model model, TaskSettings taskSettings) {
@@ -173,9 +175,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
-        builder.field(TASK_SETTINGS, taskSettings);
+        builder.field(OLD_TASK_SETTINGS, taskSettings);
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
+        }
+        if (params.paramAsBoolean(INCLUDE_PARAMETERS, true)) { // default true so that REST requests get parameters
+            builder.field(PARAMETERS, taskSettings);
         }
         builder.endObject();
         return builder;
@@ -192,9 +197,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
-        builder.field(TASK_SETTINGS, taskSettings);
+        builder.field(OLD_TASK_SETTINGS, taskSettings);
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
+        }
+        if (params.paramAsBoolean(INCLUDE_PARAMETERS, true)) { // default true so that REST requests get parameters
+            builder.field(PARAMETERS, taskSettings);
         }
         builder.endObject();
         return builder;

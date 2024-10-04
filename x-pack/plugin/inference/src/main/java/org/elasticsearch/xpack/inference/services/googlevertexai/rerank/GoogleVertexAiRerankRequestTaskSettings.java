@@ -29,7 +29,7 @@ public record GoogleVertexAiRerankRequestTaskSettings(@Nullable Integer topN) {
         Integer topN = extractOptionalPositiveInteger(
             map,
             GoogleVertexAiRerankTaskSettings.TOP_N,
-            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.OLD_TASK_SETTINGS,
             validationException
         );
 

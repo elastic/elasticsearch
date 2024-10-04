@@ -37,7 +37,7 @@ public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
     public static AzureOpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER, ModelConfigurations.OLD_TASK_SETTINGS, validationException);
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }

@@ -43,7 +43,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             TEMPERATURE_FIELD,
             AzureAiStudioConstants.MIN_TEMPERATURE_TOP_P,
             AzureAiStudioConstants.MAX_TEMPERATURE_TOP_P,
-            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.OLD_TASK_SETTINGS,
             validationException
         );
         var topP = extractOptionalDoubleInRange(
@@ -51,14 +51,14 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             TOP_P_FIELD,
             AzureAiStudioConstants.MIN_TEMPERATURE_TOP_P,
             AzureAiStudioConstants.MAX_TEMPERATURE_TOP_P,
-            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.OLD_TASK_SETTINGS,
             validationException
         );
         var doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, validationException);
         var maxNewTokens = extractOptionalPositiveInteger(
             map,
             MAX_NEW_TOKENS_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.OLD_TASK_SETTINGS,
             validationException
         );
 

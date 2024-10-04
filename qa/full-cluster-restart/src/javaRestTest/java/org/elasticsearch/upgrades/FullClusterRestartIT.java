@@ -1201,16 +1201,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             saveInfoDocument(index + "_doc_count", Integer.toString(numDocs));
             closeIndex(index);
         }
-
-        @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING) // This check can be removed (always assume true)
-        var originalClusterSupportsReplicationOfClosedIndices = oldClusterHasFeature(RestTestLegacyFeatures.REPLICATION_OF_CLOSED_INDICES);
-
-        if (originalClusterSupportsReplicationOfClosedIndices) {
-            ensureGreenLongWait(index);
-            assertClosedIndex(index, true);
-        } else {
-            assertClosedIndex(index, false);
-        }
+        ensureGreenLongWait(index);
+        assertClosedIndex(index, true);
 
         if (isRunningAgainstOldCluster() == false) {
             openIndex(index);

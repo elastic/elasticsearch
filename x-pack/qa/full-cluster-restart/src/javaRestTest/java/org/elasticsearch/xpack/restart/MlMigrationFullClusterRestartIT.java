@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -58,11 +57,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractXpackFullClusterRes
     public void waitForMlTemplates() throws Exception {
         // We shouldn't wait for ML templates during the upgrade - production won't
         if (isRunningAgainstOldCluster()) {
-            XPackRestTestHelper.waitForTemplates(
-                client(),
-                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)
-            );
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
         }
     }
 

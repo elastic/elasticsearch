@@ -11,12 +11,12 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
+  compileOnly project(":libs:elasticsearch-logging")
+  compileOnly project(":libs:elasticsearch-x-content")
 
-  testImplementation project(":test:framework")
-}
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-entitlement-runtime'
+  }
 }
 
 tasks.named('forbiddenApisMain').configure {

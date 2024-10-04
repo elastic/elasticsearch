@@ -347,6 +347,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformAgnosticVariant
   issue: https://github.com/elastic/elasticsearch/issues/113983
+- class: org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilderTests
+  method: testRankDocsQueryEarlyTerminate
+  issue: https://github.com/elastic/elasticsearch/issues/114097
 
 # Examples:
 #

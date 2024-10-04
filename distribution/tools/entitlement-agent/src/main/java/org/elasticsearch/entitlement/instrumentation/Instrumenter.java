@@ -35,7 +35,7 @@ import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
 public class Instrumenter {
     /**
-     * To avoid class name collisions during testing. Should be an empty string in production.
+     * To avoid class name collisions during testing without an agent to replace classes in-place.
      */
     private final String classNameSuffix;
     private final Map<MethodKey, Method> instrumentationMethods;

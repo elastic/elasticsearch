@@ -55,7 +55,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
     public static final String NAME = "mustache";
 
     public static final Setting<ByteSizeValue> MUSTACHE_RESULT_SIZE_LIMIT = new Setting<>(
-        "mustache.result.size.limit",
+        "mustache.max_output_size_bytes",
         s -> "1mb",
         s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "mustache.max_output_size_bytes"),
         Setting.Property.NodeScope

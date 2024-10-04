@@ -22,6 +22,7 @@ import org.objectweb.asm.Type;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -87,8 +88,7 @@ public class Instrumenter {
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
             var mv = super.visitMethod(access, name, descriptor, signature, exceptions);
             boolean isStatic = (access & ACC_STATIC) != 0;
-            var voidDescriptor = Type.getMethodDescriptor(Type.VOID_TYPE, Type.getArgumentTypes(descriptor));
-            var key = new MethodKey(className, name, voidDescriptor, isStatic);
+            var key = new MethodKey(className, name, List.of(Type.getArgumentTypes(descriptor)), isStatic);
             var instrumentationMethod = instrumentationMethods.get(key);
             if (instrumentationMethod != null) {
                 // LOGGER.debug("Will instrument method {}", key);

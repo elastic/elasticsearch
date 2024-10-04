@@ -37,7 +37,7 @@ public class EntitlementAgentTests extends ESTestCase {
     /**
      * We can't really check that this one passes because it will just exit the JVM.
      */
-    public void test_exitNotEntitled_throws() {
+    public void testSystemExitNotEntitled() {
         ENTITLEMENT_MANAGER.activate();
         assertThrows(NotEntitledException.class, () -> System.exit(123));
     }

@@ -13,26 +13,22 @@ import org.objectweb.asm.Type;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 /**
  *
  * @param className the "internal name" of the class: includes the package info, but with periods replaced by slashes
- * @param methodName
- * @param voidDescriptor the method descriptor, but with the return type replaced by {@code V}
- *                       because the return type isn't consulted in the lookup process anyway
- * @param isStatic
  */
-public record MethodKey(String className, String methodName, String voidDescriptor, boolean isStatic) {
+public record MethodKey(String className, String methodName, List<Type> parameterTypes, boolean isStatic) {
     /**
      * @return a {@link MethodKey} suitable for looking up the given {@code targetMethod} in the entitlements trampoline
      */
     public static MethodKey forTargetMethod(Method targetMethod) {
         Type actualType = Type.getMethodType(Type.getMethodDescriptor(targetMethod));
-        String voidDescriptor = Type.getMethodDescriptor(Type.VOID_TYPE, actualType.getArgumentTypes());
         return new MethodKey(
             Type.getInternalName(targetMethod.getDeclaringClass()),
             targetMethod.getName(),
-            voidDescriptor,
+            List.of(actualType.getArgumentTypes()),
             Modifier.isStatic(targetMethod.getModifiers())
         );
     }

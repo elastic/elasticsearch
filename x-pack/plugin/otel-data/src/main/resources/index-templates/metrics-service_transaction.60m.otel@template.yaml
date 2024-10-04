@@ -1,11 +1,12 @@
 ---
 version: ${xpack.oteldata.template.version}
-index_patterns: ["metrics-*.otel-*"]
-priority: 120
-data_stream: {}
+index_patterns: ["metrics-service_transaction.60m.otel-*"]
+priority: 130
+data_stream:
+  hidden: true
 allow_auto_create: true
 _meta:
-  description: default OpenTelemetry metrics template installed by x-pack
+  description: aggregated APM metrics template installed by x-pack
   managed: true
 composed_of:
   - metrics@tsdb-settings
@@ -14,10 +15,12 @@ composed_of:
   - semconv-resource-to-ecs@mappings
   - metrics@custom
   - metrics-otel@custom
+  - metrics-60m.otel@custom
   - ecs-tsdb@mappings
 ignore_missing_component_templates:
   - metrics@custom
   - metrics-otel@custom
+  - metrics-60m.otel@custom
 template:
   settings:
     index:
@@ -27,14 +30,11 @@ template:
       data_stream.type:
         type: constant_keyword
         value: metrics
-    dynamic_templates:
-      - ecs_ip:
-          mapping:
-            type: ip
-          path_match: [ "ip", "*.ip", "*_ip" ]
-          match_mapping_type: string
-      - all_strings_to_keywords:
-          mapping:
-            ignore_above: 1024
-            type: keyword
-          match_mapping_type: string
+      metricset:
+        properties:
+          interval:
+            type: constant_keyword
+            value: 60m
+          name:
+            type: constant_keyword
+            value: service_transaction

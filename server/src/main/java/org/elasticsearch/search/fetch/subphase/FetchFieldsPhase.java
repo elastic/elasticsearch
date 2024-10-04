@@ -107,7 +107,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         // We check the FetchFieldsContext first for this reason, as we prefer going through the ValueFetcher interface.
         if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
             // Collect metadata fields requested via 'fields'
-            final List<String> fetchFieldNames = extractFieldNames(fetchFieldsContext.fields());
+            final List<String> fetchFieldNames = fieldAndFormatsToFieldNames(fetchFieldsContext.fields());
             metadataFields.addAll(getMetadataFields(fetchFieldNames, sec));
         }
         if (storedFieldsContext != null
@@ -118,13 +118,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             metadataFields.addAll(getMetadataFields(storedFieldNames, sec));
         }
 
-        // If no fields is requested via 'fields' or 'stored_fields', return the default metadata fields anyway
         return FieldFetcher.create(sec, metadataFields);
     }
 
-    // Helper method to extract field names from FieldAndFormat list
-    private static List<String> extractFieldNames(List<FieldAndFormat> fieldAndFormats) {
-        List<String> fieldNames = new ArrayList<>();
+    private static List<String> fieldAndFormatsToFieldNames(final List<FieldAndFormat> fieldAndFormats) {
+        final List<String> fieldNames = new ArrayList<>();
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             fieldNames.add(fieldAndFormat.field);
         }

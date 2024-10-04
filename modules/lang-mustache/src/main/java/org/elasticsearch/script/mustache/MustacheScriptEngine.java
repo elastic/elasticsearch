@@ -15,7 +15,11 @@ import com.github.mustachejava.MustacheFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.SizeLimitingStringWriter;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -49,7 +53,18 @@ public final class MustacheScriptEngine implements ScriptEngine {
 
     public static final String NAME = "mustache";
 
-    private static final int MUSTACHE_SIZE_LIMIT = 1024 * 1024 * 1024;  // 1GB
+    public static final Setting<ByteSizeValue> MUSTACHE_RESULT_SIZE_LIMIT = new Setting<>(
+        "mustache.result.size.limit",
+        s -> "1mb",
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "mustache.result.size.limit"),
+        Setting.Property.NodeScope
+    );
+
+    private final int sizeLimit;
+
+    public MustacheScriptEngine(Settings settings) {
+        sizeLimit = (int) MUSTACHE_RESULT_SIZE_LIMIT.get(settings).getBytes();
+    }
 
     /**
      * Compile a template string to (in this case) a Mustache object than can
@@ -122,7 +137,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
 
         @Override
         public String execute() {
-            StringWriter writer = new SizeLimitingStringWriter(MUSTACHE_SIZE_LIMIT);
+            StringWriter writer = new SizeLimitingStringWriter(sizeLimit);
             try {
                 template.execute(writer, params);
             } catch (Exception e) {
@@ -130,7 +145,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
                     logger.error(() -> format("Error running %s", template), e);
                 }
                 if (e.getCause() instanceof SizeLimitingStringWriter.SizeLimitExceededException) {
-                    throw new ElasticsearchParseException("Script string size exceeded", e);
+                    throw new ElasticsearchParseException("Mustache script result size limit exceeded", e);
                 }
                 throw new GeneralScriptException("Error running " + template, e);
             }

@@ -13,6 +13,9 @@ import org.elasticsearch.common.Strings;
 
 import java.io.StringWriter;
 
+/**
+ * A {@link StringWriter} that throws an exception if the string exceeds a specified size.
+ */
 public class SizeLimitingStringWriter extends StringWriter {
 
     public static class SizeLimitExceededException extends IllegalStateException {
@@ -28,7 +31,7 @@ public class SizeLimitingStringWriter extends StringWriter {
     }
 
     private void checkSizeLimit(int additionalChars) {
-        if (getBuffer().length() + additionalChars >= sizeLimit) {
+        if (getBuffer().length() + additionalChars > sizeLimit) {
             throw new SizeLimitExceededException(
                 Strings.format("String [%s...] has exceeded the size limit [%s]", getBuffer().substring(0, 20), sizeLimit)
             );

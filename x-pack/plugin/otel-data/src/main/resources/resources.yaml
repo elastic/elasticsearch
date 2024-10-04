@@ -9,15 +9,20 @@ component-templates:
   - semconv-resource-to-ecs@mappings
   - metrics-otel@mappings
   - traces-otel@mappings
+  - metrics-otel-fixed@mappings
 index-templates:
   - logs-otel@template
   - metrics-otel@template
   - traces-otel@template
   - metrics-transaction.60m.otel@template
   - metrics-transaction.10m.otel@template
+  - metrics-transaction.1m.otel@template
   - metrics-service_transaction.60m.otel@template
   - metrics-service_transaction.10m.otel@template
+  - metrics-service_transaction.1m.otel@template
   - metrics-service_summary.60m.otel@template
   - metrics-service_summary.10m.otel@template
+  - metrics-service_summary.1m.otel@template
   - metrics-service_destination.60m@template
   - metrics-service_destination.10m@template
+  - metrics-service_destination.1m@template

@@ -15,9 +15,12 @@ composed_of:
   - semconv-resource-to-ecs@mappings
   - metrics@custom
   - metrics-otel@custom
+  - metrics-10m.otel@custom
+  - metrics-otel-fixed@mappings
 ignore_missing_component_templates:
   - metrics@custom
   - metrics-otel@custom
+  - metrics-10m.otel@custom
 template:
   settings:
     index:
@@ -35,14 +38,3 @@ template:
           name:
             type: constant_keyword
             value: transaction
-    dynamic_templates:
-      - ecs_ip:
-          mapping:
-            type: ip
-          path_match: [ "ip", "*.ip", "*_ip" ]
-          match_mapping_type: string
-      - all_strings_to_keywords:
-          mapping:
-            ignore_above: 1024
-            type: keyword
-          match_mapping_type: string

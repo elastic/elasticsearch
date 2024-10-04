@@ -189,10 +189,7 @@ public class Verifier {
             checkFilterMatchConditions(p, failures);
             checkFullTextQueryFunctions(p, failures);
 
-            // _score can only be set as metadata attribute
-            if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && !(a instanceof MetadataAttribute))) {
-                failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
-            }
+            checkNoScoreManipulation(p, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -202,6 +199,13 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkNoScoreManipulation(LogicalPlan p, Set<Failure> failures) {
+        // _score can only be set as metadata attribute
+        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && !(a instanceof MetadataAttribute))) {
+            failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
+        }
     }
 
     private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {

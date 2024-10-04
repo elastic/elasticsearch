@@ -210,6 +210,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         // reference correctly
         var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
         registry.init(services.client());
+        for (var service : registry.getServices().values()) {
+            service.defaultConfigs().forEach(modelRegistry::addDefaultConfiguration);
+        }
         inferenceServiceRegistry.set(registry);
 
         var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);

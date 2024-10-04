@@ -34,17 +34,10 @@ public class EntitlementAgent {
         addJarsToBootstrapClassLoader(inst, jarsString);
 
         Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = EntitlementChecks.class.getMethod(
-            "checkSystemExit", Class.class, int.class);
+        Method instrumentationMethod = EntitlementChecks.class.getMethod("checkSystemExit", Class.class, int.class);
         Map<MethodKey, Method> methodMap = Map.of(MethodKey.forTargetMethod(targetMethod), instrumentationMethod);
 
-        inst.addTransformer(
-            new Transformer(
-                new Instrumenter("", methodMap),
-                Set.of(internalName(System.class))
-            ),
-            true
-        );
+        inst.addTransformer(new Transformer(new Instrumenter("", methodMap), Set.of(internalName(System.class))), true);
         inst.retransformClasses(System.class);
     }
 

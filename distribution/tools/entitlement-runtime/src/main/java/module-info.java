@@ -13,5 +13,7 @@ module org.elasticsearch.entitlement.runtime {
 
     exports org.elasticsearch.entitlement.runtime.api;
 
-    provides org.elasticsearch.entitlement.api.EntitlementChecks with org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
+    provides org.elasticsearch.entitlement.api.EntitlementChecks
+        with
+            org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
 }

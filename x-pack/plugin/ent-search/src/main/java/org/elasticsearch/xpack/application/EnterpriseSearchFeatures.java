@@ -14,8 +14,17 @@ import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 
 import java.util.Map;
+import java.util.Set;
 
 public class EnterpriseSearchFeatures implements FeatureSpecification {
+
+    public static final NodeFeature QUERY_RULES_TEST_API = new NodeFeature("query_rules.test");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(QUERY_RULES_TEST_API);
+    }
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(

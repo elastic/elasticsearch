@@ -255,7 +255,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     private void cacheAttribute(int id, Attribute attr) {
         assert id >= 0;
         if (id >= attributesCache.length) {
-            attributesCache = ArrayUtil.grow(attributesCache);
+            attributesCache = ArrayUtil.grow(attributesCache, id + 1);
         }
         attributesCache[id] = attr;
     }
@@ -297,7 +297,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     private void cacheEsField(int id, EsField field) {
         assert id >= 0;
         if (id >= esFieldsCache.length) {
-            esFieldsCache = ArrayUtil.grow(esFieldsCache);
+            esFieldsCache = ArrayUtil.grow(esFieldsCache, id + 1);
         }
         esFieldsCache[id] = field;
     }

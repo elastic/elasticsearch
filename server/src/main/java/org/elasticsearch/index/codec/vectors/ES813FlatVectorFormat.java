@@ -36,7 +36,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES813FlatVectorFormat";
 
-    private final FlatVectorsFormat format = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat format = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
 
     /**
      * Sole constructor

@@ -31,6 +31,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
 import org.elasticsearch.ingest.geoip.direct.DeleteDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.direct.GetDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction;
@@ -232,7 +233,22 @@ public class IngestGeoIpPlugin extends Plugin
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskParams::new),
-            new NamedWriteableRegistry.Entry(Task.Status.class, GEOIP_DOWNLOADER, GeoIpDownloaderStats::new)
+            new NamedWriteableRegistry.Entry(Task.Status.class, GEOIP_DOWNLOADER, GeoIpDownloaderStats::new),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Maxmind.NAME,
+                DatabaseConfiguration.Maxmind::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Local.NAME,
+                DatabaseConfiguration.Local::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Web.NAME,
+                DatabaseConfiguration.Web::new
+            )
         );
     }
 

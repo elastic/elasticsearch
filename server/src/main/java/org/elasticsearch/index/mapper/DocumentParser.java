@@ -817,8 +817,8 @@ public final class DocumentParser {
             }
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
 
-            canRemoveSingleLeafElement = mode == Mapper.SourceKeepMode.ARRAYS
-                && mapper instanceof NestedObjectMapper == false
+            canRemoveSingleLeafElement = mapper instanceof FieldMapper
+                && mode == Mapper.SourceKeepMode.ARRAYS
                 && fieldWithFallbackSyntheticSource == false
                 && copyToFieldHasValuesInDocument == false;
 

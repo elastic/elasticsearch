@@ -26,7 +26,6 @@ public abstract class ESVectorizationProvider {
 
     // visible for tests
     static ESVectorizationProvider lookup(boolean testMode) {
-        assert Runtime.version().feature() <= 21;
         return new DefaultESVectorizationProvider();
     }
 

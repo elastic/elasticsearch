@@ -10,8 +10,14 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 public class BaseVectorizationTests extends ESTestCase {
+
+    @Before
+    public void sanity() {
+        assert Runtime.version().feature() < 21 || ModuleLayer.boot().findModule("jdk.incubator.vector").isPresent();
+    }
 
     public static ESVectorizationProvider defaultProvider() {
         return new DefaultESVectorizationProvider();

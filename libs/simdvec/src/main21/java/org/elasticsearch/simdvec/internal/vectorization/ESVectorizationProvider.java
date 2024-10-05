@@ -35,7 +35,7 @@ public abstract class ESVectorizationProvider {
     // visible for tests
     static ESVectorizationProvider lookup(boolean testMode) {
         final int runtimeVersion = Runtime.version().feature();
-        assert runtimeVersion >= 22;
+        assert runtimeVersion >= 21;
         if (runtimeVersion <= 23) {
             // only use vector module with Hotspot VM
             if (Constants.IS_HOTSPOT_VM == false) {

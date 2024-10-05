@@ -351,9 +351,21 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/114105
-- class: org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilderTests
-  method: testRankDocsQueryEarlyTerminate
-  issue: https://github.com/elastic/elasticsearch/issues/114097
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testGet
+  issue: https://github.com/elastic/elasticsearch/issues/114135
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testIncrementalBulkHighWatermarkBackOff
+  issue: https://github.com/elastic/elasticsearch/issues/114073
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
+  method: "testFold {TestCase=<double> #7}"
+  issue: https://github.com/elastic/elasticsearch/issues/114175
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testMultipleBulkPartsWithBackoff
+  issue: https://github.com/elastic/elasticsearch/issues/114181
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testIncrementalBulkLowWatermarkBackOff
+  issue: https://github.com/elastic/elasticsearch/issues/114182
 
 # Examples:
 #

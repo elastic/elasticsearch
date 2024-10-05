@@ -137,11 +137,10 @@ public class RestBulkAction extends BaseRestHandler {
 
     static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
 
-        private final boolean allowExplicitIndex;
         private final RestRequest request;
 
         private final Supplier<IncrementalBulkService.Handler> handlerSupplier;
-        private BulkRequestParser.IncrementalParser parser;
+        private final BulkRequestParser.IncrementalParser parser;
         private IncrementalBulkService.Handler handler;
 
         private volatile RestChannel restChannel;
@@ -151,16 +150,9 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
-            this.allowExplicitIndex = allowExplicitIndex;
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-        }
-
-        @Override
-        public void accept(RestChannel restChannel) {
-            this.restChannel = restChannel;
-            this.handler = handlerSupplier.get();
-            this.parser = new BulkRequestParser(true, request.getRestApiVersion(), handler::loadRequestContext).incrementalParser(
+            this.parser = new BulkRequestParser(true, request.getRestApiVersion(), this::loadRequestContext).incrementalParser(
                 request.param("index"),
                 request.param("routing"),
                 FetchSourceContext.parseFromRestRequest(request),
@@ -174,6 +166,12 @@ public class RestBulkAction extends BaseRestHandler {
                 items::add,
                 items::add
             );
+        }
+
+        @Override
+        public void accept(RestChannel restChannel) {
+            this.restChannel = restChannel;
+            this.handler = handlerSupplier.get();
             request.contentStream().next();
         }
 
@@ -241,6 +239,10 @@ public class RestBulkAction extends BaseRestHandler {
         public void streamClose() {
             assert Transports.assertTransportThread();
             shortCircuit();
+        }
+
+        private Releasable loadRequestContext() {
+            return handler.loadRequestContext();
         }
 
         private void shortCircuit() {

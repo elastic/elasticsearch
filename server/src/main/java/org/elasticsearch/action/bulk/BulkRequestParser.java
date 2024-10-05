@@ -411,7 +411,10 @@ public final class BulkRequestParser {
                                     // for bigger bulks, deprecation throttling might not be enough
                                     if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
                                         try (Releasable ignore = loggingContext.get()) {
-                                            deprecationLogger.compatibleCritical("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+                                            deprecationLogger.compatibleCritical(
+                                                "bulk_with_types",
+                                                RestBulkAction.TYPES_DEPRECATION_MESSAGE
+                                            );
                                             typesDeprecationLogged = true;
                                         }
                                     }

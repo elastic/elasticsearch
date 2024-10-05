@@ -363,6 +363,9 @@ tests:
 - class: org.elasticsearch.action.bulk.IncrementalBulkIT
   method: testMultipleBulkPartsWithBackoff
   issue: https://github.com/elastic/elasticsearch/issues/114181
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testIncrementalBulkLowWatermarkBackOff
+  issue: https://github.com/elastic/elasticsearch/issues/114182
 
 # Examples:
 #

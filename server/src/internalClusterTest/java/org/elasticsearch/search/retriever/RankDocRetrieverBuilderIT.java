@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -52,9 +53,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
@@ -113,7 +116,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
               }
             }
             """;
-        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 5).build());
         admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
         indexDoc(
             INDEX,
@@ -199,10 +202,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
         standard1.preFilterQueryBuilders.add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 7, 2, 3, and 6
+        // this one retrieves docs 2, 7, 3, and 6
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[] { 3.0f, 3.0f, 3.0f },
+            new float[] { 1.0f, 2.0f, 3.0f },
             null,
             10,
             100,
@@ -239,9 +242,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
 
     public void testRankDocsRetrieverWithAggs() {
         // same as above, but we only want to bring back the top result from each subsearch
-        // so that would be 1, 2, and 7
-        // and final rank would be (based on score): 2, 1, 7
-        // aggs should still account for the same docs as the testRankDocsRetriever test, i.e. all but doc_5
+        // so that would be 1, and 2
+        // and final rank would be (based on score): 2, 1
+        // aggs would account for the same docs as the testRankDocsRetrieverBasicWithPagination, i.e. all but doc_5,
+        // with the additional exception of doc_7 as it's no longer returned for the kNN retriever
         final int rankWindowSize = 1;
         SearchSourceBuilder source = new SearchSourceBuilder();
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
@@ -254,10 +258,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
         standard1.preFilterQueryBuilders.add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 7, 2, 3, and 6
+        // this one retrieves docs 2, 7, 3, and 6
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[] { 3.0f, 3.0f, 3.0f },
+            new float[] { 1.0f, 2.0f, 3.0f },
             null,
             10,
             100,
@@ -279,7 +283,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(5L));
+            assertThat(resp.getHits().getTotalHits().value, equalTo(4L));
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(1));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
@@ -290,7 +294,6 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             // and is outside of the rank window
             assertThat(terms.getBucketByKey("technology").getDocCount(), equalTo(2L));
             assertThat(terms.getBucketByKey("astronomy").getDocCount(), equalTo(1L));
-            assertThat(terms.getBucketByKey("biology").getDocCount(), equalTo(1L));
         });
     }
 
@@ -307,10 +310,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
         standard1.preFilterQueryBuilders.add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 7, 2, 3, and 6
+        // this one retrieves docs 2, 7, 3, and 6
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[] { 3.0f, 3.0f, 3.0f },
+            new float[] { 1.0f, 2.0f, 3.0f },
             null,
             10,
             100,
@@ -372,10 +375,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
         standard1.preFilterQueryBuilders.add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 7, 2, 3, and 6
+        // this one retrieves docs 2, 7, 3, and 6
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[] { 3.0f, 3.0f, 3.0f },
+            new float[] { 1.0f, 2.0f, 3.0f },
             null,
             10,
             100,
@@ -423,10 +426,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
         standard1.preFilterQueryBuilders.add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 7, 2, 3, and 6
+        // this one retrieves docs 2, 7, 3, and 6
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[] { 3.0f, 3.0f, 3.0f },
+            new float[] { 1.0f, 2.0f, 3.0f },
             null,
             10,
             100,
@@ -474,10 +477,10 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         // this one retrieves docs 2 and 6 due to prefilter
         standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
         standard1.preFilterQueryBuilders.add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 7, 2, 3, and 6
+        // this one retrieves docs 2, 7, 3, and 6
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[] { 3.0f, 3.0f, 3.0f },
+            new float[] { 1.0f, 2.0f, 3.0f },
             null,
             10,
             100,
@@ -485,7 +488,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
         // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
-        // so ideal rank would be: 6, 2, 1, 4, 7, 3
+        // so ideal rank would be: 6, 2, 1, 3, 4, 7
         CompoundRetrieverWithRankDocs compoundRetriever1 = new CompoundRetrieverWithRankDocs(
             rankWindowSize,
             Arrays.asList(
@@ -514,11 +517,16 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_4"));
-            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_2"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_3"));
-            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_7"));
+            // all the other docs have the same score as they're found in only 1/2 of the retrievers, and their order depends on
+            // shard and internal Lucene doc id ordering
+            assertThat(
+                Arrays.stream(resp.getHits().getHits()).skip(1).map(SearchHit::getScore).collect(Collectors.toSet()),
+                equalTo(Set.of(0.5f))
+            );
+            assertThat(
+                Arrays.stream(resp.getHits().getHits()).skip(1).map(SearchHit::getId).toList(),
+                containsInAnyOrder("doc_1", "doc_2", "doc_3", "doc_6", "doc_7")
+            );
         });
     }
 

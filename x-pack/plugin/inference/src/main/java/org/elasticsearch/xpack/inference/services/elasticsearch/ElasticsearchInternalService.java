@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
@@ -73,6 +74,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
     );
 
+    public static final String DEFAULT_ELSER_ID = ".elser-2";
+
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
 
@@ -100,6 +103,17 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> config,
         ActionListener<Model> modelListener
     ) {
+        if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
+            modelListener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference Id. Cannot create a new inference endpoint with a reserved Id",
+                    RestStatus.BAD_REQUEST,
+                    inferenceEntityId
+                )
+            );
+            return;
+        }
+
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
@@ -459,20 +473,24 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var taskType = model.getConfigurations().getTaskType();
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            inferTextEmbedding(model, input, inputType, timeout, listener);
-        } else if (TaskType.RERANK.equals(taskType)) {
-            inferRerank(model, query, input, inputType, timeout, taskSettings, listener);
-        } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
-            inferSparseEmbedding(model, input, inputType, timeout, listener);
+        if (model instanceof ElasticsearchInternalModel esModel) {
+            var taskType = model.getConfigurations().getTaskType();
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                inferTextEmbedding(esModel, input, inputType, timeout, listener);
+            } else if (TaskType.RERANK.equals(taskType)) {
+                inferRerank(esModel, query, input, inputType, timeout, taskSettings, listener);
+            } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
+                inferSparseEmbedding(esModel, input, inputType, timeout, listener);
+            } else {
+                throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
+            }
         } else {
-            throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
+            listener.onFailure(notElasticsearchModelException(model));
         }
     }
 
     public void inferTextEmbedding(
-        Model model,
+        ElasticsearchInternalModel model,
         List<String> inputs,
         InputType inputType,
         TimeValue timeout,
@@ -487,17 +505,19 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             false
         );
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(InferenceTextEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
-            )
+        ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
+            (l, inferenceResult) -> l.onResponse(InferenceTextEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
         );
+
+        var maybeDeployListener = mlResultsListener.delegateResponse(
+            (l, exception) -> maybeStartDeployment(model, exception, request, mlResultsListener)
+        );
+
+        client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
     }
 
     public void inferSparseEmbedding(
-        Model model,
+        ElasticsearchInternalModel model,
         List<String> inputs,
         InputType inputType,
         TimeValue timeout,
@@ -512,17 +532,19 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             false
         );
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
-            )
+        ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
+            (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
         );
+
+        var maybeDeployListener = mlResultsListener.delegateResponse(
+            (l, exception) -> maybeStartDeployment(model, exception, request, mlResultsListener)
+        );
+
+        client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
     }
 
     public void inferRerank(
-        Model model,
+        ElasticsearchInternalModel model,
         String query,
         List<String> inputs,
         InputType inputType,
@@ -586,26 +608,33 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             return;
         }
 
-        var configUpdate = chunkingOptions != null
-            ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : new TokenizationConfigUpdate(null, null);
+        if (model instanceof ElasticsearchInternalModel esModel) {
 
-        var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
-            configUpdate,
-            input,
-            inputType,
-            timeout,
-            true
-        );
+            var configUpdate = chunkingOptions != null
+                ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
+                : new TokenizationConfigUpdate(null, null);
 
-        client.execute(
-            InferModelAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap(
+            var request = buildInferenceRequest(
+                model.getConfigurations().getInferenceEntityId(),
+                configUpdate,
+                input,
+                inputType,
+                timeout,
+                true
+            );
+
+            ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
                 (l, inferenceResult) -> l.onResponse(translateToChunkedResults(inferenceResult.getInferenceResults()))
-            )
-        );
+            );
+
+            var maybeDeployListener = mlResultsListener.delegateResponse(
+                (l, exception) -> maybeStartDeployment(esModel, exception, request, mlResultsListener)
+            );
+
+            client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
+        } else {
+            listener.onFailure(notElasticsearchModelException(model));
+        }
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(List<InferenceResults> inferenceResults) {
@@ -670,5 +699,43 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         Collections.sort(rankings);
         return new RankedDocsResults(rankings);
+    }
+
+    @Override
+    public List<UnparsedModel> defaultConfigs() {
+        // TODO Chunking settings
+        Map<String, Object> elserSettings = Map.of(
+            ModelConfigurations.SERVICE_SETTINGS,
+            Map.of(
+                ElasticsearchInternalServiceSettings.MODEL_ID,
+                ElserModels.ELSER_V2_MODEL,  // TODO pick model depending on platform
+                ElasticsearchInternalServiceSettings.NUM_THREADS,
+                1,
+                ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS,
+                Map.of(
+                    "enabled",
+                    Boolean.TRUE,
+                    "min_number_of_allocations",
+                    1,
+                    "max_number_of_allocations",
+                    8   // no max?
+                )
+            )
+        );
+
+        return List.of(
+            new UnparsedModel(
+                DEFAULT_ELSER_ID,
+                TaskType.SPARSE_EMBEDDING,
+                NAME,
+                elserSettings,
+                Map.of() // no secrets
+            )
+        );
+    }
+
+    @Override
+    protected boolean isDefaultId(String inferenceId) {
+        return DEFAULT_ELSER_ID.equals(inferenceId);
     }
 }

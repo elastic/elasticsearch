@@ -237,7 +237,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (numberOfAllocations != null) {
                 return numberOfAllocations;
             } else {
-                if (adaptiveAllocationsSettings == null || adaptiveAllocationsSettings.getMinNumberOfAllocations() == null) {
+                if (adaptiveAllocationsSettings == null
+                    || adaptiveAllocationsSettings.getMinNumberOfAllocations() == null
+                    || adaptiveAllocationsSettings.getMinNumberOfAllocations() == 0) {
                     return DEFAULT_NUM_ALLOCATIONS;
                 } else {
                     return adaptiveAllocationsSettings.getMinNumberOfAllocations();

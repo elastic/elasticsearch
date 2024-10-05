@@ -20,6 +20,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
 
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(':server')))
 
   clusterModules project(xpackModule('rank-rrf'))
   clusterModules project(xpackModule('inference'))

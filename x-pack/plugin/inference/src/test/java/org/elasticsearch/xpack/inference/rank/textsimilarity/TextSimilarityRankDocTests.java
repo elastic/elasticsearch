@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.rank.AbstractRankDocWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.search.rank.RankDoc.NO_RANK;
 
-public class TextSimilarityRankDocTests extends AbstractWireSerializingTestCase<TextSimilarityRankDoc> {
+public class TextSimilarityRankDocTests extends AbstractRankDocWireSerializingTestCase<TextSimilarityRankDoc> {
 
     static TextSimilarityRankDoc createTestTextSimilarityRankDoc() {
         TextSimilarityRankDoc instance = new TextSimilarityRankDoc(
@@ -30,12 +34,19 @@ public class TextSimilarityRankDocTests extends AbstractWireSerializingTestCase<
     }
 
     @Override
+    protected List<NamedWriteableRegistry.Entry> getAdditionalNamedWriteables() {
+        try (InferencePlugin plugin = new InferencePlugin(Settings.EMPTY)) {
+            return plugin.getNamedWriteables();
+        }
+    }
+
+    @Override
     protected Writeable.Reader<TextSimilarityRankDoc> instanceReader() {
         return TextSimilarityRankDoc::new;
     }
 
     @Override
-    protected TextSimilarityRankDoc createTestInstance() {
+    protected TextSimilarityRankDoc createTestRankDoc() {
         return createTestTextSimilarityRankDoc();
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -115,6 +117,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     );
 
     static final int CHANNELS_PER_CONNECTION = 6;
+
+    private static final TimeValue SNIFF_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS; // TODO make configurable?
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
         && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
@@ -317,7 +321,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     sniffResponseHandler = new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 } else {
                     action = ClusterStateAction.NAME;
-                    final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+                    final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(SNIFF_REQUEST_TIMEOUT);
                     clusterStateRequest.clear();
                     clusterStateRequest.nodes(true);
                     request = clusterStateRequest;

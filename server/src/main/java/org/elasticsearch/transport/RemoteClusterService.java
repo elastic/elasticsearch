@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult;
 
@@ -60,7 +62,11 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 /**
  * Basic service for accessing remote clusters via gateway nodes
  */
-public final class RemoteClusterService extends RemoteClusterAware implements Closeable, ReportingService<RemoteClusterServerInfo> {
+public final class RemoteClusterService extends RemoteClusterAware
+    implements
+        Closeable,
+        ReportingService<RemoteClusterServerInfo>,
+        IndicesExpressionGrouper {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
@@ -276,7 +282,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    RemoteClusterConnection getRemoteClusterConnection(String cluster) {
+    public RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         if (enabled == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"

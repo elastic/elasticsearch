@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -36,6 +37,11 @@ final class FieldTypeLookup {
      * For convenience, the set of copied fields includes the field itself.
      */
     private final Map<String, Set<String>> fieldToCopiedFields;
+    /**
+     * Fields that are destinations of copy_to meaning fields that
+     * contain values copied from other fields.
+     */
+    private final Set<String> copyToDestinationFields;
 
     private final int maxParentPathDots;
 
@@ -54,6 +60,7 @@ final class FieldTypeLookup {
         final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+        final Set<String> copiedFields = new HashSet<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -63,11 +70,13 @@ final class FieldTypeLookup {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
             }
             for (String targetField : fieldMapper.copyTo().copyToFields()) {
+                copiedFields.add(targetField);
+
                 Set<String> sourcePath = fieldToCopiedFields.get(targetField);
                 if (sourcePath == null) {
-                    Set<String> copiedFields = new HashSet<>();
-                    copiedFields.add(targetField);
-                    fieldToCopiedFields.put(targetField, copiedFields);
+                    Set<String> fieldCopiedFields = new HashSet<>();
+                    fieldCopiedFields.add(targetField);
+                    fieldToCopiedFields.put(targetField, fieldCopiedFields);
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
             }
@@ -139,6 +148,7 @@ final class FieldTypeLookup {
         // make values into more compact immutable sets to save memory
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
+        this.copyToDestinationFields = Set.copyOf(copiedFields);
     }
 
     public static int dotCount(String path) {
@@ -259,5 +269,9 @@ final class FieldTypeLookup {
      */
     public Map<String, MappedFieldType> getFullNameToFieldType() {
         return fullNameToFieldType;
+    }
+
+    public Set<String> getCopyToDestinationFields() {
+        return copyToDestinationFields;
     }
 }

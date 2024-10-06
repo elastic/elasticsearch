@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankMode
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -70,7 +69,6 @@ public class CohereService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -188,8 +186,7 @@ public class CohereService extends SenderService {
     @Override
     public void doInfer(
         Model model,
-        String query,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -204,35 +201,13 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new QueryAndDocsInputs(query, input), timeout, listener);
-    }
-
-    @Override
-    public void doInfer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        if (model instanceof CohereModel == false) {
-            listener.onFailure(createInvalidModelException(model));
-            return;
-        }
-
-        CohereModel cohereModel = (CohereModel) model;
-        var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
-
-        var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new DocumentsOnlyInput(input), timeout, listener);
+        action.execute(inputs, timeout, listener);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
-        @Nullable String query,
-        List<String> input,
+        DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
@@ -248,7 +223,7 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var batchedRequests = new EmbeddingRequestChunker(
-            input,
+            inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType())
         ).batchRequestsWithListeners(listener);

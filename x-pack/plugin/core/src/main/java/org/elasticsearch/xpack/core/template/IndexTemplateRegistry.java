@@ -20,6 +20,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -725,11 +726,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
             PutPipelineRequest request = new PutPipelineRequest(
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                 pipelineConfig.getId(),
                 pipelineConfig.loadConfig(),
                 pipelineConfig.getXContentType()
             );
-            request.masterNodeTimeout(TimeValue.MAX_VALUE);
 
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),

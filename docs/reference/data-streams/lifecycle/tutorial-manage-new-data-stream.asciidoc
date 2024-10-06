@@ -99,7 +99,8 @@ The result will look like this:
         "retention_determined_by": "data_stream_configuration"
       }
     }
-  ]
+  ],
+  "global_retention": {}
 }
 --------------------------------------------------
 <1> The name of your data stream.

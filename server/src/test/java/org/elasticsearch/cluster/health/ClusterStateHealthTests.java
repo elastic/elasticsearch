@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.health;
 
@@ -159,7 +160,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         ActionTestUtils.execute(
             action,
             new CancellableTask(1, "direct", TransportClusterHealthAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
-            new ClusterHealthRequest().waitForGreenStatus(),
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForGreenStatus(),
             listener
         );
 
@@ -577,6 +578,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         assertThat(clusterStateHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(clusterStateHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(clusterStateHealth.getUnassignedShards(), equalTo(counter.unassigned));
+        assertThat(clusterStateHealth.getUnassignedPrimaryShards(), equalTo(counter.unassignedPrimary));
         assertThat(clusterStateHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 }

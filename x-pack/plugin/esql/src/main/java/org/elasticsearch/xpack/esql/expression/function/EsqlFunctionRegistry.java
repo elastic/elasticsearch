@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -41,6 +43,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -51,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
@@ -94,6 +99,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirs
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
@@ -118,7 +124,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -293,21 +301,23 @@ public class EsqlFunctionRegistry {
                 def(Tau.class, Tau::new, "tau") },
             // string
             new FunctionDefinition[] {
-                def(Length.class, Length::new, "length"),
-                def(Substring.class, Substring::new, "substring"),
                 def(Concat.class, Concat::new, "concat"),
-                def(LTrim.class, LTrim::new, "ltrim"),
-                def(RTrim.class, RTrim::new, "rtrim"),
-                def(Trim.class, Trim::new, "trim"),
-                def(Left.class, Left::new, "left"),
-                def(Replace.class, Replace::new, "replace"),
-                def(Right.class, Right::new, "right"),
-                def(StartsWith.class, StartsWith::new, "starts_with"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
+                def(LTrim.class, LTrim::new, "ltrim"),
+                def(Left.class, Left::new, "left"),
+                def(Length.class, Length::new, "length"),
+                def(Locate.class, Locate::new, "locate"),
+                def(RTrim.class, RTrim::new, "rtrim"),
+                def(Repeat.class, Repeat::new, "repeat"),
+                def(Replace.class, Replace::new, "replace"),
+                def(Reverse.class, Reverse::new, "reverse"),
+                def(Right.class, Right::new, "right"),
+                def(Space.class, Space::new, "space"),
+                def(StartsWith.class, StartsWith::new, "starts_with"),
+                def(Substring.class, Substring::new, "substring"),
                 def(ToLower.class, ToLower::new, "to_lower"),
                 def(ToUpper.class, ToUpper::new, "to_upper"),
-                def(Locate.class, Locate::new, "locate"),
-                def(Repeat.class, Repeat::new, "repeat") },
+                def(Trim.class, Trim::new, "trim") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, DateDiff::new, "date_diff"),
@@ -340,7 +350,9 @@ public class EsqlFunctionRegistry {
                 def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),
                 def(ToCartesianPoint.class, ToCartesianPoint::new, "to_cartesianpoint"),
                 def(ToCartesianShape.class, ToCartesianShape::new, "to_cartesianshape"),
+                def(ToDatePeriod.class, ToDatePeriod::new, "to_dateperiod"),
                 def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
+                def(ToDateNanos.class, ToDateNanos::new, "to_date_nanos", "to_datenanos"),
                 def(ToDegrees.class, ToDegrees::new, "to_degrees"),
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
@@ -350,6 +362,7 @@ public class EsqlFunctionRegistry {
                 def(ToLong.class, ToLong::new, "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),
+                def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
                 def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
                 def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
             // multivalue functions
@@ -363,6 +376,7 @@ public class EsqlFunctionRegistry {
                 def(MvLast.class, MvLast::new, "mv_last"),
                 def(MvMax.class, MvMax::new, "mv_max"),
                 def(MvMedian.class, MvMedian::new, "mv_median"),
+                def(MvMedianAbsoluteDeviation.class, MvMedianAbsoluteDeviation::new, "mv_median_absolute_deviation"),
                 def(MvMin.class, MvMin::new, "mv_min"),
                 def(MvPercentile.class, MvPercentile::new, "mv_percentile"),
                 def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum"),
@@ -375,7 +389,12 @@ public class EsqlFunctionRegistry {
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
-        return new FunctionDefinition[][] { new FunctionDefinition[] { def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
+        return new FunctionDefinition[][] {
+            new FunctionDefinition[] {
+                def(Categorize.class, Categorize::new, "categorize"),
+                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
+                // Full text functions
+                def(QueryStringFunction.class, QueryStringFunction::new, "qstr") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -388,6 +407,17 @@ public class EsqlFunctionRegistry {
             this.snapshotRegistry = snapshotRegistry;
         }
         return snapshotRegistry;
+    }
+
+    public static boolean isSnapshotOnly(String functionName) {
+        for (FunctionDefinition[] defs : snapshotFunctions()) {
+            for (FunctionDefinition def : defs) {
+                if (def.name().equalsIgnoreCase(functionName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public static String normalizeName(String name) {
@@ -547,6 +577,7 @@ public class EsqlFunctionRegistry {
             }
             register(snapshotFunctions());
         }
+
     }
 
     void register(FunctionDefinition[]... groupFunctions) {

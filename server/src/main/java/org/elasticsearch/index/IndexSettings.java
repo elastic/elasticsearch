@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -24,6 +25,9 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -35,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
@@ -515,19 +518,17 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    public static final Setting<String> DEFAULT_PIPELINE = new Setting<>(
+    public static final Setting<String> DEFAULT_PIPELINE = Setting.simpleString(
         "index.default_pipeline",
         IngestService.NOOP_PIPELINE_NAME,
-        Function.identity(),
         Property.Dynamic,
         Property.IndexScope,
         Property.ServerlessPublic
     );
 
-    public static final Setting<String> FINAL_PIPELINE = new Setting<>(
+    public static final Setting<String> FINAL_PIPELINE = Setting.simpleString(
         "index.final_pipeline",
         IngestService.NOOP_PIPELINE_NAME,
-        Function.identity(),
         Property.Dynamic,
         Property.IndexScope,
         Property.ServerlessPublic
@@ -697,6 +698,47 @@ public final class IndexSettings {
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
+    /**
+     * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
+     * or stored. If the length of the field’s content exceeds this limit, the field value will be ignored during indexing.
+     * This setting is useful for `keyword`, `flattened`, and `wildcard` fields where very large values are undesirable.
+     * It allows users to manage the size of indexed data by skipping fields with excessively long content. As an index-level
+     * setting, it applies to all `keyword` and `wildcard` fields, as well as to keyword values within `flattened` fields.
+     * When it comes to arrays, the `ignore_above` setting applies individually to each element of the array. If any element's
+     * length exceeds the specified limit, only that element will be ignored during indexing, while the rest of the array will
+     * still be processed. This behavior is consistent with the field-level `ignore_above` setting.
+     * This setting can be overridden at the field level by specifying a custom `ignore_above` value in the field mapping.
+     * <p>
+     * Example usage:
+     * <pre>
+     * "index.mapping.ignore_above": 256
+     * </pre>
+     * <p>
+     * NOTE: The value for `ignore_above` is the _character count_, but Lucene counts
+     * bytes. Here we set the limit to `32766 / 4 = 8191` since UTF-8 characters may
+     * occupy at most 4 bytes.
+     */
+
+    public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
+        "index.mapping.ignore_above",
+        IndexSettings::getIgnoreAboveDefaultValue,
+        0,
+        Integer.MAX_VALUE,
+        Property.IndexScope,
+        Property.ServerlessPublic
+    );
+
+    private static String getIgnoreAboveDefaultValue(final Settings settings) {
+        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
+            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)) {
+            return "8191";
+        } else {
+            return String.valueOf(Integer.MAX_VALUE);
+        }
+    }
+
+    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting");
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -776,6 +818,8 @@ public final class IndexSettings {
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
+    private volatile boolean skipIgnoredSourceWrite;
+    private volatile boolean skipIgnoredSourceRead;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -792,6 +836,16 @@ public final class IndexSettings {
     private volatile int maxRegexLength;
 
     private final IndexRouting indexRouting;
+
+    /**
+     * The default mode for storing source, for all mappers not overriding this setting.
+     * This is only relevant for indexes configured with synthetic-source code.
+     */
+    public Mapper.SourceKeepMode sourceKeepMode() {
+        return sourceKeepMode;
+    }
+
+    private final Mapper.SourceKeepMode sourceKeepMode;
 
     /**
      * Returns the default search fields for this index.
@@ -922,7 +976,10 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
+        skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1005,6 +1062,11 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(
+            IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
+            this::setSkipIgnoredSourceWrite
+        );
+        scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1579,6 +1641,22 @@ public final class IndexSettings {
 
     private void setMappingDimensionFieldsLimit(long value) {
         this.mappingDimensionFieldsLimit = value;
+    }
+
+    public boolean getSkipIgnoredSourceWrite() {
+        return skipIgnoredSourceWrite;
+    }
+
+    private void setSkipIgnoredSourceWrite(boolean value) {
+        this.skipIgnoredSourceWrite = value;
+    }
+
+    public boolean getSkipIgnoredSourceRead() {
+        return skipIgnoredSourceRead;
+    }
+
+    private void setSkipIgnoredSourceRead(boolean value) {
+        this.skipIgnoredSourceRead = value;
     }
 
     /**

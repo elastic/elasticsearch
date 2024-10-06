@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -157,7 +158,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
                 settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
             }
         }
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        client().admin().cluster().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).get();
         assertBusy(() -> {
             for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
                 assertThat(transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), empty());
@@ -204,7 +205,11 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
         builder.build();
 
-        ClusterUpdateSettingsResponse resp = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        ClusterUpdateSettingsResponse resp = client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settings)
+            .get();
         if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
             String key = Strings.format("cluster.remote.%s.skip_unavailable", clusterAlias);
             assertEquals(String.valueOf(skipUnavailable), resp.getPersistentSettings().get(key));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -13,8 +14,8 @@ import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -124,6 +125,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_7_17_22 = new Version(7_17_22_99);
     public static final Version V_7_17_23 = new Version(7_17_23_99);
     public static final Version V_7_17_24 = new Version(7_17_24_99);
+    public static final Version V_7_17_25 = new Version(7_17_25_99);
 
     public static final Version V_8_0_0 = new Version(8_00_00_99);
     public static final Version V_8_0_1 = new Version(8_00_01_99);
@@ -182,8 +184,11 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_14_3 = new Version(8_14_03_99);
     public static final Version V_8_15_0 = new Version(8_15_00_99);
     public static final Version V_8_15_1 = new Version(8_15_01_99);
+    public static final Version V_8_15_2 = new Version(8_15_02_99);
+    public static final Version V_8_15_3 = new Version(8_15_03_99);
     public static final Version V_8_16_0 = new Version(8_16_00_99);
-    public static final Version CURRENT = V_8_16_0;
+    public static final Version V_9_0_0 = new Version(9_00_00_99);
+    public static final Version CURRENT = V_9_0_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -219,19 +224,25 @@ public class Version implements VersionId<Version>, ToXContentFragment {
                 }
             }
         }
-        assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
-            : "RestApiVersion must be upgraded "
-                + "to reflect major from Version.CURRENT ["
-                + CURRENT.major
-                + "]"
-                + " but is still set to ["
-                + RestApiVersion.current().major
-                + "]";
+        assertRestApiVersion();
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
 
         VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
         VERSION_STRINGS = Map.copyOf(builderByString);
+    }
+
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+    // Re-enable this assertion once the rest api version is bumped
+    private static void assertRestApiVersion() {
+        // assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
+        // : "RestApiVersion must be upgraded "
+        // + "to reflect major from Version.CURRENT ["
+        // + CURRENT.major
+        // + "]"
+        // + " but is still set to ["
+        // + RestApiVersion.current().major
+        // + "]";
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -270,7 +281,9 @@ public class Version implements VersionId<Version>, ToXContentFragment {
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
+     * @deprecated Use of semantic release versions should be minimized; please avoid use of this method if possible.
      */
+    @Deprecated
     public static Version fromString(String version) {
         if (Strings.hasLength(version) == false) {
             return Version.CURRENT;

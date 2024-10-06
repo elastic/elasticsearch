@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -21,7 +22,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -37,9 +37,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.RunnableFuture;
 import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
@@ -67,10 +64,7 @@ public class TimeSeriesIndexSearcher {
                 searcher.getSimilarity(),
                 searcher.getQueryCache(),
                 searcher.getQueryCachingPolicy(),
-                false,
-                searcher.getExecutor(),
-                1,
-                -1
+                false
             );
         } catch (IOException e) {
             // IOException from wrapping the index searcher which should never happen.
@@ -93,28 +87,8 @@ public class TimeSeriesIndexSearcher {
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
         query = searcher.rewrite(query);
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
-        if (searcher.getExecutor() == null) {
-            search(bucketCollector, weight);
-            bucketCollector.postCollection();
-            return;
-        }
-        // offload to the search worker thread pool whenever possible. It will be null only when search.worker_threads_enabled is false
-        RunnableFuture<Void> task = new FutureTask<>(() -> {
-            search(bucketCollector, weight);
-            bucketCollector.postCollection();
-            return null;
-        });
-        searcher.getExecutor().execute(task);
-        try {
-            task.get();
-        } catch (InterruptedException e) {
-            throw new ThreadInterruptedException(e);
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            throw new RuntimeException(e.getCause());
-        }
+        search(bucketCollector, weight);
+        bucketCollector.postCollection();
     }
 
     private void search(BucketCollector bucketCollector, Weight weight) throws IOException {

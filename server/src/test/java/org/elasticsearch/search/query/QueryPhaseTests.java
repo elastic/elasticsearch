@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -28,6 +29,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -1102,6 +1104,22 @@ public class QueryPhaseTests extends IndexShardTestCase {
             NEVER_CACHE_POLICY,
             true
         );
+    }
+
+    public void testTooManyClauses() throws Exception {
+        indexDocs();
+        var oldCount = IndexSearcher.getMaxClauseCount();
+        try {
+            var query = new BooleanQuery.Builder().add(new BooleanClause(new MatchAllDocsQuery(), Occur.SHOULD))
+                .add(new MatchAllDocsQuery(), Occur.SHOULD)
+                .build();
+            try (TestSearchContext context = createContext(newContextSearcher(reader), query)) {
+                IndexSearcher.setMaxClauseCount(1);
+                expectThrows(IllegalArgumentException.class, context::rewrittenQuery);
+            }
+        } finally {
+            IndexSearcher.setMaxClauseCount(oldCount);
+        }
     }
 
     private static ContextIndexSearcher noCollectionContextSearcher(IndexReader reader) throws IOException {

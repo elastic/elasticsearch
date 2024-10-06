@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -68,7 +69,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
 
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false).setSynthetic().build();
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, true).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new PassThroughObjectMapper.Builder("labels").setPriority(0).setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
         ).build(MapperBuilderContext.root(false, false));

@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -23,10 +24,13 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -34,10 +38,10 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -64,18 +68,25 @@ public class GoogleAiStudioService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+            ChunkingSettings chunkingSettings = null;
+            if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
+
             GoogleAiStudioModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
+                chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
@@ -97,6 +108,7 @@ public class GoogleAiStudioService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
         ConfigurationParseContext context
@@ -117,6 +129,7 @@ public class GoogleAiStudioService extends SenderService {
                 NAME,
                 serviceSettings,
                 taskSettings,
+                chunkingSettings,
                 secretSettings,
                 context
             );
@@ -135,11 +148,17 @@ public class GoogleAiStudioService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
+        ChunkingSettings chunkingSettings = null;
+        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
         return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
@@ -150,6 +169,7 @@ public class GoogleAiStudioService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         String failureMessage
     ) {
@@ -158,6 +178,7 @@ public class GoogleAiStudioService extends SenderService {
             taskType,
             serviceSettings,
             taskSettings,
+            chunkingSettings,
             secretSettings,
             failureMessage,
             ConfigurationParseContext.PERSISTENT
@@ -169,11 +190,17 @@ public class GoogleAiStudioService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
+        ChunkingSettings chunkingSettings = null;
+        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
         return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
@@ -186,36 +213,35 @@ public class GoogleAiStudioService extends SenderService {
 
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
-    private GoogleAiStudioEmbeddingsModel updateModelWithEmbeddingDetails(GoogleAiStudioEmbeddingsModel model, int embeddingSize) {
-        var similarityFromModel = model.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
-        GoogleAiStudioEmbeddingsServiceSettings serviceSettings = new GoogleAiStudioEmbeddingsServiceSettings(
-            model.getServiceSettings().modelId(),
-            model.getServiceSettings().maxInputTokens(),
-            embeddingSize,
-            similarityToUse,
-            model.getServiceSettings().rateLimitSettings()
-        );
+            var updatedServiceSettings = new GoogleAiStudioEmbeddingsServiceSettings(
+                serviceSettings.modelId(),
+                serviceSettings.maxInputTokens(),
+                embeddingSize,
+                similarityToUse,
+                serviceSettings.rateLimitSettings()
+            );
 
-        return new GoogleAiStudioEmbeddingsModel(model, serviceSettings);
+            return new GoogleAiStudioEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
     }
 
     @Override
     protected void doInfer(
         Model model,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -230,27 +256,13 @@ public class GoogleAiStudioService extends SenderService {
         var actionCreator = new GoogleAiStudioActionCreator(getSender(), getServiceComponents());
 
         var action = googleAiStudioModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new DocumentsOnlyInput(input), timeout, listener);
-    }
-
-    @Override
-    protected void doInfer(
-        Model model,
-        String query,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        throw new UnsupportedOperationException("Query input not supported for Google AI Studio");
+        action.execute(inputs, timeout, listener);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
-        String query,
-        List<String> input,
+        DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
@@ -260,8 +272,22 @@ public class GoogleAiStudioService extends SenderService {
         GoogleAiStudioModel googleAiStudioModel = (GoogleAiStudioModel) model;
         var actionCreator = new GoogleAiStudioActionCreator(getSender(), getServiceComponents());
 
-        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE, EmbeddingRequestChunker.EmbeddingType.FLOAT)
-            .batchRequestsWithListeners(listener);
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
+        if (ChunkingSettingsFeatureFlag.isEnabled()) {
+            batchedRequests = new EmbeddingRequestChunker(
+                inputs.getInputs(),
+                EMBEDDING_MAX_BATCH_SIZE,
+                EmbeddingRequestChunker.EmbeddingType.FLOAT,
+                googleAiStudioModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
+        } else {
+            batchedRequests = new EmbeddingRequestChunker(
+                inputs.getInputs(),
+                EMBEDDING_MAX_BATCH_SIZE,
+                EmbeddingRequestChunker.EmbeddingType.FLOAT
+            ).batchRequestsWithListeners(listener);
+        }
+
         for (var request : batchedRequests) {
             var action = googleAiStudioModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());

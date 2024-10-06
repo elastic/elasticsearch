@@ -12,9 +12,11 @@ import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
@@ -30,11 +32,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.apache.lucene.document.ShapeField.QueryRelation.CONTAINS;
-import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 
@@ -112,9 +111,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return SpatialEvaluatorFactory.makeSpatialEvaluator(this, evaluatorRules(), toEvaluator);
     }
 
@@ -153,13 +150,8 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
             Component2D rightComponent2D = asLuceneComponent2D(crsType, fromBytesRef(right));
-            return geometryRelatesGeometry(left, rightComponent2D);
-        }
-
-        protected boolean geometryRelatesGeometry(BytesRef left, Component2D rightComponent2D) throws IOException {
-            Geometry leftGeom = fromBytesRef(left);
             // We already have a Component2D for the right geometry, so we need to convert the left geometry to a doc-values byte array
-            return geometryRelatesGeometry(asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom), rightComponent2D);
+            return geometryRelatesGeometry(asGeometryDocValueReader(coordinateEncoder, shapeIndexer, fromBytesRef(left)), rightComponent2D);
         }
 
         protected boolean geometryRelatesGeometry(GeometryDocValueReader reader, Component2D rightComponent2D) throws IOException {
@@ -168,23 +160,65 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             return visitor.matches();
         }
 
-        protected boolean pointRelatesGeometry(long encoded, Geometry geometry) {
-            Component2D component2D = asLuceneComponent2D(crsType, geometry);
-            return pointRelatesGeometry(encoded, component2D);
-        }
-
-        protected boolean pointRelatesGeometry(long encoded, Component2D component2D) {
-            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
-            Point point = spatialCoordinateType.longAsPoint(encoded);
-            return pointRelatesGeometry(point, component2D);
-        }
-
-        protected boolean pointRelatesGeometry(Point point, Component2D component2D) {
-            if (queryRelation == CONTAINS) {
-                return component2D.withinPoint(point.getX(), point.getY()) == Component2D.WithinRelation.CANDIDATE;
+        protected void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, @Fixed Component2D right)
+            throws IOException {
+            if (left.getValueCount(position) < 1) {
+                builder.appendNull();
             } else {
-                boolean contains = component2D.contains(point.getX(), point.getY());
-                return queryRelation == DISJOINT ? contains == false : contains;
+                final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
+                builder.appendBoolean(geometryRelatesGeometry(reader, right));
+            }
+        }
+
+        protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
+            throws IOException {
+            if (left.getValueCount(position) < 1 || right.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
+                final Component2D component2D = asLuceneComponent2D(crsType, right, position);
+                builder.appendBoolean(geometryRelatesGeometry(reader, component2D));
+            }
+        }
+
+        protected void processPointDocValuesAndConstant(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            @Fixed Component2D rightValue
+        ) throws IOException {
+            if (leftValue.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(
+                    coordinateEncoder,
+                    shapeIndexer,
+                    leftValue,
+                    position,
+                    spatialCoordinateType::longAsPoint
+                );
+                builder.appendBoolean(geometryRelatesGeometry(reader, rightValue));
+            }
+        }
+
+        protected void processPointDocValuesAndSource(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            BytesRefBlock rightValue
+        ) throws IOException {
+            if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(
+                    coordinateEncoder,
+                    shapeIndexer,
+                    leftValue,
+                    position,
+                    spatialCoordinateType::longAsPoint
+                );
+                final Component2D component2D = asLuceneComponent2D(crsType, rightValue, position);
+                builder.appendBoolean(geometryRelatesGeometry(reader, component2D));
             }
         }
     }

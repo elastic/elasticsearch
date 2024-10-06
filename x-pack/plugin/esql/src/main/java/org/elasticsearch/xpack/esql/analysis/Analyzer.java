@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -35,10 +34,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.esql.core.rule.Rule;
-import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -65,7 +60,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Dat
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -83,6 +77,10 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -117,7 +115,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
@@ -190,7 +187,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
-                        context.indexResolution().toString()
+                        context.indexResolution().toString(),
+                        plan.commandName()
                     );
             }
             TableIdentifier table = plan.table();
@@ -202,7 +200,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
-                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
+                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]",
+                    plan.commandName()
                 );
             }
 
@@ -1071,12 +1070,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Expression processIn(In in) {
             Expression left = in.value();
             List<Expression> right = in.list();
-            DataType targetDataType = left.dataType();
 
-            if (left.resolved() == false || supportsStringImplicitCasting(targetDataType) == false) {
+            if (left.resolved() == false || supportsStringImplicitCasting(left.dataType()) == false) {
                 return in;
             }
 
+            DataType targetDataType = left.dataType();
             List<Expression> newChildren = new ArrayList<>(right.size() + 1);
             boolean childrenChanged = false;
 
@@ -1108,23 +1107,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             DataType childDataType;
 
             for (Expression e : f.children()) {
-                childDataType = e.dataType();
-                if (childDataType.isNumeric() == false
-                    || childDataType == targetNumericType
-                    || canCastNumeric(childDataType, targetNumericType) == false) {
+                if (e.resolved()) {
+                    childDataType = e.dataType();
+                    if (childDataType.isNumeric() == false
+                        || childDataType == targetNumericType
+                        || canCastNumeric(childDataType, targetNumericType) == false) {
+                        newChildren.add(e);
+                        continue;
+                    }
+                    childrenChanged = true;
+                    // add a casting function
+                    switch (targetNumericType) {
+                        case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
+                        case LONG -> newChildren.add(new ToLong(e.source(), e));
+                        case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
+                        case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
+                        default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
+                    }
+                } else {
                     newChildren.add(e);
-                    continue;
                 }
-                childrenChanged = true;
-                // add a casting function
-                switch (targetNumericType) {
-                    case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
-                    case LONG -> newChildren.add(new ToLong(e.source(), e));
-                    case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
-                    case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
-                    default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
-                }
-
             }
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }
@@ -1223,8 +1225,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
                 imf.types().forEach(type -> {
-                    // TODO: Shouldn't we perform widening of small numerical types here?
-                    if (supportedTypes.contains(type)) {
+                    if (supportedTypes.contains(type.widenSmallNumeric())) {
                         TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                         var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
                         typeResolutions.put(key, concreteConvert);
@@ -1247,12 +1248,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
-            String unionTypedFieldName = LogicalPlanOptimizer.rawTemporaryName(
-                fa.name(),
-                "converted_to",
-                resolvedField.getDataType().typeName()
-            );
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parent(), unionTypedFieldName, resolvedField);
+            // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
+            // synthetic to work around a bug.
+            String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", resolvedField.getDataType().typeName());
+            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parent(), unionTypedFieldName, resolvedField, true);
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1278,8 +1277,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
-            NameId id = ((FieldAttribute) convert.field()).id();
-            FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, Nullability.TRUE, id, false);
+            FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
+            FieldAttribute resolvedAttr = new FieldAttribute(
+                source,
+                originalFieldAttr.parent(),
+                originalFieldAttr.name(),
+                field,
+                originalFieldAttr.nullable(),
+                originalFieldAttr.id(),
+                true
+            );
             return convert.replaceChildren(Collections.singletonList(resolvedAttr));
         }
     }
@@ -1328,11 +1335,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> newOutput = new ArrayList<>(output.size());
 
             for (Attribute attr : output) {
-                // TODO: this should really use .synthetic()
-                // https://github.com/elastic/elasticsearch/issues/105821
-                if (attr.name().startsWith(FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
-                    newOutput.add(attr);
+                // Do not let the synthetic union type field attributes end up in the final output.
+                if (attr.synthetic() && attr instanceof FieldAttribute) {
+                    continue;
                 }
+                newOutput.add(attr);
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);

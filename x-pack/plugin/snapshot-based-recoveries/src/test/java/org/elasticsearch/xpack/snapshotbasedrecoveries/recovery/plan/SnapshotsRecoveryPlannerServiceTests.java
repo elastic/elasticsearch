@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -202,6 +203,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         });
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
+    @AwaitsFix(bugUrl = "this is testing pre-7.0 upgrade behavior so probably needs some updating")
     public void testLogicallyEquivalentSnapshotIsUsedEvenIfFilesAreDifferent() throws Exception {
         createStore(store -> {
             boolean shareFilesWithSource = randomBoolean();
@@ -380,45 +383,6 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, latestSourceMetadata);
             assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetMetadataSnapshot);
             assertUsesExpectedSnapshot(shardRecoveryPlan, availableSnapshots.get(availableSnapshots.size() - 1));
-            assertThat(shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode(), is(equalTo(true)));
-
-            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
-            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
-        });
-    }
-
-    public void testFallbacksToSourceOnlyPlanIfTargetNodeIsInUnsupportedVersion() throws Exception {
-        createStore(store -> {
-            Store.MetadataSnapshot targetMetadataSnapshot = generateRandomTargetState(store);
-
-            writeRandomDocs(store, randomIntBetween(10, 100));
-            ShardSnapshot shardSnapshot = createShardSnapshotThatSharesSegmentFiles(store, "repo");
-
-            Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
-
-            long startingSeqNo = randomNonNegativeLong();
-            int translogOps = randomIntBetween(0, 100);
-            ShardRecoveryPlan shardRecoveryPlan = computeShardRecoveryPlan(
-                "shard-id",
-                sourceMetadata,
-                targetMetadataSnapshot,
-                startingSeqNo,
-                translogOps,
-                new ShardSnapshotsService(null, null, null, null) {
-                    @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
-                        listener.onResponse(Optional.of(shardSnapshot));
-                    }
-                },
-                true,
-                IndexVersions.V_7_14_0, // Unsupported version,
-                randomBoolean()
-            );
-
-            assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
-            assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, sourceMetadata);
-            assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetMetadataSnapshot);
-            assertThat(shardRecoveryPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
             assertThat(shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode(), is(equalTo(true)));
 
             assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));

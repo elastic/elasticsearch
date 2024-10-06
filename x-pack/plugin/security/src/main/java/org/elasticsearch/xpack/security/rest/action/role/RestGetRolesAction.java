@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
@@ -54,9 +53,9 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        final boolean restrictRequest = isPathRestricted(request);
+        final boolean restrictToNativeRolesOnly = request.isServerlessRequest() && false == request.isOperatorRequest();
         return channel -> new GetRolesRequestBuilder(client).names(roles)
-            .nativeOnly(restrictRequest)
+            .nativeOnly(restrictToNativeRolesOnly)
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
@@ -84,17 +83,10 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
         // Note: For non-restricted requests this action handles both reserved roles and native
         // roles, and should still be available even if native role management is disabled.
         // For restricted requests it should only be available if native role management is enabled
-        final boolean restrictPath = isPathRestricted(request);
-        if (false == restrictPath) {
+        if (false == request.isServerlessRequest() || request.isOperatorRequest()) {
             return null;
         } else {
             return super.innerCheckFeatureAvailable(request);
         }
-    }
-
-    private boolean isPathRestricted(RestRequest request) {
-        final boolean restrictRequest = request.hasParam(RestRequest.PATH_RESTRICTED);
-        assert false == restrictRequest || DiscoveryNode.isStateless(settings);
-        return restrictRequest;
     }
 }

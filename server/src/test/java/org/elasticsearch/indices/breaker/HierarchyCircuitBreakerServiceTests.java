@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.breaker;
 
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -910,9 +912,11 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             ),
             oneOf(
                 "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
-                    + "usages [child=7/7b, otherChild=8/8b]",
+                    + "usages [child=7/7b, otherChild=8/8b]; for more information, see "
+                    + ReferenceDocs.CIRCUIT_BREAKER_ERRORS,
                 "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
-                    + "usages [otherChild=8/8b, child=7/7b]"
+                    + "usages [otherChild=8/8b, child=7/7b]; for more information, see "
+                    + ReferenceDocs.CIRCUIT_BREAKER_ERRORS
             )
         );
 
@@ -927,7 +931,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             ),
             equalTo(
                 "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
-                    + "real usage: [2/2b], new bytes reserved: [1/1b], usages []"
+                    + "real usage: [2/2b], new bytes reserved: [1/1b], usages []; for more information, see "
+                    + ReferenceDocs.CIRCUIT_BREAKER_ERRORS
             )
         );
 
@@ -944,7 +949,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 ),
                 equalTo(
                     "[parent] Data too large, data for [test] would be [-3], which is larger than the limit of [-6], "
-                        + "real usage: [-2], new bytes reserved: [-1/-1b], usages [child1=-7]"
+                        + "real usage: [-2], new bytes reserved: [-1/-1b], usages [child1=-7]; for more information, see "
+                        + ReferenceDocs.CIRCUIT_BREAKER_ERRORS
                 )
             );
         } finally {

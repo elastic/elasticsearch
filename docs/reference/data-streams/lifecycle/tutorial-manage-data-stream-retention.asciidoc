@@ -189,19 +189,29 @@ We see that it will remain the same with what the user configured:
 [source,console-result]
 ----
 {
+  "global_retention" : {
+    "max_retention" : "90d",                                   <1>
+    "default_retention" : "7d"                                 <2>
+  },
   "data_streams": [
     {
       "name": "my-data-stream",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "30d",
-        "effective_retention": "30d",
-        "retention_determined_by": "data_stream_configuration"
+        "data_retention": "30d",                                <3>
+        "effective_retention": "30d",                           <4>
+        "retention_determined_by": "data_stream_configuration"  <5>
       }
     }
   ]
 }
 ----
+<1> The maximum retention configured in the cluster.
+<2> The default retention configured in the cluster.
+<3> The requested retention for this data stream.
+<4> The retention that is applied by the data stream lifecycle on this data stream.
+<5> The configuration that determined the effective retention. In this case it's the `data_configuration` because
+it is less than the `max_retention`.
 
 [discrete]
 [[effective-retention-application]]

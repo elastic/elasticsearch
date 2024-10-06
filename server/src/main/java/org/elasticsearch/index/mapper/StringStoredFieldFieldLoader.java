@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -19,29 +20,25 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 
 public abstract class StringStoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
-    private final String name;
+    private final String storedFieldLoaderName;
+    private final String fullName;
     private final String simpleName;
 
     private List<Object> values = emptyList();
 
-    public StringStoredFieldFieldLoader(String name, String simpleName) {
-        this.name = name;
+    public StringStoredFieldFieldLoader(String fullName, String simpleName) {
+        this(fullName, fullName, simpleName);
+    }
+
+    public StringStoredFieldFieldLoader(String storedFieldLoaderName, String fullName, String simpleName) {
+        this.storedFieldLoaderName = storedFieldLoaderName;
+        this.fullName = fullName;
         this.simpleName = simpleName;
     }
 
     @Override
     public final Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return Stream.of(Map.entry(name, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
-            @Override
-            public void advanceToDoc(int docId) {
-                values = emptyList();
-            }
-
-            @Override
-            public void load(List<Object> newValues) {
-                values = newValues;
-            }
-        }));
+        return Stream.of(Map.entry(storedFieldLoaderName, newValues -> values = newValues));
     }
 
     @Override
@@ -65,6 +62,12 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
                 }
                 b.endArray();
         }
+        reset();
+    }
+
+    @Override
+    public void reset() {
+        values = emptyList();
     }
 
     protected abstract void write(XContentBuilder b, Object value) throws IOException;
@@ -76,6 +79,6 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
 
     @Override
     public String fieldName() {
-        return name;
+        return fullName;
     }
 }

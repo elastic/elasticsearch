@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -65,6 +66,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -440,6 +442,7 @@ public class Node implements Closeable {
         }
 
         injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(IndicesMetrics.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
 
         logger.info("started {}", transportService.getLocalNode());
@@ -488,6 +491,7 @@ public class Node implements Closeable {
         stopIfStarted(SearchService.class);
         stopIfStarted(TransportService.class);
         stopIfStarted(NodeMetrics.class);
+        stopIfStarted(IndicesMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -557,6 +561,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));
+        toClose.add(injector.getInstance(IndicesService.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }

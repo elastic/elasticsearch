@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,7 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
-import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -75,6 +74,8 @@ import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends AbstractStatementParserTests {
+
+    private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
 
     public void testRowCommand() {
         assertEquals(
@@ -313,7 +314,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
-        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
+        var query = "inlinestats b = min(a) by c, d.e";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            return;
+        }
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -325,12 +331,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("d.e")
                 )
             ),
-            processingCommand("inlinestats b = min(a) by c, d.e")
+            processingCommand(query)
         );
     }
 
     public void testInlineStatsWithoutGroups() {
-        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
+        var query = "inlinestats min(a), c = 1";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            return;
+        }
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -341,7 +352,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "c", integer(1))
                 )
             ),
-            processingCommand("inlinestats min(a), c = 1")
+            processingCommand(query)
         );
     }
 
@@ -367,28 +378,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
                 command + " <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
             );
-
+            assertStringAsIndexPattern(
+                "-<logstash-{now/M{yyyy.MM}}>,-<-logstash-{now/M{yyyy.MM}}>,"
+                    + "-<logstash-{now/d{yyyy.MM.dd|+12:00}}>,-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+                command
+                    + " -<logstash-{now/M{yyyy.MM}}>, -<-logstash-{now/M{yyyy.MM}}>, "
+                    + "\"-<logstash-{now/d{yyyy.MM.dd|+12:00}}>\", \"-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
+            );
             assertStringAsIndexPattern("foo,test,xyz", command + " \"\"\"foo\"\"\",   test,\"xyz\"");
-
             assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
-
             assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
-
             assertStringAsIndexPattern(".dot", command + " .dot");
-
             assertStringAsIndexPattern("cluster:index", command + " cluster:index");
-            assertStringAsIndexPattern("cluster:index|pattern", command + " cluster:\"index|pattern\"");
             assertStringAsIndexPattern("cluster:.index", command + " cluster:.index");
             assertStringAsIndexPattern("cluster*:index*", command + " cluster*:index*");
             assertStringAsIndexPattern("cluster*:*", command + " cluster*:*");
             assertStringAsIndexPattern("*:index*", command + " *:index*");
-            assertStringAsIndexPattern("*:index|pattern", command + " *:\"index|pattern\"");
             assertStringAsIndexPattern("*:*", command + " *:*");
-            assertStringAsIndexPattern("*:*,cluster*:index|pattern,i|p", command + " *:*, cluster*:\"index|pattern\", \"i|p\"");
         }
     }
 
     public void testStringAsLookupIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"foo\" ON j");
         assertStringAsLookupIndexPattern("test-*", """
             ROW x = 1 | LOOKUP "test-*" ON j
@@ -405,19 +416,222 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"\"\"foo\"\"\" ON j");
-
         assertStringAsLookupIndexPattern("`backtick`", "ROW x = 1 | LOOKUP `backtick` ON j");
         assertStringAsLookupIndexPattern("``multiple`back``ticks```", "ROW x = 1 | LOOKUP ``multiple`back``ticks``` ON j");
-
         assertStringAsLookupIndexPattern(".dot", "ROW x = 1 | LOOKUP .dot ON j");
-
         assertStringAsLookupIndexPattern("cluster:index", "ROW x = 1 | LOOKUP cluster:index ON j");
         assertStringAsLookupIndexPattern("cluster:.index", "ROW x = 1 | LOOKUP cluster:.index ON j");
         assertStringAsLookupIndexPattern("cluster*:index*", "ROW x = 1 | LOOKUP cluster*:index* ON j");
         assertStringAsLookupIndexPattern("cluster*:*", "ROW x = 1 | LOOKUP cluster*:* ON j");
         assertStringAsLookupIndexPattern("*:index*", "ROW x = 1 | LOOKUP  *:index* ON j");
         assertStringAsLookupIndexPattern("*:*", "ROW x = 1 | LOOKUP  *:* ON j");
+    }
 
+    public void testInvalidCharacterInIndexPattern() {
+        Map<String, String> commands = new HashMap<>();
+        commands.put("FROM {}", "line 1:8: ");
+        if (Build.current().isSnapshot()) {
+            commands.put("METRICS {}", "line 1:11: ");
+            commands.put("ROW x = 1 | LOOKUP {} ON j", "line 1:22: ");
+        }
+        List<String> clusterStrings = List.of(" ", " *:", " cluster:");
+        String lineNumber;
+        for (String command : commands.keySet()) {
+            lineNumber = commands.get(command);
+            for (String clusterString : clusterStrings) {
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index|pattern\"", lineNumber, "index|pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index pattern\"", lineNumber, "index pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index#pattern\"", lineNumber, "index#pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index#pattern", lineNumber, "index#pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index?pattern\"", lineNumber, "index?pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index?pattern", lineNumber, "index?pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index>pattern\"", lineNumber, "index>pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index>pattern", lineNumber, "index>pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index<pattern\"", lineNumber, "index<pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index<pattern", lineNumber, "index<pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index/pattern\"", lineNumber, "index/pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index/pattern", lineNumber, "index/pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"index\\\\pattern\"", lineNumber, "index\\pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "index\\pattern", lineNumber, "index\\pattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"..\"", lineNumber, "..");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "..", lineNumber, "..");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"_indexpattern\"", lineNumber, "_indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "_indexpattern", lineNumber, "_indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"+indexpattern\"", lineNumber, "+indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "+indexpattern", lineNumber, "+indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"--indexpattern\"", lineNumber, "-indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "--indexpattern", lineNumber, "-indexpattern");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"<--logstash-{now/M{yyyy.MM}}>\"",
+                    lineNumber,
+                    "-logstash-"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "--<logstash-{now/M{yyyy.MM}}>",
+                    lineNumber,
+                    "-<logstash-{now/M{yyyy.MM}}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"<logstash#{now/d}>\"", lineNumber, "logstash#");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "<logstash#{now/d}>", lineNumber, "logstash#");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"+<logstash-{now/d}>\"",
+                    lineNumber,
+                    "+<logstash-{now/d}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "+<logstash-{now/d}>",
+                    lineNumber,
+                    "+<logstash-{now/d}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"_<logstash-{now/d}>\"",
+                    lineNumber,
+                    "_<logstash-{now/d}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "_<logstash-{now/d}>",
+                    lineNumber,
+                    "_<logstash-{now/d}>"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"<<logstash{now/d}>>\"", lineNumber, "<logstash");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "<<logstash{now/d}>>", lineNumber, "<logstash");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "\"<<logstash<{now/d}>>>\"", lineNumber, "<logstash<");
+                expectInvalidIndexNameErrorWithLineNumber(command, clusterString + "<<logstash<{now/d}>>>", lineNumber, "<logstash<");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"-<logstash- {now/d{yyyy.MM.dd|+12:00}}>\"",
+                    lineNumber,
+                    "logstash- "
+                );
+            }
+        }
+
+        // comma separated indices
+        // Invalid index names after removing exclusion fail, when there is no index name with wildcard before it
+        for (String command : commands.keySet()) {
+            if (command.contains("LOOKUP")) {
+                continue;
+            }
+            for (String clusterString : clusterStrings) {
+                lineNumber = command.contains("FROM")
+                    ? "line 1:" + (22 + clusterString.length() - 1) + ": "
+                    : "line 1:" + (25 + clusterString.length() - 1) + ": ";
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "indexpattern, --indexpattern",
+                    lineNumber,
+                    "-indexpattern"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "indexpattern, \"--indexpattern\"",
+                    lineNumber,
+                    "-indexpattern"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    clusterString + "\"indexpattern, --indexpattern\"",
+                    commands.get(command),
+                    "-indexpattern"
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "indexpattern,-indexpattern"),
+                    statement(command, clusterString + "indexpattern, -indexpattern")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "indexpattern,-indexpattern"),
+                    statement(command, clusterString + "indexpattern, \"-indexpattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "indexpattern, -indexpattern"),
+                    statement(command, clusterString + "\"indexpattern, -indexpattern\"")
+                );
+            }
+        }
+
+        // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
+        for (String command : commands.keySet()) {
+            if (command.contains("LOOKUP")) {
+                continue;
+            }
+            for (String clusterString : clusterStrings) {
+                lineNumber = command.contains("FROM")
+                    ? "line 1:" + (11 + clusterString.length() - 1) + ": "
+                    : "line 1:" + (14 + clusterString.length() - 1) + ": ";
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*,-index#pattern"),
+                    statement(command, clusterString + "*, \"-index#pattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*,-index#pattern"),
+                    statement(command, clusterString + "*, -index#pattern")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*, -index#pattern"),
+                    statement(command, clusterString + "\"*, -index#pattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*,-index#pattern"),
+                    statement(command, clusterString + "index*, \"-index#pattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*,-index#pattern"),
+                    statement(command, clusterString + "index*, -index#pattern")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*, -index#pattern"),
+                    statement(command, clusterString + "\"index*, -index#pattern\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*,-<--logstash-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "*, \"-<--logstash-{now/M{yyyy.MM}}>\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*,-<--logstash-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "*, -<--logstash-{now/M{yyyy.MM}}>")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "*, -<--logstash-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "\"*, -<--logstash-{now/M{yyyy.MM}}>\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*,-<--logstash#-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "index*, \"-<--logstash#-{now/M{yyyy.MM}}>\"")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*,-<--logstash#-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "index*, -<--logstash#-{now/M{yyyy.MM}}>")
+                );
+                assertEquals(
+                    unresolvedRelation(clusterString.strip() + "index*, -<--logstash#-{now/M{yyyy.MM}}>"),
+                    statement(command, clusterString + "\"index*, -<--logstash#-{now/M{yyyy.MM}}>\"")
+                );
+                expectDateMathErrorWithLineNumber(
+                    command,
+                    clusterString + "*, \"-<-logstash-{now/D}>\"",
+                    lineNumber,
+                    "unit [D] not supported for date math [/D]"
+                );
+                expectDateMathErrorWithLineNumber(
+                    command,
+                    clusterString + "*, -<-logstash-{now/D}>",
+                    lineNumber,
+                    "unit [D] not supported for date math [/D]"
+                );
+                expectDateMathErrorWithLineNumber(
+                    command,
+                    clusterString + "\"*, -<-logstash-{now/D}>\"",
+                    commands.get(command),
+                    "unit [D] not supported for date math [/D]"
+                );
+            }
+        }
     }
 
     public void testInvalidQuotingAsFromIndexPattern() {
@@ -440,6 +654,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidQuotingAsMetricsIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectError("METRICS \"foo", ": token recognition error at: '\"foo'");
         expectError("METRICS \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
         expectError("METRICS \"\"\"foo", ": token recognition error at: '\"'");
@@ -456,6 +671,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidQuotingAsLookupIndexPattern() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         expectError("ROW x = 1 | LOOKUP \"foo ON j", ": token recognition error at: '\"foo ON j'");
         expectError("ROW x = 1 | LOOKUP \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
 
@@ -815,6 +1031,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("from a | where foo like 12", "mismatched input '12'");
         expectError("from a | where foo rlike 12", "mismatched input '12'");
+
+        expectError(
+            "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
+            "line 1:17: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+                + "[Invalid sequence - escape character is not followed by special wildcard char]"
+        );
     }
 
     public void testEnrich() {
@@ -970,17 +1192,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(), is(11));
-    }
-
-    public void testMatchCommand() throws IOException {
-        assumeTrue("Match command available just for snapshots", Build.current().isSnapshot());
-        String queryString = "field: value";
-        assertEquals(
-            new Filter(EMPTY, PROCESSING_CMD_INPUT, new StringQueryPredicate(EMPTY, queryString, null)),
-            processingCommand("match \"" + queryString + "\"")
-        );
-
-        expectError("from a | match an unquoted string", "mismatched input 'an' expecting QUOTED_STRING");
     }
 
     public void testMissingInputParams() {
@@ -1407,6 +1618,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testIntervalParam() {
+        LogicalPlan stm = statement(
+            "row x = ?1::datetime | eval y = ?1::datetime + ?2::date_period",
+            new QueryParams(List.of(new QueryParam("datetime", "2024-01-01", KEYWORD), new QueryParam("date_period", "3 days", KEYWORD)))
+        );
+        assertThat(stm, instanceOf(Eval.class));
+        Eval eval = (Eval) stm;
+        assertThat(eval.fields().size(), is(1));
+
+        NamedExpression field = eval.fields().get(0);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo("2024-01-01"));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
+    }
+
     public void testFieldContainingDotsAndNumbers() {
         LogicalPlan where = processingCommand("where `a.b.1m.4321`");
         assertThat(where, instanceOf(Filter.class));
@@ -1431,9 +1658,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsIndexPattern(String string, String statement) {
-        if (Build.current().isProductionRelease() && statement.contains("METRIC")) {
-            var e = expectThrows(IllegalArgumentException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("METRICS command currently requires a snapshot build"));
+        if (Build.current().isSnapshot() == false && statement.contains("METRIC")) {
+            var e = expectThrows(ParsingException.class, () -> statement(statement));
+            assertThat(e.getMessage(), containsString("mismatched input 'METRICS' expecting {"));
             return;
         }
         LogicalPlan from = statement(statement);
@@ -1443,7 +1670,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(statement));
             assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
             return;
@@ -1511,9 +1738,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP t ON j";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(query));
-            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = statement(query);
@@ -1545,7 +1772,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("metrics foo,test-*", "foo,test-*"),
             Map.entry("metrics 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
             Map.entry("metrics foo,   test,xyz", "foo,test,xyz"),
-            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>>", "<logstash-{now/M{yyyy.MM}}>>")
+            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
             assertStatement(e.getKey(), unresolvedRelation(e.getValue()));
@@ -1670,12 +1897,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null);
+        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, metadata, IndexMode.TIME_SERIES, null);
+        return new UnresolvedRelation(
+            EMPTY,
+            new TableIdentifier(EMPTY, null, index),
+            false,
+            metadata,
+            IndexMode.TIME_SERIES,
+            null,
+            "FROM TS"
+        );
     }
 
     public void testMetricWithGroupKeyAsAgg() {
@@ -1685,7 +1920,4 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
     }
-
-    private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
-
 }

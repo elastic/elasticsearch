@@ -1166,6 +1166,11 @@ public class BlockHashTests extends ESTestCase {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, null, groupIds));
                 }
+
+                @Override
+                public void close() {
+                    fail("hashes should not close AddInput");
+                }
             });
             hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -1178,6 +1183,11 @@ public class BlockHashTests extends ESTestCase {
                 public void add(int positionOffset, IntVector groupIds) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, null, groupIds));
+                }
+
+                @Override
+                public void close() {
+                    fail("hashes should not close AddInput");
                 }
             });
             assertThat(output1.size(), equalTo(output1.size()));
@@ -1296,6 +1306,11 @@ public class BlockHashTests extends ESTestCase {
             @Override
             public void add(int positionOffset, IntVector groupIds) {
                 add(positionOffset, groupIds.asBlock());
+            }
+
+            @Override
+            public void close() {
+                fail("hashes should not close AddInput");
             }
         });
         if (blockHash instanceof LongLongBlockHash == false

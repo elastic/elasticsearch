@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -186,7 +187,7 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            if (executor == null) {
+            if (executor == null || maximumNumberOfSlices <= 1) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -290,6 +291,7 @@ final class DefaultSearchContext extends SearchContext {
         ToLongFunction<String> fieldCardinality
     ) {
         return executor instanceof ThreadPoolExecutor tpe
+            && tpe.getQueue().isEmpty()
             && isParallelCollectionSupportedForResults(resultsType, request.source(), fieldCardinality, enableQueryPhaseParallelCollection)
                 ? tpe.getMaximumPoolSize()
                 : 1;

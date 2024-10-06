@@ -103,8 +103,7 @@ public class XContentUtilsTests extends ESTestCase {
                 XContentEOFException.class,
                 () -> XContentUtils.positionParserAtTokenAfterField(parser, missingField, errorFormat)
             );
-
-            assertThat(exception.getMessage(), containsString("Unexpected end-of-input"));
+            assertThat(exception.getMessage(), containsString("[4:1] Unexpected end of file"));
         }
     }
 

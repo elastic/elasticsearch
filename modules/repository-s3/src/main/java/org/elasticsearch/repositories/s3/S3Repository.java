@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
@@ -49,7 +50,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -141,6 +141,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Maximum parts number for multipart upload. (see https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+     */
+    static final Setting<Integer> MAX_MULTIPART_PARTS = Setting.intSetting("max_multipart_parts", 10_000, 1, 10_000);
+
+    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
@@ -152,7 +157,7 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl");
 
-    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+    static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
     /**
      * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
@@ -253,7 +258,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
-        this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxChunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxPartsNum = MAX_MULTIPART_PARTS.get(metadata.settings());
+        this.chunkSize = objectSizeLimit(maxChunkSize, bufferSize, maxPartsNum);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
@@ -300,6 +307,20 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
+    }
+
+    /**
+     * Calculates S3 object size limit based on 2 constraints: maximum object(chunk) size
+     * and maximum number of parts for multipart upload.
+     * https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+     *
+     * @param chunkSize s3 object size
+     * @param bufferSize s3 multipart upload part size
+     * @param maxPartsNum s3 multipart upload max parts number
+     */
+    private static ByteSizeValue objectSizeLimit(ByteSizeValue chunkSize, ByteSizeValue bufferSize, int maxPartsNum) {
+        var bytes = Math.min(chunkSize.getBytes(), bufferSize.getBytes() * maxPartsNum);
+        return ByteSizeValue.ofBytes(bytes);
     }
 
     /**

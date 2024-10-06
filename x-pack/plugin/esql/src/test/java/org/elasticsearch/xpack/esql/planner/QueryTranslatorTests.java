@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -24,7 +25,7 @@ import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -40,7 +41,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private static Analyzer makeAnalyzer(String mappingFileName) {
         var mapping = loadMapping(mappingFileName);
-        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
+        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(

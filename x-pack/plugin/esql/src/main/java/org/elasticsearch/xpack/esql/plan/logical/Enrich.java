@@ -14,11 +14,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -152,7 +154,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
             Map<String, String> concreteIndices = concreteIndices();
             if (concreteIndices.keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
                 String enrichIndex = concreteIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                EsIndex esIndex = new EsIndex(enrichIndex, Map.of(), Set.of(enrichIndex));
+                EsIndex esIndex = new EsIndex(enrichIndex, Map.of(), Map.of(enrichIndex, IndexMode.STANDARD));
                 esIndex.writeTo(out);
             } else {
                 throw new IllegalStateException("expected a single enrich index; got " + concreteIndices);
@@ -188,6 +190,15 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
 
     public Mode mode() {
         return mode;
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return matchField.references();
+    }
+
+    public String commandName() {
+        return "ENRICH";
     }
 
     @Override

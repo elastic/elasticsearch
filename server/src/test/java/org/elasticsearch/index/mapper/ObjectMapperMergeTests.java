@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -187,7 +188,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         final TextFieldMapper textFieldMapper = (TextFieldMapper) metrics.getMapper("host.name");
         assertEquals("foo.metrics.host.name", textFieldMapper.fullPath());
         assertEquals("host.name", textFieldMapper.leafName());
-        FieldMapper fieldMapper = textFieldMapper.multiFields.iterator().next();
+        FieldMapper fieldMapper = textFieldMapper.multiFields().iterator().next();
         assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
         assertEquals("keyword", fieldMapper.leafName());
     }
@@ -361,7 +362,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         );
         assertEquals("host.name", textKeywordMultiField.leafName());
         assertEquals("foo.metrics.host.name", textKeywordMultiField.fullPath());
-        FieldMapper fieldMapper = textKeywordMultiField.multiFields.iterator().next();
+        FieldMapper fieldMapper = textKeywordMultiField.multiFields().iterator().next();
         assertEquals("keyword", fieldMapper.leafName());
         assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
         return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(

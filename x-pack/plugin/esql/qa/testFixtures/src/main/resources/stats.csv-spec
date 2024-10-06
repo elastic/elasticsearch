@@ -1176,7 +1176,7 @@ avg_lang:double | max_lang:integer
 docsStatsGroupByMultipleValues
 // tag::statsGroupByMultipleValues[]
 FROM employees
-| EVAL hired = DATE_FORMAT("YYYY", hire_date)
+| EVAL hired = DATE_FORMAT("yyyy", hire_date)
 | STATS avg_salary = AVG(salary) BY hired, languages.long
 | EVAL avg_salary = ROUND(avg_salary)
 | SORT hired, languages.long
@@ -1314,7 +1314,7 @@ COUNT(c):long | a:integer
             0 | 1
 ;
 
-countDistinctNull#[skip:-8.99.99,reason:not yet fixed]
+countDistinctNull#[skip:-9.99.99,reason:not yet fixed]
 ROW a = 1, c = null
 | STATS COUNT_DISTINCT(c) BY a;
 
@@ -1618,7 +1618,7 @@ m:i | o:i   | l:i | s:i
 1   | 39729 | 1   | 39729
 ;
 
-byTwoCalculatedSecondOverwrites
+byTwoCalculatedSecondSameNameAsFirst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS m = MAX(salary) by l = salary + 1, l = languages + 1
 | SORT m
@@ -1633,7 +1633,7 @@ FROM employees
 74970 | 4
 ;
 
-byTwoCalculatedSecondOverwritesReferencingFirst
+byTwoCalculatedSecondShadowingAndReferencingFirst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | EVAL l = languages
 | STATS m = MAX(salary) by l = l + 1, l = l + 1

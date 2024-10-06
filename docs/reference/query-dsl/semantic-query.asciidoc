@@ -25,7 +25,7 @@ GET my-index-000001/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 
 [discrete]
@@ -79,7 +79,7 @@ POST my-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can also use semantic_text as part of <<rrf,Reciprocal Rank Fusion>> to make ranking relevant results easier:
 
@@ -116,12 +116,12 @@ GET my-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 
 [discrete]
 [[advanced-search]]
-=== Advanced search on `semantic_text` fields
+==== Advanced search on `semantic_text` fields
 
 The `semantic` query uses default settings for searching on `semantic_text` fields for ease of use.
 If you want to fine-tune a search on a `semantic_text` field, you need to know the task type used by the `inference_id` configured in `semantic_text`.
@@ -135,7 +135,7 @@ on a `semantic_text` field, it is not supported to use the `semantic_query` on a
 
 [discrete]
 [[search-sparse-inference]]
-==== Search with `sparse_embedding` inference
+===== Search with `sparse_embedding` inference
 
 When the {infer} endpoint uses a `sparse_embedding` model, you can use a <<query-dsl-sparse-vector-query,`sparse_vector` query>> on a <<semantic-text,`semantic_text`>> field in the following way:
 
@@ -157,14 +157,14 @@ GET test-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can customize the `sparse_vector` query to include specific settings, like <<sparse-vector-query-with-pruning-config-and-rescore-example,pruning configuration>>.
 
 
 [discrete]
 [[search-text-inferece]]
-==== Search with `text_embedding` inference
+===== Search with `text_embedding` inference
 
 When the {infer} endpoint uses a `text_embedding` model, you can use a <<query-dsl-knn-query,`knn` query>> on a `semantic_text` field in the following way:
 
@@ -190,6 +190,6 @@ GET test-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can customize the `knn` query to include specific settings, like `num_candidates` and `k`.

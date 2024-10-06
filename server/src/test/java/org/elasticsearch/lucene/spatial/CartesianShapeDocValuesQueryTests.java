@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.spatial;
@@ -18,7 +19,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.NoMergeScheduler;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -59,7 +60,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
     public void testEmptySegment() throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
         // No merges
-        iwc.setMergeScheduler(NoMergeScheduler.INSTANCE);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, iwc);
         ShapeIndexer indexer = new CartesianShapeIndexer(FIELD_NAME);

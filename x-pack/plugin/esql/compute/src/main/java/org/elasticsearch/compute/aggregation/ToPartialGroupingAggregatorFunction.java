@@ -61,6 +61,11 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
+    public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+        delegate.selectedMayContainUnseenGroups(seenGroupIds);
+    }
+
+    @Override
     public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
         final CompositeBlock inputBlock = page.getBlock(channels.get(0));
         delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());

@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -44,6 +45,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.repositories.azure.AbstractAzureServerTestCase.randomBlobContent;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
 public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreRepositoryTests {
@@ -194,6 +196,43 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             .withThrottles(0)
             .withExceptions(4)
             .forResult(MetricsAsserter.Result.Exception);
+    }
+
+    public void testRequestTimeIsAccurate() throws IOException {
+        final String repository = createRepository(randomRepositoryName());
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
+        clearMetrics(dataNodeName);
+
+        AtomicLong totalDelayMillis = new AtomicLong(0);
+        // Add some artificial delays
+        IntStream.range(0, randomIntBetween(1, MAX_RETRIES)).forEach(i -> {
+            long thisDelay = randomLongBetween(10, 100);
+            totalDelayMillis.addAndGet(thisDelay);
+            errorQueue.offer(new ErrorResponse(RestStatus.OK) {
+                @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
+                @Override
+                public void writeResponse(HttpExchange exchange) throws IOException {
+                    safeSleep(thisDelay);
+                    // return a retry-able error
+                    exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
+                }
+            });
+        });
+
+        // Hit the API
+        final long startTimeMillis = System.currentTimeMillis();
+        blobContainer.listBlobs(randomFrom(OperationPurpose.values()));
+        final long elapsedTimeMillis = System.currentTimeMillis() - startTimeMillis;
+
+        List<Measurement> longHistogramMeasurement = getTelemetryPlugin(dataNodeName).getLongHistogramMeasurement(
+            RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM
+        );
+        long recordedRequestTime = longHistogramMeasurement.get(0).getLong();
+        // Request time should be >= the delays we simulated
+        assertThat(recordedRequestTime, greaterThanOrEqualTo(totalDelayMillis.get()));
+        // And <= the elapsed time for the request
+        assertThat(recordedRequestTime, lessThanOrEqualTo(elapsedTimeMillis));
     }
 
     private void clearMetrics(String discoveryNode) {

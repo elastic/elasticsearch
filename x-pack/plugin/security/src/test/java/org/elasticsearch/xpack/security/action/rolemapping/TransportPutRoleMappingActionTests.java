@@ -102,7 +102,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
 
         assertThat(
             illegalArgumentException.getMessage(),
-            equalTo("Invalid mapping name [anarchy (read only)]. [ (read only)] is not an allowed suffix")
+            equalTo("Invalid mapping name [anarchy (read only)]. [(read only)] is not an allowed suffix")
         );
     }
 

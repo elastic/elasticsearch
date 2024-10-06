@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.action.bulk.IncrementalBulkIT
   method: testIncrementalBulkLowWatermarkBackOff
   issue: https://github.com/elastic/elasticsearch/issues/114182
+- class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
+  method: test {yaml=aggregations/stats_metric_fail_formatting/fail formatting}
+  issue: https://github.com/elastic/elasticsearch/issues/114187
 
 # Examples:
 #

@@ -1537,7 +1537,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
-            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "none");
+            b.field("synthetic_source_keep", "none");
             example.mapping().accept(b);
             b.endObject();
         }));
@@ -1548,7 +1548,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
-            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");
+            b.field("synthetic_source_keep", "all");
             example.mapping().accept(b);
             b.endObject();
         }));
@@ -1565,7 +1565,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
-            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("arrays", "all"));  // Both options keep array source.
+            b.field("synthetic_source_keep", randomFrom("arrays", "all"));  // Both options keep array source.
             example.mapping().accept(b);
             b.endObject();
         }));

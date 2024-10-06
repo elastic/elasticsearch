@@ -701,7 +701,7 @@ public class MetadataIndexTemplateService {
         // TODO multi-project get the right project here
         final var projectMetadata = currentState.getMetadata().getProject();
 
-        final var combinedMappings = collectMappings(indexTemplate, projectMetadata.componentTemplates(), Map.of(), "tmp_idx");
+        final var combinedMappings = collectMappings(indexTemplate, projectMetadata.componentTemplates(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, projectMetadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
@@ -1367,7 +1367,6 @@ public class MetadataIndexTemplateService {
     public static List<CompressedXContent> collectMappings(
         final ProjectMetadata projectMetadata,
         final String templateName,
-        Map<String, ComponentTemplate> componentTemplateSubstitutions,
         final String indexName
     ) {
         final ComposableIndexTemplate template = projectMetadata.templatesV2().get(templateName);
@@ -1378,7 +1377,7 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = projectMetadata.componentTemplates();
-        return collectMappings(template, componentTemplates, componentTemplateSubstitutions, indexName);
+        return collectMappings(template, componentTemplates, indexName);
     }
 
     /**
@@ -1387,7 +1386,6 @@ public class MetadataIndexTemplateService {
     public static List<CompressedXContent> collectMappings(
         final ComposableIndexTemplate template,
         final Map<String, ComponentTemplate> componentTemplates,
-        final Map<String, ComponentTemplate> componentTemplateSubstitutions,
         final String indexName
     ) {
         Objects.requireNonNull(template, "Composable index template must be provided");
@@ -1398,12 +1396,9 @@ public class MetadataIndexTemplateService {
                 ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_MAPPING_SNIPPET
             );
         }
-        final Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
-        combinedComponentTemplates.putAll(componentTemplates);
-        combinedComponentTemplates.putAll(componentTemplateSubstitutions);
         List<CompressedXContent> mappings = template.composedOf()
             .stream()
-            .map(combinedComponentTemplates::get)
+            .map(componentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::mappings)
@@ -1740,7 +1735,7 @@ public class MetadataIndexTemplateService {
             String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
             // Parse mappings to ensure they are valid after being composed
 
-            List<CompressedXContent> mappings = collectMappings(projectMetadataWithIndex, templateName, Map.of(), indexName);
+            List<CompressedXContent> mappings = collectMappings(projectMetadataWithIndex, templateName, indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);

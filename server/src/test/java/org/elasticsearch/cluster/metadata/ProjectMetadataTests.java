@@ -12,8 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -27,8 +25,9 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.MetadataTests.checkChunkSize;
+import static org.elasticsearch.cluster.metadata.MetadataTests.count;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
@@ -343,39 +342,41 @@ public class ProjectMetadataTests extends ESTestCase {
     static int expectedChunkCount(ToXContent.Params params, ProjectMetadata project) {
         final var context = Metadata.XContentContext.from(params);
 
-        long count = 0;
+        long chunkCount = 0;
         if (context == Metadata.XContentContext.API) {
             // 2 chunks wrapping "indices"" and one chunk per index
-            count += 2 + project.indices().size();
+            chunkCount += 2 + project.indices().size();
         }
 
         // 2 chunks wrapping "templates" and one chunk per template
-        count += 2 + project.templates().size();
+        chunkCount += 2 + project.templates().size();
 
         for (Metadata.ProjectCustom custom : project.customs().values()) {
-            count += 2;  // open / close object
+            chunkCount += 2;  // open / close object
             if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
-                count += 2 + componentTemplateMetadata.componentTemplates().size();
+                chunkCount += checkChunkSize(custom, params, 2 + componentTemplateMetadata.componentTemplates().size());
             } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
-                count += 2 + composableIndexTemplateMetadata.indexTemplates().size();
+                chunkCount += checkChunkSize(custom, params, 2 + composableIndexTemplateMetadata.indexTemplates().size());
             } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
-                count += 4 + (dataStreamMetadata.dataStreams().size() * 2L) + dataStreamMetadata.getDataStreamAliases().size();
+                chunkCount += checkChunkSize(
+                    custom,
+                    params,
+                    4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size()
+                );
             } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                count += 2 + featureMigrationResults.getFeatureStatuses().size();
+                chunkCount += checkChunkSize(custom, params, 2 + featureMigrationResults.getFeatureStatuses().size());
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
-                count += 2 + indexGraveyard.getTombstones().size();
+                chunkCount += checkChunkSize(custom, params, 2 + indexGraveyard.getTombstones().size());
             } else if (custom instanceof IngestMetadata ingestMetadata) {
-                count += 2 + ingestMetadata.getPipelines().size();
+                chunkCount += checkChunkSize(custom, params, 2 + ingestMetadata.getPipelines().size());
             } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
-                count += 3 + persistentTasksCustomMetadata.tasks().size();
+                chunkCount += checkChunkSize(custom, params, 3 + persistentTasksCustomMetadata.tasks().size());
             } else {
                 // could be anything, we have to just try it
-                count += Iterables.size(
-                    (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
-                );
+                chunkCount += count(custom.toXContentChunked(params));
             }
         }
-        return Math.toIntExact(count);
+        return Math.toIntExact(chunkCount);
     }
 
 }

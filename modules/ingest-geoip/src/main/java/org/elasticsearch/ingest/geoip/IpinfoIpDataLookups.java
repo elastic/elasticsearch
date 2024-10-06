@@ -88,49 +88,6 @@ final class IpinfoIpDataLookups {
         public CountryResult {}
     }
 
-    static class Country extends AbstractBase<CountryResult> {
-        Country(Set<Database.Property> properties) {
-            super(properties, CountryResult.class);
-        }
-
-        @Override
-        protected Map<String, Object> transform(final Result<CountryResult> result) {
-            CountryResult response = result.result;
-
-            Map<String, Object> data = new HashMap<>();
-            for (Database.Property property : this.properties) {
-                switch (property) {
-                    case IP -> data.put("ip", result.ip);
-                    case COUNTRY_ISO_CODE -> {
-                        String countryIsoCode = response.country;
-                        if (countryIsoCode != null) {
-                            data.put("country_iso_code", countryIsoCode);
-                        }
-                    }
-                    case COUNTRY_NAME -> {
-                        String countryName = response.countryName;
-                        if (countryName != null) {
-                            data.put("country_name", countryName);
-                        }
-                    }
-                    case CONTINENT_CODE -> {
-                        String continentCode = response.continent;
-                        if (continentCode != null) {
-                            data.put("continent_code", continentCode);
-                        }
-                    }
-                    case CONTINENT_NAME -> {
-                        String continentName = response.continentName;
-                        if (continentName != null) {
-                            data.put("continent_name", continentName);
-                        }
-                    }
-                }
-            }
-            return data;
-        }
-    }
-
     static class Asn extends AbstractBase<AsnResult> {
         Asn(Set<Database.Property> properties) {
             super(properties, AsnResult.class);
@@ -175,6 +132,49 @@ final class IpinfoIpDataLookups {
                     case TYPE -> {
                         if (response.type != null) {
                             data.put("type", response.type);
+                        }
+                    }
+                }
+            }
+            return data;
+        }
+    }
+
+    static class Country extends AbstractBase<CountryResult> {
+        Country(Set<Database.Property> properties) {
+            super(properties, CountryResult.class);
+        }
+
+        @Override
+        protected Map<String, Object> transform(final Result<CountryResult> result) {
+            CountryResult response = result.result;
+
+            Map<String, Object> data = new HashMap<>();
+            for (Database.Property property : this.properties) {
+                switch (property) {
+                    case IP -> data.put("ip", result.ip);
+                    case COUNTRY_ISO_CODE -> {
+                        String countryIsoCode = response.country;
+                        if (countryIsoCode != null) {
+                            data.put("country_iso_code", countryIsoCode);
+                        }
+                    }
+                    case COUNTRY_NAME -> {
+                        String countryName = response.countryName;
+                        if (countryName != null) {
+                            data.put("country_name", countryName);
+                        }
+                    }
+                    case CONTINENT_CODE -> {
+                        String continentCode = response.continent;
+                        if (continentCode != null) {
+                            data.put("continent_code", continentCode);
+                        }
+                    }
+                    case CONTINENT_NAME -> {
+                        String continentName = response.continentName;
+                        if (continentName != null) {
+                            data.put("continent_name", continentName);
                         }
                     }
                 }

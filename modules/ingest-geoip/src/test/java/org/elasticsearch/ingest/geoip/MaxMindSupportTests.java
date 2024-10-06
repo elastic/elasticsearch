@@ -84,7 +84,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "location.longitude",
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
-        "mostSpecificSubdivision.name"
+        "mostSpecificSubdivision.name",
+        "postal.code"
     );
     private static final Set<String> CITY_UNSUPPORTED_FIELDS = Set.of(
         "city.confidence",
@@ -109,7 +110,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.confidence",
         "mostSpecificSubdivision.geoNameId",
         "mostSpecificSubdivision.names",
-        "postal.code",
         "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
@@ -223,6 +223,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
         "mostSpecificSubdivision.name",
+        "postal.code",
         "traits.anonymous",
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
@@ -263,7 +264,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.confidence",
         "mostSpecificSubdivision.geoNameId",
         "mostSpecificSubdivision.names",
-        "postal.code",
         "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",

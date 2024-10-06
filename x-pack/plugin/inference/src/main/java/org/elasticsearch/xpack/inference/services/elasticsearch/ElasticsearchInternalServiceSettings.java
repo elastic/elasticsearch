@@ -83,7 +83,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
             validationException
         );
 
-        // model id is optional as the ELSER and E5 service will default it
+        // model id is optional as the ELSER service will default it. TODO make this a required field once the elser service is removed
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {

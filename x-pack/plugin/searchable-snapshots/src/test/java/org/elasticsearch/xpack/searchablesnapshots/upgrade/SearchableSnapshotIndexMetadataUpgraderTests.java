@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-@UpdateForV9
+@UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
 @LuceneTestCase.AwaitsFix(bugUrl = "this testing a number of pre 8.0 upgrade scenarios so needs updating or removal for 9.0")
 public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
 

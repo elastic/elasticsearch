@@ -93,7 +93,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        @UpdateForV9 // condition will always be true from v8, can be removed
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // condition will always be true from v8, can be removed
         var originalClusterSupportsNlpModels = oldClusterHasFeature(RestTestLegacyFeatures.ML_NLP_SUPPORTED);
         assumeTrue("NLP model deployments added in 8.0", originalClusterSupportsNlpModels);
 

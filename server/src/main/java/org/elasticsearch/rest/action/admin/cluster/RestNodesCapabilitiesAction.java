@@ -32,6 +32,14 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     public static final NodeFeature CAPABILITIES_ACTION = new NodeFeature("rest.capabilities_action");
     public static final NodeFeature LOCAL_ONLY_CAPABILITIES = new NodeFeature("rest.local_only_capabilities");
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        "timeout",
+        "method",
+        "path",
+        "parameters",
+        "capabilities",
+        "local_only"
+    );
 
     @Override
     public List<Route> routes() {
@@ -40,7 +48,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of("timeout", "method", "path", "parameters", "capabilities", "local_only");
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

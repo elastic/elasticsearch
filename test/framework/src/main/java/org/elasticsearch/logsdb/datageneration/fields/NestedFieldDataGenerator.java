@@ -28,13 +28,14 @@ public class NestedFieldDataGenerator implements FieldDataGenerator {
 
         this.mappingParameters = context.specification()
             .dataSource()
-            .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, true))
+            .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, true, context.getCurrentSubobjectsConfig()))
             .mappingGenerator()
             .get();
         var dynamicMapping = context.determineDynamicMapping(mappingParameters);
+        var subobjects = context.determineSubobjects(mappingParameters);
 
         var genericGenerator = new GenericSubObjectFieldDataGenerator(context);
-        this.childFields = genericGenerator.generateChildFields(dynamicMapping);
+        this.childFields = genericGenerator.generateChildFields(dynamicMapping, subobjects);
     }
 
     @Override

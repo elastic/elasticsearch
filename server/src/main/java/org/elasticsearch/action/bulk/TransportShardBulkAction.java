@@ -425,8 +425,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 return true;
             }
         } catch (Exception e) {
-            logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
-            assert result.getId() != null;
             onMappingUpdateFailure(e, primary, version, result, context, updateResult, initialMappingVersion);
             return true;
         }
@@ -473,6 +471,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         long currentMappingVersion = primary.mapperService().mappingVersion();
         boolean mappingWasConcurrentlyUpdated = currentMappingVersion > initialMappingVersion;
         if (mappingWasConcurrentlyUpdated) {
+            logger.debug(() -> format("%s retrying mapping update due to concurrent modification of mappings", primary.shardId()));
             // retry current index request if the mapping was updated concurrently
             // when two index requests race to add a conflicting dynamic mapping for the same field,
             // the index request whose dynamic mapping update loses the race will fail
@@ -481,6 +480,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             context.markOperationAsExecuted(r);
             context.resetForMappingUpdateRetry();
         } else {
+            logger.info(() -> format("%s mapping update rejected", primary.shardId()), e);
             onComplete(r, context, updateResult);
         }
     }

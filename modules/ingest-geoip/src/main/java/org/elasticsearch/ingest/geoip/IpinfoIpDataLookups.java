@@ -58,6 +58,26 @@ final class IpinfoIpDataLookups {
         }
     }
 
+    public record AsnResult(
+        Long asn,
+        @Nullable String country, // not present in the free asn database
+        String domain,
+        String name,
+        @Nullable String type // not present in the free asn database
+    ) {
+        @SuppressWarnings("checkstyle:RedundantModifier")
+        @MaxMindDbConstructor
+        public AsnResult(
+            @MaxMindDbParameter(name = "asn") String asn,
+            @Nullable @MaxMindDbParameter(name = "country") String country,
+            @MaxMindDbParameter(name = "domain") String domain,
+            @MaxMindDbParameter(name = "name") String name,
+            @Nullable @MaxMindDbParameter(name = "type") String type
+        ) {
+            this(parseAsn(asn), country, domain, name, type);
+        }
+    }
+
     public record CountryResult(
         @MaxMindDbParameter(name = "continent") String continent,
         @MaxMindDbParameter(name = "continent_name") String continentName,
@@ -103,6 +123,58 @@ final class IpinfoIpDataLookups {
                         String continentName = response.continentName;
                         if (continentName != null) {
                             data.put("continent_name", continentName);
+                        }
+                    }
+                }
+            }
+            return data;
+        }
+    }
+
+    static class Asn extends AbstractBase<AsnResult> {
+        Asn(Set<Database.Property> properties) {
+            super(properties, AsnResult.class);
+        }
+
+        @Override
+        protected Map<String, Object> transform(final Result<AsnResult> result) {
+            AsnResult response = result.result;
+            Long asn = response.asn;
+            String organizationName = response.name;
+            String network = result.network;
+
+            Map<String, Object> data = new HashMap<>();
+            for (Database.Property property : this.properties) {
+                switch (property) {
+                    case IP -> data.put("ip", result.ip);
+                    case ASN -> {
+                        if (asn != null) {
+                            data.put("asn", asn);
+                        }
+                    }
+                    case ORGANIZATION_NAME -> {
+                        if (organizationName != null) {
+                            data.put("organization_name", organizationName);
+                        }
+                    }
+                    case NETWORK -> {
+                        if (network != null) {
+                            data.put("network", network);
+                        }
+                    }
+                    case COUNTRY_ISO_CODE -> {
+                        if (response.country != null) {
+                            data.put("country_iso_code", response.country);
+                        }
+                    }
+                    case DOMAIN -> {
+                        if (response.domain != null) {
+                            data.put("domain", response.domain);
+                        }
+                    }
+                    case TYPE -> {
+                        if (response.type != null) {
+                            data.put("type", response.type);
                         }
                     }
                 }

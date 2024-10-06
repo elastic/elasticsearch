@@ -81,6 +81,56 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         assertThat(parseAsn("anythingelse"), nullValue());
     }
 
+    public void testAsn() throws IOException {
+        Path configDir = createTempDir();
+        copyDatabase("ipinfo/ip_asn_sample.mmdb", configDir.resolve("ip_asn_sample.mmdb"));
+        copyDatabase("ipinfo/asn_sample.mmdb", configDir.resolve("asn_sample.mmdb"));
+
+        GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
+        ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
+        configDatabases.initialize(resourceWatcherService);
+
+        // this is the 'free' ASN database (sample)
+        {
+            DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_asn_sample.mmdb");
+            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Set.of(Database.Property.values()));
+            Map<String, Object> data = lookup.getData(loader, "5.182.109.0");
+            assertThat(
+                data,
+                equalTo(
+                    Map.ofEntries(
+                        entry("ip", "5.182.109.0"),
+                        entry("organization_name", "M247 Europe SRL"),
+                        entry("asn", 9009L),
+                        entry("network", "5.182.109.0/24"),
+                        entry("domain", "m247.com")
+                    )
+                )
+            );
+        }
+
+        // this is the non-free or 'standard' ASN database (sample)
+        {
+            DatabaseReaderLazyLoader loader = configDatabases.getDatabase("asn_sample.mmdb");
+            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Set.of(Database.Property.values()));
+            Map<String, Object> data = lookup.getData(loader, "23.53.116.0");
+            assertThat(
+                data,
+                equalTo(
+                    Map.ofEntries(
+                        entry("ip", "23.53.116.0"),
+                        entry("organization_name", "Akamai Technologies, Inc."),
+                        entry("asn", 32787L),
+                        entry("network", "23.53.116.0/24"),
+                        entry("domain", "akamai.com"),
+                        entry("type", "hosting"),
+                        entry("country_iso_code", "US")
+                    )
+                )
+            );
+        }
+    }
+
     public void testAsnInvariants() {
         Path configDir = createTempDir();
         copyDatabase("ipinfo/ip_asn_sample.mmdb", configDir.resolve("ip_asn_sample.mmdb"));

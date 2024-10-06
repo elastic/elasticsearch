@@ -14,6 +14,9 @@ import com.maxmind.db.MaxMindDbConstructor;
 import com.maxmind.db.MaxMindDbParameter;
 import com.maxmind.db.Reader;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -31,6 +35,27 @@ final class IpinfoIpDataLookups {
 
     private IpinfoIpDataLookups() {
         // utility class
+    }
+
+    private static final Logger logger = LogManager.getLogger(IpinfoIpDataLookups.class);
+
+    /**
+     * Lax-ly parses a string that (ideally) looks like 'AS123' into a Long like 123L (or null, if such parsing isn't possible).
+     * @param asn a potentially empty (or null) ASN string that is expected to contain 'AS' and then a parsable long
+     * @return the parsed asn
+     */
+    static Long parseAsn(final String asn) {
+        if (asn == null || Strings.hasText(asn) == false) {
+            return null;
+        } else {
+            String stripped = asn.toUpperCase(Locale.ROOT).replaceAll("AS", "").trim();
+            try {
+                return Long.parseLong(stripped);
+            } catch (NumberFormatException e) {
+                logger.trace("Unable to parse non-compliant ASN string [{}]", asn);
+                return null;
+            }
+        }
     }
 
     public record CountryResult(

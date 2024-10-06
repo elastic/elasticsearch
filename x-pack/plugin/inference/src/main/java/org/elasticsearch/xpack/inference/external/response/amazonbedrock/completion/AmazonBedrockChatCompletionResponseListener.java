@@ -12,6 +12,7 @@ import com.amazonaws.services.bedrockruntime.model.ConverseResult;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseListener;
@@ -29,7 +30,7 @@ public class AmazonBedrockChatCompletionResponseListener extends AmazonBedrockRe
     @Override
     public void onResponse(ConverseResult result) {
         ((AmazonBedrockChatCompletionResponseHandler) responseHandler).acceptChatCompletionResponseObject(result);
-        inferenceResultsListener.onResponse(responseHandler.parseResult(request, null));
+        inferenceResultsListener.onResponse(responseHandler.parseResult(request, (HttpResult) null));
     }
 
     @Override

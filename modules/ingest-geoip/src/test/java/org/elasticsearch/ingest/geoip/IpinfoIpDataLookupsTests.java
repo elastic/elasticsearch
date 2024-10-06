@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -25,7 +26,9 @@ import java.util.Set;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class IpinfoIpDataLookupsTests extends ESTestCase {
 
@@ -43,6 +46,12 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void cleanup() {
         resourceWatcherService.close();
         threadPool.shutdownNow();
+    }
+
+    public void testDatabasePropertyInvariants() {
+        // the second ASN variant database is like a specialization of the ASN database
+        assertThat(Sets.difference(Database.Asn.properties(), Database.AsnV2.properties()), is(empty()));
+        assertThat(Database.Asn.defaultProperties(), equalTo(Database.AsnV2.defaultProperties()));
     }
 
     public void testCountry() throws IOException {

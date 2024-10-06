@@ -99,7 +99,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new KnnRetrieverBuilder("vector", new float[]{1.0f}, null, 10, 15, null));
+            source.retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }
@@ -119,7 +119,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[]{1.0f}, 10, 15, null)));
+            source.retriever(new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null)));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }
@@ -143,7 +143,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
                 new RRFRetrieverBuilder(
                     Arrays.asList(
                         new CompoundRetrieverBuilder.RetrieverSource(
-                            new KnnRetrieverBuilder("vector", new float[]{1.0f}, null, 10, 15, null),
+                            new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null),
                             null
                         ),
                         new CompoundRetrieverBuilder.RetrieverSource(
@@ -163,7 +163,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("vector", new float[]{1.0f}, 10, 15, null)));
+            source.knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null)));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }

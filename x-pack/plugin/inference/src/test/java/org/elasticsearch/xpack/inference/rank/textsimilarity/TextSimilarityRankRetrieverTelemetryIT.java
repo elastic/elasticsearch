@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -92,7 +91,7 @@ public class TextSimilarityRankRetrieverTelemetryIT extends ESIntegTestCase {
 
     public void testTelemetryForRRFRetriever() throws IOException {
 
-        if(false == isRetrieverTelemetryEnabled()) {
+        if (false == isRetrieverTelemetryEnabled()) {
             return;
         }
 
@@ -135,7 +134,8 @@ public class TextSimilarityRankRetrieverTelemetryIT extends ESIntegTestCase {
             getRestClient().performRequest(request);
         }
 
-        // search#5 - this will record 1 entry for "retriever" in `sections`, and 1 for "text_similarity_reranker" under `retrievers`, as well as
+        // search#5 - this will record 1 entry for "retriever" in `sections`, and 1 for "text_similarity_reranker" under `retrievers`, as
+        // well as
         // 1 "standard" under `retrievers`, and eventually 1 for "match" under `queries`
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");

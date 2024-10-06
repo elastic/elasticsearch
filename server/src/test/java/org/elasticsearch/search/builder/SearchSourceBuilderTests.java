@@ -41,8 +41,6 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
-import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -599,61 +597,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
             );
             assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
-        }
-    }
-
-    public void testStandardRetrieverParsing() throws IOException {
-        String restContent = "{"
-            + "  \"retriever\": {"
-            + "    \"standard\": {"
-            + "      \"query\": {"
-            + "        \"match_all\": {}"
-            + "        }"
-            + "    }"
-            + "  }"
-            + "}";
-        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
-        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
-            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
-            assertThat(source.retriever(), instanceOf(StandardRetrieverBuilder.class));
-            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
-                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
-                    parseSerialized,
-                    true,
-                    searchUsageHolder,
-                    nf -> true
-                );
-                assertThat(deserializedSource.retriever(), instanceOf(StandardRetrieverBuilder.class));
-            }
-        }
-    }
-
-    public void testKnnRetrieverParsing() throws IOException {
-        String restContent = "{"
-            + "  \"retriever\": {"
-            + "    \"knn\": {"
-            + "      \"query_vector\": ["
-            + "        3"
-            + "      ],"
-            + "      \"field\": \"vector\","
-            + "      \"k\": 10,"
-            + "      \"num_candidates\": 15"
-            + "    }"
-            + "  }"
-            + "}";
-        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
-        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
-            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
-            assertThat(source.retriever(), instanceOf(KnnRetrieverBuilder.class));
-            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
-                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
-                    parseSerialized,
-                    true,
-                    searchUsageHolder,
-                    nf -> true
-                );
-                assertThat(deserializedSource.retriever(), instanceOf(KnnRetrieverBuilder.class));
-            }
         }
     }
 

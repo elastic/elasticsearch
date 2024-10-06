@@ -80,7 +80,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new KnnRetrieverBuilder("vector", new float[]{1.0f}, null, 10, 15, null));
+            source.retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }
@@ -100,7 +100,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[]{1.0f}, 10, 15, null)));
+            source.retriever(new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null)));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }
@@ -119,7 +119,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             Request request = new Request("GET", INDEX_NAME + "/_search");
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("vector", new float[]{1.0f}, 10, 15, null)));
+            source.knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null)));
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);
         }

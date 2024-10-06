@@ -105,9 +105,14 @@ public final class BitsetFilterCache
         boolean loadFiltersEagerlySetting = settings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
         boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
         if (isStateless) {
-            return DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE)
-                && loadFiltersEagerlySetting
-                && INDEX_FAST_REFRESH_SETTING.get(settings.getSettings());
+            // We would like to eagerly load filters when the index can get searched. In Stateless, searches can happen on a search node
+            // for regular non-fast-refresh indices, or on an index node for fast refresh indices.
+            boolean fastRefreshIndex = INDEX_FAST_REFRESH_SETTING.get(settings.getSettings());
+            boolean fastRefreshIndexOnIndexNode = fastRefreshIndex
+                && DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE);
+            boolean nonFastRefreshIndexOnSearchNode = (fastRefreshIndex == false)
+                && DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE);
+            return loadFiltersEagerlySetting && (fastRefreshIndexOnIndexNode || nonFastRefreshIndexOnSearchNode);
         } else {
             return loadFiltersEagerlySetting;
         }

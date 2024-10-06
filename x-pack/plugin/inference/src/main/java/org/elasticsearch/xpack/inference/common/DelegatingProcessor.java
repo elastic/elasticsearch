@@ -89,7 +89,12 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
         if (isClosed.get()) {
             upstream.cancel();
         } else {
-            next(item);
+            try {
+                next(item);
+            } catch (Exception e) {
+                upstream().cancel();
+                onError(e);
+            }
         }
     }
 
@@ -97,8 +102,9 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
      * An {@link #onNext(Object)} that is only called when the stream is still open.
      * Implementations can pass the resulting R object to the downstream subscriber via {@link #downstream()}, or the upstream can be
      * accessed via {@link #upstream()}.
+     * Any Exceptions thrown by this method will cancel the upstream and be sent to the downstream {@link #onError(Throwable)}.
      */
-    protected abstract void next(T item);
+    protected abstract void next(T item) throws Exception;
 
     @Override
     public void onError(Throwable throwable) {

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -157,8 +156,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             xContentRegistry,
             indicesService,
             systemIndices,
-            indexSettingProviders,
-            Map.of()
+            indexSettingProviders
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -235,8 +233,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
         final SystemIndices systemIndices,
-        Set<IndexSettingProvider> indexSettingProviders,
-        Map<String, ComponentTemplate> componentTemplateSubstitutions
+        Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
         // TODO multi-project get the right project here
         var projectMetadata = simulatedState.getMetadata().getProject();
@@ -264,7 +261,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             projectMetadata,
             matchingTemplate,
-            componentTemplateSubstitutions,
             xContentRegistry,
             simulatedIndexName
         );

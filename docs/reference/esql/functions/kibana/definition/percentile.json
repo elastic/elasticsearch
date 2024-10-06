@@ -171,5 +171,6 @@
     "FROM employees\n| STATS p0 = PERCENTILE(salary,  0)\n     , p50 = PERCENTILE(salary, 50)\n     , p99 = PERCENTILE(salary, 99)",
     "FROM employees\n| STATS p80_max_salary_change = PERCENTILE(MV_MAX(salary_change), 80)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -152,25 +152,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param version API version to handle (e.g. RestApiVersion.V_8)
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
-     */
-    protected void registerAsDeprecatedHandler(
-        RestRequest.Method method,
-        String path,
-        RestApiVersion version,
-        RestHandler handler,
-        String deprecationMessage
-    ) {
-        registerAsDeprecatedHandler(method, path, version, handler, deprecationMessage, null);
-    }
-
-    /**
-     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
-     *
-     * @param method GET, POST, etc.
-     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
-     * @param version API version to handle (e.g. RestApiVersion.V_8)
-     * @param handler The handler to actually execute
-     * @param deprecationMessage The message to log and send as a header in the response
      * @param deprecationLevel The deprecation log level to use for the deprecation warning, either WARN or CRITICAL
      */
     protected void registerAsDeprecatedHandler(
@@ -179,40 +160,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestApiVersion version,
         RestHandler handler,
         String deprecationMessage,
-        @Nullable Level deprecationLevel
+        Level deprecationLevel
     ) {
         assert (handler instanceof DeprecationRestHandler) == false;
-        if (version == RestApiVersion.current()) {
-            // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
+        if (RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()).test(version)) {
             registerHandler(
                 method,
                 path,
                 version,
-                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, false)
-            );
-        } else if (version == RestApiVersion.minimumSupported()) {
-            // e.g. it was marked as deprecated in 7.x, and we're currently running 8.x
-            registerHandler(
-                method,
-                path,
-                version,
-                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, true)
-            );
-        } else {
-            // e.g. it was marked as deprecated in 7.x, and we're currently running *9.x*
-            logger.debug(
-                "Deprecated route ["
-                    + method
-                    + " "
-                    + path
-                    + "] for handler ["
-                    + handler.getClass()
-                    + "] "
-                    + "with version ["
-                    + version
-                    + "], which is less than the minimum supported version ["
-                    + RestApiVersion.minimumSupported()
-                    + "]"
+                new DeprecationRestHandler(
+                    handler,
+                    method,
+                    path,
+                    deprecationLevel,
+                    deprecationMessage,
+                    deprecationLogger,
+                    version != RestApiVersion.current()
+                )
             );
         }
     }
@@ -250,21 +214,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestHandler handler,
         RestRequest.Method replacedMethod,
         String replacedPath,
-        RestApiVersion replacedVersion
+        RestApiVersion replacedVersion,
+        String replacedMessage,
+        Level deprecationLevel
     ) {
-        // e.g. [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
-        final String replacedMessage = "["
-            + replacedMethod.name()
-            + " "
-            + replacedPath
-            + "] is deprecated! Use ["
-            + method.name()
-            + " "
-            + path
-            + "] instead.";
-
         registerHandler(method, path, version, handler);
-        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage);
+        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage, deprecationLevel);
     }
 
     /**
@@ -284,7 +239,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler) {
         assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
-            : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
+            : "REST API compatibility is only supported for version "
+                + RestApiVersion.minimumSupported().major
+                + " [method="
+                + method
+                + ", path="
+                + path
+                + ", handler="
+                + handler.getClass().getCanonicalName()
+                + "]";
 
         if (RESERVED_PATHS.contains(path)) {
             throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
@@ -299,7 +262,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     public void registerHandler(final Route route, final RestHandler handler) {
-        if (route.isReplacement()) {
+        if (route.hasReplacement()) {
             Route replaced = route.getReplacedRoute();
             registerAsReplacedHandler(
                 route.getMethod(),
@@ -308,7 +271,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 handler,
                 replaced.getMethod(),
                 replaced.getPath(),
-                replaced.getRestApiVersion()
+                replaced.getRestApiVersion(),
+                replaced.getDeprecationMessage(),
+                replaced.getDeprecationLevel()
             );
         } else if (route.isDeprecated()) {
             registerAsDeprecatedHandler(
@@ -397,6 +362,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
             if (handler != null) {
                 var supportedParams = handler.supportedQueryParameters();
+                assert supportedParams == handler.supportedQueryParameters()
+                    : handler.getName() + ": did not return same instance from supportedQueryParameters()";
                 return (supportedParams == null || supportedParams.containsAll(parameters))
                     && handler.supportedCapabilities().containsAll(capabilities);
             }

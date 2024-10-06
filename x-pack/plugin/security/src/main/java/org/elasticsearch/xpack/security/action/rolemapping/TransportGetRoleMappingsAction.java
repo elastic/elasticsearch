@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
+
 public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRoleMappingsRequest, GetRoleMappingsResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
@@ -73,7 +75,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
     private ExpressionRoleMapping cloneAndMarkAsReadOnly(ExpressionRoleMapping mapping) {
         // Mark role mappings from cluster state as "read only" by adding a suffix to their name
         return new ExpressionRoleMapping(
-            mapping.getName() + " (read only)",
+            mapping.getName() + " " + RESERVED_ROLE_MAPPING_SUFFIX,
             mapping.getExpression(),
             mapping.getRoles(),
             mapping.getRoleTemplates(),

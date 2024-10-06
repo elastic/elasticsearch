@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
+import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
+
 public class TransportPutRoleMappingAction extends HandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
@@ -56,11 +58,10 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
         );
     }
 
-    private void validateMappingName(String mappingName) {
-        String reservedSuffix = " (read only)";
-        if (mappingName.endsWith(reservedSuffix)) {
+    private static void validateMappingName(String mappingName) {
+        if (mappingName.endsWith(RESERVED_ROLE_MAPPING_SUFFIX)) {
             throw new IllegalArgumentException(
-                "Invalid mapping name [" + mappingName + "]. [" + reservedSuffix + "] is not an allowed suffix"
+                "Invalid mapping name [" + mappingName + "]. [" + RESERVED_ROLE_MAPPING_SUFFIX + "] is not an allowed suffix"
             );
         }
     }

@@ -59,6 +59,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -358,9 +359,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
                 "everyone_kibana",
-                "everyone_kibana (read only)",
+                "everyone_kibana " + RESERVED_ROLE_MAPPING_SUFFIX,
                 "_everyone_kibana",
-                "everyone_fleet (read only)",
+                "everyone_fleet " + RESERVED_ROLE_MAPPING_SUFFIX,
                 "zzz_mapping",
                 "123_mapping"
             )
@@ -369,7 +370,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         int readOnlyCount = 0;
         // assert that cluster-state role mappings come last
         for (ExpressionRoleMapping mapping : response.mappings()) {
-            readOnlyCount = mapping.getName().endsWith("(read only)") ? readOnlyCount + 1 : readOnlyCount;
+            readOnlyCount = mapping.getName().endsWith(RESERVED_ROLE_MAPPING_SUFFIX) ? readOnlyCount + 1 : readOnlyCount;
         }
         // Two sourced from cluster-state
         assertEquals(readOnlyCount, 2);
@@ -388,6 +389,15 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         assertNull(
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
+        );
+
+        // Make sure remaining native mappings can still be fetched
+        request = new GetRoleMappingsRequest();
+        response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+        assertTrue(response.hasMappings());
+        assertThat(
+            Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
+            containsInAnyOrder("_everyone_kibana", "zzz_mapping", "123_mapping")
         );
     }
 
@@ -545,7 +555,11 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(response.hasMappings());
         assertThat(
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
-            containsInAnyOrder(Arrays.stream(mappings).map(mapping -> mapping + (readOnly ? " (read only)" : "")).toArray(String[]::new))
+            containsInAnyOrder(
+                Arrays.stream(mappings)
+                    .map(mapping -> mapping + (readOnly ? " " + RESERVED_ROLE_MAPPING_SUFFIX : ""))
+                    .toArray(String[]::new)
+            )
         );
     }
 }

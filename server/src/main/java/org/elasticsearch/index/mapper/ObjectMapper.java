@@ -677,12 +677,28 @@ public class ObjectMapper extends Mapper {
                     // replaces an existing one.
                     if (objectMergeContext.getMapperBuilderContext().getMergeReason() == MergeReason.INDEX_TEMPLATE) {
                         putMergedMapper(mergedMappers, mergeWithMapper);
-                    } else {
+                    } else if (isConflictingDynamicMapping(objectMergeContext, mergeWithMapper, mergeIntoMapper) == false) {
                         putMergedMapper(mergedMappers, mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
                     }
                 }
             }
             return Map.copyOf(mergedMappers);
+        }
+
+        /*
+         * We're ignoring the field if a dynamic mapping update tries to define a conflicting field type (dynamic mappings update)
+         * This is caused by another index request with a different value racing to update the mappings.
+         * After ignoring the update the index request will be re-tried and sees the updated mappings for this field.
+         * The updated mappings will be taken into account when parsing the document
+         * (for example by coercing the value, ignore_malformed values, or failing the index request due to a type conflict).
+         */
+        private static boolean isConflictingDynamicMapping(
+            MapperMergeContext objectMergeContext,
+            Mapper mergeWithMapper,
+            Mapper mergeIntoMapper
+        ) {
+            return objectMergeContext.getMapperBuilderContext().getMergeReason().isAutoUpdate()
+                && mergeIntoMapper.typeName().equals(mergeWithMapper.typeName()) == false;
         }
 
         private static void putMergedMapper(Map<String, Mapper> mergedMappers, @Nullable Mapper merged) {

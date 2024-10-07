@@ -22,7 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.search.SearchHit;
@@ -302,7 +302,7 @@ public class ModelRegistryTests extends ESTestCase {
                 "service-a",
                 Map.of(),
                 Map.of(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
             var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
             assertThat(copied, not(sameInstance(toCopy)));
@@ -332,7 +332,7 @@ public class ModelRegistryTests extends ESTestCase {
                 "service-a",
                 settings,
                 secretsMap,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
             var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
             assertThat(copied, not(sameInstance(toCopy)));
@@ -368,14 +368,7 @@ public class ModelRegistryTests extends ESTestCase {
         var id = "my-inference";
 
         registry.addDefaultConfiguration(
-            new UnparsedModel(
-                id,
-                randomFrom(TaskType.values()),
-                "service-a",
-                Map.of(),
-                Map.of(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
-            )
+            new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of(), EndpointVersions.FIRST_ENDPOINT_VERSION)
         );
         var ise = expectThrows(
             IllegalStateException.class,
@@ -386,7 +379,7 @@ public class ModelRegistryTests extends ESTestCase {
                     "service-b",
                     Map.of(),
                     Map.of(),
-                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                    EndpointVersions.FIRST_ENDPOINT_VERSION
                 )
             )
         );

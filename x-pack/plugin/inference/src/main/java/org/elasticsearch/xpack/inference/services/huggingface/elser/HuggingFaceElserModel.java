@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -27,7 +28,7 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -45,7 +46,7 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         String service,
         HuggingFaceElserServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, endpointVersion),

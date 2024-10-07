@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -137,7 +138,7 @@ public class SenderServiceTests extends ESTestCase {
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            String endpointVersion,
+            EndpointVersions endpointVersion,
             ActionListener<Model> parsedModelListener
         ) {
             parsedModelListener.onResponse(null);
@@ -149,13 +150,18 @@ public class SenderServiceTests extends ESTestCase {
             TaskType taskType,
             Map<String, Object> config,
             Map<String, Object> secrets,
-            String endpointVersion
+            EndpointVersions endpointVersion
         ) {
             return null;
         }
 
         @Override
-        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
+        public Model parsePersistedConfig(
+            String inferenceEntityId,
+            TaskType taskType,
+            Map<String, Object> config,
+            EndpointVersions endpointVersion
+        ) {
             return null;
         }
 

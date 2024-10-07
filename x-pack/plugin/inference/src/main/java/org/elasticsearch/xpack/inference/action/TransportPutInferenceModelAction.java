@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -203,7 +204,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }
         });
 
-        String endpointVersion = (String) config.remove(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME);
+        EndpointVersions endpointVersion = (EndpointVersions) config.remove(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME);
 
         service.parseRequestConfig(inferenceEntityId, taskType, config, endpointVersion, parsedModelListener);
     }

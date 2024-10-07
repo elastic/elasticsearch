@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -38,7 +39,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -58,7 +59,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         OpenAiChatCompletionServiceSettings serviceSettings,
         OpenAiChatCompletionTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),

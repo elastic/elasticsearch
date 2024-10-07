@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -37,7 +38,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -62,7 +63,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         GoogleVertexAiRerankServiceSettings serviceSettings,
         GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
@@ -85,7 +86,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         GoogleVertexAiRerankServiceSettings serviceSettings,
         GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),

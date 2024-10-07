@@ -19,10 +19,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -126,7 +126,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -161,7 +161,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap(user),
                     getSecretSettingsMap(secret)
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -185,7 +185,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -215,7 +215,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -239,7 +239,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -263,7 +263,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -287,7 +287,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -310,7 +310,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -337,7 +337,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 getRequestConfigMap(getServiceSettingsMap(model, null, null), getTaskSettingsMap(null), getSecretSettingsMap(secret)),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -364,7 +364,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -391,7 +391,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -422,7 +422,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -448,7 +448,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -467,7 +467,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -496,7 +496,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     TaskType.SPARSE_EMBEDDING,
                     persistedConfig.config(),
                     persistedConfig.secrets(),
-                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                    EndpointVersions.FIRST_ENDPOINT_VERSION
                 )
             );
 
@@ -520,7 +520,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -550,7 +550,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -581,7 +581,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -611,7 +611,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -640,7 +640,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -671,7 +671,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -699,7 +699,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -726,7 +726,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -756,7 +756,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -781,7 +781,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -805,7 +805,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     "id",
                     TaskType.SPARSE_EMBEDDING,
                     persistedConfig.config(),
-                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                    EndpointVersions.FIRST_ENDPOINT_VERSION
                 )
             );
 
@@ -827,7 +827,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -855,7 +855,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -884,7 +884,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -912,7 +912,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -939,7 +939,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -964,7 +964,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
@@ -989,7 +989,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));

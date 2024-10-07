@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -109,7 +110,7 @@ public class AzureAiStudioService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        String endpointVersion,
+        EndpointVersions endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -143,7 +144,7 @@ public class AzureAiStudioService extends SenderService {
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -161,7 +162,12 @@ public class AzureAiStudioService extends SenderService {
     }
 
     @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
+    public Model parsePersistedConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        EndpointVersions endpointVersion
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -194,7 +200,7 @@ public class AzureAiStudioService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
 
         if (taskType == TaskType.TEXT_EMBEDDING) {
@@ -245,7 +251,7 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings,
         String failureMessage,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         return createModel(
             inferenceEntityId,

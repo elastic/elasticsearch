@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
@@ -30,7 +32,7 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
             randomServiceSettings(),
             randomTaskSettings(taskType),
             ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
     }
 
@@ -91,5 +93,14 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
     @Override
     protected ModelConfigurations mutateInstance(ModelConfigurations instance) {
         return mutateTestInstance(instance);
+    }
+
+    // future-proof of accidental enum ordering change or extension for serialization
+    public void testEnsureEndpointVersionsOrdinalsOrder() {
+        EnumSerializationTestUtils.assertEnumSerialization(
+            EndpointVersions.class,
+            EndpointVersions.FIRST_ENDPOINT_VERSION,
+            EndpointVersions.PARAMETERS_INTRODUCED_ENDPOINT_VERSION
+        );
     }
 }

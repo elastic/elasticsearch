@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -60,7 +61,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
         var secretSettingsMap = (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
@@ -76,7 +77,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
+    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, EndpointVersions endpointVersion) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
 
         var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
@@ -106,7 +107,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             ServiceSettings serviceSettings,
             TestTaskSettings taskSettings,
             TestSecretSettings secretSettings,
-            String endpointVersion
+            EndpointVersions endpointVersion
         ) {
             super(
                 new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),

@@ -9,17 +9,17 @@
 
 package org.elasticsearch.inference;
 
-import java.util.Map;
+public enum EndpointVersions {
+    FIRST_ENDPOINT_VERSION("2023-09-29"),
+    PARAMETERS_INTRODUCED_ENDPOINT_VERSION("2024-10-17");
 
-/**
- * Semi parsed model where inference entity id, task type and service
- * are known but the settings are not parsed.
- */
-public record UnparsedModel(
-    String inferenceEntityId,
-    TaskType taskType,
-    String service,
-    Map<String, Object> settings,
-    Map<String, Object> secrets,
-    EndpointVersions endpointVersion
-) {}
+    private final String name;
+
+    EndpointVersions(String s) {
+        name = s;
+    }
+
+    public String toString() {
+        return this.name;
+    }
+}

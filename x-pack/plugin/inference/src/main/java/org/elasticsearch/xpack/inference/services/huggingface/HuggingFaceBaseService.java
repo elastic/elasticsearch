@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -51,7 +52,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        String endpointVersion,
+        EndpointVersions endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -90,7 +91,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
@@ -117,7 +118,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
@@ -146,7 +147,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> secretSettings,
         String failureMessage,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     );
 
     @Override

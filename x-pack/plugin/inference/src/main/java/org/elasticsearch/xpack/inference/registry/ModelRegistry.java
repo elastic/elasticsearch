@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -73,10 +74,10 @@ public class ModelRegistry {
         String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
         String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
         TaskType taskType = TaskType.fromString(taskTypeStr);
-        String endpointVersion = (String) Objects.requireNonNullElse(
+        EndpointVersions endpointVersion = (EndpointVersions) Objects.requireNonNullElse(
             modelConfigMap.config().remove(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION // TODO in 9.0 change this to require the field, once we have updated all of the
-                                                       // stored models
+            EndpointVersions.FIRST_ENDPOINT_VERSION // TODO in 9.0 change this to require the field, once we have updated all of the
+                                                    // stored models
         );
 
         return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets(), endpointVersion);
@@ -426,7 +427,7 @@ public class ModelRegistry {
                 builder,
                 new ToXContent.MapParams(
                     Map.of(
-                        ModelConfigurations.USE_ID_FOR_INDEX,
+                        ModelConfigurations.FOR_INDEX,
                         Boolean.TRUE.toString(),
                         ModelConfigurations.INCLUDE_PARAMETERS, // we are going to continue to write the parameters field as `task_settings`
                         Boolean.FALSE.toString()

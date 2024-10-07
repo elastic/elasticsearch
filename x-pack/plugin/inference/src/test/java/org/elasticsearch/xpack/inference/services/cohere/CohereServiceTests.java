@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -122,7 +123,7 @@ public class CohereServiceTests extends ESTestCase {
                     getTaskSettingsMap(InputType.INGEST, CohereTruncation.START),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
 
@@ -150,7 +151,7 @@ public class CohereServiceTests extends ESTestCase {
                     CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", CohereEmbeddingType.FLOAT),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
 
@@ -172,7 +173,7 @@ public class CohereServiceTests extends ESTestCase {
                     getTaskSettingsMapEmpty(),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 failureListener
             );
         }
@@ -198,7 +199,7 @@ public class CohereServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -213,7 +214,7 @@ public class CohereServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -232,7 +233,7 @@ public class CohereServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
 
         }
     }
@@ -252,7 +253,7 @@ public class CohereServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -275,7 +276,7 @@ public class CohereServiceTests extends ESTestCase {
                     getTaskSettingsMapEmpty(),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
 
@@ -295,7 +296,7 @@ public class CohereServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -323,7 +324,7 @@ public class CohereServiceTests extends ESTestCase {
                     TaskType.SPARSE_EMBEDDING,
                     persistedConfig.config(),
                     persistedConfig.secrets(),
-                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                    EndpointVersions.FIRST_ENDPOINT_VERSION
                 )
             );
 
@@ -347,7 +348,7 @@ public class CohereServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -373,7 +374,7 @@ public class CohereServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -406,7 +407,7 @@ public class CohereServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -432,7 +433,7 @@ public class CohereServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -457,7 +458,7 @@ public class CohereServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -485,7 +486,7 @@ public class CohereServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -509,7 +510,7 @@ public class CohereServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -535,7 +536,7 @@ public class CohereServiceTests extends ESTestCase {
                     "id",
                     TaskType.SPARSE_EMBEDDING,
                     persistedConfig.config(),
-                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                    EndpointVersions.FIRST_ENDPOINT_VERSION
                 )
             );
 
@@ -557,7 +558,7 @@ public class CohereServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -583,7 +584,7 @@ public class CohereServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -606,7 +607,7 @@ public class CohereServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
@@ -632,7 +633,7 @@ public class CohereServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));

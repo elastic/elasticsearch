@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -119,7 +120,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getEmbeddingsTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -147,7 +148,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -171,7 +172,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -201,7 +202,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -229,7 +230,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -258,7 +259,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -290,7 +291,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -322,7 +323,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -354,7 +355,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -386,7 +387,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -418,7 +419,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -442,7 +443,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -469,7 +470,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -500,7 +501,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 config,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -519,7 +520,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
@@ -549,7 +550,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
@@ -583,7 +584,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(null, null, true, null),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -604,7 +605,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     TaskType.SPARSE_EMBEDDING,
                     config.config(),
                     config.secrets(),
-                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                    EndpointVersions.FIRST_ENDPOINT_VERSION
                 )
             );
 
@@ -628,7 +629,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
@@ -649,7 +650,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
@@ -670,7 +671,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
@@ -691,7 +692,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
@@ -711,7 +712,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
@@ -731,7 +732,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
@@ -751,7 +752,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 config.config(),
                 config.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
@@ -770,7 +771,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
@@ -794,12 +795,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                config.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, config.config(), EndpointVersions.FIRST_ENDPOINT_VERSION);
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
 
@@ -920,7 +916,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
@@ -941,7 +937,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                         null,
                         AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS,
                         null,
-                        ModelConfigurations.FIRST_ENDPOINT_VERSION
+                        EndpointVersions.FIRST_ENDPOINT_VERSION
                     )
                 )
             );

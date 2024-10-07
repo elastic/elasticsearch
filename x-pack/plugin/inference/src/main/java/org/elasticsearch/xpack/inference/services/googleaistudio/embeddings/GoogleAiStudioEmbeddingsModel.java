@@ -11,6 +11,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -42,7 +43,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -69,7 +70,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         TaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings, endpointVersion),
@@ -92,7 +93,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         GoogleAiStudioEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
@@ -116,7 +117,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         TaskSettings taskSettings,
         ChunkingSettings chunkingsettings,
         @Nullable DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingsettings, endpointVersion),

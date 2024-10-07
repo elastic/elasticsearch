@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -134,7 +134,7 @@ public class AzureAiStudioEmbeddingsModelTests extends ESTestCase {
             ),
             new AzureAiStudioEmbeddingsTaskSettings(user),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
     }
 }

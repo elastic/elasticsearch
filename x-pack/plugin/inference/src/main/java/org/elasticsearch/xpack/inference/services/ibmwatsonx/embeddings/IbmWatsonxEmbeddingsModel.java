@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -42,7 +43,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -67,7 +68,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
@@ -90,7 +91,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),

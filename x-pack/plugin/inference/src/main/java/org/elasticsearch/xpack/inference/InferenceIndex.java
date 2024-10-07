@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -97,7 +96,15 @@ public class InferenceIndex {
                     }
                     jsonBuilder.endObject();
 
-                    jsonBuilder.startObject("endpoint_version").field("dynamic", "false").field("type", "keyword").endObject();
+                    jsonBuilder.startObject("endpoint_version").field("dynamic", "false");
+                    {
+                        jsonBuilder.startObject("properties");
+                        {
+                            jsonBuilder.field("type", "keyword");
+                        }
+                        jsonBuilder.endObject();
+                    }
+                    jsonBuilder.endObject();
                 }
                 jsonBuilder.endObject().endObject().endObject();
             }

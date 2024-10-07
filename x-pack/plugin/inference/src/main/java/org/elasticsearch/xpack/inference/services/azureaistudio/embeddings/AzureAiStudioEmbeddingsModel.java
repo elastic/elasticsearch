@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -45,7 +46,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
         AzureAiStudioEmbeddingsServiceSettings serviceSettings,
         AzureAiStudioEmbeddingsTaskSettings taskSettings,
         DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
@@ -61,7 +62,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             inferenceEntityId,

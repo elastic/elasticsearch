@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -102,7 +103,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
         }
@@ -134,7 +135,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
         }
@@ -164,7 +165,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap("{}")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 failureListener
             );
         }
@@ -192,7 +193,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -216,7 +217,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -244,7 +245,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -272,7 +273,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -310,7 +311,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -346,7 +347,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 TaskType.RERANK,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleVertexAiRerankModel.class));
@@ -393,7 +394,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -445,7 +446,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -497,7 +498,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -549,7 +550,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));

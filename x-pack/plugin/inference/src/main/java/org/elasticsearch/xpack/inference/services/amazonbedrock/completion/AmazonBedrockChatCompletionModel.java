@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -40,7 +41,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -60,7 +61,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         AmazonBedrockChatCompletionServiceSettings serviceSettings,
         AmazonBedrockChatCompletionTaskSettings taskSettings,
         AmazonBedrockSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
@@ -49,7 +49,7 @@ public class AlibabaCloudSearchCompletionModelTests extends ESTestCase {
             taskSettings,
             secrets,
             null,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
 
         );
     }
@@ -68,7 +68,7 @@ public class AlibabaCloudSearchCompletionModelTests extends ESTestCase {
             serviceSettings,
             taskSettings,
             secretSettings,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
 
         );
     }

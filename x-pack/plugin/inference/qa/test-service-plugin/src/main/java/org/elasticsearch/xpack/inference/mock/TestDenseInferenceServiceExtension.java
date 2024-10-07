@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -46,7 +47,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
     }
 
     public static class TestDenseModel extends Model {
-        public TestDenseModel(String inferenceEntityId, TestServiceSettings serviceSettings, String endpointVersion) {
+        public TestDenseModel(String inferenceEntityId, TestServiceSettings serviceSettings, EndpointVersions endpointVersion) {
             super(
                 new ModelConfigurations(
                     inferenceEntityId,
@@ -76,7 +77,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            String endpointVersion,
+            EndpointVersions endpointVersion,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);

@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +28,7 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
             new GoogleAiStudioEmbeddingsServiceSettings(model, null, null, SimilarityMeasure.DOT_PRODUCT, null),
             EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
     }
 
@@ -42,7 +42,7 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
             EmptyTaskSettings.INSTANCE,
             chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
     }
 
@@ -61,7 +61,7 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
             new GoogleAiStudioEmbeddingsServiceSettings(model, null, dimensions, similarityMeasure, null),
             EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
 
         );
     }
@@ -80,7 +80,7 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
             EmptyTaskSettings.INSTANCE,
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
 
         );
     }

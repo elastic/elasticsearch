@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -69,7 +70,7 @@ public class CohereService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        String endpointVersion,
+        EndpointVersions endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -104,7 +105,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         return createModel(
             inferenceEntityId,
@@ -126,7 +127,7 @@ public class CohereService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
@@ -169,7 +170,7 @@ public class CohereService extends SenderService {
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);
@@ -191,7 +192,7 @@ public class CohereService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.OLD_TASK_SETTINGS);

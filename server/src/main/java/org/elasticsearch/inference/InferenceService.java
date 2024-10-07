@@ -46,7 +46,7 @@ public interface InferenceService extends Closeable {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        String endpointVersion,
+        EndpointVersions endpointVersion,
         ActionListener<Model> parsedModelListener
     );
 
@@ -69,7 +69,7 @@ public interface InferenceService extends Closeable {
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     );
 
     /**
@@ -84,7 +84,7 @@ public interface InferenceService extends Closeable {
      * @param endpointVersion
      * @return The parsed {@link Model}
      */
-    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, String endpointVersion);
+    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, EndpointVersions endpointVersion);
 
     /**
      * Perform inference on the model.

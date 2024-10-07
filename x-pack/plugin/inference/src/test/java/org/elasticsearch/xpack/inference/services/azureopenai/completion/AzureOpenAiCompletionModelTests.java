@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
@@ -44,7 +44,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             apiKey,
             entraId,
             inferenceEntityId,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         var requestTaskSettingsMap = taskSettingsMap(userOverride);
         var overriddenModel = AzureOpenAiCompletionModel.of(model, requestTaskSettingsMap);
@@ -60,7 +60,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
                     apiKey,
                     entraId,
                     inferenceEntityId,
-                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                    EndpointVersions.FIRST_ENDPOINT_VERSION
                 )
             )
         );
@@ -75,7 +75,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             "api key",
             "entra id",
             "inference entity id",
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
 
         );
         var requestTaskSettingsMap = Map.<String, Object>of();
@@ -93,7 +93,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             "api key",
             "entra id",
             "inference entity id",
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
 
         );
         var overriddenModel = AzureOpenAiCompletionModel.of(model, null);
@@ -122,7 +122,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             apiKey,
             entraId,
             inferenceEntityId,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         var overriddenModel = new AzureOpenAiCompletionModel(model, updatedServiceSettings);
 
@@ -137,7 +137,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
                     apiKey,
                     entraId,
                     inferenceEntityId,
-                    ModelConfigurations.FIRST_ENDPOINT_VERSION
+                    EndpointVersions.FIRST_ENDPOINT_VERSION
                 )
             )
         );
@@ -160,7 +160,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             apiKey,
             entraId,
             inferenceEntityId,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
 
         assertThat(
@@ -178,7 +178,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
 
         );
     }
@@ -191,7 +191,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         @Nullable String apiKey,
         @Nullable String entraId,
         String inferenceEntityId,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
         var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
@@ -203,7 +203,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
             new AzureOpenAiCompletionTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
     }
 

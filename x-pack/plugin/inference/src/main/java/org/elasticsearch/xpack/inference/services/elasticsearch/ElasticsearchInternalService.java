@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -101,7 +102,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        String endpointVersion,
+        EndpointVersions endpointVersion,
         ActionListener<Model> modelListener
     ) {
         if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
@@ -191,7 +192,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> serviceSettingsMap,
         Map<String, Object> taskSettingsMap,
         ActionListener<Model> modelListener,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
         var request = new GetTrainedModelsAction.Request(modelId);
@@ -229,7 +230,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
 
         return switch (taskType) {
@@ -278,7 +279,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Set<String> platformArchitectures,
         Map<String, Object> serviceSettingsMap,
         ActionListener<Model> modelListener,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
 
@@ -333,7 +334,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Set<String> platformArchitectures,
         Map<String, Object> serviceSettingsMap,
         ActionListener<Model> modelListener,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
         final String defaultModelId = selectDefaultModelVariantBasedOnClusterArchitecture(
@@ -414,13 +415,18 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         return parsePersistedConfig(inferenceEntityId, taskType, config, endpointVersion);
     }
 
     @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config, String endpointVersion) {
+    public Model parsePersistedConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        EndpointVersions endpointVersion
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.OLD_TASK_SETTINGS);
 
@@ -771,7 +777,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 NAME,
                 elserSettings,
                 Map.of(), // no secrets
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             )
         );
     }

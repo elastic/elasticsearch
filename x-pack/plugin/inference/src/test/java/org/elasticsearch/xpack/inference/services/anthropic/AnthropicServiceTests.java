@@ -13,10 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -108,7 +108,7 @@ public class AnthropicServiceTests extends ESTestCase {
                     new HashMap<>(Map.of(AnthropicServiceFields.MAX_TOKENS, 1)),
                     getSecretSettingsMap(apiKey)
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
         }
@@ -129,7 +129,7 @@ public class AnthropicServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap("secret")
                 ),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION,
+                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 failureListener
             );
         }
@@ -148,7 +148,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -167,7 +167,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -186,7 +186,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -205,7 +205,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, ModelConfigurations.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
         }
     }
 
@@ -225,7 +225,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
@@ -254,7 +254,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
@@ -285,7 +285,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
@@ -316,7 +316,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
@@ -347,7 +347,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
@@ -372,7 +372,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
@@ -398,7 +398,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
@@ -426,7 +426,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
@@ -451,7 +451,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));

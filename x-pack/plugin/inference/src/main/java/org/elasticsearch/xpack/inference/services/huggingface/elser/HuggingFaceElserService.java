@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -61,7 +62,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new HuggingFaceElserModel(

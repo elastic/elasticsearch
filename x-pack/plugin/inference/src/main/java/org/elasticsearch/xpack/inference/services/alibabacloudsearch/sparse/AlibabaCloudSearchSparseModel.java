@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -41,7 +42,7 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             modelId,
@@ -62,7 +63,7 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
         AlibabaCloudSearchSparseServiceSettings serviceSettings,
         AlibabaCloudSearchSparseTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),

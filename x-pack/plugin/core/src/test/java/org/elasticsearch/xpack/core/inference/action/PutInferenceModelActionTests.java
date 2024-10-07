@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.inference.ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME;
-import static org.elasticsearch.inference.ModelConfigurations.FIRST_ENDPOINT_VERSION;
 import static org.elasticsearch.inference.ModelConfigurations.OLD_TASK_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.PARAMETERS;
 
@@ -117,6 +117,6 @@ public class PutInferenceModelActionTests extends ESTestCase {
         assertNull(map.get(PARAMETERS));
         assertEquals("elasticsearch", map.get("service"));
         assertEquals(serviceSettingsValues, map.get("service_settings"));
-        assertEquals(ENDPOINT_VERSION_FIELD_NAME, FIRST_ENDPOINT_VERSION);
+        assertEquals(ENDPOINT_VERSION_FIELD_NAME, EndpointVersions.FIRST_ENDPOINT_VERSION);
     }
 }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.completion;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -32,7 +32,7 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             new HashMap<>(Map.of()),
             null,
             ConfigurationParseContext.PERSISTENT,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
 
         assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
@@ -53,7 +53,7 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             new GoogleAiStudioCompletionServiceSettings(model, null),
             EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
     }
 
@@ -66,7 +66,7 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             new GoogleAiStudioCompletionServiceSettings(model, null),
             EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
 
         );
     }

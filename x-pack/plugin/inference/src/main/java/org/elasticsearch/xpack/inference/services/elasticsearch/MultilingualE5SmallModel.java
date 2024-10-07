@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -21,7 +22,7 @@ public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
         TaskType taskType,
         String service,
         MultilingualE5SmallInternalServiceSettings serviceSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings, endpointVersion);
     }

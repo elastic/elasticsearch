@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -42,7 +43,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
     }
 
     public static class TestRerankingModel extends Model {
-        public TestRerankingModel(String inferenceEntityId, TestServiceSettings serviceSettings, String endpointVersion) {
+        public TestRerankingModel(String inferenceEntityId, TestServiceSettings serviceSettings, EndpointVersions endpointVersion) {
             super(
                 new ModelConfigurations(inferenceEntityId, TaskType.RERANK, TestInferenceService.NAME, serviceSettings, endpointVersion),
                 new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
@@ -66,7 +67,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            String endpointVersion,
+            EndpointVersions endpointVersion,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);

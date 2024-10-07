@@ -22,10 +22,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
@@ -278,7 +278,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                         model.getServiceSettings().model(),
                         XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
                         XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false),
-                        ModelConfigurations.FIRST_ENDPOINT_VERSION
+                        EndpointVersions.FIRST_ENDPOINT_VERSION
                     )
                 );
             } else {
@@ -382,7 +382,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             TestServiceSettings serviceSettings,
             TestTaskSettings taskSettings,
             TestSecretSettings secretSettings,
-            String endpointVersion
+            EndpointVersions endpointVersion
         ) {
             super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, secretSettings, endpointVersion);
             this.resultMap = new HashMap<>();
@@ -397,7 +397,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 testModel.getServiceSettings(),
                 testModel.getTaskSettings(),
                 testModel.getSecretSettings(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
         }
 

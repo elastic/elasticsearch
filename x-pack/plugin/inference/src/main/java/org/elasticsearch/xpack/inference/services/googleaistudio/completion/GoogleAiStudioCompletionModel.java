@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.completion;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -40,7 +41,7 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(
             inferenceEntityId,
@@ -61,7 +62,7 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         GoogleAiStudioCompletionServiceSettings serviceSettings,
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
@@ -84,7 +85,7 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         GoogleAiStudioCompletionServiceSettings serviceSettings,
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),

@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -127,7 +128,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             modelHolder.get().taskType(),
             modelHolder.get().settings(),
             modelHolder.get().secrets(),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         assertEquals(model, roundTripModel);
     }
@@ -183,19 +184,19 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var service = "foo";
         var sparseAndTextEmbeddingModels = new ArrayList<Model>();
         sparseAndTextEmbeddingModels.add(
-            createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service, ModelConfigurations.FIRST_ENDPOINT_VERSION)
+            createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service, EndpointVersions.FIRST_ENDPOINT_VERSION)
         );
         sparseAndTextEmbeddingModels.add(
-            createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service, ModelConfigurations.FIRST_ENDPOINT_VERSION)
+            createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service, EndpointVersions.FIRST_ENDPOINT_VERSION)
         );
         sparseAndTextEmbeddingModels.add(
-            createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service, ModelConfigurations.FIRST_ENDPOINT_VERSION)
+            createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service, EndpointVersions.FIRST_ENDPOINT_VERSION)
         );
         sparseAndTextEmbeddingModels.add(
-            createModel(randomAlphaOfLength(5), TaskType.TEXT_EMBEDDING, service, ModelConfigurations.FIRST_ENDPOINT_VERSION)
+            createModel(randomAlphaOfLength(5), TaskType.TEXT_EMBEDDING, service, EndpointVersions.FIRST_ENDPOINT_VERSION)
         );
         sparseAndTextEmbeddingModels.add(
-            createModel(randomAlphaOfLength(5), TaskType.TEXT_EMBEDDING, service, ModelConfigurations.FIRST_ENDPOINT_VERSION)
+            createModel(randomAlphaOfLength(5), TaskType.TEXT_EMBEDDING, service, EndpointVersions.FIRST_ENDPOINT_VERSION)
         );
 
         for (var model : sparseAndTextEmbeddingModels) {
@@ -244,7 +245,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 randomAlphaOfLength(5),
                 randomFrom(TaskType.values()),
                 service,
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
             createdModels.add(model);
 
@@ -283,7 +284,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             randomFrom(TaskType.values()),
             service,
             secret,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         blockingCall(listener -> modelRegistry.storeModel(modelWithSecrets, listener), putModelHolder, exceptionHolder);
         assertThat(putModelHolder.get(), is(true));
@@ -314,7 +315,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             var id = "default-" + i;
             defaultConfigs.put(
                 id,
-                createUnparsedConfig(id, randomFrom(TaskType.values()), service, secret, ModelConfigurations.FIRST_ENDPOINT_VERSION)
+                createUnparsedConfig(id, randomFrom(TaskType.values()), service, secret, EndpointVersions.FIRST_ENDPOINT_VERSION)
             );
         }
         defaultConfigs.values().forEach(modelRegistry::addDefaultConfiguration);
@@ -325,7 +326,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var createdModels = new HashMap<String, Model>();
         for (int i = 0; i < configuredModelCount; i++) {
             var id = randomAlphaOfLength(5) + i;
-            var model = createModel(id, randomFrom(TaskType.values()), service, ModelConfigurations.FIRST_ENDPOINT_VERSION);
+            var model = createModel(id, randomFrom(TaskType.values()), service, EndpointVersions.FIRST_ENDPOINT_VERSION);
             createdModels.put(id, model);
             blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
             assertThat(putModelHolder.get(), is(true));
@@ -366,7 +367,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             var id = "default-" + i;
             defaultConfigs.put(
                 id,
-                createUnparsedConfig(id, randomFrom(TaskType.values()), service, secret, ModelConfigurations.FIRST_ENDPOINT_VERSION)
+                createUnparsedConfig(id, randomFrom(TaskType.values()), service, secret, EndpointVersions.FIRST_ENDPOINT_VERSION)
             );
         }
         defaultConfigs.values().forEach(modelRegistry::addDefaultConfiguration);
@@ -399,14 +400,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             TaskType.SPARSE_EMBEDDING,
             service,
             secret,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         var defaultText = createUnparsedConfig(
             "default-text",
             TaskType.TEXT_EMBEDDING,
             service,
             secret,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
 
         modelRegistry.addDefaultConfiguration(defaultSparse);
@@ -419,13 +420,13 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             randomAlphaOfLength(5) + 1,
             randomFrom(TaskType.values()),
             service,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         var configured2 = createModel(
             randomAlphaOfLength(5) + 1,
             randomFrom(TaskType.values()),
             service,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         blockingCall(listener -> modelRegistry.storeModel(configured1, listener), putModelHolder, exceptionHolder);
         assertThat(putModelHolder.get(), is(true));
@@ -457,21 +458,21 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             TaskType.SPARSE_EMBEDDING,
             service,
             secret,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         var defaultText = createUnparsedConfig(
             "default-text",
             TaskType.TEXT_EMBEDDING,
             service,
             secret,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
         var defaultChat = createUnparsedConfig(
             "default-chat",
             TaskType.COMPLETION,
             service,
             secret,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
 
         modelRegistry.addDefaultConfiguration(defaultSparse);
@@ -485,10 +486,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             "configured-sparse",
             TaskType.SPARSE_EMBEDDING,
             service,
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
-        var configuredText = createModel("configured-text", TaskType.TEXT_EMBEDDING, service, ModelConfigurations.FIRST_ENDPOINT_VERSION);
-        var configuredRerank = createModel("configured-rerank", TaskType.RERANK, service, ModelConfigurations.FIRST_ENDPOINT_VERSION);
+        var configuredText = createModel("configured-text", TaskType.TEXT_EMBEDDING, service, EndpointVersions.FIRST_ENDPOINT_VERSION);
+        var configuredRerank = createModel("configured-rerank", TaskType.RERANK, service, EndpointVersions.FIRST_ENDPOINT_VERSION);
         blockingCall(listener -> modelRegistry.storeModel(configuredSparse, listener), putModelHolder, exceptionHolder);
         assertThat(putModelHolder.get(), is(true));
         blockingCall(listener -> modelRegistry.storeModel(configuredText, listener), putModelHolder, exceptionHolder);
@@ -557,7 +558,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 ElasticsearchInternalService.NAME,
                 ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             );
             default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
         };
@@ -587,19 +588,19 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 ElasticsearchInternalService.NAME,
                 ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             )
         );
     }
 
-    public static Model createModel(String inferenceEntityId, TaskType taskType, String service, String endpointVersion) {
+    public static Model createModel(String inferenceEntityId, TaskType taskType, String service, EndpointVersions endpointVersion) {
         return new Model(
             new ModelConfigurations(
                 inferenceEntityId,
                 taskType,
                 service,
                 new TestModelOfAnyKind.TestModelServiceSettings(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             )
         );
     }
@@ -609,7 +610,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         TaskType taskType,
         String service,
         String secret,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         return new Model(
             new ModelConfigurations(
@@ -617,7 +618,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 taskType,
                 service,
                 new TestModelOfAnyKind.TestModelServiceSettings(),
-                ModelConfigurations.FIRST_ENDPOINT_VERSION
+                EndpointVersions.FIRST_ENDPOINT_VERSION
             ),
             new ModelSecrets(new TestModelOfAnyKind.TestSecretSettings(secret))
         );
@@ -628,7 +629,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         TaskType taskType,
         String service,
         String secret,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         return new UnparsedModel(
             inferenceEntityId,
@@ -636,7 +637,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             service,
             Map.of("a", "b"),
             Map.of("secret", secret),
-            ModelConfigurations.FIRST_ENDPOINT_VERSION
+            EndpointVersions.FIRST_ENDPOINT_VERSION
         );
     }
 
@@ -727,7 +728,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             }
         }
 
-        TestModelOfAnyKind(String inferenceEntityId, TaskType taskType, String service, String endpointVersion) {
+        TestModelOfAnyKind(String inferenceEntityId, TaskType taskType, String service, EndpointVersions endpointVersion) {
             super(inferenceEntityId, taskType, service, new TestModelServiceSettings(), new TestTaskSettings(), endpointVersion);
         }
 
@@ -753,7 +754,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             String service,
             ServiceSettings serviceSettings,
             TaskSettings taskSettings,
-            String endpointVersion
+            EndpointVersions endpointVersion
         ) {
             super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion);
         }

@@ -33,8 +33,6 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     public static final String CHUNKING_SETTINGS = "chunking_settings";
     public static final String INCLUDE_PARAMETERS = "include_parameters";
     public static final String ENDPOINT_VERSION_FIELD_NAME = "endpoint_version";
-    public static final String FIRST_ENDPOINT_VERSION = "2023-09-29";
-    public static final String PARAMETERS_INTRODUCED_ENDPOINT_VERSION = "2024-10-17";
     private static final String NAME = "inference_model";
 
     public static ModelConfigurations of(Model model, TaskSettings taskSettings) {
@@ -73,7 +71,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     private final ServiceSettings serviceSettings;
     private final TaskSettings taskSettings;
     private final ChunkingSettings chunkingSettings;
-    private final String endpointVersion;
+    private final EndpointVersions endpointVersion;
 
     /**
      * Allows no task settings to be defined. This will default to the {@link EmptyTaskSettings} object.
@@ -83,7 +81,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         TaskType taskType,
         String service,
         ServiceSettings serviceSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, endpointVersion);
     }
@@ -94,7 +92,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         String service,
         ServiceSettings serviceSettings,
         ChunkingSettings chunkingSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings, endpointVersion);
     }
@@ -105,7 +103,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         String service,
         ServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
@@ -123,7 +121,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         ServiceSettings serviceSettings,
         TaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
@@ -144,8 +142,8 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             ? in.readOptionalNamedWriteable(ChunkingSettings.class)
             : null;
         this.endpointVersion = in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_PARAMATERS_INTRODUCED)
-            ? Objects.requireNonNullElse(in.readOptionalString(), FIRST_ENDPOINT_VERSION)
-            : FIRST_ENDPOINT_VERSION;
+            ? Objects.requireNonNullElse(in.readEnum(EndpointVersions.class), EndpointVersions.FIRST_ENDPOINT_VERSION)
+            : EndpointVersions.FIRST_ENDPOINT_VERSION;
     }
 
     @Override
@@ -159,7 +157,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             out.writeOptionalNamedWriteable(chunkingSettings);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_PARAMATERS_INTRODUCED)) {
-            out.writeOptionalString(endpointVersion); // not nullable after 9.0
+            out.writeEnum(endpointVersion); // not nullable after 9.0
         }
     }
 
@@ -187,7 +185,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         return chunkingSettings;
     }
 
-    public String getEndpointVersion() {
+    public EndpointVersions getEndpointVersion() {
         return endpointVersion;
     }
 
@@ -235,7 +233,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             builder.field(PARAMETERS, taskSettings);
         }
         if (params.paramAsBoolean(FOR_INDEX, false)) {
-        builder.field(ENDPOINT_VERSION_FIELD_NAME, endpointVersion);
+            builder.field(ENDPOINT_VERSION_FIELD_NAME, endpointVersion);
         }
         builder.endObject();
         return builder;

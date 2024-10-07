@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
@@ -22,7 +23,7 @@ public class CustomElandModel extends ElasticsearchInternalModel {
         TaskType taskType,
         String service,
         ElasticsearchInternalServiceSettings internalServiceSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(inferenceEntityId, taskType, service, internalServiceSettings, endpointVersion);
     }
@@ -33,7 +34,7 @@ public class CustomElandModel extends ElasticsearchInternalModel {
         String service,
         ElasticsearchInternalServiceSettings internalServiceSettings,
         TaskSettings taskSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings, endpointVersion);
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -22,7 +23,7 @@ public class ElserInternalModel extends ElasticsearchInternalModel {
         String service,
         ElserInternalServiceSettings serviceSettings,
         ElserMlNodeTaskSettings taskSettings,
-        String endpointVersion
+        EndpointVersions endpointVersion
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion);
     }

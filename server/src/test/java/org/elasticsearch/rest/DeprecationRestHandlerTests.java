@@ -73,7 +73,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
             RestChannel channel = mock(RestChannel.class);
             NodeClient client = mock(NodeClient.class);
 
-            final Level deprecationLevel = randomBoolean() ? null : randomFrom(Level.WARN, DeprecationLogger.CRITICAL);
+            final Level deprecationLevel = randomFrom(Level.WARN, DeprecationLogger.CRITICAL);
 
             DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(
                 handler,
@@ -159,15 +159,53 @@ public class DeprecationRestHandlerTests extends ESTestCase {
     public void testSupportsBulkContentTrue() {
         when(handler.supportsBulkContent()).thenReturn(true);
         assertTrue(
-            new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false).supportsBulkContent()
+            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
+                .supportsBulkContent()
         );
     }
 
     public void testSupportsBulkContentFalse() {
         when(handler.supportsBulkContent()).thenReturn(false);
         assertFalse(
-            new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false).supportsBulkContent()
+            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
+                .supportsBulkContent()
         );
+    }
+
+    public void testDeprecationLevel() {
+        DeprecationRestHandler handler = new DeprecationRestHandler(
+            this.handler,
+            METHOD,
+            PATH,
+            Level.WARN,
+            deprecationMessage,
+            deprecationLogger,
+            false
+        );
+        assertEquals(Level.WARN, handler.getDeprecationLevel());
+
+        handler = new DeprecationRestHandler(
+            this.handler,
+            METHOD,
+            PATH,
+            DeprecationLogger.CRITICAL,
+            deprecationMessage,
+            deprecationLogger,
+            false
+        );
+        assertEquals(DeprecationLogger.CRITICAL, handler.getDeprecationLevel());
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeprecationRestHandler(this.handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false)
+        );
+        assertEquals(exception.getMessage(), "unexpected deprecation logger level: null, expected either 'CRITICAL' or 'WARN'");
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeprecationRestHandler(this.handler, METHOD, PATH, Level.OFF, deprecationMessage, deprecationLogger, false)
+        );
+        assertEquals(exception.getMessage(), "unexpected deprecation logger level: OFF, expected either 'CRITICAL' or 'WARN'");
     }
 
     /**

@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -178,9 +177,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (start.foldable() && end.foldable()) {
             int startOffset = stringToInt(String.valueOf(start.fold()));
             int endOffset = stringToInt(String.valueOf(end.fold()));

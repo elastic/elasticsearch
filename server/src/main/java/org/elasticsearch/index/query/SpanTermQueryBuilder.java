@@ -72,14 +72,16 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType mapper = context.getFieldType(fieldName);
-        Term term;
         if (mapper == null) {
             return new SpanMatchNoDocsQuery(fieldName, "unmapped field: " + fieldName);
-        } else {
-            Query termQuery = mapper.termQuery(value, context);
-            term = MappedFieldType.extractTerm(termQuery);
         }
-        return new SpanTermQuery(term);
+        Query termQuery = mapper.termQuery(value, context);
+        if (mapper.getTextSearchInfo().hasPositions() == false) {
+            throw new IllegalArgumentException(
+                "Span term query requires position data, but field " + fieldName + " was indexed without position data"
+            );
+        }
+        return new SpanTermQuery(MappedFieldType.extractTerm(termQuery));
     }
 
     public static SpanTermQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {

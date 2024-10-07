@@ -427,6 +427,7 @@ null | 74999
 ;
 
 evalWithNullAndAvg
+required_capability: extend_aggs_on_constants_support
 from employees | eval nullsum = salary + null | stats avg(nullsum), count(nullsum);
 
 avg(nullsum):double | count(nullsum):long

@@ -58,6 +58,7 @@ percentile(value200, p90):double|percentile(value200, p100):double|percentile(va
 ;
 
 percentileOfNullsOnRealIndex
+required_capability: extend_aggs_on_constants_support
 from employees 
 | eval x = null::integer,
        y = null, 
@@ -252,6 +253,7 @@ p80_max_salary_change:double
 
 constantsFrom
 required_capability: fn_mv_percentile
+required_capability: extend_aggs_on_constants_support
 from employees
 | eval single = 7, mv = [1, 7, 10]
 | stats

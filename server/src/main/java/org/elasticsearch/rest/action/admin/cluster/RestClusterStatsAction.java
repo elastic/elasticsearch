@@ -35,8 +35,9 @@ public class RestClusterStatsAction extends BaseRestHandler {
         "human-readable-total-docs-size",
         "verbose-dense-vector-mapping-stats"
     );
-    private static final Set<String> SUPPORTED_CAPABILITIES_CCS_STATS = Sets.union(SUPPORTED_CAPABILITIES, Set.of("ccs-stats"));
+    private static final Set<String> SUPPORTED_CAPABILITIES_CCS_STATS = Set.copyOf(Sets.union(SUPPORTED_CAPABILITIES, Set.of("ccs-stats")));
     public static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
 
     @Override
     public List<Route> routes() {
@@ -50,7 +51,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

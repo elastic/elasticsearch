@@ -26,7 +26,7 @@ public class SpikeAndDipDetectorTests extends ESTestCase {
             Arrays.fill(values, 1.0);
             MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(docCounts, values);
             SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
-            assertThat(detect.at(0.01, bucketValues), instanceOf(ChangeType.Indeterminable.class));
+            assertThat(detect.detect(0.01, bucketValues), instanceOf(ChangeType.Indeterminable.class));
         }
     }
 
@@ -152,7 +152,7 @@ public class SpikeAndDipDetectorTests extends ESTestCase {
 
             SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
 
-            ChangeType change = detect.at(0.05, bucketValues);
+            ChangeType change = detect.detect(0.05, bucketValues);
 
             assertThat(change, instanceOf(ChangeType.Spike.class));
             assertThat(change.pValue(), closeTo(3.0465e-12, 1e-15));
@@ -164,7 +164,7 @@ public class SpikeAndDipDetectorTests extends ESTestCase {
 
             SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
 
-            ChangeType change = detect.at(0.05, bucketValues);
+            ChangeType change = detect.detect(0.05, bucketValues);
 
             assertThat(change, instanceOf(ChangeType.Dip.class));
             assertThat(change.pValue(), closeTo(1.2589e-08, 1e-11));
@@ -179,7 +179,7 @@ public class SpikeAndDipDetectorTests extends ESTestCase {
 
         SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
 
-        ChangeType change = detect.at(0.01, bucketValues);
+        ChangeType change = detect.detect(0.01, bucketValues);
 
         assertThat(change, instanceOf(ChangeType.Spike.class));
         assertThat(change.changePoint(), equalTo(10));

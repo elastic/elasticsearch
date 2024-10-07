@@ -60,7 +60,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         int fp = 0;
         for (int i = 0; i < 100; i++) {
             double[] bucketValues = DoubleStream.generate(() -> 10 + normal.sample()).limit(40).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 1e-4);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(1e-4);
             fp += test.type() == ChangeDetector.Type.STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(10));
@@ -69,7 +69,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         GammaDistribution gamma = new GammaDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1, 2);
         for (int i = 0; i < 100; i++) {
             double[] bucketValues = DoubleStream.generate(() -> gamma.sample()).limit(40).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 1e-4);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(1e-4);
             fp += test.type() == ChangeDetector.Type.STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(10));
@@ -80,7 +80,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         int fp = 0;
         for (int i = 0; i < 100; i++) {
             double[] bucketValues = DoubleStream.generate(() -> 10 + normal.sample()).limit(5000).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 1e-4);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(1e-4);
             fp += test.type() == ChangeDetector.Type.STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(10));
@@ -92,7 +92,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < 100; i++) {
             AtomicInteger j = new AtomicInteger();
             double[] bucketValues = DoubleStream.generate(() -> j.incrementAndGet() + normal.sample()).limit(40).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 1e-4);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(1e-4);
             fp += test.type() == ChangeDetector.Type.NON_STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(10));
@@ -102,7 +102,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < 100; i++) {
             AtomicInteger j = new AtomicInteger();
             double[] bucketValues = DoubleStream.generate(() -> j.incrementAndGet() + gamma.sample()).limit(40).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 1e-4);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(1e-4);
             fp += test.type() == ChangeDetector.Type.NON_STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(10));
@@ -116,7 +116,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> normal.sample()).limit(20),
                 DoubleStream.generate(() -> 10 + normal.sample()).limit(20)
             ).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 0.05);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(0.05);
             tp += test.type() == ChangeDetector.Type.STEP_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(80));
@@ -128,7 +128,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> gamma.sample()).limit(20),
                 DoubleStream.generate(() -> 10 + gamma.sample()).limit(20)
             ).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 0.05);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(0.05);
             tp += test.type() == ChangeDetector.Type.STEP_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(80));
@@ -143,7 +143,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> j.incrementAndGet() + normal.sample()).limit(20),
                 DoubleStream.generate(() -> 2.0 * j.incrementAndGet() + normal.sample()).limit(20)
             ).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 0.05);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(0.05);
             tp += test.type() == ChangeDetector.Type.TREND_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(80));
@@ -156,7 +156,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> j.incrementAndGet() + gamma.sample()).limit(20),
                 DoubleStream.generate(() -> 2.0 * j.incrementAndGet() + gamma.sample()).limit(20)
             ).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 0.05);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(0.05);
             tp += test.type() == ChangeDetector.Type.TREND_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(80));
@@ -171,7 +171,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> 10 + normal1.sample()).limit(50),
                 DoubleStream.generate(() -> 10 + normal2.sample()).limit(50)
             ).toArray();
-            ChangeDetector.TestStats test = ChangeDetector.testForChange(bucketValues, 0.05);
+            ChangeDetector.TestStats test = new ChangeDetector(bucketValues).testForChange(0.05);
             tp += test.type() == ChangeDetector.Type.DISTRIBUTION_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(90));
@@ -187,7 +187,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.concat(DoubleStream.generate(normal1::sample).limit(7), DoubleStream.generate(normal2::sample).limit(6)),
                 DoubleStream.generate(normal3::sample).limit(23)
             ).toArray();
-            ChangeDetector.TestStats result = ChangeDetector.testForChange(bucketValues, 0.05);
+            ChangeDetector.TestStats result = new ChangeDetector(bucketValues).testForChange(0.05);
             tp += result.type() == ChangeDetector.Type.TREND_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(90));
@@ -236,7 +236,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             571.820809248555,
             541.2589928057550,
             520.4387755102040 };
-        ChangeDetector.TestStats result = ChangeDetector.testForChange(bucketValues, 0.05);
+        ChangeDetector.TestStats result = new ChangeDetector(bucketValues).testForChange(0.05);
         assertThat(result.type(), equalTo(ChangeDetector.Type.DISTRIBUTION_CHANGE));
     }
 

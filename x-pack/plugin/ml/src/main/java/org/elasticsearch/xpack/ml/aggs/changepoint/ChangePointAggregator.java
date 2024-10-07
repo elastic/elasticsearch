@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType.Indeterminable;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractBucket;
 import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
@@ -30,23 +29,12 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     private static final Logger logger = LogManager.getLogger(ChangePointAggregator.class);
 
     static final double P_VALUE_THRESHOLD = 0.01;
-    private static final int MINIMUM_BUCKETS = 10;
-    private static final int MAXIMUM_CANDIDATE_CHANGE_POINTS = 1000;
+    static final int MINIMUM_BUCKETS = 10;
 
     private static double changePValueThreshold(int nValues) {
         // This was obtained by simulating the test power for a fixed size effect as a
         // function of the bucket value count.
         return P_VALUE_THRESHOLD * Math.exp(-0.04 * (double) (nValues - 2 * (MINIMUM_BUCKETS + 1)));
-    }
-
-    static int[] computeCandidateChangePoints(double[] values) {
-        int minValues = Math.max((int) (0.1 * values.length + 0.5), MINIMUM_BUCKETS);
-        if (values.length - 2 * minValues <= MAXIMUM_CANDIDATE_CHANGE_POINTS) {
-            return IntStream.range(minValues, values.length - minValues).toArray();
-        } else {
-            int step = (int) Math.ceil((double) (values.length - 2 * minValues) / MAXIMUM_CANDIDATE_CHANGE_POINTS);
-            return IntStream.range(minValues, values.length - minValues).filter(i -> i % step == 0).toArray();
-        }
     }
 
     public ChangePointAggregator(String name, String bucketsPath, Map<String, Object> metadata) {
@@ -108,7 +96,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     static ChangeType testForSpikeOrDip(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
         try {
             SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
-            ChangeType result = detect.at(pValueThreshold, bucketValues);
+            ChangeType result = detect.detect(pValueThreshold, bucketValues);
             logger.trace("spike or dip p-value: [{}]", result.pValue());
             return result;
         } catch (NotStrictlyPositiveException nspe) {
@@ -119,6 +107,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     static ChangeType testForChange(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
         double[] timeWindow = bucketValues.getValues();
-        return ChangeDetector.testForChange(timeWindow, pValueThreshold).changeType(bucketValues, ChangeDetector.slope(timeWindow));
+        return new ChangeDetector(timeWindow).detect(pValueThreshold, bucketValues);
     }
 }

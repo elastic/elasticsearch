@@ -101,7 +101,6 @@ final class SpikeAndDipDetector {
     private final KDE dipTestKDE;
 
     SpikeAndDipDetector(double[] values) {
-
         numValues = values.length;
 
         if (values.length < 4) {
@@ -135,7 +134,7 @@ final class SpikeAndDipDetector {
         spikeTestKDE = new KDE(spikeKDEValues, 1.36);
     }
 
-    ChangeType at(double pValueThreshold, MlAggsHelper.DoubleBucketValues bucketValues) {
+    ChangeType detect(double pValueThreshold, MlAggsHelper.DoubleBucketValues bucketValues) {
         if (dipIndex == -1 || spikeIndex == -1) {
             return new ChangeType.Indeterminable(
                 "not enough buckets to check for dip or spike. Requires at least [3]; found [" + numValues + "]"

@@ -371,9 +371,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114187
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/114194
-- class: org.elasticsearch.index.query.SpanGapQueryBuilderTests
-  method: testToQuery
-  issue: https://github.com/elastic/elasticsearch/issues/114218
 
 # Examples:
 #

@@ -365,9 +365,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114232
-- class: org.elasticsearch.logsdb.datageneration.DataGeneratorTests
-  method: testDataGeneratorProducesValidMappingAndDocument
-  issue: https://github.com/elastic/elasticsearch/issues/114188
 
 # Examples:
 #

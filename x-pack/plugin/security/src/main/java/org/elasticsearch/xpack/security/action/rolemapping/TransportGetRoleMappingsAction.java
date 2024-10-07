@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
@@ -63,7 +64,12 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
         roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
             List<ExpressionRoleMapping> combinedRoleMappings = Stream.concat(
                 mappings.stream(),
-                clusterStateRoleMapper.getMappings(names)
+                clusterStateRoleMapper.getMappings(names == null ? null : names.stream().map(name -> {
+                    // If a read-only role is fetched by name including suffix, remove suffix
+                    return name.endsWith(RESERVED_ROLE_MAPPING_SUFFIX)
+                        ? name.substring(0, name.length() - RESERVED_ROLE_MAPPING_SUFFIX.length())
+                        : name;
+                }).collect(Collectors.toSet()))
                     .stream()
                     .map(this::cloneAndMarkAsReadOnly)
                     .sorted(Comparator.comparing(ExpressionRoleMapping::getName))
@@ -75,7 +81,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
     private ExpressionRoleMapping cloneAndMarkAsReadOnly(ExpressionRoleMapping mapping) {
         // Mark role mappings from cluster state as "read only" by adding a suffix to their name
         return new ExpressionRoleMapping(
-            mapping.getName() + " " + RESERVED_ROLE_MAPPING_SUFFIX,
+            mapping.getName() + RESERVED_ROLE_MAPPING_SUFFIX,
             mapping.getExpression(),
             mapping.getRoles(),
             mapping.getRoleTemplates(),

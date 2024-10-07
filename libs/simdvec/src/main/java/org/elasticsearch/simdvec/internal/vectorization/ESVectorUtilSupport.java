@@ -7,26 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.simdvec.internal.vectorization;
 
-/**
- * Abstraction of an array of object values.
- */
-public interface ObjectArray<T> extends BigArray {
+public interface ESVectorUtilSupport {
 
-    /**
-     * Get an element given its index.
-     */
-    T get(long index);
+    short B_QUERY = 4;
 
-    /**
-     * Set a value at the given index.
-     */
-    void set(long index, T value);
-
-    /**
-     * Set a value at the given index and return the previous value.
-     */
-    T getAndSet(long index, T value);
-
+    long ipByteBinByte(byte[] q, byte[] d);
 }

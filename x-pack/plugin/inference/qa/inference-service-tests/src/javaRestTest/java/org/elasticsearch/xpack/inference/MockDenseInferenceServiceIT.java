@@ -28,15 +28,12 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         }
 
         List<String> input = List.of(randomAlphaOfLength(10));
-        var inference = inferOnMockService(inferenceEntityId, input);
+        var inference = infer(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.TEXT_EMBEDDING);
         // Same input should return the same result
-        assertEquals(inference, inferOnMockService(inferenceEntityId, input));
+        assertEquals(inference, infer(inferenceEntityId, input));
         // Different input values should not
-        assertNotEquals(
-            inference,
-            inferOnMockService(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10))))
-        );
+        assertNotEquals(inference, infer(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10)))));
     }
 
     public void testMockServiceWithMultipleInputs() throws IOException {
@@ -44,7 +41,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         putModel(inferenceEntityId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
 
         // The response is randomly generated, the input can be anything
-        var inference = inferOnMockService(
+        var inference = infer(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))

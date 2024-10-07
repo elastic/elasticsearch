@@ -1,0 +1,5 @@
+pr: 113900
+summary: Fix BWC for file-settings based role mappings
+area: Authentication
+type: bug
+issues: []

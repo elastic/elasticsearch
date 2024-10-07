@@ -171,17 +171,21 @@ public class ComputeService {
                 null,
                 null
             );
+            String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             try (
                 var computeListener = ComputeListener.create(
-                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    local,
                     transportService,
                     rootTask,
                     execInfo,
                     configuration.getQueryStartTimeNanos(),
-                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo))
+                    listener.map(r -> {
+                        updateExecutionInfoAfterCoordinatorOnlyQuery(configuration.getQueryStartTimeNanos(), execInfo);
+                        return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo);
+                    })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(local));
                 return;
             }
         } else {
@@ -244,6 +248,27 @@ public class ComputeService {
                 getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices),
                 computeListener
             );
+        }
+    }
+
+    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(long queryStartNanos, EsqlExecutionInfo execInfo) {
+        long tookTimeNanos = System.nanoTime() - queryStartNanos;
+        execInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
+        if (execInfo.isCrossClusterSearch()) {
+            for (String clusterAlias : execInfo.clusterAliases()) {
+                // The local cluster 'took' time gets updated as part of the acquireCompute(local) call in the coordinator, so
+                // here we only need to update status for remote clusters since there are no remote ComputeListeners in this case.
+                // This happens in cross cluster searches that use LIMIT 0, e.g, FROM logs*,remote*:logs* | LIMIT 0.
+                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                    execInfo.swapCluster(clusterAlias, (k, v) -> {
+                        if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build();
+                        } else {
+                            return v;
+                        }
+                    });
+                }
+            }
         }
     }
 

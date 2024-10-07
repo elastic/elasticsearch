@@ -115,7 +115,7 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
                 final int frank = rank;
                 results.compute(new RankKey(rrfRankDoc.doc, rrfRankDoc.shardIndex), (key, value) -> {
                     if (value == null) {
-                        value = new RRFRankDoc(rrfRankDoc.doc, rrfRankDoc.shardIndex, fqc);
+                        value = new RRFRankDoc(rrfRankDoc.doc, rrfRankDoc.shardIndex, fqc, rankConstant);
                     }
 
                     value.score += 1.0f / (rankConstant + frank);
@@ -170,5 +170,9 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
         // return the top results where sort, collapse fields,
         // and completion suggesters are not allowed
         return topResults;
+    }
+
+    public int rankConstant() {
+        return rankConstant;
     }
 }

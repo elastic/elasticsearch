@@ -7,10 +7,10 @@ The {es} {security-features} use the following files:
 * `ES_PATH_CONF/roles.yml` defines the roles in use on the cluster. See
 <<defining-roles>>.
 
-* `ES_PATH_CONF/elasticsearch-users` defines the users and their hashed passwords for
+* `ES_PATH_CONF/users` defines the users and their hashed passwords for
   the `file` realm. See <<file-realm>>.
 
-* `ES_PATH_CONF/elasticsearch-users_roles` defines the user roles assignment for the
+* `ES_PATH_CONF/users_roles` defines the user roles assignment for the
   `file` realm. See <<file-realm>>.
 
 * `ES_PATH_CONF/role_mapping.yml` defines the role assignments for a

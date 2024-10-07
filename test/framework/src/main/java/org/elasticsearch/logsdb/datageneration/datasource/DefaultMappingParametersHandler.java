@@ -93,14 +93,43 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
         return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
             var parameters = new HashMap<String, Object>();
+
+            // Changing subobjects from subobjects: false is not supported, but we can f.e. go from "true" to "false".
+            // TODO enable subobjects: auto
+            // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using
+            // copy_to.
+            if (ESTestCase.randomBoolean()) {
+                parameters.put(
+                    "subobjects",
+                    ESTestCase.randomValueOtherThan(
+                        ObjectMapper.Subobjects.AUTO,
+                        () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
+                    ).toString()
+                );
+            }
+
+            if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED
+                || parameters.getOrDefault("subobjects", "true").equals("false")) {
+                // "enabled: false" is not compatible with subobjects: false
+                // changing "dynamic" from parent context is not compatible with subobjects: false
+                // changing subobjects value is not compatible with subobjects: false
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("enabled", "true");
+                }
+
+                return parameters;
+            }
+
             if (ESTestCase.randomBoolean()) {
                 parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict", "runtime"));
             }
             if (ESTestCase.randomBoolean()) {
                 parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
             }
+
             if (ESTestCase.randomBoolean()) {
-                parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, request.syntheticSourceKeepValue());
+                var value = request.isRoot() ? ESTestCase.randomFrom("none", "arrays") : ESTestCase.randomFrom("none", "arrays", "all");
+                parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
             }
 
             return parameters;

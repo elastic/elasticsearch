@@ -84,6 +84,12 @@ import static org.elasticsearch.core.Strings.format;
 
 public class SharedBlobCacheWarmingService {
 
+    public enum Type {
+        INDEXING_EARLY,
+        INDEXING,
+        SEARCH
+    }
+
     public static final String BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC = "es.blob_cache_warming.page_aligned_bytes.total";
 
     /** Region of a blob **/
@@ -295,21 +301,21 @@ public class SharedBlobCacheWarmingService {
      * one without waiting for the region to be available in cache.
      * </p>
      *
-     * @param description a description of which warming this is (to distinguish between the many that may be performed in log messages)
+     * @param type a type of which warming this is (to distinguish between the many that may be performed in log messages)
      * @param indexShard the shard to warm in cache
      * @param commit the commit to be recovered
      */
     public void warmCacheForShardRecovery(
-        String description,
+        Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory
     ) {
-        warmCache(description, indexShard, commit, directory, ActionListener.noop());
+        warmCache(type, indexShard, commit, directory, ActionListener.noop());
     }
 
     protected void warmCache(
-        String description,
+        Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
@@ -320,7 +326,7 @@ public class SharedBlobCacheWarmingService {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache for " + indexShard + ", store is closing"));
             return;
         }
-        try (var warmer = new Warmer(description, indexShard, commit, directory, ActionListener.runAfter(listener, store::decRef))) {
+        try (var warmer = new Warmer(type, indexShard, commit, directory, ActionListener.runAfter(listener, store::decRef))) {
             warmer.run();
         }
     }
@@ -342,7 +348,7 @@ public class SharedBlobCacheWarmingService {
 
     private class Warmer implements Releasable {
 
-        private final String description;
+        private final Type type;
         private final IndexShard indexShard;
         private final StatelessCompoundCommit commit;
         private final BlobStoreCacheDirectory directory;
@@ -353,13 +359,13 @@ public class SharedBlobCacheWarmingService {
         private final AtomicLong totalBytesCopied = new AtomicLong(0L);
 
         Warmer(
-            String description,
+            Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
-            this.description = description;
+            this.type = type;
             this.indexShard = indexShard;
             this.commit = commit;
             this.directory = directory;
@@ -369,14 +375,14 @@ public class SharedBlobCacheWarmingService {
 
         private ActionListener<Void> logging(ActionListener<Void> target) {
             final long started = threadPool.rawRelativeTimeInMillis();
-            logger.debug("{} {} warming, generation={}", indexShard.shardId(), description, commit.generation());
+            logger.debug("{} {} warming, generation={}", indexShard.shardId(), type, commit.generation());
             return ActionListener.runBefore(target, () -> {
                 final long duration = threadPool.rawRelativeTimeInMillis() - started;
                 logger.log(
                     duration >= 5000 ? Level.INFO : Level.DEBUG,
                     "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
                     indexShard.shardId(),
-                    description,
+                    type,
                     duration,
                     commit.commitFiles()
                         .keySet()
@@ -388,7 +394,7 @@ public class SharedBlobCacheWarmingService {
                     totalBytesCopied.get()
                 );
             }).delegateResponse((l, e) -> {
-                Supplier<String> logMessage = () -> Strings.format("%s %s warming failed", indexShard.shardId(), description);
+                Supplier<String> logMessage = () -> Strings.format("%s %s warming failed", indexShard.shardId(), type);
                 if (logger.isDebugEnabled()) {
                     logger.debug(logMessage, e);
                 } else {
@@ -559,7 +565,7 @@ public class SharedBlobCacheWarmingService {
             WarmingTask(BlobRangesQueue queue) {
                 this.queue = Objects.requireNonNull(queue);
                 this.blobRegion = queue.blobRegion;
-                logger.trace("{} {}: scheduled {}", indexShard.shardId(), description, blobRegion);
+                logger.trace("{} {}: scheduled {}", indexShard.shardId(), type, blobRegion);
             }
 
             @Override
@@ -676,7 +682,7 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> format("%s %s failed to warm region %s", indexShard.shardId(), description, blobRegion), e);
+                logger.error(() -> format("%s %s failed to warm region %s", indexShard.shardId(), type, blobRegion), e);
             }
 
             @Override

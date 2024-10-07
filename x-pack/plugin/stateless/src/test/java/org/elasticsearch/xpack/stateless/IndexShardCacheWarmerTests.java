@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -32,13 +31,12 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.MockLog;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.elasticsearch.action.ActionListener.assertOnce;
-import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IndexShardCacheWarmerTests extends IndexShardTestCase {
@@ -48,9 +46,10 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
         var taskQueue = new DeterministicTaskQueue();
         var indexShard = newShard(true);
 
+        var sharedBlobCacheWarmingService = mock(SharedBlobCacheWarmingService.class);
         var indexShardCacheWarmer = new IndexShardCacheWarmer(
             mock(ObjectStoreService.class),
-            mock(SharedBlobCacheWarmingService.class),
+            sharedBlobCacheWarmingService,
             taskQueue.getThreadPool()
         );
 
@@ -76,19 +75,7 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
             )
         );
 
-        var called = new AtomicBoolean(false);
-
-        indexShardCacheWarmer.preWarmIndexShardCache(randomIdentifier(), indexShard, runAfter(assertOnce(new ActionListener<>() {
-            @Override
-            public void onResponse(Boolean response) {
-                assertThat(response, is(false));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        }), () -> called.set(true)));
+        indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
 
         var store = indexShard.store();
         // Created shard without any store level operations has refCount = 1
@@ -98,7 +85,7 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
         assertThat(store.decRef(), is(true));
 
         taskQueue.runAllTasks();
-        assertThat(called.get(), is(true));
+        verify(sharedBlobCacheWarmingService, never()).warmCacheForShardRecovery(any(), any(), any(), any());
     }
 
     public void testLogErrorIfPrewarmingFailed() throws Exception {
@@ -134,16 +121,15 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
         );
 
         try (var mockLog = MockLog.capture(IndexShardCacheWarmer.class)) {
-            var description = randomBoolean() ? "indexing" : "early";
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "expected warn log about failed pre warming index shard cache",
                     IndexShardCacheWarmer.class.getName(),
                     Level.INFO,
-                    Strings.format("%s %s cache prewarming failed", indexShard.shardId(), description)
+                    Strings.format("%s early indexing cache prewarming failed", indexShard.shardId())
                 )
             );
-            indexShardCacheWarmer.preWarmIndexShardCache(description, indexShard, ActionListener.noop());
+            indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
             taskQueue.runAllTasks();
             mockLog.assertAllExpectationsMatched();
         } finally {

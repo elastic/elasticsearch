@@ -182,7 +182,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             indexShard.prepareForIndexRecovery();
 
             // Begin warming the cache immediately
-            indexShardCacheWarmer.preWarmIndexShardCache("indexing early", indexShard, ActionListener.noop());
+            indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
             transportService.sendChildRequest(
                 recoveryRef.target().sourceNode(),
                 START_RELOCATION_ACTION_NAME,

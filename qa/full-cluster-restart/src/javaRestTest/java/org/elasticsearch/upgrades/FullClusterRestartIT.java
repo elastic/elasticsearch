@@ -1899,68 +1899,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertTotalHits(3, entityAsMap(client().performRequest(searchRequest)));
         }
     }
-
-    /**
-     * This test ensures that soft deletes are enabled a when upgrading a pre-8 cluster to 8.0+
-     */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // This test can be removed in v9
-    public void testEnableSoftDeletesOnRestore() throws Exception {
-        var originalClusterDidNotEnforceSoftDeletes = oldClusterHasFeature(RestTestLegacyFeatures.SOFT_DELETES_ENFORCED) == false;
-
-        assumeTrue("soft deletes must be enabled on 8.0+", originalClusterDidNotEnforceSoftDeletes);
-        final String snapshot = "snapshot-" + index;
-        if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = indexSettings(1, 1);
-            settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
-            createIndex(index, settings.build());
-            ensureGreen(index);
-            int numDocs = randomIntBetween(0, 100);
-            indexRandomDocuments(
-                numDocs,
-                true,
-                true,
-                randomBoolean(),
-                i -> jsonBuilder().startObject().field("field", "value").endObject()
-            );
-            // create repo
-            client().performRequest(newXContentRequest(HttpMethod.PUT, "/_snapshot/repo", (repoConfig, params) -> {
-                repoConfig.field("type", "fs");
-                repoConfig.startObject("settings");
-                repoConfig.field("compress", randomBoolean());
-                repoConfig.field("location", repoDirectory.getRoot().getPath());
-                repoConfig.endObject();
-                return repoConfig;
-            }));
-            // create snapshot
-            Request createSnapshot = newXContentRequest(
-                HttpMethod.PUT,
-                "/_snapshot/repo/" + snapshot,
-                (builder, params) -> builder.field("indices", index)
-            );
-            createSnapshot.addParameter("wait_for_completion", "true");
-            client().performRequest(createSnapshot);
-        } else {
-            String restoredIndex = "restored-" + index;
-            // Restore
-            Request restoreRequest = newXContentRequest(
-                HttpMethod.POST,
-                "/_snapshot/repo/" + snapshot + "/_restore",
-                (restoreCommand, params) -> {
-                    restoreCommand.field("indices", index);
-                    restoreCommand.field("rename_pattern", index);
-                    restoreCommand.field("rename_replacement", restoredIndex);
-                    restoreCommand.startObject("index_settings").field("index.soft_deletes.enabled", true).endObject();
-                    return restoreCommand;
-                }
-            );
-            restoreRequest.addParameter("wait_for_completion", "true");
-            client().performRequest(restoreRequest);
-            ensureGreen(restoredIndex);
-            int numDocs = countOfIndexedRandomDocuments();
-            assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + restoredIndex + "/_search"))));
-        }
-    }
-
+    
     public void testForbidDisableSoftDeletesOnRestore() throws Exception {
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {

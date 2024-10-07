@@ -87,8 +87,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             xContentRegistry(),
             indicesService,
             systemIndices,
-            indexSettingsProviders,
-            Map.of()
+            indexSettingsProviders
         );
 
         assertThat(resolvedTemplate.settings().getAsInt("test-setting", -1), is(1));

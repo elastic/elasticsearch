@@ -23,6 +23,7 @@ import com.maxmind.geoip2.model.EnterpriseResponse;
 import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Location;
+import com.maxmind.geoip2.record.Postal;
 import com.maxmind.geoip2.record.Subdivision;
 
 import org.elasticsearch.common.network.InetAddresses;
@@ -139,6 +140,7 @@ final class MaxmindIpDataLookups {
             Location location = response.getLocation();
             Continent continent = response.getContinent();
             Subdivision subdivision = response.getMostSpecificSubdivision();
+            Postal postal = response.getPostal();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
@@ -204,6 +206,11 @@ final class MaxmindIpDataLookups {
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);
+                        }
+                    }
+                    case POSTAL_CODE -> {
+                        if (postal != null && postal.getCode() != null) {
+                            data.put("postal_code", postal.getCode());
                         }
                     }
                 }
@@ -324,6 +331,7 @@ final class MaxmindIpDataLookups {
             Location location = response.getLocation();
             Continent continent = response.getContinent();
             Subdivision subdivision = response.getMostSpecificSubdivision();
+            Postal postal = response.getPostal();
 
             Long asn = response.getTraits().getAutonomousSystemNumber();
             String organizationName = response.getTraits().getAutonomousSystemOrganization();
@@ -411,6 +419,11 @@ final class MaxmindIpDataLookups {
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);
+                        }
+                    }
+                    case POSTAL_CODE -> {
+                        if (postal != null && postal.getCode() != null) {
+                            data.put("postal_code", postal.getCode());
                         }
                     }
                     case ASN -> {

@@ -19,6 +19,8 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class PatternReplaceTokenFilterTests extends ESTokenStreamTestCase {
 
     public void testNormalizer() throws IOException {

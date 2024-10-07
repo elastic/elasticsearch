@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.Alib
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.DEFAULT_TIMEOUT;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -69,7 +68,6 @@ public class AlibabaCloudSearchService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -309,6 +307,7 @@ public class AlibabaCloudSearchService extends SenderService {
             model,
             query,
             List.of(input),
+            false,
             Map.of(),
             InputType.INGEST,
             DEFAULT_TIMEOUT,

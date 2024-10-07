@@ -37,6 +37,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -245,13 +246,15 @@ public class CsvTestsDataLoader {
             createInferenceEndpoint(client);
         }
 
+        Set<String> loadedDatasets = new HashSet<>();
         for (var dataset : CSV_DATASET_MAP.values()) {
             if (dataset.requiredCapability != null && hasCapability(client, dataset.requiredCapability) == false) {
                 continue;
             }
             load(client, dataset, logger, indexCreator);
+            loadedDatasets.add(dataset.indexName);
         }
-        forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
+        forceMerge(client, loadedDatasets, logger);
         for (var policy : ENRICH_POLICIES) {
             loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
         }

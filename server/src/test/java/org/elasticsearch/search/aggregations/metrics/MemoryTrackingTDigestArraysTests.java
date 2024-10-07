@@ -84,11 +84,11 @@ public class MemoryTrackingTDigestArraysTests extends ESTestCase {
     }
 
     public void testIntBulkSet() {
-        int initialSize = randomIntBetween(10, 1000);
-        int sourceArraySize = randomIntBetween(0, initialSize);
+        int targetArraySize = randomIntBetween(10, 1000);
+        int sourceArraySize = randomIntBetween(0, 1000);
 
-        try (TDigestIntArray array = intArray(initialSize); TDigestIntArray source = intArray(sourceArraySize)) {
-            assertThat(array.size(), equalTo(initialSize));
+        try (TDigestIntArray target = intArray(targetArraySize); TDigestIntArray source = intArray(sourceArraySize)) {
+            assertThat(target.size(), equalTo(targetArraySize));
             assertThat(source.size(), equalTo(sourceArraySize));
 
             int value = randomInt();
@@ -96,17 +96,17 @@ public class MemoryTrackingTDigestArraysTests extends ESTestCase {
                 source.set(i, value);
             }
 
-            int initialOffset = randomIntBetween(0, initialSize - sourceArraySize);
-            int sourceOffset = randomIntBetween(0, sourceArraySize - 1);
-            int elementsToCopy = randomIntBetween(1, sourceArraySize - sourceOffset);
+            int targetOffset = randomIntBetween(0, targetArraySize);
+            int sourceOffset = randomIntBetween(0, sourceArraySize);
+            int elementsToCopy = randomIntBetween(0, Math.min(sourceArraySize - sourceOffset, targetArraySize - targetOffset));
 
-            array.set(initialOffset, source, sourceOffset, elementsToCopy);
+            target.set(targetOffset, source, sourceOffset, elementsToCopy);
 
-            for (int i = 0; i < initialSize; i++) {
-                if (i < initialOffset || i >= initialOffset + elementsToCopy) {
-                    assertThat(array.get(i), equalTo(0));
+            for (int i = 0; i < targetArraySize; i++) {
+                if (i < targetOffset || i >= targetOffset + elementsToCopy) {
+                    assertThat(target.get(i), equalTo(0));
                 } else {
-                    assertThat(array.get(i), equalTo(value));
+                    assertThat(target.get(i), equalTo(value));
                 }
             }
         }
@@ -289,11 +289,11 @@ public class MemoryTrackingTDigestArraysTests extends ESTestCase {
     }
 
     public void testDoubleBulkSet() {
-        int initialSize = randomIntBetween(10, 1000);
-        int sourceArraySize = randomIntBetween(0, initialSize);
+        int targetArraySize = randomIntBetween(10, 1000);
+        int sourceArraySize = randomIntBetween(0, 1000);
 
-        try (TDigestDoubleArray array = doubleArray(initialSize); TDigestDoubleArray source = doubleArray(sourceArraySize)) {
-            assertThat(array.size(), equalTo(initialSize));
+        try (TDigestDoubleArray target = doubleArray(targetArraySize); TDigestDoubleArray source = doubleArray(sourceArraySize)) {
+            assertThat(target.size(), equalTo(targetArraySize));
             assertThat(source.size(), equalTo(sourceArraySize));
 
             double value = randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
@@ -301,17 +301,17 @@ public class MemoryTrackingTDigestArraysTests extends ESTestCase {
                 source.set(i, value);
             }
 
-            int initialOffset = randomIntBetween(0, initialSize - sourceArraySize);
-            int sourceOffset = randomIntBetween(0, sourceArraySize - 1);
-            int elementsToCopy = randomIntBetween(1, sourceArraySize - sourceOffset);
+            int targetOffset = randomIntBetween(0, targetArraySize);
+            int sourceOffset = randomIntBetween(0, sourceArraySize);
+            int elementsToCopy = randomIntBetween(0, Math.min(sourceArraySize - sourceOffset, targetArraySize - targetOffset));
 
-            array.set(initialOffset, source, sourceOffset, elementsToCopy);
+            target.set(targetOffset, source, sourceOffset, elementsToCopy);
 
-            for (int i = 0; i < initialSize; i++) {
-                if (i < initialOffset || i >= initialOffset + elementsToCopy) {
-                    assertThat(array.get(i), equalTo(0.0));
+            for (int i = 0; i < targetArraySize; i++) {
+                if (i < targetOffset || i >= targetOffset + elementsToCopy) {
+                    assertThat(target.get(i), equalTo(0.0));
                 } else {
-                    assertThat(array.get(i), equalTo(value));
+                    assertThat(target.get(i), equalTo(value));
                 }
             }
         }

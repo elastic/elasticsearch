@@ -21,7 +21,7 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 
-public class TestBQVectorUtils extends LuceneTestCase {
+public class BQVectorUtilsTests extends LuceneTestCase {
 
     public static int popcount(byte[] a, int aOffset, byte[] b, int length) {
         int res = 0;

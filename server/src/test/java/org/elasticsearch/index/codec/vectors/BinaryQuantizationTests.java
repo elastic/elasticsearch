@@ -25,7 +25,7 @@ import org.apache.lucene.util.VectorUtil;
 
 import java.util.Random;
 
-public class TestBinaryQuantization extends LuceneTestCase {
+public class BinaryQuantizationTests extends LuceneTestCase {
 
     public void testQuantizeForIndex() {
         int dimensions = random().nextInt(1, 4097);

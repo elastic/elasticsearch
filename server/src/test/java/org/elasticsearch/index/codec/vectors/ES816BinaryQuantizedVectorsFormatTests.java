@@ -48,7 +48,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class TestES816BinaryQuantizedVectorsFormat extends BaseKnnVectorsFormatTestCase {
+public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected Codec getCodec() {

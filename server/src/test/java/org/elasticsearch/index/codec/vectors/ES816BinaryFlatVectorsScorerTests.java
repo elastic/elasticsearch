@@ -25,7 +25,7 @@ import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
 
-public class TestES816BinaryFlatVectorsScorer extends LuceneTestCase {
+public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
 
     public void testScore() throws IOException {
         int dimensions = random().nextInt(1, 4097);

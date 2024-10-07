@@ -26,24 +26,25 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
         return new DataSourceResponse.ChildFieldGenerator() {
             @Override
             public int generateChildFieldCount() {
+                // no child fields is legal
                 return ESTestCase.randomIntBetween(0, request.specification().maxFieldCountPerLevel());
             }
 
             @Override
             public boolean generateDynamicSubObject() {
-                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                // Using a static 5% chance, this is just a chosen value that can be tweaked.
                 return randomDouble() <= 0.05;
             }
 
             @Override
             public boolean generateNestedSubObject() {
-                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                // Using a static 5% chance, this is just a chosen value that can be tweaked.
                 return randomDouble() <= 0.05;
             }
 
             @Override
             public boolean generateRegularSubObject() {
-                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                // Using a static 5% chance, this is just a chosen value that can be tweaked.
                 return randomDouble() <= 0.05;
             }
 
@@ -86,5 +87,13 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
             return Optional.empty();
         });
+    }
+
+    @Override
+    public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
+        // Using a static 5% chance for objects, this is just a chosen value that can be tweaked.
+        return new DataSourceResponse.DynamicMappingGenerator(
+            isObject -> isObject ? ESTestCase.randomDouble() <= 0.05 : ESTestCase.randomBoolean()
+        );
     }
 }

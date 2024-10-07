@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,7 +41,7 @@ public class DataGenerationHelper {
             .withPredefinedFields(
                 List.of(
                     // Customized because it always needs doc_values for aggregations.
-                    new PredefinedField.WithGenerator("host.name", new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("host.name", FieldType.KEYWORD, new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "keyword").endObject();
@@ -50,9 +51,14 @@ public class DataGenerationHelper {
                         public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
                             return b -> b.value(ESTestCase.randomAlphaOfLength(5));
                         }
+
+                        @Override
+                        public Object generateValue() {
+                            return ESTestCase.randomAlphaOfLength(5);
+                        }
                     }),
                     // Needed for terms query
-                    new PredefinedField.WithGenerator("method", new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("method", FieldType.KEYWORD, new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "keyword").endObject();
@@ -62,10 +68,15 @@ public class DataGenerationHelper {
                         public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
                             return b -> b.value(ESTestCase.randomFrom("put", "post", "get"));
                         }
+
+                        @Override
+                        public Object generateValue() {
+                            return ESTestCase.randomFrom("put", "post", "get");
+                        }
                     }),
 
                     // Needed for histogram aggregation
-                    new PredefinedField.WithGenerator("memory_usage_bytes", new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("memory_usage_bytes", FieldType.LONG, new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "long").endObject();
@@ -75,6 +86,11 @@ public class DataGenerationHelper {
                         public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
                             // We can generate this using standard long field but we would get "too many buckets"
                             return b -> b.value(ESTestCase.randomLongBetween(1000, 2000));
+                        }
+
+                        @Override
+                        public Object generateValue() {
+                            return ESTestCase.randomLongBetween(1000, 2000);
                         }
                     })
                 )

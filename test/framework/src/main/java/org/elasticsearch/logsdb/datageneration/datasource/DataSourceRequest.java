@@ -123,4 +123,10 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
             return handler.handle(this);
         }
     }
+
+    record DynamicMappingGenerator() implements DataSourceRequest<DataSourceResponse.DynamicMappingGenerator> {
+        public DataSourceResponse.DynamicMappingGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 }

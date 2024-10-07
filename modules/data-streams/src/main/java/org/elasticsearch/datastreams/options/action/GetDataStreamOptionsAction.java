@@ -157,7 +157,7 @@ public class GetDataStreamOptionsAction {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
-                out.writeWriteable(dataStreamOptions);
+                out.writeOptionalWriteable(dataStreamOptions);
             }
 
             @Override

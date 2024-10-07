@@ -25,7 +25,6 @@ dependencies {
   compileOnly project(":libs:elasticsearch-core")
   compileOnly project(":distribution:tools:entitlement-runtime")
   compileOnly project(":distribution:tools:entitlement-bridge")
-  implementation 'org.ow2.asm:asm:9.7'
   testImplementation project(":test:framework")
   testImplementation project(":distribution:tools:entitlement-agent:impl")
 }

@@ -27,14 +27,12 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     static {
         // default to platform supported bitsize
-        int vectorBitSize = VectorShape.preferredShape().vectorBitSize();
-        // but allow easy overriding for testing
-        VECTOR_BITSIZE = vectorBitSize; // VectorizationProvider.TESTS_VECTOR_SIZE.orElse(vectorBitSize);
+        VECTOR_BITSIZE = VectorShape.preferredShape().vectorBitSize();
 
         // hotspot misses some SSE intrinsics, workaround it
         // to be fair, they do document this thing only works well with AVX2/AVX3 and Neon
         boolean isAMD64withoutAVX2 = Constants.OS_ARCH.equals("amd64") && VECTOR_BITSIZE < 256;
-        HAS_FAST_INTEGER_VECTORS = /*VectorizationProvider.TESTS_FORCE_INTEGER_VECTORS ||*/ (isAMD64withoutAVX2 == false);
+        HAS_FAST_INTEGER_VECTORS = isAMD64withoutAVX2 == false;
     }
 
     @Override

@@ -42,11 +42,6 @@ public abstract class ESVectorizationProvider {
                 logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");
                 return new DefaultESVectorizationProvider();
             }
-            // don't use vector module with JVMCI (it does not work)
-            if (Constants.IS_JVMCI_VM) {
-                logger.warn("Java runtime is using JVMCI Compiler; Java vector incubator API can't be enabled.");
-                return new DefaultESVectorizationProvider();
-            }
             // is the incubator module present and readable (JVM providers may to exclude them or it is
             // build with jlink)
             final var vectorMod = lookupVectorModule();
@@ -58,18 +53,6 @@ public abstract class ESVectorizationProvider {
                 return new DefaultESVectorizationProvider();
             }
             vectorMod.ifPresent(ESVectorizationProvider.class.getModule()::addReads);
-            // check for testMode and otherwise fallback to default if slowness could happen
-            if (testMode == false) {
-                // if (TESTS_VECTOR_SIZE.isPresent() || TESTS_FORCE_INTEGER_VECTORS) {
-                // logger.warn(
-                // "Vector bitsize and/or integer vectors enforcement; using default vectorization provider outside of testMode");
-                // return new DefaultESVectorizationProvider();
-                // }
-                if (Constants.IS_CLIENT_VM) {
-                    logger.warn("C2 compiler is disabled; Java vector incubator API can't be enabled");
-                    return new DefaultESVectorizationProvider();
-                }
-            }
             var impl = new PanamaESVectorizationProvider();
             logger.info(
                 String.format(
@@ -83,7 +66,7 @@ public abstract class ESVectorizationProvider {
             logger.warn(
                 "You are running with unsupported Java "
                     + runtimeVersion
-                    + ". To make full use of the Vector API, please update Apache Lucene."
+                    + ". To make full use of the Vector API, please update Elasticsearch."
             );
         }
         return new DefaultESVectorizationProvider();

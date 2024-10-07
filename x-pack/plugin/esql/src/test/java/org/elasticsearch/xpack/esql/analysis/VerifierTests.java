@@ -1258,17 +1258,9 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchFunctionArgNotNullOrConstant() throws Exception {
+    public void testMatchFunctionArgNotConstant() throws Exception {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        assertEquals(
-            "1:19: first argument of [match(null, \"Anna\")] cannot be null, received [null]",
-            error("from test | where match(null, \"Anna\")")
-        );
-        assertEquals(
-            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
-            error("from test | where match(first_name, null)")
-        );
         assertEquals(
             "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
             error("from test | where match(first_name, first_name)")
@@ -1297,11 +1289,6 @@ public class VerifierTests extends ESTestCase {
             "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
             error("from test | where match(null, \"query\")")
         );
-        assertEquals(
-            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
-            error("from test | where match(first_name, null)")
-        );
-
         assertEquals(
             "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
             error("from test | where match(first_name, null)")

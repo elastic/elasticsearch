@@ -70,6 +70,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             name,
             0,
             "stack",
+            Type.INTERNAL_MANAGED,
             List.of(),
             List.of(),
             null,

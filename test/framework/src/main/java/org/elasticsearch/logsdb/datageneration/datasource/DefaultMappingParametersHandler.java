@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.test.ESTestCase;
 
@@ -78,8 +79,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
         if (request.isNested()) {
+            assert request.parentSubobjects() != ObjectMapper.Subobjects.DISABLED;
+
             return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
                 var parameters = new HashMap<String, Object>();
+
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
                 }

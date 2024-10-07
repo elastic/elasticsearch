@@ -10,7 +10,6 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;

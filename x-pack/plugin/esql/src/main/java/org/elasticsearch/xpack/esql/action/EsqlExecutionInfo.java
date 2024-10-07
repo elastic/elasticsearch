@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
@@ -167,19 +166,18 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         if (isCrossClusterSearch() == false || clusterInfo.isEmpty()) {
-            return Iterators.concat();
+            return Collections.emptyIterator();
         }
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size()),
-            ChunkedToXContentHelper.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL)),
-            ChunkedToXContentHelper.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING)),
-            ChunkedToXContentHelper.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED)),
-            ChunkedToXContentHelper.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL)),
-            ChunkedToXContentHelper.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED)),
-            ChunkedToXContentHelper.xContentFragmentValuesMapCreateOwnName("details", clusterInfo),
-            ChunkedToXContentHelper.endObject()
-        );
+        return ChunkedToXContent.builder(params).object(b -> {
+            b.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size());
+            b.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL));
+            b.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING));
+            b.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
+            b.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
+            b.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
+            // each clusterinfo defines its own field object name
+            b.xContentObject("details", clusterInfo.values().iterator());
+        });
     }
 
     /**

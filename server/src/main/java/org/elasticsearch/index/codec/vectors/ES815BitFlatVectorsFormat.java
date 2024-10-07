@@ -27,7 +27,7 @@ import java.io.IOException;
 
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
-    private final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
 
     protected ES815BitFlatVectorsFormat() {
         super("ES815BitFlatVectorsFormat");

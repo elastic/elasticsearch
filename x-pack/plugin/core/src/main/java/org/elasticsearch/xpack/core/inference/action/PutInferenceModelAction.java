@@ -15,6 +15,8 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -37,6 +39,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
 
     public static final PutInferenceModelAction INSTANCE = new PutInferenceModelAction();
     public static final String NAME = "cluster:admin/xpack/inference/put";
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PutInferenceModelAction.class);
 
     public PutInferenceModelAction() {
         super(NAME);
@@ -85,6 +88,13 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
                     throw new ElasticsearchStatusException(
                         "Request cannot contain both [task_settings] and [parameters], use only [parameters]",
                         RestStatus.BAD_REQUEST
+                    );
+                } else if (newContent.containsKey(TASK_SETTINGS)) {
+                    DEPRECATION_LOGGER.critical(
+                        DeprecationCategory.API,
+                        "inference_api_task_settings_deprecated_use_parameters",
+                        "The [task_settings] field is deprecated and will be removed in a future release. "
+                            + "Please use only the [parameters] field instead."
                     );
                 } else if (newContent.containsKey(PARAMETERS)) {
                     newContent.put(TASK_SETTINGS, newContent.get(PARAMETERS));

@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -73,6 +74,45 @@ public class InferenceBaseRestTest extends ESRestTestCase {
                 "model": "my_model",
                 "hidden_field": "my_hidden_value",
                 "api_key": "abc64"
+              },
+              "task_settings": {
+                "temperature": 3
+              }
+            }
+            """, taskType);
+    }
+
+    static String mockSparseServiceModelConfigWithParameters(@Nullable TaskType taskTypeInBody) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service": "test_service",
+              "service_settings": {
+                "model": "my_model",
+                "hidden_field": "my_hidden_value",
+                "api_key": "abc64"
+              },
+              "parameters": {
+                "temperature": 3
+              }
+            }
+            """, taskType);
+    }
+
+    static String mockSparseServiceModelConfigWithParametersAndTaskSettings(@Nullable TaskType taskTypeInBody) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service": "test_service",
+              "service_settings": {
+                "model": "my_model",
+                "hidden_field": "my_hidden_value",
+                "api_key": "abc64"
+              },
+              "parameters": {
+                "temperature": 3
               },
               "task_settings": {
                 "temperature": 3
@@ -230,6 +270,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     Map<String, Object> putRequest(String endpoint, String body) throws IOException {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(body);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build()); // TODO remove
+        // permissive warnings once the deprecation warnings are removed in 9.0
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

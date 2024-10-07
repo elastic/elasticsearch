@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
@@ -64,6 +65,49 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         for (int i = 0; i < 4; i++) {
             deleteModel("te_model_" + i, TaskType.TEXT_EMBEDDING);
         }
+    }
+
+    public void testGetWithParameters() throws IOException {
+
+        putModel("se_model_" + 1, mockSparseServiceModelConfigWithParameters(null), TaskType.SPARSE_EMBEDDING);
+
+        putModel("te_model_" + 1, mockSparseServiceModelConfigWithParameters(null), TaskType.TEXT_EMBEDDING);
+
+        var getAllModels = getAllModels();
+        int numModels = 2 + 1; // 2 above + default model
+        assertThat(getAllModels, hasSize(numModels));
+
+        var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
+        int numSparseModels = 1 + 1; // 1 above + default model
+        assertThat(getSparseModels, hasSize(numSparseModels));
+        for (var sparseModel : getSparseModels) {
+            assertEquals("sparse_embedding", sparseModel.get("task_type"));
+        }
+
+        var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
+        assertThat(getDenseModels, hasSize(1));
+        for (var denseModel : getDenseModels) {
+            assertEquals("text_embedding", denseModel.get("task_type"));
+        }
+
+        var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
+        assertThat(singleModel, hasSize(1));
+        assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
+
+        deleteModel("se_model_" + 1, TaskType.SPARSE_EMBEDDING);
+
+        deleteModel("te_model_" + 1, TaskType.TEXT_EMBEDDING);
+    }
+
+    public void testGetWithParametersAndTaskSettingsFails() throws IOException {
+        assertThrows(
+            ResponseException.class,
+            () -> putModel("se_model_" + 1, mockSparseServiceModelConfigWithParametersAndTaskSettings(null), TaskType.SPARSE_EMBEDDING)
+        );
+        assertThrows(
+            ResponseException.class,
+            () -> putModel("te_model_" + 1, mockSparseServiceModelConfigWithParametersAndTaskSettings(null), TaskType.TEXT_EMBEDDING)
+        );
     }
 
     public void testGetModelWithWrongTaskType() throws IOException {
@@ -123,6 +167,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         // We would expect an error about the invalid API key if the validation occurred
         putModel("unvalidated", openAiConfigWithBadApiKey, TaskType.TEXT_EMBEDDING);
+        deleteModel("unvalidated");
     }
 
     public void testDeleteEndpointWhileReferencedByPipeline() throws IOException {

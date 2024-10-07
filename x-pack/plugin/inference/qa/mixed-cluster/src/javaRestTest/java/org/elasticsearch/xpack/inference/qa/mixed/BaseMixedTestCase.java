@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference.qa.mixed;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -105,9 +107,9 @@ public abstract class BaseMixedTestCase extends MixedClusterSpecTestCase {
         String endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, inferenceId);
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        // TODO remove permissive handling after the deprecation warning for task_settings is removed in 9.0
         var response = ESRestTestCase.client().performRequest(request);
-        logger.warn("PUT response: {}", response.toString());
-        System.out.println("PUT response: " + response.toString());
         ESRestTestCase.assertOKAndConsume(response);
     }
 

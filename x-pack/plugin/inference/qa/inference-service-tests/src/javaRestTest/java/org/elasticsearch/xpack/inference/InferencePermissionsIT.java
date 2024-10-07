@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.inference;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -56,11 +58,15 @@ public class InferencePermissionsIT extends ESRestTestCase {
     public void testPermissions() throws IOException {
         var putRequest = new Request("PUT", "_inference/sparse_embedding/permissions_test");
         putRequest.setJsonEntity(InferenceBaseRestTest.mockSparseServiceModelConfig());
+        putRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        // TODO remove permissive handling after the deprecation warning for task_settings is removed in 9.0
         var getAllRequest = new Request("GET", "_inference/sparse_embedding/_all");
         var deleteRequest = new Request("DELETE", "_inference/sparse_embedding/permissions_test");
 
         var putModelForTestingInference = new Request("PUT", "_inference/sparse_embedding/model_to_test_user_priv");
         putModelForTestingInference.setJsonEntity(InferenceBaseRestTest.mockSparseServiceModelConfig());
+        putModelForTestingInference.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        // TODO remove permissive handling after the deprecation warning for task_settings is removed in 9.0
 
         var inferRequest = new Request("POST", "_inference/sparse_embedding/model_to_test_user_priv");
         var bodyBuilder = new StringBuilder("{\"input\": [");

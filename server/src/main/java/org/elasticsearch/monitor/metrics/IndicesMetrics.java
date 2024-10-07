@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -218,22 +219,19 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                         continue; // skip system indices
                     }
                     final ShardRouting shardRouting = indexShard.routingEntry();
-                    if (shardRouting.primary() == false) {
-                        continue; // count primaries only
-                    }
-                    if (shardRouting.recoverySource() != null) {
-                        continue; // exclude relocating shards
-                    }
                     final IndexMode indexMode = indexShard.indexSettings().getMode();
                     final IndexStats indexStats = stats.get(indexMode);
-                    if (shardRouting.shardId().id() == 0) {
-                        indexStats.numIndices++;
-                    }
                     try {
-                        indexStats.numDocs += indexShard.commitStats().getNumDocs();
-                        indexStats.numBytes += indexShard.storeStats().sizeInBytes();
+                        if (shardRouting.primary() && shardRouting.recoverySource() == null) {
+                            if (shardRouting.shardId().id() == 0) {
+                                indexStats.numIndices++;
+                            }
+                            final DocsStats docStats = indexShard.docStats();
+                            indexStats.numDocs += docStats.getCount();
+                            indexStats.numBytes += docStats.getTotalSizeInBytes();
+                            indexStats.indexing.add(indexShard.indexingStats().getTotal());
+                        }
                         indexStats.search.add(indexShard.searchStats().getTotal());
-                        indexStats.indexing.add(indexShard.indexingStats().getTotal());
                     } catch (IllegalIndexShardStateException | AlreadyClosedException ignored) {
                         // ignored
                     }

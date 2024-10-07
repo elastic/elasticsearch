@@ -60,4 +60,6 @@ public interface DataSourceResponse {
     record LeafMappingParametersGenerator(Supplier<Map<String, Object>> mappingGenerator) implements DataSourceResponse {}
 
     record ObjectMappingParametersGenerator(Supplier<Map<String, Object>> mappingGenerator) implements DataSourceResponse {}
+
+    record DynamicMappingGenerator(Function<Boolean, Boolean> generator) implements DataSourceResponse {}
 }

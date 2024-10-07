@@ -26,4 +26,6 @@ public interface FieldDataGenerator {
     CheckedConsumer<XContentBuilder, IOException> mappingWriter();
 
     CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator();
+
+    Object generateValue();
 }

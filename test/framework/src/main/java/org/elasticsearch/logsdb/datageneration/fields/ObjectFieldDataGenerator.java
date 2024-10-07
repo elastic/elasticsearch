@@ -63,4 +63,9 @@ public class ObjectFieldDataGenerator implements FieldDataGenerator {
         );
         return b -> GenericSubObjectFieldDataGenerator.writeObjectsData(b, context, objectWriter);
     }
+
+    @Override
+    public Object generateValue() {
+        return null;
+    }
 }

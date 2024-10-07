@@ -12,32 +12,15 @@ package org.elasticsearch.logsdb.datageneration.fields;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-
-import java.util.Set;
 
 public interface PredefinedField {
     String name();
 
     FieldDataGenerator generator(DataSource dataSource);
 
-    record WithType(String fieldName, FieldType fieldType, DynamicMapping dynamicMapping) implements PredefinedField {
-        @Override
-        public String name() {
-            return fieldName;
-        }
+    FieldType fieldType();
 
-        @Override
-        public FieldDataGenerator generator(DataSource dataSource) {
-            // copy_to currently not supported for predefined fields, use WithGenerator if needed
-            var mappingParametersGenerator = dataSource.get(
-                new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldType, Set.of(), dynamicMapping)
-            );
-            return fieldType().generator(fieldName, dataSource, mappingParametersGenerator);
-        }
-    }
-
-    record WithGenerator(String fieldName, FieldDataGenerator generator) implements PredefinedField {
+    record WithGenerator(String fieldName, FieldType fieldType, FieldDataGenerator generator) implements PredefinedField {
         @Override
         public String name() {
             return fieldName;

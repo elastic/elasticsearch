@@ -203,6 +203,20 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10069          | Margareta          | Bierman
 ;
 
+testFieldWithKeywordComparisonDisjunction
+required_capability: match_function
+
+from employees 
+| where match(last_name, "Kalloufi") or last_name == "Piveteau"
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10008          | Saniya             | Kalloufi       
+10010          | Duangkaew          | Piveteau       
+10084          | Tuval              | Kalloufi       
+;
+
 testMatchAndQueryStringFunctions
 required_capability: match_function
 required_capability: qstr_function

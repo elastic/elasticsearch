@@ -1899,7 +1899,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertTotalHits(3, entityAsMap(client().performRequest(searchRequest)));
         }
     }
-    
+
     public void testForbidDisableSoftDeletesOnRestore() throws Exception {
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {

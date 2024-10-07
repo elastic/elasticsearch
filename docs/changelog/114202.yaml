@@ -1,0 +1,14 @@
+pr: 114202
+summary: Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart`
+  setting
+area: Snapshot/Restore
+type: breaking
+issues: []
+breaking:
+  title: Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart`
+    setting
+  area: Snapshot/Restore
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

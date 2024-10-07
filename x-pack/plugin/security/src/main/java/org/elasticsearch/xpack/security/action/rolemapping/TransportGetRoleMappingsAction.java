@@ -57,20 +57,18 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
     protected void doExecute(Task task, final GetRoleMappingsRequest request, final ActionListener<GetRoleMappingsResponse> listener) {
         final Set<String> names;
         if (request.getNames() == null || request.getNames().length == 0) {
-            names = Set.of();
+            names = null;
         } else {
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
         roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
             List<ExpressionRoleMapping> combinedRoleMappings = Stream.concat(
                 mappings.stream(),
-                clusterStateRoleMapper.getMappings(names.stream().map(name -> {
+                clusterStateRoleMapper.getMappings(names == null ? null : names.stream().map(name -> {
                     // If a read-only role is fetched by name including suffix, remove suffix
-                    if (name.length() >= RESERVED_ROLE_MAPPING_SUFFIX.length()) {
-                        return name.substring(0, name.length() - RESERVED_ROLE_MAPPING_SUFFIX.length());
-                    } else {
-                        return name;
-                    }
+                    return name.endsWith(RESERVED_ROLE_MAPPING_SUFFIX)
+                        ? name.substring(0, name.length() - RESERVED_ROLE_MAPPING_SUFFIX.length())
+                        : name;
                 }).collect(Collectors.toSet()))
                     .stream()
                     .map(this::cloneAndMarkAsReadOnly)

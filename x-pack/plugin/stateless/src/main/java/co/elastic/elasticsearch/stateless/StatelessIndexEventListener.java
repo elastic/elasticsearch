@@ -54,6 +54,8 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
+import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static co.elastic.elasticsearch.stateless.commits.BlobFileRanges.computeLastCommitBlobFileRanges;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
@@ -177,12 +179,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     recoveryCommit.getAllFilesSizeInBytes(),
                     blobFileRanges
                 );
-                warmingService.warmCacheForShardRecovery(
-                    "indexing",
-                    indexShard,
-                    recoveryCommit,
-                    indexDirectory.getBlobStoreCacheDirectory()
-                );
+                warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, indexDirectory.getBlobStoreCacheDirectory());
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -289,7 +286,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     searchDirectory.updateLatestUploadedBcc(lastUploaded);
                     searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
                     searchDirectory.updateCommit(compoundCommit);
-                    warmingService.warmCacheForShardRecovery("search", indexShard, compoundCommit, searchDirectory);
+                    warmingService.warmCacheForShardRecovery(SEARCH, indexShard, compoundCommit, searchDirectory);
                     return null;
                 })), storeDecRef)
             );

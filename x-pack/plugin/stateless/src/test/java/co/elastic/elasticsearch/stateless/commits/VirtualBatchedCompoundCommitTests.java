@@ -42,10 +42,10 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -410,26 +410,30 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 for (var commit : virtualBatchedCompoundCommit.getPendingCompoundCommits()) {
                     // check replicated content
                     try (var vbccIndexInput = new BytesReferenceIndexInput("test", output.bytes())) {
-                        var firstInternalFileOffset = commit.getStatelessCompoundCommit()
-                            .commitFiles()
-                            .entrySet()
-                            .stream()
-                            .filter(entry -> commit.getStatelessCompoundCommit().internalFiles().contains(entry.getKey()))
-                            .map(Map.Entry::getValue)
-                            .min(Comparator.comparing(BlobLocation::offset))
-                            .get()
-                            .offset();
-
-                        // TODO (ES-9344) verify all replicated content once reader is implemented
-                        var replicatedContentSize = firstInternalFileOffset - commit.getHeaderSize();
-                        assertThat(replicatedContentSize, greaterThan(0L));
-                        // first entry after header looks like header
-                        vbccIndexInput.seek(lastCommitPosition + commit.getHeaderSize());
-                        assertThat(CodecUtil.readBEInt(vbccIndexInput), equalTo(CodecUtil.CODEC_MAGIC));
-                        // last entry before main content looks like footer
-                        vbccIndexInput.seek(firstInternalFileOffset - 16);
-                        assertThat(CodecUtil.readBEInt(vbccIndexInput), equalTo(CodecUtil.FOOTER_MAGIC));
-                        assertThat(CodecUtil.readBEInt(vbccIndexInput), equalTo(0));
+                        long consumedReplicatedRangeSize = 0;
+                        var replicatedRanges = commit.getStatelessCompoundCommit().internalFilesReplicatedRanges();
+                        for (var replicatedRange : replicatedRanges.replicatedRanges()) {
+                            // range represents header or footer
+                            vbccIndexInput.seek(lastCommitPosition + commit.getHeaderSize() + consumedReplicatedRangeSize);
+                            assertThat(
+                                CodecUtil.readBEInt(vbccIndexInput),
+                                anyOf(equalTo(CodecUtil.CODEC_MAGIC), equalTo(CodecUtil.FOOTER_MAGIC))
+                            );
+                            // range is the same as original content
+                            byte[] replicatedBytes = readBytes(
+                                vbccIndexInput,
+                                lastCommitPosition + commit.getHeaderSize() + consumedReplicatedRangeSize,
+                                replicatedRange.length()
+                            );
+                            byte[] originalBytes = readBytes(
+                                vbccIndexInput,
+                                lastCommitPosition + commit.getHeaderSize() + replicatedRanges.dataSizeInBytes() + replicatedRange
+                                    .position(),
+                                replicatedRange.length()
+                            );
+                            assertArrayEquals("Replicated range is not same as original content", originalBytes, replicatedBytes);
+                            consumedReplicatedRangeSize += replicatedRange.length();
+                        }
                     }
 
                     // check files
@@ -466,6 +470,13 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             input.read(compoundCommitFileContents, 0, compoundCommitFileContents.length);
             return compoundCommitFileContents;
         }
+    }
+
+    private static byte[] readBytes(BytesReferenceIndexInput input, long position, int length) throws IOException {
+        var bytes = new byte[length];
+        input.seek(position);
+        input.readBytes(bytes, 0, length);
+        return bytes;
     }
 
     private FakeStatelessNode createFakeNode(long primaryTerm) throws IOException {

@@ -131,9 +131,9 @@ The reindexed data will be processed by the {infer} endpoint associated with the
 
 [NOTE]
 ====
-This step uses the reindex API to simulate data ingestion. If you have existing data already indexed 
-(i.e., you’re not using the `test-data` set but your own data), reindexing is required to ensure that 
-the data is processed by the {infer} endpoint and the necessary embeddings are generated.
+This step uses the reindex API to simulate data ingestion. If you are working with data that has already been indexed,
+rather than using the test-data set, reindexing is required to ensure that the data is processed by the {infer} endpoint
+and the necessary embeddings are generated.
 ====
 
 [source,console]

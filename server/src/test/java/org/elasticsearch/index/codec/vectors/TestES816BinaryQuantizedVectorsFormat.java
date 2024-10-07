@@ -98,8 +98,9 @@ public class TestES816BinaryQuantizedVectorsFormat extends BaseKnnVectorsFormatT
                 return new ES816BinaryQuantizedVectorsFormat();
             }
         };
-        String expectedPattern =
-            "ES816BinaryQuantizedVectorsFormat(name=ES816BinaryQuantizedVectorsFormat, flatVectorScorer=ES816BinaryFlatVectorsScorer(nonQuantizedDelegate=%s()))";
+        String expectedPattern = "ES816BinaryQuantizedVectorsFormat("
+            + "name=ES816BinaryQuantizedVectorsFormat, "
+            + "flatVectorScorer=ES816BinaryFlatVectorsScorer(nonQuantizedDelegate=%s()))";
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
         assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));

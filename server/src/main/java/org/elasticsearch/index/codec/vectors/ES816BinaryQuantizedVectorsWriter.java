@@ -42,6 +42,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
@@ -66,6 +67,7 @@ import static org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsF
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
+@SuppressForbidden(reason = "Lucene classes")
 public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     private static final long SHALLOW_RAM_BYTES_USED = shallowSizeOfInstance(ES816BinaryQuantizedVectorsWriter.class);
 

@@ -77,17 +77,15 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
             if (general != null) {
                 sb.xContentObject(Fields.SUM, statsFields.apply(general));
             } else {
-                sb.object(Fields.SUM, sum -> {
-                    sum.append(statsFields.apply(sum()));
-                    sum.array(
-                        Fields.CONTEXTS,
-                        context.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
-                        (eb, e) -> eb.object(ebo -> {
-                            ebo.field(Fields.CONTEXT, e.getKey());
-                            ebo.append(statsFields.apply(e.getValue()));
-                        })
-                    );
-                });
+                sb.xContentObject(Fields.SUM, statsFields.apply(sum()));
+                sb.array(
+                    Fields.CONTEXTS,
+                    context.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
+                    (eb, e) -> eb.object(ebo -> {
+                        ebo.field(Fields.CONTEXT, e.getKey());
+                        ebo.append(statsFields.apply(e.getValue()));
+                    })
+                );
             }
         });
     }

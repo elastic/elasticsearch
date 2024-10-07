@@ -37,6 +37,9 @@ import static org.junit.Assert.assertThat;
  *
  */
 public class MatchAssertion extends Assertion {
+
+    private static final Base64.Encoder BYTE_ARRAY_BASE64_ENCODER = Base64.getEncoder().withoutPadding();
+
     public static MatchAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
         Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
@@ -99,8 +102,7 @@ public class MatchAssertion extends Assertion {
             assertMap((List<?>) actualValue, matchesList((List<?>) expectedValue));
         }
         if (expectedValue instanceof String expectedValueAsString && actualValue instanceof byte[] actualValueAsBytes) {
-            String actualValueAsString = Base64.getEncoder().withoutPadding().encodeToString(actualValueAsBytes);
-            assertThat(actualValueAsString, equalTo(expectedValueAsString));
+            assertThat(BYTE_ARRAY_BASE64_ENCODER.encodeToString(actualValueAsBytes), equalTo(expectedValueAsString));
             return;
         }
         assertThat(actualValue, equalTo(expectedValue));

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -47,13 +46,9 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
         String service,
         AzureAiStudioChatCompletionServiceSettings serviceSettings,
         AzureAiStudioChatCompletionTaskSettings taskSettings,
-        DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        DefaultSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
-            new ModelSecrets(secrets)
-        );
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }
 
     public AzureAiStudioChatCompletionModel(
@@ -63,8 +58,7 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -72,8 +66,7 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
             service,
             AzureAiStudioChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioChatCompletionTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets),
-            endpointVersion
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 

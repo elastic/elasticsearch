@@ -95,12 +95,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
             }
 
             var model = service.get()
-                .parsePersistedConfig(
-                    unparsedModel.inferenceEntityId(),
-                    unparsedModel.taskType(),
-                    unparsedModel.settings(),
-                    unparsedModel.endpointVersion()
-                );
+                .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
             delegate.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
         }));
     }
@@ -128,12 +123,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
             }
             parsedModels.add(
                 service.get()
-                    .parsePersistedConfig(
-                        unparsedModel.inferenceEntityId(),
-                        unparsedModel.taskType(),
-                        unparsedModel.settings(),
-                        unparsedModel.endpointVersion()
-                    )
+                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings())
                     .getConfigurations()
             );
         }

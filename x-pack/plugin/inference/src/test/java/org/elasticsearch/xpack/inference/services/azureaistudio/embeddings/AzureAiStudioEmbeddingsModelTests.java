@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -133,8 +132,7 @@ public class AzureAiStudioEmbeddingsModelTests extends ESTestCase {
                 rateLimitSettings
             ),
             new AzureAiStudioEmbeddingsTaskSettings(user),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 }

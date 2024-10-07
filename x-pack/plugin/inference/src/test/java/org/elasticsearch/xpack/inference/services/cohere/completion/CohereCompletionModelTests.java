@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.cohere.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -31,8 +30,7 @@ public class CohereCompletionModelTests extends ESTestCase {
             new HashMap<>(Map.of()),
             new HashMap<>(Map.of("model", "overridden model")),
             null,
-            ConfigurationParseContext.PERSISTENT,
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            ConfigurationParseContext.PERSISTENT
 
         );
 
@@ -46,8 +44,7 @@ public class CohereCompletionModelTests extends ESTestCase {
             "service",
             new CohereCompletionServiceSettings(url, model, null),
             EmptyTaskSettings.INSTANCE,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
 
         );
     }

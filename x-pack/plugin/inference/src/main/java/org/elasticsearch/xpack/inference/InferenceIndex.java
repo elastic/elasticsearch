@@ -27,7 +27,7 @@ public class InferenceIndex {
     public static final String INDEX_ALIAS = ".inference-alias";
 
     // Increment this version number when the mappings change
-    private static final int INDEX_MAPPING_VERSION = 3;
+    private static final int INDEX_MAPPING_VERSION = 2;
 
     public static Settings settings() {
         return Settings.builder()
@@ -58,64 +58,6 @@ public class InferenceIndex {
      * @return The index mappings
      */
     public static XContentBuilder mappings() {
-        try {
-            var jsonBuilder = jsonBuilder().startObject().startObject(SINGLE_MAPPING_NAME);
-            {
-                jsonBuilder.startObject("_meta").field(SystemIndexDescriptor.VERSION_META_KEY, INDEX_MAPPING_VERSION).endObject();
-
-                jsonBuilder.field("dynamic", "strict");
-
-                jsonBuilder.startObject("properties");
-                {
-                    jsonBuilder.startObject("model_id").field("type", "keyword").endObject();
-
-                    jsonBuilder.startObject("task_type").field("type", "keyword").endObject();
-
-                    jsonBuilder.startObject("service").field("type", "keyword").endObject();
-
-                    jsonBuilder.startObject("service_settings").field("dynamic", "false");
-                    {
-                        jsonBuilder.startObject("properties").endObject();
-                    }
-                    jsonBuilder.endObject();
-
-                    jsonBuilder.startObject("task_settings").field("dynamic", "false");
-                    {
-                        jsonBuilder.startObject("properties").endObject();
-                    }
-                    jsonBuilder.endObject();
-
-                    jsonBuilder.startObject("chunking_settings");
-                    {
-                        jsonBuilder.field("dynamic", "false");
-                        jsonBuilder.startObject("properties");
-                        {
-                            jsonBuilder.startObject("strategy").field("type", "keyword").endObject();
-                        }
-                        jsonBuilder.endObject();
-                    }
-                    jsonBuilder.endObject();
-
-                    jsonBuilder.startObject("endpoint_version").field("dynamic", "false");
-                    {
-                        jsonBuilder.startObject("properties");
-                        {
-                            jsonBuilder.field("type", "keyword");
-                        }
-                        jsonBuilder.endObject();
-                    }
-                    jsonBuilder.endObject();
-                }
-                jsonBuilder.endObject().endObject().endObject();
-            }
-
-            return jsonBuilder;
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for index " + INDEX_NAME, e);
-        }
-    }
-
-    public static XContentBuilder mappingsV2() {
         try {
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)

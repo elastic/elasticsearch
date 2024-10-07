@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
@@ -27,10 +26,9 @@ public abstract class ElasticsearchInternalModel extends Model {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElasticsearchInternalServiceSettings internalServiceSettings,
-        EndpointVersions endpointVersion
+        ElasticsearchInternalServiceSettings internalServiceSettings
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, endpointVersion));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings));
         this.internalServiceSettings = internalServiceSettings;
     }
 
@@ -39,10 +37,9 @@ public abstract class ElasticsearchInternalModel extends Model {
         TaskType taskType,
         String service,
         ElasticsearchInternalServiceSettings internalServiceSettings,
-        TaskSettings taskSettings,
-        EndpointVersions endpointVersion
+        TaskSettings taskSettings
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings, endpointVersion));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings));
         this.internalServiceSettings = internalServiceSettings;
     }
 

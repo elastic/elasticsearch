@@ -16,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -31,7 +30,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME;
 import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.PARAMETERS;
 
@@ -90,13 +88,9 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
                     );
                 } else if (newContent.containsKey(PARAMETERS)) {
                     newContent.put(TASK_SETTINGS, newContent.get(PARAMETERS));
-                    newContent.put(ENDPOINT_VERSION_FIELD_NAME, EndpointVersions.PARAMETERS_INTRODUCED_ENDPOINT_VERSION);
                     newContent.remove(PARAMETERS);
-                } else if (newContent.containsKey(TASK_SETTINGS)) {
-                    newContent.put(ENDPOINT_VERSION_FIELD_NAME, EndpointVersions.FIRST_ENDPOINT_VERSION);
-                } else {
-                    newContent.put(ENDPOINT_VERSION_FIELD_NAME, EndpointVersions.FIRST_ENDPOINT_VERSION);
                 }
+
                 try (XContentBuilder builder = XContentFactory.contentBuilder(this.contentType)) {
                     builder.map(newContent);
                     this.rewrittenContent = BytesReference.bytes(builder);

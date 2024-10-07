@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -277,8 +276,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                         model.getTaskType(),
                         model.getServiceSettings().model(),
                         XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false),
-                        EndpointVersions.FIRST_ENDPOINT_VERSION
+                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
+
                     )
                 );
             } else {
@@ -318,7 +317,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             String inferenceId = (String) invocationOnMock.getArguments()[0];
             return modelMap.get(inferenceId);
         };
-        doAnswer(modelAnswer).when(inferenceService).parsePersistedConfigWithSecrets(any(), any(), any(), any(), any());
+        doAnswer(modelAnswer).when(inferenceService).parsePersistedConfigWithSecrets(any(), any(), any(), any());
 
         InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
@@ -381,10 +380,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             String service,
             TestServiceSettings serviceSettings,
             TestTaskSettings taskSettings,
-            TestSecretSettings secretSettings,
-            EndpointVersions endpointVersion
+            TestSecretSettings secretSettings
         ) {
-            super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, secretSettings, endpointVersion);
+            super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, secretSettings);
             this.resultMap = new HashMap<>();
         }
 
@@ -396,8 +394,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 randomAlphaOfLength(10),
                 testModel.getServiceSettings(),
                 testModel.getTaskSettings(),
-                testModel.getSecretSettings(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                testModel.getSecretSettings()
             );
         }
 

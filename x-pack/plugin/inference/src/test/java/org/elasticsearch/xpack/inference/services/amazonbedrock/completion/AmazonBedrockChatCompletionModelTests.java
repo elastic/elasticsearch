@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -215,8 +214,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             "amazonbedrock",
             new AmazonBedrockChatCompletionServiceSettings(region, model, provider, rateLimitSettings),
             new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens),
-            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey)),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
         );
     }
 

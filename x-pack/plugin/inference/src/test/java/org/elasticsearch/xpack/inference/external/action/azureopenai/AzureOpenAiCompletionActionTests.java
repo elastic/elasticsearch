@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -195,16 +194,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         String inferenceEntityId
     ) {
         try {
-            var model = createCompletionModel(
-                resourceName,
-                deploymentId,
-                apiVersion,
-                user,
-                apiKey,
-                null,
-                inferenceEntityId,
-                EndpointVersions.FIRST_ENDPOINT_VERSION
-            );
+            var model = createCompletionModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
             model.setUri(new URI(getUrl(webServer)));
             var requestCreator = new AzureOpenAiCompletionRequestManager(model, threadPool);
             var errorMessage = constructFailedToSendRequestMessage(model.getUri(), "Azure OpenAI completion");

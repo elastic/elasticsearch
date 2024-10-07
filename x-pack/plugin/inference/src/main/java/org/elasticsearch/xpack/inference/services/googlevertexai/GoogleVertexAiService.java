@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -65,7 +64,6 @@ public class GoogleVertexAiService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        EndpointVersions endpointVersion,
         ActionListener<Model> parseModelListener
     ) {
         try {
@@ -79,8 +77,7 @@ public class GoogleVertexAiService extends SenderService {
                 taskSettingsMap,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST,
-                endpointVersion
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -98,8 +95,7 @@ public class GoogleVertexAiService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets,
-        EndpointVersions endpointVersion
+        Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
@@ -111,18 +107,12 @@ public class GoogleVertexAiService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
-            endpointVersion
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
     @Override
-    public Model parsePersistedConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        EndpointVersions endpointVersion
-    ) {
+    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
@@ -132,8 +122,7 @@ public class GoogleVertexAiService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
-            endpointVersion
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
@@ -237,8 +226,7 @@ public class GoogleVertexAiService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings,
-        String failureMessage,
-        EndpointVersions endpointVersion
+        String failureMessage
     ) {
         return createModel(
             inferenceEntityId,
@@ -247,8 +235,7 @@ public class GoogleVertexAiService extends SenderService {
             taskSettings,
             secretSettings,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT,
-            endpointVersion
+            ConfigurationParseContext.PERSISTENT
         );
     }
 
@@ -259,8 +246,7 @@ public class GoogleVertexAiService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new GoogleVertexAiEmbeddingsModel(
@@ -270,8 +256,7 @@ public class GoogleVertexAiService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context,
-                endpointVersion
+                context
             );
             case RERANK -> new GoogleVertexAiRerankModel(
                 inferenceEntityId,
@@ -280,8 +265,7 @@ public class GoogleVertexAiService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context,
-                endpointVersion
+                context
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };

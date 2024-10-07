@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -48,8 +47,7 @@ public class TestModel extends Model {
             randomAlphaOfLength(10),
             new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
             new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4)),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
         );
     }
 
@@ -59,11 +57,10 @@ public class TestModel extends Model {
         String service,
         TestServiceSettings serviceSettings,
         TestTaskSettings taskSettings,
-        TestSecretSettings secretSettings,
-        EndpointVersions endpointVersion
+        TestSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings)
         );
     }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -40,8 +39,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -49,8 +47,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             service,
             AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiCompletionTaskSettings.fromMap(taskSettings),
-            AzureOpenAiSecretSettings.fromMap(secrets),
-            endpointVersion
+            AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }
 
@@ -61,11 +58,10 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiCompletionServiceSettings serviceSettings,
         AzureOpenAiCompletionTaskSettings taskSettings,
-        @Nullable AzureOpenAiSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable AzureOpenAiSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );

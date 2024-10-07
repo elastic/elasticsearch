@@ -17,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -61,19 +60,10 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         return switch (taskType) {
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                secretSettings,
-                context,
-                endpointVersion
-            );
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings, context);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }

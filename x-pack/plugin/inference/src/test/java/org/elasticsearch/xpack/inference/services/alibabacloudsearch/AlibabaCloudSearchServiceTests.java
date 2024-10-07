@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -95,7 +94,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     getSecretSettingsMap("secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -191,8 +189,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 serviceSettingsMap,
                 taskSettingsMap,
                 secretSettingsMap,
-                null,
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                null
             ) {
                 public ExecutableAction accept(
                     AlibabaCloudSearchActionVisitor visitor,

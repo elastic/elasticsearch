@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -60,8 +59,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             "service",
             new OpenAiChatCompletionServiceSettings(modelName, url, org, null, null),
             new OpenAiChatCompletionTaskSettings(user),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 

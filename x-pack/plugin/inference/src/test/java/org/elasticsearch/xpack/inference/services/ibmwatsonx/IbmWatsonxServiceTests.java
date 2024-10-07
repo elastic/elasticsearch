@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -139,7 +138,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap(apiKey)
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelListener
             );
         }
@@ -160,7 +158,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                     new HashMap<>(Map.of()),
                     getSecretSettingsMap("secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 failureListener
             );
         }
@@ -192,7 +189,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 "Model configuration contains settings [{extra_key=value}] unknown to the [watsonxai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, EndpointVersions.FIRST_ENDPOINT_VERSION, failureListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
@@ -219,8 +216,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -259,8 +255,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -301,8 +296,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -339,8 +333,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
@@ -384,8 +377,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));

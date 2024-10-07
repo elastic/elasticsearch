@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
@@ -86,43 +85,37 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
                             "model-001",
                             TaskType.TEXT_EMBEDDING,
                             "openai",
-                            mock(ServiceSettings.class),
-                            EndpointVersions.FIRST_ENDPOINT_VERSION
+                            mock(ServiceSettings.class)
                         ),
                         new ModelConfigurations(
                             "model-002",
                             TaskType.TEXT_EMBEDDING,
                             "openai",
-                            mock(ServiceSettings.class),
-                            EndpointVersions.FIRST_ENDPOINT_VERSION
+                            mock(ServiceSettings.class)
                         ),
                         new ModelConfigurations(
                             "model-003",
                             TaskType.SPARSE_EMBEDDING,
                             "hugging_face_elser",
-                            mock(ServiceSettings.class),
-                            EndpointVersions.FIRST_ENDPOINT_VERSION
+                            mock(ServiceSettings.class)
                         ),
                         new ModelConfigurations(
                             "model-004",
                             TaskType.TEXT_EMBEDDING,
                             "openai",
-                            mock(ServiceSettings.class),
-                            EndpointVersions.FIRST_ENDPOINT_VERSION
+                            mock(ServiceSettings.class)
                         ),
                         new ModelConfigurations(
                             "model-005",
                             TaskType.SPARSE_EMBEDDING,
                             "openai",
-                            mock(ServiceSettings.class),
-                            EndpointVersions.FIRST_ENDPOINT_VERSION
+                            mock(ServiceSettings.class)
                         ),
                         new ModelConfigurations(
                             "model-006",
                             TaskType.SPARSE_EMBEDDING,
                             "hugging_face_elser",
-                            mock(ServiceSettings.class),
-                            EndpointVersions.FIRST_ENDPOINT_VERSION
+                            mock(ServiceSettings.class)
                         )
                     )
                 )

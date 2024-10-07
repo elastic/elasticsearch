@@ -224,8 +224,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                         inferenceId,
                                         unparsedModel.taskType(),
                                         unparsedModel.settings(),
-                                        unparsedModel.secrets(),
-                                        unparsedModel.endpointVersion()
+                                        unparsedModel.secrets()
                                     )
                             );
                             executeShardBulkInferenceAsync(inferenceId, provider, requests, onFinish);

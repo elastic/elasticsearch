@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.completion;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -40,8 +39,7 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -49,8 +47,7 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
             service,
             GoogleAiStudioCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets),
-            endpointVersion
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -61,11 +58,10 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         String service,
         GoogleAiStudioCompletionServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -84,11 +80,10 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         String url,
         GoogleAiStudioCompletionServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );

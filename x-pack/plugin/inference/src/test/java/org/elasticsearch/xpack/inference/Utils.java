@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -94,8 +93,7 @@ public final class Utils {
     public static void storeSparseModel(Client client) throws Exception {
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
             TestSparseInferenceServiceExtension.TestInferenceService.NAME,
-            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
         );
         storeModel(client, model);
     }
@@ -108,8 +106,7 @@ public final class Utils {
     ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
             TestDenseInferenceServiceExtension.TestInferenceService.NAME,
-            new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
         );
 
         storeModel(client, model);

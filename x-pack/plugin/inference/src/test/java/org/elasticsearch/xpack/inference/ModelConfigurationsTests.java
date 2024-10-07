@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
@@ -31,8 +30,7 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
             randomAlphaOfLength(6),
             randomServiceSettings(),
             randomTaskSettings(taskType),
-            ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null,
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
         );
     }
 
@@ -43,24 +41,21 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
                 instance.getTaskType(),
                 instance.getService(),
                 instance.getServiceSettings(),
-                instance.getTaskSettings(),
-                instance.getEndpointVersion()
+                instance.getTaskSettings()
             );
             case 1 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
                 instance.getService(),
                 instance.getServiceSettings(),
-                instance.getTaskSettings(),
-                instance.getEndpointVersion()
+                instance.getTaskSettings()
             );
             case 2 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),
                 instance.getService() + "bar",
                 instance.getServiceSettings(),
-                instance.getTaskSettings(),
-                instance.getEndpointVersion()
+                instance.getTaskSettings()
             );
             default -> throw new IllegalStateException();
         }
@@ -93,14 +88,5 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
     @Override
     protected ModelConfigurations mutateInstance(ModelConfigurations instance) {
         return mutateTestInstance(instance);
-    }
-
-    // future-proof of accidental enum ordering change or extension for serialization
-    public void testEnsureEndpointVersionsOrdinalsOrder() {
-        EnumSerializationTestUtils.assertEnumSerialization(
-            EndpointVersions.class,
-            EndpointVersions.FIRST_ENDPOINT_VERSION,
-            EndpointVersions.PARAMETERS_INTRODUCED_ENDPOINT_VERSION
-        );
     }
 }

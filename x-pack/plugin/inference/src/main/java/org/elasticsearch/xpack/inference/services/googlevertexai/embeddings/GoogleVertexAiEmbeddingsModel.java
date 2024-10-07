@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -37,8 +36,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -46,8 +44,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             service,
             GoogleVertexAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings),
-            GoogleVertexAiSecretSettings.fromMap(secrets),
-            endpointVersion
+            GoogleVertexAiSecretSettings.fromMap(secrets)
         );
     }
 
@@ -62,11 +59,10 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         String service,
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -85,11 +81,10 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         String uri,
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );

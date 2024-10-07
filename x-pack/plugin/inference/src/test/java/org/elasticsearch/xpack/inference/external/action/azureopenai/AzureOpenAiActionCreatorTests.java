@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
@@ -476,8 +475,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
                 originalUser,
                 apiKey,
                 null,
-                "id",
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                "id"
             );
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
@@ -541,8 +539,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
                 null,
                 apiKey,
                 null,
-                "id",
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                "id"
             );
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
@@ -608,8 +605,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
                 null,
                 apiKey,
                 null,
-                "id",
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                "id"
             );
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));

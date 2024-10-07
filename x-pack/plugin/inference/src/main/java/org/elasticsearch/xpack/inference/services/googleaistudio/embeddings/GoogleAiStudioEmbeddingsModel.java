@@ -11,7 +11,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -42,8 +41,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -52,8 +50,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
             GoogleAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets),
-            endpointVersion
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -69,11 +66,10 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         GoogleAiStudioEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -92,11 +88,10 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         String uri,
         GoogleAiStudioEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -116,11 +111,10 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         GoogleAiStudioEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         ChunkingSettings chunkingsettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingsettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingsettings),
             new ModelSecrets(secrets),
             serviceSettings
         );

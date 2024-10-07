@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -60,8 +59,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets,
-        EndpointVersions endpointVersion
+        Map<String, Object> secrets
     ) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
         var secretSettingsMap = (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
@@ -72,12 +70,12 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var taskSettingsMap = getTaskSettingsMap(config);
         var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings, endpointVersion);
+        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, EndpointVersions endpointVersion) {
+    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
 
         var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
@@ -85,7 +83,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var taskSettingsMap = getTaskSettingsMap(config);
         var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null, endpointVersion);
+        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
     }
 
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
@@ -106,13 +104,9 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             String service,
             ServiceSettings serviceSettings,
             TestTaskSettings taskSettings,
-            TestSecretSettings secretSettings,
-            EndpointVersions endpointVersion
+            TestSecretSettings secretSettings
         ) {
-            super(
-                new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),
-                new ModelSecrets(secretSettings)
-            );
+            super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
         }
 
         @Override

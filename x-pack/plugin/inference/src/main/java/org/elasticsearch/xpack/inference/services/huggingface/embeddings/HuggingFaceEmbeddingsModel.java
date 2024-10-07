@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -30,8 +29,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         Map<String, Object> serviceSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -39,8 +37,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
             service,
             HuggingFaceServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets),
-            endpointVersion
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -51,11 +48,10 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         String service,
         HuggingFaceServiceSettings serviceSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings,
             secrets
@@ -69,8 +65,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
             model.getConfigurations().getService(),
             serviceSettings,
             model.getConfigurations().getChunkingSettings(),
-            model.getSecretSettings(),
-            model.getConfigurations().getEndpointVersion()
+            model.getSecretSettings()
         );
     }
 

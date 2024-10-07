@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
@@ -28,8 +27,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ElserModels.ELSER_V2_MODEL, maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents(url),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new ElasticInferenceServiceComponents(url)
         );
     }
 }

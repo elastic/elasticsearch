@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -52,7 +51,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        EndpointVersions endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -72,8 +70,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, name()),
-                ConfigurationParseContext.REQUEST,
-                endpointVersion
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, name());
@@ -90,8 +87,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets,
-        EndpointVersions endpointVersion
+        Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
@@ -108,18 +104,12 @@ public abstract class HuggingFaceBaseService extends SenderService {
             chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(inferenceEntityId, name()),
-            ConfigurationParseContext.PERSISTENT,
-            endpointVersion
+            ConfigurationParseContext.PERSISTENT
         );
     }
 
     @Override
-    public HuggingFaceModel parsePersistedConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        EndpointVersions endpointVersion
-    ) {
+    public HuggingFaceModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
@@ -134,8 +124,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
             chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(inferenceEntityId, name()),
-            ConfigurationParseContext.PERSISTENT,
-            endpointVersion
+            ConfigurationParseContext.PERSISTENT
         );
     }
 
@@ -146,8 +135,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     );
 
     @Override

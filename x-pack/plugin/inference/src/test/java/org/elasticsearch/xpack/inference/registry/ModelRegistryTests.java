@@ -22,7 +22,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.search.SearchHit;
@@ -301,8 +300,7 @@ public class ModelRegistryTests extends ESTestCase {
                 randomFrom(TaskType.values()),
                 "service-a",
                 Map.of(),
-                Map.of(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                Map.of()
             );
             var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
             assertThat(copied, not(sameInstance(toCopy)));
@@ -331,8 +329,7 @@ public class ModelRegistryTests extends ESTestCase {
                 randomFrom(TaskType.values()),
                 "service-a",
                 settings,
-                secretsMap,
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                secretsMap
             );
             var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
             assertThat(copied, not(sameInstance(toCopy)));
@@ -368,7 +365,7 @@ public class ModelRegistryTests extends ESTestCase {
         var id = "my-inference";
 
         registry.addDefaultConfiguration(
-            new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of(), EndpointVersions.FIRST_ENDPOINT_VERSION)
+            new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of())
         );
         var ise = expectThrows(
             IllegalStateException.class,
@@ -378,8 +375,7 @@ public class ModelRegistryTests extends ESTestCase {
                     randomFrom(TaskType.values()),
                     "service-b",
                     Map.of(),
-                    Map.of(),
-                    EndpointVersions.FIRST_ENDPOINT_VERSION
+                    Map.of()
                 )
             )
         );

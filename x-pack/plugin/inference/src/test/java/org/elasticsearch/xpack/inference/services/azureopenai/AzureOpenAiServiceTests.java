@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -118,7 +117,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                     getAzureOpenAiRequestTaskSettingsMap("user"),
                     getAzureOpenAiSecretSettingsMap("secret", null)
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -142,7 +140,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                     getAzureOpenAiRequestTaskSettingsMap("user"),
                     getAzureOpenAiSecretSettingsMap("secret", null)
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -172,7 +169,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -203,7 +199,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -234,7 +229,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -265,7 +259,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -292,7 +285,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                     getAzureOpenAiRequestTaskSettingsMap("user"),
                     getAzureOpenAiSecretSettingsMap("secret", null)
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -310,8 +302,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -341,8 +332,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                     "id",
                     TaskType.SPARSE_EMBEDDING,
                     persistedConfig.config(),
-                    persistedConfig.secrets(),
-                    EndpointVersions.FIRST_ENDPOINT_VERSION
+                    persistedConfig.secrets()
                 )
             );
 
@@ -366,8 +356,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -398,8 +387,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -428,8 +416,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -460,8 +447,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -492,8 +478,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -519,8 +504,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -546,8 +530,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 () -> service.parsePersistedConfig(
                     "id",
                     TaskType.SPARSE_EMBEDDING,
-                    persistedConfig.config(),
-                    EndpointVersions.FIRST_ENDPOINT_VERSION
+                    persistedConfig.config()
                 )
             );
 
@@ -569,8 +552,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -600,8 +582,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
@@ -628,8 +609,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));

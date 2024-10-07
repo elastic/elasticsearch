@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -46,8 +45,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -55,8 +53,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
             service,
             AnthropicChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AnthropicChatCompletionTaskSettings.fromMap(taskSettings, context),
-            DefaultSecretSettings.fromMap(secrets),
-            endpointVersion
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -66,11 +63,10 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         String service,
         AnthropicChatCompletionServiceSettings serviceSettings,
         AnthropicChatCompletionTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings,
             AnthropicChatCompletionModel::buildDefaultUri,
@@ -86,11 +82,10 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         String url,
         AnthropicChatCompletionServiceSettings serviceSettings,
         AnthropicChatCompletionTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings,
             () -> ServiceUtils.createUri(url),

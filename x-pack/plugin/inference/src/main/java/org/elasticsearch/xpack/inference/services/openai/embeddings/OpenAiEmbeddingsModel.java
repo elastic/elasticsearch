@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -40,8 +39,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -50,8 +48,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets),
-            endpointVersion
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -63,11 +60,10 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         OpenAiEmbeddingsServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings,
             secrets

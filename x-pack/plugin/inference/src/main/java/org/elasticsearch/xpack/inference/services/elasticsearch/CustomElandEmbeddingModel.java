@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.TaskType;
 
 public class CustomElandEmbeddingModel extends CustomElandModel {
@@ -16,10 +15,9 @@ public class CustomElandEmbeddingModel extends CustomElandModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        CustomElandInternalTextEmbeddingServiceSettings serviceSettings,
-        EndpointVersions endpointVersion
+        CustomElandInternalTextEmbeddingServiceSettings serviceSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, endpointVersion);
+        super(inferenceEntityId, taskType, service, serviceSettings);
     }
 
     @Override

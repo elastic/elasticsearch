@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -22,10 +21,9 @@ public class ElserInternalModel extends ElasticsearchInternalModel {
         TaskType taskType,
         String service,
         ElserInternalServiceSettings serviceSettings,
-        ElserMlNodeTaskSettings taskSettings,
-        EndpointVersions endpointVersion
+        ElserMlNodeTaskSettings taskSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion);
+        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
     }
 
     @Override

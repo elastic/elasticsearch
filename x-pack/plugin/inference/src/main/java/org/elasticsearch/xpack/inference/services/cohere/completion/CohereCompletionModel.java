@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.cohere.completion;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -33,8 +32,7 @@ public class CohereCompletionModel extends CohereModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             modelId,
@@ -42,8 +40,7 @@ public class CohereCompletionModel extends CohereModel {
             service,
             CohereCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets),
-            endpointVersion
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -54,11 +51,10 @@ public class CohereCompletionModel extends CohereModel {
         String service,
         CohereCompletionServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings

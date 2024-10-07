@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -40,8 +39,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -49,8 +47,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             service,
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
-            AzureOpenAiSecretSettings.fromMap(secrets),
-            endpointVersion
+            AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }
 
@@ -61,11 +58,10 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiEmbeddingsServiceSettings serviceSettings,
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
-        @Nullable AzureOpenAiSecretSettings secrets,
-        EndpointVersions endpointVersion
+        @Nullable AzureOpenAiSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -34,8 +33,7 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
             url,
             new IbmWatsonxEmbeddingsServiceSettings(model, projectId, uri, apiVersion, null, null, SimilarityMeasure.DOT_PRODUCT, null),
             EmptyTaskSettings.INSTANCE,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 
@@ -56,8 +54,7 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
             url,
             new IbmWatsonxEmbeddingsServiceSettings(model, projectId, uri, apiVersion, null, dimensions, similarityMeasure, null),
             EmptyTaskSettings.INSTANCE,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 
@@ -85,8 +82,7 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
                 null
             ),
             EmptyTaskSettings.INSTANCE,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 }

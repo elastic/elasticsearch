@@ -15,7 +15,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -123,7 +122,6 @@ public class MistralService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        EndpointVersions endpointVersion,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -145,8 +143,7 @@ public class MistralService extends SenderService {
                 chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST,
-                endpointVersion
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -164,8 +161,7 @@ public class MistralService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Map<String, Object> secrets,
-        EndpointVersions endpointVersion
+        Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
@@ -183,13 +179,12 @@ public class MistralService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME),
-            endpointVersion
+            parsePersistedConfigErrorMsg(modelId, NAME)
         );
     }
 
     @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, EndpointVersions endpointVersion) {
+    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
@@ -205,8 +200,7 @@ public class MistralService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(modelId, NAME),
-            endpointVersion
+            parsePersistedConfigErrorMsg(modelId, NAME)
         );
     }
 
@@ -223,8 +217,7 @@ public class MistralService extends SenderService {
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
             return new MistralEmbeddingsModel(
@@ -235,8 +228,7 @@ public class MistralService extends SenderService {
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
-                context,
-                endpointVersion
+                context
             );
         }
 
@@ -250,8 +242,7 @@ public class MistralService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage,
-        EndpointVersions endpointVersion
+        String failureMessage
     ) {
         return createModel(
             inferenceEntityId,
@@ -261,8 +252,7 @@ public class MistralService extends SenderService {
             chunkingSettings,
             secretSettings,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT,
-            endpointVersion
+            ConfigurationParseContext.PERSISTENT
         );
     }
 

@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -54,7 +53,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -74,13 +72,8 @@ public class ModelRegistry {
         String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
         String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
         TaskType taskType = TaskType.fromString(taskTypeStr);
-        EndpointVersions endpointVersion = (EndpointVersions) Objects.requireNonNullElse(
-            modelConfigMap.config().remove(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME),
-            EndpointVersions.FIRST_ENDPOINT_VERSION // TODO in 9.0 change this to require the field, once we have updated all of the
-                                                    // stored models
-        );
 
-        return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets(), endpointVersion);
+        return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
     }
 
     private static final String TASK_TYPE_FIELD = "task_type";
@@ -425,14 +418,7 @@ public class ModelRegistry {
             var request = new IndexRequest(indexName);
             XContentBuilder source = body.toXContent(
                 builder,
-                new ToXContent.MapParams(
-                    Map.of(
-                        ModelConfigurations.FOR_INDEX,
-                        Boolean.TRUE.toString(),
-                        ModelConfigurations.INCLUDE_PARAMETERS, // we are going to continue to write the parameters field as `task_settings`
-                        Boolean.FALSE.toString()
-                    )
-                )
+                new ToXContent.MapParams(Map.of(ModelConfigurations.FOR_INDEX, Boolean.TRUE.toString()))
             );
             var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
 
@@ -453,8 +439,7 @@ public class ModelRegistry {
             other.taskType(),
             other.service(),
             copySettingsMap(other.settings()),
-            copySecretsMap(other.secrets()),
-            other.endpointVersion()
+            copySecretsMap(other.secrets())
         );
     }
 
@@ -478,11 +463,6 @@ public class ModelRegistry {
         if (chunkSettings != null) {
             var copiedChunkSettings = copyMap1LevelDeep(chunkSettings);
             result.put(ModelConfigurations.CHUNKING_SETTINGS, copiedChunkSettings);
-        }
-
-        var endpointVersion = (String) other.get(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME);
-        if (endpointVersion != null) {
-            result.put(ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME, endpointVersion);
         }
 
         return result;

@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -46,15 +45,9 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
     }
 
     public static class TestSparseModel extends Model {
-        public TestSparseModel(String inferenceEntityId, TestServiceSettings serviceSettings, EndpointVersions endpointVersion) {
+        public TestSparseModel(String inferenceEntityId, TestServiceSettings serviceSettings) {
             super(
-                new ModelConfigurations(
-                    inferenceEntityId,
-                    TaskType.SPARSE_EMBEDDING,
-                    TestInferenceService.NAME,
-                    serviceSettings,
-                    endpointVersion
-                ),
+                new ModelConfigurations(inferenceEntityId, TaskType.SPARSE_EMBEDDING, TestInferenceService.NAME, serviceSettings),
                 new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
             );
         }
@@ -76,7 +69,6 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            EndpointVersions endpointVersion,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -86,9 +78,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            parsedModelListener.onResponse(
-                new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings, endpointVersion)
-            );
+            parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
         }
 
         @Override

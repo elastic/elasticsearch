@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -44,8 +43,7 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -53,8 +51,7 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
             service,
             AmazonBedrockEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             new EmptyTaskSettings(),
-            AmazonBedrockSecretSettings.fromMap(secretSettings),
-            endpointVersion
+            AmazonBedrockSecretSettings.fromMap(secretSettings)
         );
     }
 
@@ -64,11 +61,10 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         String service,
         AmazonBedrockEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        AmazonBedrockSecretSettings secrets,
-        EndpointVersions endpointVersion
+        AmazonBedrockSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings(), endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
             new ModelSecrets(secrets)
         );
     }

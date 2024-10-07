@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.elastic;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -37,8 +36,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -47,8 +45,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            elasticInferenceServiceComponents,
-            endpointVersion
+            elasticInferenceServiceComponents
         );
     }
 
@@ -72,11 +69,10 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
         @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        EndpointVersions endpointVersion
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             serviceSettings,
             elasticInferenceServiceComponents

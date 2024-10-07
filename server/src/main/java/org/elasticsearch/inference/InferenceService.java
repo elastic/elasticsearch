@@ -39,16 +39,9 @@ public interface InferenceService extends Closeable {
      * @param modelId             Model Id
      * @param taskType            The model task type
      * @param config              Configuration options including the secrets
-     * @param endpointVersion
      * @param parsedModelListener A listener which will handle the resulting model or failure
      */
-    void parseRequestConfig(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        EndpointVersions endpointVersion,
-        ActionListener<Model> parsedModelListener
-    );
+    void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
@@ -61,16 +54,9 @@ public interface InferenceService extends Closeable {
      * @param taskType        The model task type
      * @param config          Configuration options
      * @param secrets         Sensitive configuration options (e.g. api key)
-     * @param endpointVersion
      * @return The parsed {@link Model}
      */
-    Model parsePersistedConfigWithSecrets(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets,
-        EndpointVersions endpointVersion
-    );
+    Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
@@ -81,10 +67,9 @@ public interface InferenceService extends Closeable {
      * @param modelId         Model Id
      * @param taskType        The model task type
      * @param config          Configuration options
-     * @param endpointVersion
      * @return The parsed {@link Model}
      */
-    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, EndpointVersions endpointVersion);
+    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
     /**
      * Perform inference on the model.

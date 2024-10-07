@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -117,7 +116,6 @@ public class MistralServiceTests extends ESTestCase {
                     getEmbeddingsTaskSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -144,7 +142,6 @@ public class MistralServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -173,7 +170,6 @@ public class MistralServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -201,7 +197,6 @@ public class MistralServiceTests extends ESTestCase {
                     getEmbeddingsTaskSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -225,7 +220,6 @@ public class MistralServiceTests extends ESTestCase {
                     getEmbeddingsTaskSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -255,7 +249,6 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -287,7 +280,6 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -319,7 +311,6 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -337,8 +328,7 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                config.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.secrets()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -365,8 +355,7 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                config.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.secrets()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -395,8 +384,7 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                config.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.secrets()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -424,8 +412,7 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                config.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.secrets()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -457,7 +444,6 @@ public class MistralServiceTests extends ESTestCase {
                     getEmbeddingsTaskSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -477,8 +463,7 @@ public class MistralServiceTests extends ESTestCase {
                     "id",
                     TaskType.SPARSE_EMBEDDING,
                     config.config(),
-                    config.secrets(),
-                    EndpointVersions.FIRST_ENDPOINT_VERSION
+                    config.secrets()
                 )
             );
 
@@ -501,8 +486,7 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                config.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.secrets()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -522,8 +506,7 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                config.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.secrets()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -543,8 +526,7 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                config.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.secrets()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -564,8 +546,7 @@ public class MistralServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config.config(),
-                config.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.secrets()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -583,8 +564,7 @@ public class MistralServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                config.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.config()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -610,8 +590,7 @@ public class MistralServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                config.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.config()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -638,8 +617,7 @@ public class MistralServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                config.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.config()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
@@ -665,8 +643,7 @@ public class MistralServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                config.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                config.config()
             );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));

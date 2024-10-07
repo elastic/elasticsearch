@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -223,8 +222,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 
@@ -247,8 +245,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
 
         );
     }

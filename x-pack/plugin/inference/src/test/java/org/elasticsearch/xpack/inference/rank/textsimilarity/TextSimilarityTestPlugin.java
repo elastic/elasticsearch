@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -147,8 +146,8 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                         request.getTaskType(),
                         CohereService.NAME,
                         new CohereRerankServiceSettings("uri", "model", null),
-                        topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null),
-                        EndpointVersions.FIRST_ENDPOINT_VERSION
+                        topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
+
                     )
                 )
             );

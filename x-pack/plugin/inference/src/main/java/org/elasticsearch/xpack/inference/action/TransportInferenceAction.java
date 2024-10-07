@@ -81,8 +81,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     unparsedModel.inferenceEntityId(),
                     unparsedModel.taskType(),
                     unparsedModel.settings(),
-                    unparsedModel.secrets(),
-                    unparsedModel.endpointVersion()
+                    unparsedModel.secrets()
                 );
             inferOnService(model, request, service.get(), delegate);
         });

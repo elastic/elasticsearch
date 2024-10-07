@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -111,7 +110,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -135,7 +133,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -159,7 +156,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -183,7 +179,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -214,7 +209,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -241,7 +235,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -271,7 +264,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -301,7 +293,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 config,
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -329,7 +320,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -353,7 +343,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                EndpointVersions.FIRST_ENDPOINT_VERSION,
                 modelVerificationListener
             );
         }
@@ -370,8 +359,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -399,8 +387,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     "id",
                     TaskType.SPARSE_EMBEDDING,
                     persistedConfig.config(),
-                    persistedConfig.secrets(),
-                    EndpointVersions.FIRST_ENDPOINT_VERSION
+                    persistedConfig.secrets()
                 )
             );
 
@@ -423,8 +410,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -451,8 +437,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -479,8 +464,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -507,8 +491,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -536,8 +519,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 persistedConfig.config(),
-                persistedConfig.secrets(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.secrets()
             );
 
             assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
@@ -567,8 +549,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -591,8 +572,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.COMPLETION,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
@@ -622,8 +602,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 () -> service.parsePersistedConfig(
                     "id",
                     TaskType.SPARSE_EMBEDDING,
-                    persistedConfig.config(),
-                    EndpointVersions.FIRST_ENDPOINT_VERSION
+                    persistedConfig.config()
                 )
             );
 
@@ -645,8 +624,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -671,8 +649,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -696,8 +673,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.COMPLETION,
-                persistedConfig.config(),
-                EndpointVersions.FIRST_ENDPOINT_VERSION
+                persistedConfig.config()
             );
 
             assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));

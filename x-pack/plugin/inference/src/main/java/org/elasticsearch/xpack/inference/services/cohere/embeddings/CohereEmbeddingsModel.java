@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -35,8 +34,7 @@ public class CohereEmbeddingsModel extends CohereModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context,
-        EndpointVersions endpointVersion
+        ConfigurationParseContext context
     ) {
         this(
             inferenceId,
@@ -44,8 +42,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             service,
             CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets),
-            endpointVersion
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -56,11 +53,10 @@ public class CohereEmbeddingsModel extends CohereModel {
         String service,
         CohereEmbeddingsServiceSettings serviceSettings,
         CohereEmbeddingsTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings,
-        EndpointVersions endpointVersion
+        @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, endpointVersion),
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings()

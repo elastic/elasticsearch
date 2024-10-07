@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointVersions;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -60,8 +59,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
             uri,
             new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, false, null, null, null, null),
             new GoogleVertexAiEmbeddingsTaskSettings(Boolean.FALSE),
-            new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray()))
 
         );
     }
@@ -82,8 +80,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 null
             ),
             new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate),
-            new GoogleVertexAiSecretSettings(new SecureString(randomAlphaOfLength(8).toCharArray())),
-            EndpointVersions.FIRST_ENDPOINT_VERSION
+            new GoogleVertexAiSecretSettings(new SecureString(randomAlphaOfLength(8).toCharArray()))
 
         );
     }

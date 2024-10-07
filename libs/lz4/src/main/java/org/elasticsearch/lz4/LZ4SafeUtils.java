@@ -1,22 +1,10 @@
 /*
- * @notice
- *
- * Copyright 2020 Adrien Grand and the lz4-java contributors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-
 package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Exception;
@@ -31,8 +19,9 @@ import static org.elasticsearch.lz4.LZ4Constants.ML_BITS;
 import static org.elasticsearch.lz4.LZ4Constants.ML_MASK;
 import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
 
-/**
- * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file
+/*
+ * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
+ * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
  * net.jpountz.lz4.LZ4SafeUtils.
  *
  * It modifies the original implementation to use Java9 array mismatch method and varhandle performance

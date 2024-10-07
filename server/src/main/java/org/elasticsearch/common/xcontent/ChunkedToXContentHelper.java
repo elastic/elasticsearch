@@ -13,8 +13,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Iterator;
-import java.util.Map;
-import java.util.function.Function;
 
 public enum ChunkedToXContentHelper {
     ;
@@ -41,36 +39,6 @@ public enum ChunkedToXContentHelper {
 
     public static Iterator<ToXContent> endArray() {
         return Iterators.single(((builder, params) -> builder.endArray()));
-    }
-
-    public static Iterator<ToXContent> map(String name, Map<String, ?> map) {
-        return map(name, map, entry -> (ToXContent) (builder, params) -> builder.field(entry.getKey(), entry.getValue()));
-    }
-
-    public static Iterator<ToXContent> xContentFragmentValuesMap(String name, Map<String, ? extends ToXContent> map) {
-        return map(
-            name,
-            map,
-            entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder.startObject(entry.getKey()), params).endObject()
-        );
-    }
-
-    public static Iterator<ToXContent> xContentValuesMap(String name, Map<String, ? extends ToXContent> map) {
-        return map(
-            name,
-            map,
-            entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder.field(entry.getKey()), params)
-        );
-    }
-
-    /**
-     * Like xContentFragmentValuesMap, but allows the underlying XContent object to define its own "name" with startObject(string)
-     * and endObject, rather than assuming that the key in the map should be the name in the XContent output.
-     * @param name name to use in the XContent for the outer object wrapping the map being rendered to XContent
-     * @param map map being rendered to XContent
-     */
-    public static Iterator<ToXContent> xContentFragmentValuesMapCreateOwnName(String name, Map<String, ? extends ToXContent> map) {
-        return map(name, map, entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder, params));
     }
 
     public static Iterator<ToXContent> field(String name, boolean value) {
@@ -101,28 +69,8 @@ public enum ChunkedToXContentHelper {
         return Iterators.concat(ChunkedToXContentHelper.startArray(name), contents, ChunkedToXContentHelper.endArray());
     }
 
-    /**
-     * Creates an Iterator to serialize a named field where the value is represented by an iterator of {@link ChunkedToXContentObject}.
-     * Chunked equivalent for {@code XContentBuilder array(String name, ToXContent value)}
-     * @param name name of the field
-     * @param contents values for this field
-     * @param params params to propagate for XContent serialization
-     * @return Iterator composing field name and value serialization
-     */
-    public static Iterator<ToXContent> array(String name, Iterator<? extends ChunkedToXContentObject> contents, ToXContent.Params params) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startArray(name),
-            Iterators.flatMap(contents, c -> c.toXContentChunked(params)),
-            ChunkedToXContentHelper.endArray()
-        );
-    }
-
     public static <T extends ToXContent> Iterator<ToXContent> wrapWithObject(String name, Iterator<T> iterator) {
         return Iterators.concat(startObject(name), iterator, endObject());
-    }
-
-    public static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return wrapWithObject(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 
     /**

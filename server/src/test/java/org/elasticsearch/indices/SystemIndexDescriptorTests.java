@@ -210,7 +210,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
                             .setType(Type.INTERNAL_MANAGED)
                             .setSettings(Settings.EMPTY)
                             .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
-                            .setVersionMetaKey("version")
                             .setOrigin("system")
                             .setPriorSystemIndexDescriptors(List.of(prior))
                             .build()
@@ -271,9 +270,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
             .setMappings(getVersionedMappings(TEST_MAPPINGS_PRIOR_VERSION))
-            .setVersionMetaKey("version")
             .setOrigin("system")
-            .setMinimumNodeVersion(Version.V_7_0_0)
             .build();
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
@@ -283,7 +280,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
             .setMappings(MAPPINGS)
-            .setVersionMetaKey("version")
             .setOrigin("system")
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build();
@@ -314,7 +310,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
             .setMappings(MAPPINGS)
-            .setVersionMetaKey("version")
             .setOrigin("system");
 
         builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
@@ -354,7 +349,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(MAPPINGS)
             .setSettings(Settings.builder().put("index.format", 5).build())
             .setIndexFormat(0)
-            .setVersionMetaKey("version")
             .setOrigin("system");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
@@ -443,8 +437,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
             .setMappings(MAPPINGS)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
-            .setMinimumNodeVersion(Version.V_7_0_0);
+            .setOrigin("system");
     }
 }

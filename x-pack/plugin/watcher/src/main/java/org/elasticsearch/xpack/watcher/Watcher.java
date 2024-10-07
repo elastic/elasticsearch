@@ -802,7 +802,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setDescription("Contains Watch definitions")
                 .setMappings(getWatchesIndexMappings())
                 .setSettings(getWatchesIndexSettings())
-                .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
                 .setIndexFormat(6)
                 .build(),
@@ -812,7 +811,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setDescription("Used to track current and queued Watch execution")
                 .setMappings(getTriggeredWatchesIndexMappings())
                 .setSettings(getTriggeredWatchesIndexSettings())
-                .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
                 .setIndexFormat(6)
                 .build()

@@ -399,7 +399,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 .setMappings(getIndexMappings())
                 .setSettings(getIndexSettings())
                 .setOrigin(SEARCHABLE_SNAPSHOTS_ORIGIN)
-                .setVersionMetaKey("version")
                 .build()
         );
     }

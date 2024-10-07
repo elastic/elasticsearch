@@ -702,11 +702,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
-        // TODO: delete!
-        public Builder setVersionMetaKey(String versionMetaKey) {
-            return this;
-        }
-
         /**
          * Sometimes a system operation will need to dispatch sub-actions. A product origin string will tell the system which component
          * generated the sub-action. Internal system indices must not provide an origin, since they are supposed to reject access from
@@ -717,11 +712,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
          */
         public Builder setOrigin(String origin) {
             this.origin = origin;
-            return this;
-        }
-
-        // TODO: delete!
-        public Builder setMinimumNodeVersion(Object version) {
             return this;
         }
 

@@ -104,7 +104,6 @@ public class TransportCreateIndexActionTests extends ESTestCase {
                               }
                             }"
                             """, SystemIndexDescriptor.VERSION_META_KEY))
-                        .setVersionMetaKey("version")
                         .setOrigin("origin")
                         .build()
                 )

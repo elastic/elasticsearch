@@ -59,7 +59,6 @@ public class TaskResultsService {
         .setDescription("Task Result Index")
         .setSettings(getTaskResultIndexSettings())
         .setMappings(getTaskResultIndexMappings())
-        .setVersionMetaKey(TASK_RESULT_MAPPING_VERSION_META_FIELD)
         .setOrigin(TASKS_ORIGIN)
         .build();
 

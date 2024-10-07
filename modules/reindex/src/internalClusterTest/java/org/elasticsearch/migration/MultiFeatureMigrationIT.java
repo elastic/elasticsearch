@@ -268,9 +268,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         .setSettings(createSettings(IndexVersions.MINIMUM_COMPATIBLE, 0))
         .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.CURRENT.minimumCompatibilityVersion())
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
 

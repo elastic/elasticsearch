@@ -15,9 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.UpdateForV9;
 
 public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider {
 
@@ -36,7 +34,6 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
     private void setEnableAllocation(EnableAllocationDecider.Allocation allocation) {
         this.enableAllocation = allocation;
     }
-
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

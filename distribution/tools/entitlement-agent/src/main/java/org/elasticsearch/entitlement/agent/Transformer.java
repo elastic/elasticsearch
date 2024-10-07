@@ -16,7 +16,7 @@ import java.security.ProtectionDomain;
 import java.util.Set;
 
 /**
- * A {@link ClassFileTransformer} that applies {@link Instrumenter} to the appropriate classes.
+ * A {@link ClassFileTransformer} that applies an {@link Instrumenter} to the appropriate classes.
  */
 public class Transformer implements ClassFileTransformer {
     private final Instrumenter instrumenter;

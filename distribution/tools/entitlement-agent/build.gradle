@@ -1,7 +1,3 @@
-import java.util.stream.Collectors
-
-import static java.util.stream.Collectors.joining
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -11,7 +7,14 @@ import static java.util.stream.Collectors.joining
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import static java.util.stream.Collectors.joining
+
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.embedded-providers'
+
+embeddedProviders {
+  impl 'entitlement-agent', project(':distribution:tools:entitlement-agent:impl')
+}
 
 configurations {
   entitlementBridge
@@ -24,6 +27,7 @@ dependencies {
   compileOnly project(":distribution:tools:entitlement-bridge")
   implementation 'org.ow2.asm:asm:9.7'
   testImplementation project(":test:framework")
+  testImplementation project(":distribution:tools:entitlement-agent:impl")
 }
 
 tasks.named('test').configure {

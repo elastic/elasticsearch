@@ -7,14 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+apply plugin: 'elasticsearch.build'
 
-module org.elasticsearch.entitlement.agent {
-    requires java.instrument;
-    requires org.elasticsearch.entitlement.bridge;
-    requires org.elasticsearch.base; // for @SuppressForbidden
-
-    exports org.elasticsearch.entitlement.instrumentation to org.elasticsearch.entitlement.agent.impl;
-
-    uses InstrumentationService;
+dependencies {
+  compileOnly project(':distribution:tools:entitlement-agent')
+  compileOnly project(':distribution:tools:entitlement-bridge')
+  implementation 'org.ow2.asm:asm:9.7'
 }
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+

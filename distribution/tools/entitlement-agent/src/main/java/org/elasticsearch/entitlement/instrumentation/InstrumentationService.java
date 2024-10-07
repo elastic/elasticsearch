@@ -9,10 +9,17 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
-import java.util.List;
+import java.lang.reflect.Method;
+import java.util.Map;
 
 /**
- *
- * @param className the "internal name" of the class: includes the package info, but with periods replaced by slashes
+ * The SPI service entry point for instrumentation.
  */
-public record MethodKey(String className, String methodName, List<String> parameterTypes, boolean isStatic) {}
+public interface InstrumentationService {
+    Instrumenter newInstrumenter(String classNameSuffix, Map<MethodKey, Method> instrumentationMethods);
+
+    /**
+     * @return a {@link MethodKey} suitable for looking up the given {@code targetMethod} in the entitlements trampoline
+     */
+    MethodKey methodKeyForTarget(Method targetMethod);
+}

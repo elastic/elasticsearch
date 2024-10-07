@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.agent;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.api.EntitlementChecks;
-import org.elasticsearch.entitlement.instrumentation.Instrumenter;
+import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
 import java.io.File;
@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.jar.JarFile;
 
@@ -35,9 +36,9 @@ public class EntitlementAgent {
 
         Method targetMethod = System.class.getMethod("exit", int.class);
         Method instrumentationMethod = EntitlementChecks.class.getMethod("checkSystemExit", Class.class, int.class);
-        Map<MethodKey, Method> methodMap = Map.of(MethodKey.forTargetMethod(targetMethod), instrumentationMethod);
+        Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
 
-        inst.addTransformer(new Transformer(new Instrumenter("", methodMap), Set.of(internalName(System.class))), true);
+        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
         inst.retransformClasses(System.class);
     }
 
@@ -55,6 +56,18 @@ public class EntitlementAgent {
 
     private static String internalName(Class<?> c) {
         return c.getName().replace('.', '/');
+    }
+
+    private static final InstrumentationService INSTRUMENTER_FACTORY = locateInstrumenterFactory();
+
+    private static InstrumentationService locateInstrumenterFactory() {
+        var providers = ServiceLoader.load(InstrumentationService.class).stream().toList();
+        if (providers.isEmpty()) {
+            throw new IllegalStateException("No InstrumentationService found");
+        } else if (providers.size() >= 2) {
+            throw new IllegalStateException("More than one InstrumentationService found");
+        }
+        return providers.get(0).get();
     }
 
     // private static final Logger LOGGER = LogManager.getLogger(EntitlementAgent.class);

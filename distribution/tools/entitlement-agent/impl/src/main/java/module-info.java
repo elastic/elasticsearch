@@ -8,13 +8,12 @@
  */
 
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+import org.elasticsearch.entitlement.instrumentation.impl.InstrumentationServiceImpl;
 
-module org.elasticsearch.entitlement.agent {
-    requires java.instrument;
+module org.elasticsearch.entitlement.agent.impl {
+    requires org.objectweb.asm;
+    requires org.elasticsearch.entitlement.agent;
     requires org.elasticsearch.entitlement.bridge;
-    requires org.elasticsearch.base; // for @SuppressForbidden
 
-    exports org.elasticsearch.entitlement.instrumentation to org.elasticsearch.entitlement.agent.impl;
-
-    uses InstrumentationService;
+    provides InstrumentationService with InstrumentationServiceImpl;
 }

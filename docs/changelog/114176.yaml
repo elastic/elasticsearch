@@ -1,11 +1,10 @@
 pr: 114176
-summary: "[Inference API ] Add `endpoint_version` to deprecate task settings"
+summary: "[Inference API] Deprecate task_settings, renamed to parameters"
 area: Machine Learning
 type: deprecation
 issues: []
 deprecation:
-  title: "[Inference API ] Add `endpoint_version` to deprecate task settings"
-  area: Machine Learning
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  title: "[Inference API] Deprecate task_settings, renamed to parameters"
+  area: REST API
+  details: In 8.16 the inference API is renaming the `task_settings` component of inference endpoints (used in the Create _inference API, and GET _inference API) to `parameters`. Users are asked to update any code accessing or creating `task_settings` to use `parameters` instead. Support for requests and responses including `task_settings` will be removed in 9.0.
+  impact: The inference API is maintaing backwards compatibility until 9.0, but we now recommend replacing usages of `task_settings` with `parameters`.

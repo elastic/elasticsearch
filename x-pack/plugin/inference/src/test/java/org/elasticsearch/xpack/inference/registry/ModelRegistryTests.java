@@ -295,13 +295,7 @@ public class ModelRegistryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testDeepCopyDefaultConfig() {
         {
-            var toCopy = new UnparsedModel(
-                "tocopy",
-                randomFrom(TaskType.values()),
-                "service-a",
-                Map.of(),
-                Map.of()
-            );
+            var toCopy = new UnparsedModel("tocopy", randomFrom(TaskType.values()), "service-a", Map.of(), Map.of());
             var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
             assertThat(copied, not(sameInstance(toCopy)));
             assertThat(copied.taskType(), is(toCopy.taskType()));
@@ -324,13 +318,7 @@ public class ModelRegistryTests extends ESTestCase {
             Map<String, Object> service = Map.of("num_threads", 1, "adaptive_allocations", Map.of("enabled", true));
             Map<String, Object> settings = Map.of("chunking_settings", chunking, "service_settings", service, "task_settings", task);
 
-            var toCopy = new UnparsedModel(
-                "tocopy",
-                randomFrom(TaskType.values()),
-                "service-a",
-                settings,
-                secretsMap
-            );
+            var toCopy = new UnparsedModel("tocopy", randomFrom(TaskType.values()), "service-a", settings, secretsMap);
             var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
             assertThat(copied, not(sameInstance(toCopy)));
 
@@ -364,20 +352,10 @@ public class ModelRegistryTests extends ESTestCase {
 
         var id = "my-inference";
 
-        registry.addDefaultConfiguration(
-            new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of())
-        );
+        registry.addDefaultConfiguration(new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of()));
         var ise = expectThrows(
             IllegalStateException.class,
-            () -> registry.addDefaultConfiguration(
-                new UnparsedModel(
-                    id,
-                    randomFrom(TaskType.values()),
-                    "service-b",
-                    Map.of(),
-                    Map.of()
-                )
-            )
+            () -> registry.addDefaultConfiguration(new UnparsedModel(id, randomFrom(TaskType.values()), "service-b", Map.of(), Map.of()))
         );
         assertThat(
             ise.getMessage(),

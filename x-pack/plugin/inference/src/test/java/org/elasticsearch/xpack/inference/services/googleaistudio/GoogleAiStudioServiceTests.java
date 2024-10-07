@@ -599,11 +599,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
@@ -626,11 +622,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 createRandomChunkingSettingsMap()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
@@ -654,11 +646,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 createRandomChunkingSettingsMap()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
@@ -678,11 +666,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
@@ -701,11 +685,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
@@ -725,11 +705,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty());
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
@@ -749,11 +725,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), taskSettings);
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 

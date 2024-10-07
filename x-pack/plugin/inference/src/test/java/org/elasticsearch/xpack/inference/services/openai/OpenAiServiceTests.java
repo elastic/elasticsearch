@@ -207,12 +207,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -230,12 +225,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -253,12 +243,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -276,12 +261,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -752,11 +732,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 getTaskSettingsMap("user")
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -775,11 +751,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig(
-                    "id",
-                    TaskType.SPARSE_EMBEDDING,
-                    persistedConfig.config()
-                )
+                () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
             assertThat(
@@ -796,11 +768,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 getTaskSettingsMap(null)
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -823,11 +791,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 createRandomChunkingSettingsMap()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -851,11 +815,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 createRandomChunkingSettingsMap()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -878,11 +838,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 getTaskSettingsMap(null)
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -904,11 +860,7 @@ public class OpenAiServiceTests extends ESTestCase {
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -928,11 +880,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("user"));
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -952,11 +900,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org", null, null, true), taskSettingsMap);
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 

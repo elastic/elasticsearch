@@ -30,8 +30,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.PARAMETERS;
+import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 
 public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
 

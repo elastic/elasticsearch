@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.PARAMETERS;
+import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 
 public class PutInferenceModelActionTests extends ESTestCase {
     public static TaskType TASK_TYPE;

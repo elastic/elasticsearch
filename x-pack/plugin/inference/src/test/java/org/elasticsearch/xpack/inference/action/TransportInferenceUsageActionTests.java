@@ -81,42 +81,12 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
             listener.onResponse(
                 new GetInferenceModelAction.Response(
                     List.of(
-                        new ModelConfigurations(
-                            "model-001",
-                            TaskType.TEXT_EMBEDDING,
-                            "openai",
-                            mock(ServiceSettings.class)
-                        ),
-                        new ModelConfigurations(
-                            "model-002",
-                            TaskType.TEXT_EMBEDDING,
-                            "openai",
-                            mock(ServiceSettings.class)
-                        ),
-                        new ModelConfigurations(
-                            "model-003",
-                            TaskType.SPARSE_EMBEDDING,
-                            "hugging_face_elser",
-                            mock(ServiceSettings.class)
-                        ),
-                        new ModelConfigurations(
-                            "model-004",
-                            TaskType.TEXT_EMBEDDING,
-                            "openai",
-                            mock(ServiceSettings.class)
-                        ),
-                        new ModelConfigurations(
-                            "model-005",
-                            TaskType.SPARSE_EMBEDDING,
-                            "openai",
-                            mock(ServiceSettings.class)
-                        ),
-                        new ModelConfigurations(
-                            "model-006",
-                            TaskType.SPARSE_EMBEDDING,
-                            "hugging_face_elser",
-                            mock(ServiceSettings.class)
-                        )
+                        new ModelConfigurations("model-001", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)),
+                        new ModelConfigurations("model-002", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)),
+                        new ModelConfigurations("model-003", TaskType.SPARSE_EMBEDDING, "hugging_face_elser", mock(ServiceSettings.class)),
+                        new ModelConfigurations("model-004", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)),
+                        new ModelConfigurations("model-005", TaskType.SPARSE_EMBEDDING, "openai", mock(ServiceSettings.class)),
+                        new ModelConfigurations("model-006", TaskType.SPARSE_EMBEDDING, "hugging_face_elser", mock(ServiceSettings.class))
                     )
                 )
             );

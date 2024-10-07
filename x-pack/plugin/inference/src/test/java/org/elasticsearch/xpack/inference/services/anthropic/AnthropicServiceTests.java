@@ -360,11 +360,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3)
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
@@ -385,11 +381,7 @@ public class AnthropicServiceTests extends ESTestCase {
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
@@ -412,11 +404,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3)
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
@@ -436,11 +424,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), taskSettings);
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 

@@ -35,31 +35,13 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         var user = "user";
         var userOverride = "user override";
 
-        var model = createCompletionModel(
-            resource,
-            deploymentId,
-            apiVersion,
-            user,
-            apiKey,
-            entraId,
-            inferenceEntityId
-        );
+        var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
         var requestTaskSettingsMap = taskSettingsMap(userOverride);
         var overriddenModel = AzureOpenAiCompletionModel.of(model, requestTaskSettingsMap);
 
         assertThat(
             overriddenModel,
-            equalTo(
-                createCompletionModel(
-                    resource,
-                    deploymentId,
-                    apiVersion,
-                    userOverride,
-                    apiKey,
-                    entraId,
-                    inferenceEntityId
-                )
-            )
+            equalTo(createCompletionModel(resource, deploymentId, apiVersion, userOverride, apiKey, entraId, inferenceEntityId))
         );
     }
 
@@ -109,30 +91,12 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
 
         var updatedServiceSettings = new AzureOpenAiCompletionServiceSettings(resource, deploymentId, updatedApiVersion, null);
 
-        var model = createCompletionModel(
-            resource,
-            deploymentId,
-            apiVersion,
-            user,
-            apiKey,
-            entraId,
-            inferenceEntityId
-        );
+        var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
         var overriddenModel = new AzureOpenAiCompletionModel(model, updatedServiceSettings);
 
         assertThat(
             overriddenModel,
-            is(
-                createCompletionModel(
-                    resource,
-                    deploymentId,
-                    updatedApiVersion,
-                    user,
-                    apiKey,
-                    entraId,
-                    inferenceEntityId
-                )
-            )
+            is(createCompletionModel(resource, deploymentId, updatedApiVersion, user, apiKey, entraId, inferenceEntityId))
         );
     }
 
@@ -145,15 +109,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         var inferenceEntityId = "inference entity id";
         var apiVersion = "2024";
 
-        var model = createCompletionModel(
-            resource,
-            deploymentId,
-            apiVersion,
-            user,
-            apiKey,
-            entraId,
-            inferenceEntityId
-        );
+        var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
 
         assertThat(
             model.buildUriString().toString(),

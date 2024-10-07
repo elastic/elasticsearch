@@ -245,12 +245,7 @@ public class MistralServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -276,12 +271,7 @@ public class MistralServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -307,12 +297,7 @@ public class MistralServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -324,12 +309,7 @@ public class MistralServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config(),
-                config.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -351,12 +331,7 @@ public class MistralServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config(),
-                config.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -380,12 +355,7 @@ public class MistralServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config(),
-                config.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -408,12 +378,7 @@ public class MistralServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config(),
-                config.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -459,12 +424,7 @@ public class MistralServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfigWithSecrets(
-                    "id",
-                    TaskType.SPARSE_EMBEDDING,
-                    config.config(),
-                    config.secrets()
-                )
+                () -> service.parsePersistedConfigWithSecrets("id", TaskType.SPARSE_EMBEDDING, config.config(), config.secrets())
             );
 
             assertThat(
@@ -482,12 +442,7 @@ public class MistralServiceTests extends ESTestCase {
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
             config.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config(),
-                config.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
         }
@@ -502,12 +457,7 @@ public class MistralServiceTests extends ESTestCase {
             var secretSettings = getSecretSettingsMap("secret");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config(),
-                config.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
         }
@@ -522,12 +472,7 @@ public class MistralServiceTests extends ESTestCase {
             var secretSettings = getSecretSettingsMap("secret");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config(),
-                config.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
         }
@@ -542,12 +487,7 @@ public class MistralServiceTests extends ESTestCase {
 
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config(),
-                config.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
         }
@@ -561,11 +501,7 @@ public class MistralServiceTests extends ESTestCase {
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -587,11 +523,7 @@ public class MistralServiceTests extends ESTestCase {
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -614,11 +546,7 @@ public class MistralServiceTests extends ESTestCase {
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -640,11 +568,7 @@ public class MistralServiceTests extends ESTestCase {
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 

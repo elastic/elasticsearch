@@ -518,7 +518,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     public static Model createModel(String inferenceEntityId, TaskType taskType, String services) {
-        return new Model(new ModelConfigurations(inferenceEntityId, taskType, service, new TestModelOfAnyKind.TestModelServiceSettings()));
+        return new Model(new ModelConfigurations(inferenceEntityId, taskType, services, new TestModelOfAnyKind.TestModelServiceSettings()));
     }
 
     public static Model createModelWithSecrets(String inferenceEntityId, TaskType taskType, String service, String secret) {
@@ -619,7 +619,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             }
         }
 
-        TestModelOfAnyKind(String inferenceEntityId, TaskType taskType, String services) {
+        TestModelOfAnyKind(String inferenceEntityId, TaskType taskType, String service) {
             super(inferenceEntityId, taskType, service, new TestModelServiceSettings(), new TestTaskSettings());
         }
 
@@ -644,7 +644,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             TaskType taskType,
             String service,
             ServiceSettings serviceSettings,
-            TaskSettings taskSettingss
+            TaskSettings taskSettings
         ) {
             super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
         }

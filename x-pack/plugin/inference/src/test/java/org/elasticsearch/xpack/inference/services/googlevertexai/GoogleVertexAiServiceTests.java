@@ -337,12 +337,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 getSecretSettingsMap(serviceAccountJson)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.RERANK,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, persistedConfig.config(), persistedConfig.secrets());
 
             assertThat(model, instanceOf(GoogleVertexAiRerankModel.class));
 

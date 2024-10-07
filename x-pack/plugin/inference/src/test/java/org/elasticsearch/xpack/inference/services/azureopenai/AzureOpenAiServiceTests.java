@@ -165,12 +165,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -195,12 +190,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -225,12 +215,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -255,12 +240,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                config,
-                modelVerificationListener
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -501,11 +481,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 getAzureOpenAiRequestTaskSettingsMap("user")
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
@@ -527,11 +503,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig(
-                    "id",
-                    TaskType.SPARSE_EMBEDDING,
-                    persistedConfig.config()
-                )
+                () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
             assertThat(
@@ -549,11 +521,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
@@ -579,11 +547,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getAzureOpenAiRequestTaskSettingsMap("user"));
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
@@ -606,11 +570,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 taskSettingsMap
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 

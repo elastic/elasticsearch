@@ -493,11 +493,7 @@ public class CohereServiceTests extends ESTestCase {
                 getTaskSettingsMap(null, CohereTruncation.NONE)
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
@@ -518,11 +514,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig(
-                    "id",
-                    TaskType.SPARSE_EMBEDDING,
-                    persistedConfig.config()
-                )
+                () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
             MatcherAssert.assertThat(
@@ -539,11 +531,7 @@ public class CohereServiceTests extends ESTestCase {
                 getTaskSettingsMap(null, null)
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
@@ -564,11 +552,7 @@ public class CohereServiceTests extends ESTestCase {
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
@@ -586,11 +570,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap(InputType.SEARCH, null));
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
@@ -611,11 +591,7 @@ public class CohereServiceTests extends ESTestCase {
                 taskSettingsMap
             );
 
-            var model = service.parsePersistedConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config()
-            );
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 

@@ -89,6 +89,13 @@ final class DelegatingCircuitBreakerService extends CircuitBreakerService {
         }
 
         @Override
+        public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+            if (wrappedBreaker != null) {
+                wrappedBreaker.checkRealMemoryUsage(label);
+            }
+        }
+
+        @Override
         public void addWithoutBreaking(long bytes) {
             if (wrappedBreaker != null) {
                 doAddToBreakerOverwrite(bytes);

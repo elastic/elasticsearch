@@ -67,6 +67,11 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     }
 
     @Override
+    public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+        breaker.checkRealMemoryUsage(label);
+    }
+
+    @Override
     public void addWithoutBreaking(long bytes) {
         if (bytes <= reservedBytes) {
             reservedBytes -= bytes;

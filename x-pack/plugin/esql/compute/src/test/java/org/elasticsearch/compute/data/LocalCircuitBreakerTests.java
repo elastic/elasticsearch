@@ -40,6 +40,12 @@ public class LocalCircuitBreakerTests extends ESTestCase {
         }
 
         @Override
+        public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+            called.incrementAndGet();
+            breaker.checkRealMemoryUsage(label);
+        }
+
+        @Override
         public void addWithoutBreaking(long bytes) {
             called.incrementAndGet();
             breaker.addWithoutBreaking(bytes);

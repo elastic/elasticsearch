@@ -86,6 +86,7 @@ enum Database {
     Enterprise(
         Set.of(
             Property.IP,
+            Property.COUNTRY_CONFIDENCE,
             Property.COUNTRY_ISO_CODE,
             Property.COUNTRY_NAME,
             Property.CONTINENT_CODE,
@@ -207,6 +208,7 @@ enum Database {
     enum Property {
 
         IP,
+        COUNTRY_CONFIDENCE,
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
         CONTINENT_CODE,

@@ -365,6 +365,12 @@ final class MaxmindIpDataLookups {
             for (Database.Property property : this.properties) {
                 switch (property) {
                     case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case COUNTRY_CONFIDENCE -> {
+                        Integer countryConfidence = country.getConfidence();
+                        if (countryConfidence != null) {
+                            data.put("country_confidence", countryConfidence);
+                        }
+                    }
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {

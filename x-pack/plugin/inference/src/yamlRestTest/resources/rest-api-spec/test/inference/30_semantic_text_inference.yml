@@ -549,7 +549,7 @@ setup:
   - exists: _source.dense_field.inference.chunks.0.embeddings
 
 ---
-"Calculates embeddings using the default endpoint":
+"Calculates embeddings using the default ELSER 2 endpoint":
   - requires:
       cluster_features: "semantic_text.default_elser_2"
       reason: semantic_text default ELSER 2 inference ID introduced in 8.16.0

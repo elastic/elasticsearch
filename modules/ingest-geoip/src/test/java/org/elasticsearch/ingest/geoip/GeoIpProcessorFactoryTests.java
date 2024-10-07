@@ -274,7 +274,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             e.getMessage(),
             equalTo(
                 "[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, "
-                    + "COUNTRY_NAME, CONTINENT_CODE, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"
+                    + "COUNTRY_NAME, CONTINENT_CODE, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, "
+                    + "LOCATION, POSTAL_CODE]"
             )
         );
 

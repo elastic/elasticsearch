@@ -40,7 +40,8 @@ enum Database {
             Property.REGION_NAME,
             Property.CITY_NAME,
             Property.TIMEZONE,
-            Property.LOCATION
+            Property.LOCATION,
+            Property.POSTAL_CODE
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -108,7 +109,8 @@ enum Database {
             Property.MOBILE_COUNTRY_CODE,
             Property.MOBILE_NETWORK_CODE,
             Property.USER_TYPE,
-            Property.CONNECTION_TYPE
+            Property.CONNECTION_TYPE,
+            Property.POSTAL_CODE
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -228,7 +230,8 @@ enum Database {
         MOBILE_NETWORK_CODE,
         CONNECTION_TYPE,
         USER_TYPE,
-        TYPE;
+        TYPE,
+        POSTAL_CODE;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

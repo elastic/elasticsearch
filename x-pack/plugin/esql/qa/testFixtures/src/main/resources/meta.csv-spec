@@ -69,6 +69,7 @@ double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
 "keyword repeat(string:keyword|text, number:integer)"
 "keyword replace(string:keyword|text, regex:keyword|text, newString:keyword|text)"
+"keyword|text reverse(str:keyword|text)"
 "keyword right(string:keyword|text, length:integer)"
 "double|integer|long|unsigned_long round(number:double|integer|long|unsigned_long, ?decimals:integer)"
 "keyword|text rtrim(string:keyword|text)"
@@ -201,6 +202,7 @@ pi            |null                                |null                        
 pow           |[base, exponent]                    |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |["Numeric expression for the base. If `null`\, the function returns `null`.", "Numeric expression for the exponent. If `null`\, the function returns `null`."]
 repeat        |[string, number]                    |["keyword|text", integer]                                                                                                         |[String expression., Number times to repeat.]
 replace       |[string, regex, newString]          |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[String expression., Regular expression., Replacement string.]
+reverse       |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 right         |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to returns a substring., The number of characters to return.]
 round         |[number, decimals]                  |["double|integer|long|unsigned_long", integer]                                                                                    |["The numeric value to round. If `null`\, the function returns `null`.", "The number of decimal places to round to. Defaults to 0. If `null`\, the function returns `null`."]
 rtrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
@@ -333,6 +335,7 @@ pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference
 pow           |Returns the value of `base` raised to the power of `exponent`.
 repeat        |Returns a string constructed by concatenating `string` with itself the specified `number` of times.
 replace       |The function substitutes in the string `str` any match of the regular expression `regex` with the replacement string `newStr`.
+reverse       |Returns a new string representing the input string in reverse order.
 right         |Return the substring that extracts 'length' chars from 'str' starting from the right.
 round         |Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer. If the precision is a negative number, rounds to the number of digits left of the decimal point.
 rtrim         |Removes trailing whitespaces from a string.
@@ -467,6 +470,7 @@ pi            |double                                                           
 pow           |double                                                                                                                      |[false, false]              |false           |false
 repeat        |keyword                                                                                                                     |[false, false]              |false           |false
 replace       |keyword                                                                                                                     |[false, false, false]       |false           |false
+reverse       |"keyword|text"                                                                                                              |false                       |false           |false
 right         |keyword                                                                                                                     |[false, false]              |false           |false
 round         |"double|integer|long|unsigned_long"                                                                                         |[false, true]               |false           |false
 rtrim         |"keyword|text"                                                                                                              |false                       |false           |false
@@ -544,5 +548,5 @@ required_capability: meta
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-121    | 121    | 121
+122    | 122    | 122
 ;

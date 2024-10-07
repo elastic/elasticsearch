@@ -2,4 +2,5 @@ pr: 114227
 summary: Ignore conflicting fields during dynamic mapping update
 area: Mapping
 type: bug
-issues: []
+issues:
+ - 114228

@@ -23,7 +23,6 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -39,6 +38,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.nio.file.NoSuchFileException;
+
+import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
 
 public class IndexShardCacheWarmer {
 
@@ -61,11 +62,9 @@ public class IndexShardCacheWarmer {
     /**
      * Schedule the pre-warming of a stateless index shard
      *
-     * @param description A description of the warming being performed, will appear in log messages
      * @param indexShard The shard to warm
-     * @param listener Completed with true when warming was started, false when no commit was discovered or the shard store was closed
      */
-    public void preWarmIndexShardCache(String description, IndexShard indexShard, ActionListener<Boolean> listener) {
+    public void preWarmIndexShardCache(IndexShard indexShard) {
         final IndexShardState currentState = indexShard.state(); // single volatile read
         if (currentState == IndexShardState.CLOSED) {
             throw new IndexShardNotRecoveringException(indexShard.shardId(), currentState);
@@ -75,20 +74,13 @@ public class IndexShardCacheWarmer {
         assert indexShard.routingEntry().isSearchable() == false && indexShard.routingEntry().isPromotableToPrimary()
             : "only stateless ingestion shards are supported";
         assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER : "Only peer recoveries are supported";
-        threadPool.generic().execute(() -> doPreWarmIndexShardCache(description, indexShard, listener.delegateResponse((delegate, e) -> {
-            logger.log(
-                e instanceof FileNotFoundException || e instanceof NoSuchFileException ? Level.DEBUG : Level.INFO,
-                () -> Strings.format("%s %s cache prewarming failed", indexShard.shardId(), description),
-                e
-            );
-            delegate.onFailure(e);
-        })));
+        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard));
     }
 
-    private void doPreWarmIndexShardCache(String description, IndexShard indexShard, ActionListener<Boolean> listener) {
+    private void doPreWarmIndexShardCache(IndexShard indexShard) {
         final Store store = indexShard.store();
         if (store.tryIncRef()) {
-            ActionListener.completeWith(ActionListener.runBefore(listener, store::decRef), () -> {
+            try {
                 final var blobStore = objectStoreService.blobStore();
                 final ShardId shardId = indexShard.shardId();
                 final var shardBasePath = objectStoreService.shardBasePath(shardId);
@@ -110,13 +102,17 @@ public class IndexShardCacheWarmer {
                     preWarmingBlobStoreCacheDirectory.setBlobContainer(
                         primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)))
                     );
-                    warmingService.warmCacheForShardRecovery(description, indexShard, last, preWarmingBlobStoreCacheDirectory);
-                    return true;
+                    warmingService.warmCacheForShardRecovery(INDEXING_EARLY, indexShard, last, preWarmingBlobStoreCacheDirectory);
                 }
-                return false;
-            });
-        } else {
-            listener.onResponse(false);
+            } catch (Exception e) {
+                logger.log(
+                    e instanceof FileNotFoundException || e instanceof NoSuchFileException ? Level.DEBUG : Level.INFO,
+                    () -> Strings.format("%s early indexing cache prewarming failed", indexShard.shardId()),
+                    e
+                );
+            } finally {
+                store.decRef();
+            }
         }
     }
 }

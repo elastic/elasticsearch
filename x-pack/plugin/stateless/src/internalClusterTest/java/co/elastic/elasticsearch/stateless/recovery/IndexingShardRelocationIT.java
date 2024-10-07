@@ -1051,7 +1051,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
             return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings) {
                 @Override
                 protected void warmCache(
-                    String description,
+                    Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,

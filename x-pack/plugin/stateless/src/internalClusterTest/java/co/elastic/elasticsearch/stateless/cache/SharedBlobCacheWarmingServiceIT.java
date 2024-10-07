@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -84,9 +85,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
     private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofBytes(4L * PAGE_SIZE);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
-    private static final String SEARCH_WARMING_DESCRIPTION = "search";
-    private static final String INDEXING_EARLY_WARMING_DESCRIPTION = "indexing early";
-    private static final String INDEXING_WARMING_DESCRIPTION = "indexing";
 
     @Override
     protected Settings.Builder nodeSettings() {
@@ -184,7 +182,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var indexNodeB = startIndexNode(cacheSettings);
         ensureStableCluster(3);
 
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNodeB, INDEXING_WARMING_DESCRIPTION);
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNodeB, Type.INDEXING);
 
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin()
@@ -214,8 +212,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
         },
             SharedBlobCacheWarmingService.class,
-            expectCacheWarmingCompleteEvent(INDEXING_EARLY_WARMING_DESCRIPTION),
-            expectCacheWarmingCompleteEvent(INDEXING_WARMING_DESCRIPTION)
+            expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
+            expectCacheWarmingCompleteEvent(Type.INDEXING)
         );
     }
 
@@ -261,7 +259,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         );
 
         PlainActionFuture<CompletedWarmingDetails> earlyWarmingIsComplete = new PlainActionFuture<>();
-        runOnWarmingComplete(indexNodeB, INDEXING_EARLY_WARMING_DESCRIPTION, earlyWarmingIsComplete);
+        runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, earlyWarmingIsComplete);
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin()
                 .cluster()
@@ -299,8 +297,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
         },
             SharedBlobCacheWarmingService.class,
-            expectCacheWarmingCompleteEvent(INDEXING_EARLY_WARMING_DESCRIPTION),
-            expectCacheWarmingCompleteEvent(INDEXING_WARMING_DESCRIPTION)
+            expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
+            expectCacheWarmingCompleteEvent(Type.INDEXING)
         );
     }
 
@@ -332,7 +330,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         ensureStableCluster(2);
 
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNode, INDEXING_WARMING_DESCRIPTION);
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNode, Type.INDEXING);
 
         assertThatLogger(() -> {
             try {
@@ -345,7 +343,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         },
             SharedBlobCacheWarmingService.class,
             // no "indexing early" warming here because it's a recovery not a relocation
-            expectCacheWarmingCompleteEvent(INDEXING_WARMING_DESCRIPTION)
+            expectCacheWarmingCompleteEvent(Type.INDEXING)
         );
     }
 
@@ -398,7 +396,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
 
         // Verify that we performed pre-warming and don't need to hit the object store on searches
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNodeA, SEARCH_WARMING_DESCRIPTION);
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNodeA, Type.SEARCH);
 
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
@@ -412,7 +410,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         ensureStableCluster(4);
 
         // The cache also gets pre-warmed when a shard gets relocated to a new node
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNodeB, SEARCH_WARMING_DESCRIPTION);
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNodeB, Type.SEARCH);
         shutdownNode(searchNodeA);
         ensureGreen(indexName);
         assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
@@ -541,7 +539,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                 }, task)
             );
 
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNode, SEARCH_WARMING_DESCRIPTION);
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNode, Type.SEARCH);
 
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
@@ -557,12 +555,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
      * An {@link org.elasticsearch.test.MockLog.SeenEventExpectation} that ensure we've seen the log message
      * indicating that the cache warming with the provided description has completed.
      */
-    private static MockLog.LoggingExpectation expectCacheWarmingCompleteEvent(String warmupDescription) {
+    private static MockLog.LoggingExpectation expectCacheWarmingCompleteEvent(Type type) {
         return new MockLog.SeenEventExpectation(
-            Strings.format("notifies that %s warming completed", warmupDescription),
+            Strings.format("notifies that %s warming completed", type),
             SharedBlobCacheWarmingService.class.getCanonicalName(),
             Level.DEBUG,
-            Strings.format("* %s warming completed in *", warmupDescription)
+            Strings.format("* %s warming completed in *", type)
         );
     }
 
@@ -594,9 +592,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
     private void blockAccessToGenerationBeforePostHandoffPreWarmingStarts(String node, long generationToBlock) {
         final var mockRepositoryB = getObjectStoreMockRepository(getObjectStoreService(node));
-        getSharedBlobCacheWarmingService(node).addBeforeWarmingStartsListener(warmingDescription -> {
+        getSharedBlobCacheWarmingService(node).addBeforeWarmingStartsListener(warmingType -> {
             logger.info("Disabling object store access to generation {}", generationToBlock);
-            if (INDEXING_WARMING_DESCRIPTION.equals(warmingDescription)) {
+            if (Type.INDEXING == warmingType) {
                 mockRepositoryB.setRandomControlIOExceptionRate(1.0);
                 mockRepositoryB.setRandomDataFileIOExceptionRate(1.0);
                 mockRepositoryB.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -607,11 +605,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         });
     }
 
-    private void failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(String indexName, String node, String warmingDescription) {
+    private void failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(String indexName, String node, Type type) {
         final long generationToBlock = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
         final var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node));
         final var transportService = MockTransportService.getInstance(node);
-        runOnWarmingComplete(node, warmingDescription, ActionListener.running(() -> {
+        runOnWarmingComplete(node, type, ActionListener.running(() -> {
             logger.info("--> fail object store repository after warming");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
@@ -626,10 +624,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         }));
     }
 
-    private static void runOnWarmingComplete(String node, String warmingDescription, ActionListener<CompletedWarmingDetails> listener) {
+    private static void runOnWarmingComplete(String node, Type type, ActionListener<CompletedWarmingDetails> listener) {
         final var warmingService = getSharedBlobCacheWarmingService(node);
         warmingService.addWarmingCompletedListener(listener.delegateFailure((l, results) -> {
-            if (warmingDescription.equals(results.description())) {
+            if (type.equals(results.type())) {
                 l.onResponse(results);
             }
         }));
@@ -662,17 +660,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
     /**
      * The details of the warming that just completed
-     *
-     * @param description The warming description
-     * @param commit The commit up-to-which the warming was performed
      */
-    private record CompletedWarmingDetails(String description, StatelessCompoundCommit commit) {}
+    private record CompletedWarmingDetails(Type type, StatelessCompoundCommit commit) {}
 
     private static class BlockingSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {
 
         private final CopyOnWriteArrayList<ActionListener<CompletedWarmingDetails>> warmingCompletedListeners =
             new CopyOnWriteArrayList<>();
-        private final CopyOnWriteArrayList<Consumer<String>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
 
         BlockingSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
@@ -686,7 +681,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         /**
          * These aren't {@link ActionListener}s because they never fail, and are called repeatedly
          */
-        void addBeforeWarmingStartsListener(Consumer<String> actionListener) {
+        void addBeforeWarmingStartsListener(Consumer<Type> actionListener) {
             beforeWarmingStartsListeners.add(actionListener);
         }
 
@@ -696,23 +691,23 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         @Override
         protected void warmCache(
-            String description,
+            Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
             var wrappedListener = new SubscribableListener<Void>();
-            CompletedWarmingDetails results = new CompletedWarmingDetails(description, commit);
+            CompletedWarmingDetails results = new CompletedWarmingDetails(type, commit);
             for (ActionListener<CompletedWarmingDetails> voidActionListener : warmingCompletedListeners) {
                 wrappedListener.addListener(voidActionListener.map(nothing -> results));
             }
             wrappedListener.addListener(listener); // completed last
             // notify beforeWarmingStartedListeners
-            for (Consumer<String> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
-                beforeWarmingStartsListener.accept(description);
+            for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
+                beforeWarmingStartsListener.accept(type);
             }
-            super.warmCache(description, indexShard, commit, directory, wrappedListener);
+            super.warmCache(type, indexShard, commit, directory, wrappedListener);
             safeAwait(wrappedListener);
         }
     }

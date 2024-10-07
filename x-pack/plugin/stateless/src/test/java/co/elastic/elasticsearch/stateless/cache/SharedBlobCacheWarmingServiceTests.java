@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -65,6 +66,7 @@ import java.util.concurrent.Executor;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
+import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -304,7 +306,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // re-populate cache and fill holes
             PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
             fakeNode.warmingService.warmCache(
-                "test-prewarming-1",
+                INDEXING,
                 indexShard,
                 frozenBcc.lastCompoundCommit(),
                 fakeNode.searchDirectory,
@@ -355,7 +357,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 // Warm the cache and verify the range is fetched with minimization as expected
                 final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 node.warmingService.warmCache(
-                    randomAlphaOfLength(10),
+                    randomFrom(Type.values()),
                     indexShard,
                     commit,
                     node.indexingDirectory.getBlobStoreCacheDirectory(),
@@ -413,7 +415,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // Warm the cache and verify the range is fetched with minimization as expected
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             node.warmingService.warmCache(
-                randomAlphaOfLength(10),
+                randomFrom(Type.values()),
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),

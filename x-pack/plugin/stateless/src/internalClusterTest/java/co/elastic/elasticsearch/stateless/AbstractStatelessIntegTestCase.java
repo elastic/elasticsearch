@@ -196,7 +196,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
         @Override
         protected void warmCache(
-            String description,
+            Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,

@@ -76,6 +76,7 @@ final class IpDataLookupFactories {
         return database;
     }
 
+    @Nullable
     static Function<Set<Database.Property>, IpDataLookup> getMaxmindLookup(final Database database) {
         return switch (database) {
             case City -> MaxmindIpDataLookups.City::new;
@@ -86,6 +87,7 @@ final class IpDataLookupFactories {
             case Domain -> MaxmindIpDataLookups.Domain::new;
             case Enterprise -> MaxmindIpDataLookups.Enterprise::new;
             case Isp -> MaxmindIpDataLookups.Isp::new;
+            default -> null;
         };
     }
 
@@ -97,7 +99,6 @@ final class IpDataLookupFactories {
 
         final Function<Set<Database.Property>, IpDataLookup> factoryMethod = getMaxmindLookup(database);
 
-        // note: this can't presently be null, but keep this check -- it will be useful in the near future
         if (factoryMethod == null) {
             throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
         }

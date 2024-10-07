@@ -22,6 +22,10 @@ import java.util.Set;
  * <p>
  * A database has a set of properties that are valid to use with it (see {@link Database#properties()}),
  * as well as a list of default properties to use if no properties are specified (see {@link Database#defaultProperties()}).
+ * <p>
+ * Some database providers have similar concepts but might have slightly different properties associated with those types.
+ * This can be accommodated, for example, by having a Foo value and a separate FooV2 value where the 'V' should be read as
+ * 'variant' or 'variation'. A V-less Database type is inherently the first variant/variation (i.e. V1).
  */
 enum Database {
 
@@ -36,7 +40,8 @@ enum Database {
             Property.REGION_NAME,
             Property.CITY_NAME,
             Property.TIMEZONE,
-            Property.LOCATION
+            Property.LOCATION,
+            Property.POSTAL_CODE
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -104,7 +109,8 @@ enum Database {
             Property.MOBILE_COUNTRY_CODE,
             Property.MOBILE_NETWORK_CODE,
             Property.USER_TYPE,
-            Property.CONNECTION_TYPE
+            Property.CONNECTION_TYPE,
+            Property.POSTAL_CODE
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -137,6 +143,18 @@ enum Database {
             Property.MOBILE_COUNTRY_CODE,
             Property.MOBILE_NETWORK_CODE
         )
+    ),
+    AsnV2(
+        Set.of(
+            Property.IP,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK,
+            Property.DOMAIN,
+            Property.COUNTRY_ISO_CODE,
+            Property.TYPE
+        ),
+        Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
     );
 
     private final Set<Property> properties;
@@ -211,7 +229,9 @@ enum Database {
         MOBILE_COUNTRY_CODE,
         MOBILE_NETWORK_CODE,
         CONNECTION_TYPE,
-        USER_TYPE;
+        USER_TYPE,
+        TYPE,
+        POSTAL_CODE;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

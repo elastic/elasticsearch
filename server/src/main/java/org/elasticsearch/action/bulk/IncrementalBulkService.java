@@ -194,7 +194,7 @@ public class IncrementalBulkService {
                         releasables.clear();
                         // We do not need to set this back to false as this will be the last request.
                         bulkInProgress = true;
-                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                        client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
                             private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 

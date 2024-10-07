@@ -117,6 +117,9 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         List<QueryBuilder> preFilterQueryBuilders
     ) {
         super(retrieverSource, rankWindowSize);
+        if (retrieverSource.size() != 1) {
+            throw new IllegalArgumentException("[" + getName() + "] retriever should have exactly one inner retriever");
+        }
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
@@ -127,7 +130,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
 
     @Override
     protected TextSimilarityRankRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
-        assert newChildRetrievers.size() == 1;
         return new TextSimilarityRankRetrieverBuilder(
             newChildRetrievers,
             inferenceId,

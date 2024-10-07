@@ -70,7 +70,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         ensureGreen(INDEX_NAME);
     }
 
-    public void testTelemetryForRRFRetriever() throws IOException {
+    public void testTelemetryForRetrievers() throws IOException {
 
         if (false == isRetrieverTelemetryEnabled()) {
             return;
@@ -143,11 +143,11 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
             assertThat(stats.getSectionsUsage().get("query"), equalTo(1L));
             assertThat(stats.getSectionsUsage().get("knn"), equalTo(1L));
 
-            assertThat(stats.getRetrieversUsage().size(), equalTo(3));
+            assertThat(stats.getRetrieversUsage().size(), equalTo(2));
             assertThat(stats.getRetrieversUsage().get("standard"), equalTo(3L));
             assertThat(stats.getRetrieversUsage().get("knn"), equalTo(1L));
 
-            assertThat(stats.getQueryUsage().size(), equalTo(5));
+            assertThat(stats.getQueryUsage().size(), equalTo(4));
             assertThat(stats.getQueryUsage().get("range"), equalTo(1L));
             assertThat(stats.getQueryUsage().get("term"), equalTo(1L));
             assertThat(stats.getQueryUsage().get("match_all"), equalTo(1L));

@@ -29,6 +29,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -81,7 +82,9 @@ public class CsvTestsDataLoader {
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
     private static final TestsDataset BOOKS = new TestsDataset("books");
-    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text");
+    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withRequiredCapability(
+        EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE
+    );
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -238,9 +241,14 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadDataSetIntoEs(RestClient client, Logger logger, IndexCreator indexCreator) throws IOException {
-        createInferenceEndpoint(client);
+        if (hasCapability(client, EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE)) {
+            createInferenceEndpoint(client);
+        }
 
         for (var dataset : CSV_DATASET_MAP.values()) {
+            if (dataset.requiredCapability != null && hasCapability(client, dataset.requiredCapability) == false) {
+                continue;
+            }
             load(client, dataset, logger, indexCreator);
         }
         forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
@@ -263,6 +271,11 @@ public class CsvTestsDataLoader {
                  }
             """);
         client.performRequest(request);
+    }
+
+    private static boolean hasCapability(RestClient client, EsqlCapabilities.Cap capability) throws IOException {
+        return ESRestTestCase.clusterHasCapability(client, "POST", "/_query", List.of(), List.of(capability.capabilityName()))
+            .orElse(false);
     }
 
     private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
@@ -531,34 +544,71 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        Map<String, String> typeMapping
+        Map<String, String> typeMapping,
+        EsqlCapabilities.Cap requiredCapability
     ) {
         public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null);
+            this(indexName, mappingFileName, dataFileName, null, true, null, null);
         }
 
         public TestsDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null);
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null);
         }
 
         public TestsDataset withIndex(String indexName) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiredCapability
+            );
         }
 
         public TestsDataset withData(String dataFileName) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiredCapability
+            );
         }
 
         public TestsDataset withSetting(String settingFileName) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiredCapability
+            );
         }
 
         public TestsDataset noSubfields() {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, false, typeMapping);
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, false, typeMapping, requiredCapability);
         }
 
         public TestsDataset withTypeMapping(Map<String, String> typeMapping) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiredCapability
+            );
+        }
+
+        public TestsDataset withRequiredCapability(EsqlCapabilities.Cap capability) {
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, capability);
         }
     }
 

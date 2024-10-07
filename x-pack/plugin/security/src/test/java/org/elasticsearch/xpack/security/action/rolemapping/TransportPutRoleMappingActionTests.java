@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -33,12 +35,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportPutRoleMappingActionTests extends ESTestCase {
 
     private NativeRoleMappingStore store;
+    private ClusterStateRoleMapper clusterStateRoleMapper;
     private TransportPutRoleMappingAction action;
     private AtomicReference<PutRoleMappingRequest> requestRef;
 
@@ -46,6 +51,9 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
+        clusterStateRoleMapper = mock(ClusterStateRoleMapper.class);
+        when(clusterStateRoleMapper.getMappings(anySet())).thenReturn(Set.of());
+        when(clusterStateRoleMapper.hasMapping(any())).thenReturn(false);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -55,7 +63,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store);
+        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store, clusterStateRoleMapper);
 
         requestRef = new AtomicReference<>(null);
 
@@ -83,6 +91,19 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         assertThat(mapping.getRoles(), contains("superuser"));
         assertThat(mapping.getMetadata(), aMapWithSize(1));
         assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
+    }
+
+    public void testPutMappingWithInvalidName() {
+        final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> put("anarchy (read only)", expression, "superuser", Collections.singletonMap("dumb", true))
+        );
+
+        assertThat(
+            illegalArgumentException.getMessage(),
+            equalTo("Invalid mapping name [anarchy (read only)]. [(read only)] is not an allowed suffix")
+        );
     }
 
     private PutRoleMappingResponse put(String name, FieldExpression expression, String role, Map<String, Object> metadata)

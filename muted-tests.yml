@@ -377,6 +377,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220
+- class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
+  method: testInfer_StreamRequest
+  issue: https://github.com/elastic/elasticsearch/issues/114232
 
 # Examples:
 #

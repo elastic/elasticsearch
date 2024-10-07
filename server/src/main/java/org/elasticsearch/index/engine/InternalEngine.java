@@ -248,11 +248,11 @@ public class InternalEngine extends Engine {
         Translog translog = null;
         ExternalReaderManager externalReaderManager = null;
         ElasticsearchReaderManager internalReaderManager = null;
-        EngineMergeScheduler scheduler = null;
+        ElasticsearchConcurrentMergeScheduler scheduler = null;
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            mergeScheduler = scheduler = createMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
@@ -2815,6 +2815,10 @@ public class InternalEngine extends Engine {
 
     LiveIndexWriterConfig getCurrentIndexWriterConfig() {
         return indexWriter.getConfig();
+    }
+
+    protected ElasticsearchConcurrentMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+        return new EngineMergeScheduler(shardId, indexSettings);
     }
 
     private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {

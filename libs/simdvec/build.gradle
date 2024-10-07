@@ -7,6 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
@@ -31,7 +32,7 @@ tasks.named("compileMain21Java").configure {
 }
 
 test {
-  if (JavaVersion.current().majorVersion.toInteger() >= 21) {
+  if (BuildParams.getRuntimeJavaVersion().majorVersion.toInteger() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector'
   }
 }

@@ -450,6 +450,12 @@ final class MaxmindIpDataLookups {
                             data.put("postal_code", postal.getCode());
                         }
                     }
+                    case POSTAL_CONFIDENCE -> {
+                        Integer postalConfidence = postal.getConfidence();
+                        if (postalConfidence != null) {
+                            data.put("postal_confidence", postalConfidence);
+                        }
+                    }
                     case ASN -> {
                         if (asn != null) {
                             data.put("asn", asn);

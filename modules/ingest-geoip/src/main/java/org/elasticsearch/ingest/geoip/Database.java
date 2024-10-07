@@ -114,6 +114,7 @@ enum Database {
             Property.USER_TYPE,
             Property.CONNECTION_TYPE,
             Property.POSTAL_CODE,
+            Property.POSTAL_CONFIDENCE,
             Property.ACCURACY_RADIUS
         ),
         Set.of(
@@ -238,6 +239,7 @@ enum Database {
         USER_TYPE,
         TYPE,
         POSTAL_CODE,
+        POSTAL_CONFIDENCE,
         ACCURACY_RADIUS;
 
         /**

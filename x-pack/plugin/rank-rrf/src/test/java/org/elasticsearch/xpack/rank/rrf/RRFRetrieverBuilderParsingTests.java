@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RRFRetrieverBuilder> {
 
@@ -118,7 +119,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
         try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
             SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
-            assertThat(source.retriever(), CoreMatchers.instanceOf(RRFRetrieverBuilder.class));
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
             RRFRetrieverBuilder parsed = (RRFRetrieverBuilder) source.retriever();
             assertThat(parsed.minScore(), equalTo(20f));
             assertThat(parsed.retrieverName(), equalTo("foo_rrf"));
@@ -129,7 +130,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
                     searchUsageHolder,
                     nf -> true
                 );
-                assertThat(deserializedSource.retriever(), CoreMatchers.instanceOf(RRFRetrieverBuilder.class));
+                assertThat(deserializedSource.retriever(), instanceOf(RRFRetrieverBuilder.class));
                 RRFRetrieverBuilder deserialized = (RRFRetrieverBuilder) source.retriever();
                 assertThat(parsed, equalTo(deserialized));
             }

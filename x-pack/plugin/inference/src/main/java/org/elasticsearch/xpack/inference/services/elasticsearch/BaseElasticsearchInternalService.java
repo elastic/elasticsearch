@@ -248,15 +248,14 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         InferenceConfigUpdate update,
         List<String> inputs,
         InputType inputType,
-        TimeValue timeout,
-        boolean chunk
+        TimeValue timeout
     ) {
         var request = InferModelAction.Request.forTextInput(id, update, inputs, true, timeout);
         request.setPrefixType(
             InputType.SEARCH == inputType ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST
         );
         request.setHighPriority(InputType.SEARCH == inputType);
-        request.setChunked(chunk);
+        request.setChunked(false);
         return request;
     }
 

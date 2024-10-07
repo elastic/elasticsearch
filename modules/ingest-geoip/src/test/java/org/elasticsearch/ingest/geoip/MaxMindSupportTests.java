@@ -84,7 +84,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "location.longitude",
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
-        "mostSpecificSubdivision.name"
+        "mostSpecificSubdivision.name",
+        "postal.code"
     );
     private static final Set<String> CITY_UNSUPPORTED_FIELDS = Set.of(
         "city.confidence",
@@ -109,7 +110,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.confidence",
         "mostSpecificSubdivision.geoNameId",
         "mostSpecificSubdivision.names",
-        "postal.code",
         "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
@@ -223,6 +223,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
         "mostSpecificSubdivision.name",
+        "postal.code",
         "traits.anonymous",
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
@@ -263,7 +264,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.confidence",
         "mostSpecificSubdivision.geoNameId",
         "mostSpecificSubdivision.names",
-        "postal.code",
         "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
@@ -361,8 +361,14 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(IpRiskResponse.class);
 
+    private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(Database.AsnV2);
+
     public void testMaxMindSupport() {
         for (Database databaseType : Database.values()) {
+            if (KNOWN_UNSUPPORTED_DATABASE_VARIANTS.contains(databaseType)) {
+                continue;
+            }
+
             Class<? extends AbstractResponse> maxMindClass = TYPE_TO_MAX_MIND_CLASS.get(databaseType);
             Set<String> supportedFields = TYPE_TO_SUPPORTED_FIELDS_MAP.get(databaseType);
             Set<String> unsupportedFields = TYPE_TO_UNSUPPORTED_FIELDS_MAP.get(databaseType);

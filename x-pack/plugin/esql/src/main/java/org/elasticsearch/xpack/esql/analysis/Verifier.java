@@ -203,7 +203,7 @@ public class Verifier {
 
     private static void checkNoScoreManipulation(LogicalPlan p, Set<Failure> failures) {
         // _score can only be set as metadata attribute
-        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && !(a instanceof MetadataAttribute))) {
+        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
             failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
         }
     }

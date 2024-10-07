@@ -354,6 +354,29 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGet
   issue: https://github.com/elastic/elasticsearch/issues/114135
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testIncrementalBulkHighWatermarkBackOff
+  issue: https://github.com/elastic/elasticsearch/issues/114073
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
+  method: "testFold {TestCase=<double> #7}"
+  issue: https://github.com/elastic/elasticsearch/issues/114175
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testMultipleBulkPartsWithBackoff
+  issue: https://github.com/elastic/elasticsearch/issues/114181
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testIncrementalBulkLowWatermarkBackOff
+  issue: https://github.com/elastic/elasticsearch/issues/114182
+- class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
+  method: test {yaml=aggregations/stats_metric_fail_formatting/fail formatting}
+  issue: https://github.com/elastic/elasticsearch/issues/114187
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  issue: https://github.com/elastic/elasticsearch/issues/114194
+- class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
+  method: testStepInfoPreservedOnAutoRetry
+  issue: https://github.com/elastic/elasticsearch/issues/114220
+- class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
+  method: testInfer_StreamRequest
+  issue: https://github.com/elastic/elasticsearch/issues/114232
 
 # Examples:
 #

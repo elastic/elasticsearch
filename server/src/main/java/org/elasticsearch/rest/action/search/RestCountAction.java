@@ -28,6 +28,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -81,6 +82,10 @@ public class RestCountAction extends BaseRestHandler {
         float minScore = request.paramAsFloat("min_score", -1f);
         if (minScore != -1f) {
             searchSourceBuilder.minScore(minScore);
+        }
+        String sStats = request.param("stats");
+        if(sStats != null){
+            searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
         }
 
         countRequest.preference(request.param("preference"));

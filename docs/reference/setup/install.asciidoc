@@ -77,16 +77,17 @@ Docker container images may be downloaded from the Elastic Docker Registry.
 === Java (JVM) Version
 
 {es} is built using Java, and includes a bundled version of https://openjdk.java.net[OpenJDK] within each distribution. We strongly
-recommend using the bundled JVM in all cases. The bundled JVM is treated as an integral part of {es} in terms of support and maintenance.
-This means that Elastic takes responsibility for keeping it up to date, and reacts to security issues and bugs within the bundled JVM just
-as if they were within {es} itself. Elastic's support of the bundled JVM is subject to Elastic's
-https://www.elastic.co/support_policy[support policy] and https://www.elastic.co/support/eol[end-of-life schedule] and is independent of the
-support policy and end-of-life schedule offered by the original supplier of the JVM. Elastic does not support using the bundled JVM for
-purposes other than running {es}.
+recommend using the bundled JVM in all installations of {es}.
+
+The bundled JVM is treated the same as any other dependency of {es} in terms of support and maintenance. This means that Elastic takes
+responsibility for keeping it up to date, and reacts to security issues and bug reports as needed to address vulnerabilities and other bugs
+in {es}. Elastic's support of the bundled JVM is subject to Elastic's https://www.elastic.co/support_policy[support policy] and
+https://www.elastic.co/support/eol[end-of-life schedule] and is independent of the support policy and end-of-life schedule offered by the
+original supplier of the JVM. Elastic does not support using the bundled JVM for purposes other than running {es}.
 
 TIP: {es} uses only a subset of the features offered by the JVM. Bugs and security issues in the bundled JVM often relate to features that
-{es} does not use. Such issues do not apply to {es}. If a security issue in the bundled JVM results in a vulnerability in {es} then it will
-be described in an https://discuss.elastic.co/c/announcements/security-announcements/31[Elastic Security Announcement].
+{es} does not use. Such issues do not apply to {es}. Elastic analyzes reports of security vulnerabilities in all its dependencies, including
+in the bundled JVM, and will issue an https://www.elastic.co/community/security[Elastic Security Advisory] if such an advisory is needed.
 
 If you decide to run {es} using a version of Java that is different from the bundled one, prefer to use the latest release of a
 https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java] which is link:/support/matrix[listed in the support matrix].

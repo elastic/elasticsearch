@@ -369,6 +369,17 @@ tests:
 - class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
   method: test {yaml=aggregations/stats_metric_fail_formatting/fail formatting}
   issue: https://github.com/elastic/elasticsearch/issues/114187
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  issue: https://github.com/elastic/elasticsearch/issues/114194
+- class: org.elasticsearch.index.query.SpanGapQueryBuilderTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/114218
+- class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
+  method: testStepInfoPreservedOnAutoRetry
+  issue: https://github.com/elastic/elasticsearch/issues/114220
+- class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
+  method: testInfer_StreamRequest
+  issue: https://github.com/elastic/elasticsearch/issues/114232
 
 # Examples:
 #

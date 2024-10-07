@@ -160,14 +160,14 @@ final class H3Index {
      * Gets the resolution res integer digit (0-7) of h3.
      */
     public static int H3_get_index_digit(long h3, int res) {
-        return ((int) ((((h3) >> ((Constants.MAX_H3_RES - (res)) * H3_PER_DIGIT_OFFSET)) & H3_DIGIT_MASK)));
+        return ((int) ((((h3) >> ((H3.MAX_H3_RES - (res)) * H3_PER_DIGIT_OFFSET)) & H3_DIGIT_MASK)));
     }
 
     /**
      * Sets the resolution res digit of h3 to the integer digit (0-7)
      */
     public static long H3_set_index_digit(long h3, int res, long digit) {
-        int x = (Constants.MAX_H3_RES - res) * H3_PER_DIGIT_OFFSET;
+        int x = (H3.MAX_H3_RES - res) * H3_PER_DIGIT_OFFSET;
         return (((h3) & ~((H3_DIGIT_MASK << (x)))) | (((digit)) << x));
     }
 

@@ -259,7 +259,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         return request;
     }
 
-    protected abstract boolean isDefaultId(String inferenceId);
+    abstract boolean isDefaultId(String inferenceId);
 
     protected void maybeStartDeployment(
         ElasticsearchInternalModel model,

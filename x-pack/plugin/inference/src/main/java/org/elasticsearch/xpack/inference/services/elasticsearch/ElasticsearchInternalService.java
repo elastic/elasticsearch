@@ -78,6 +78,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     public static final int EMBEDDING_MAX_BATCH_SIZE = 10;
     public static final String DEFAULT_ELSER_ID = ".elser-2";
+    public static final String DEFAULT_E5_ID = ".default-multilingual-e5-small"; // TODO what to name this
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
@@ -815,6 +816,26 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             )
         );
 
+        // TODO Chunking settings
+        Map<String, Object> e5Settings = Map.of(
+            ModelConfigurations.SERVICE_SETTINGS,
+            Map.of(
+                ElasticsearchInternalServiceSettings.MODEL_ID,
+                MULTILINGUAL_E5_SMALL_MODEL_ID,  // TODO pick model depending on platform
+                ElasticsearchInternalServiceSettings.NUM_THREADS,
+                1,
+                ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS,
+                Map.of(
+                    "enabled",
+                    Boolean.TRUE,
+                    "min_number_of_allocations",
+                    1,
+                    "max_number_of_allocations",
+                    8   // no max?
+                )
+            )
+        );
+
         return List.of(
             new UnparsedModel(
                 DEFAULT_ELSER_ID,
@@ -822,13 +843,20 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 NAME,
                 elserSettings,
                 Map.of() // no secrets
+            ),
+            new UnparsedModel(
+                DEFAULT_E5_ID,
+                TaskType.TEXT_EMBEDDING,
+                NAME,
+                e5Settings,
+                Map.of() // no secrets
             )
         );
     }
 
     @Override
-    protected boolean isDefaultId(String inferenceId) {
-        return DEFAULT_ELSER_ID.equals(inferenceId);
+    boolean isDefaultId(String inferenceId) {
+        return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId);
     }
 
     static EmbeddingRequestChunker.EmbeddingType embeddingTypeFromTaskTypeAndSettings(

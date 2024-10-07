@@ -45,7 +45,7 @@ class CohereStreamingProcessor extends DelegatingProcessor<Deque<String>, Stream
                     case "stream-end" -> validateResponse(responseMap);
                     case "stream-start", "search-queries-generation", "search-results", "citation-generation", "tool-calls-generation",
                         "tool-calls-chunk" -> {
-                        // skip
+                        log.debug("Skipping event type [{}] for line [{}].", eventType, item);
                     }
                     default -> throw new IOException("Unknown eventType found: " + eventType);
                 }

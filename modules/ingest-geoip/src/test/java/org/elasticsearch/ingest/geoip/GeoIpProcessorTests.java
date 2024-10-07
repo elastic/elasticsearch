@@ -106,7 +106,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(7));
+        assertThat(geoData.size(), equalTo(8));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
@@ -222,7 +222,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(11));
+        assertThat(geoData.size(), equalTo(12));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
@@ -233,6 +233,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("city_name"), equalTo("Homestead"));
         assertThat(geoData.get("timezone"), equalTo("America/New_York"));
         assertThat(geoData.get("location"), equalTo(Map.of("lat", 25.4573d, "lon", -80.4572d)));
+        assertThat(geoData.get("accuracy_radius"), equalTo(50));
         assertThat(geoData.get("postal_code"), equalTo("33035"));
     }
 
@@ -471,7 +472,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(25));
+        assertThat(geoData.size(), equalTo(26));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
@@ -482,6 +483,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("city_name"), equalTo("Chatham"));
         assertThat(geoData.get("timezone"), equalTo("America/New_York"));
         assertThat(geoData.get("location"), equalTo(Map.of("lat", 42.3478, "lon", -73.5549)));
+        assertThat(geoData.get("accuracy_radius"), equalTo(27));
         assertThat(geoData.get("postal_code"), equalTo("12037"));
         assertThat(geoData.get("asn"), equalTo(14671L));
         assertThat(geoData.get("organization_name"), equalTo("FairPoint Communications"));

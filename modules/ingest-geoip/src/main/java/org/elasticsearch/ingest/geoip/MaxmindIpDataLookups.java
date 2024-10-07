@@ -208,6 +208,12 @@ final class MaxmindIpDataLookups {
                             data.put("location", locationObject);
                         }
                     }
+                    case ACCURACY_RADIUS -> {
+                        Integer accuracyRadius = location.getAccuracyRadius();
+                        if (accuracyRadius != null) {
+                            data.put("accuracy_radius", accuracyRadius);
+                        }
+                    }
                     case POSTAL_CODE -> {
                         if (postal != null && postal.getCode() != null) {
                             data.put("postal_code", postal.getCode());
@@ -419,6 +425,12 @@ final class MaxmindIpDataLookups {
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);
+                        }
+                    }
+                    case ACCURACY_RADIUS -> {
+                        Integer accuracyRadius = location.getAccuracyRadius();
+                        if (accuracyRadius != null) {
+                            data.put("accuracy_radius", accuracyRadius);
                         }
                     }
                     case POSTAL_CODE -> {

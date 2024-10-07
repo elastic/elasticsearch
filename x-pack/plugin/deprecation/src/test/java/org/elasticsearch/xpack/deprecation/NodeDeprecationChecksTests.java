@@ -211,33 +211,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
-    public void testSingleDataNodeWatermarkSetting() {
-        Settings settings = Settings.builder().put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true).build();
-
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
-            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
-        );
-
-        final String expectedUrl = "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/"
-            + "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        assertThat(
-            issues,
-            hasItem(
-                new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] is deprecated and"
-                        + " will not be available in a future version",
-                    expectedUrl,
-                    "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured."
-                        + " Discontinue use of this setting.",
-                    false,
-                    null
-                )
-            )
-        );
-    }
-
     void monitoringSetting(String settingKey, String value) {
         Settings settings = Settings.builder().put(settingKey, value).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(

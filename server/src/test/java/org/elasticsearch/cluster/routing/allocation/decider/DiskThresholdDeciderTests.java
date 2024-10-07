@@ -45,8 +45,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
@@ -1070,9 +1068,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                     ByteSizeValue.ofGb(110).toString()
                 );
         }
-        if (randomBoolean()) {
-            builder = builder.put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true);
-        }
         Settings diskSettings = builder.build();
 
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
@@ -1151,10 +1146,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         + "on node, actual free: [20b], actual used: [80%]"
             )
         );
-
-        if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(diskSettings)) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[] { DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE });
-        }
     }
 
     public void testWatermarksEnabledForSingleDataNodeWithPercentages() {
@@ -1163,25 +1154,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testWatermarksEnabledForSingleDataNodeWithMaxHeadroom() {
         doTestWatermarksEnabledForSingleDataNode(true);
-    }
-
-    public void testSingleDataNodeDeprecationWarning() {
-        Settings settings = Settings.builder().put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false).build();
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-        );
-
-        assertThat(
-            e.getCause().getMessage(),
-            equalTo(
-                "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is not allowed,"
-                    + " only true is valid"
-            )
-        );
-
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE });
     }
 
     private void doTestDiskThresholdWithSnapshotShardSizes(boolean testMaxHeadroom) {

@@ -411,6 +411,12 @@ final class MaxmindIpDataLookups {
                             data.put("region_name", subdivisionName);
                         }
                     }
+                    case CITY_CONFIDENCE -> {
+                        Integer cityConfidence = city.getConfidence();
+                        if (cityConfidence != null) {
+                            data.put("city_confidence", cityConfidence);
+                        }
+                    }
                     case CITY_NAME -> {
                         String cityName = city.getName();
                         if (cityName != null) {

@@ -213,6 +213,7 @@ public class MaxMindSupportTests extends ESTestCase {
     private static final Set<String> DOMAIN_UNSUPPORTED_FIELDS = Set.of("ipAddress", "network");
 
     private static final Set<String> ENTERPRISE_SUPPORTED_FIELDS = Set.of(
+        "city.confidence",
         "city.name",
         "continent.code",
         "continent.name",
@@ -244,7 +245,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.userType"
     );
     private static final Set<String> ENTERPRISE_UNSUPPORTED_FIELDS = Set.of(
-        "city.confidence",
         "city.geoNameId",
         "city.names",
         "continent.geoNameId",

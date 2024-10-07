@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -46,7 +45,6 @@ import java.util.stream.Stream;
  */
 public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature IGNORED_SOURCE_ONLY_IF_REQUESTED = new NodeFeature("mapper.ignored_source.only_if_requested");
-    private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder().withoutPadding();
     private final IndexSettings indexSettings;
 
     // This factor is used to combine two offsets within the same integer:
@@ -91,7 +89,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      *  - the value, encoded as a byte array
      */
     public record NameValue(String name, int parentOffset, BytesRef value, LuceneDocument doc) {
-
         /**
          * Factory method, for use with fields under the parent object. It doesn't apply to objects at root level.
          * @param context the parser context, containing a non-null parent
@@ -319,17 +316,4 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         );
         return IgnoredSourceFieldMapper.encode(filteredNameValue);
     }
-
-    /**
-     * Encodes the provided {@link BytesRef} into a Base64 string representation.
-     *
-     * @param value the {@link BytesRef} to be encoded. This must not be null.
-     * @return a {@link String} representing the Base64 encoded version of the bytes in the provided {@link BytesRef}.
-     *
-     * @throws NullPointerException if the provided {@link BytesRef} is null.
-     */
-    public static String base64Encode(final BytesRef value) {
-        return BASE64_ENCODER.encodeToString(value.bytes);
-    }
-
 }

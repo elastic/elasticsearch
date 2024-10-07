@@ -686,10 +686,10 @@ public class ObjectMapper extends Mapper {
         }
 
         /*
-         * We're ignoring the field if a dynamic mapping update tries to define a conflicting field type (dynamic mappings update)
+         * We're ignoring the field if a dynamic mapping update tries to define a conflicting field type.
          * This is caused by another index request with a different value racing to update the mappings.
-         * After ignoring the update the index request will be re-tried and sees the updated mappings for this field.
-         * The updated mappings will be taken into account when parsing the document
+         * After updating the mappings, the index request will be re-tried and sees the updated mappings for this field.
+         * The updated mappings will then be taken into account when parsing the document
          * (for example by coercing the value, ignore_malformed values, or failing the index request due to a type conflict).
          */
         private static boolean isConflictingDynamicMapping(

@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
@@ -64,8 +65,16 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(Sets.difference(Database.Asn.properties(), Database.Isp.properties()), is(empty()));
         assertThat(Sets.difference(Database.Asn.defaultProperties(), Database.Isp.defaultProperties()), is(empty()));
 
-        // the enterprise database is like everything joined together
-        for (Database type : Database.values()) {
+        // the enterprise database is like these other databases joined together
+        for (Database type : Set.of(
+            Database.City,
+            Database.Country,
+            Database.Asn,
+            Database.AnonymousIp,
+            Database.ConnectionType,
+            Database.Domain,
+            Database.Isp
+        )) {
             assertThat(Sets.difference(type.properties(), Database.Enterprise.properties()), is(empty()));
         }
         // but in terms of the default fields, it's like a drop-in replacement for the city database

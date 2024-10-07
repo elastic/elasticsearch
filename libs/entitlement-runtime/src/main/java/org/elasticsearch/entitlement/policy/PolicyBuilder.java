@@ -24,6 +24,10 @@ public class PolicyBuilder {
     public static ParseField NAME_PARSEFIELD = new ParseField("name");
     public static ParseField ENTITLEMENTS_PARSEFIELD = new ParseField("entitlements");
 
+    public static ParseField FILE_PARSEFIELD = new ParseField("file");
+    public static ParseField PATH_PARSEFIELD = new ParseField("path");
+    public static ParseField ACTIONS_PARSEFIELD = new ParseField("actions");
+
     /*
     START_OBJECT
     FIELD_NAME: policy
@@ -55,31 +59,34 @@ public class PolicyBuilder {
     public static void parsePolicy(String name, InputStream is) {
         try {
             XContentParser parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, is);
-            parser.nextToken();
-            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("expected policy [" + name + "] to specify 'policy: ...'");
             }
-            parser.nextToken();
-            if (parser.currentToken() != XContentParser.Token.FIELD_NAME || parser.currentName().equals(POLICY_PARSEFIELD.getPreferredName()) == false) {
+            if (parser.nextToken() != XContentParser.Token.FIELD_NAME
+                || parser.currentName().equals(POLICY_PARSEFIELD.getPreferredName()) == false) {
                 throw new IllegalArgumentException("expected policy [" + name + "] to specify 'policy: ...'");
             }
-            parser.nextToken();
-            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
                 throw new IllegalArgumentException("expected policy [" + name + "] to specify 'module: ...'");
             }
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
                     throw new IllegalArgumentException("expected policy [" + name + "] to specify 'module: ...'");
                 }
-                parser.nextToken();
-                if (parser.currentToken() != XContentParser.Token.FIELD_NAME || parser.currentName().equals(MODULE_PARSEFIELD.getPreferredName()) == false) {
+                if (parser.nextToken() != XContentParser.Token.FIELD_NAME
+                    || parser.currentName().equals(MODULE_PARSEFIELD.getPreferredName()) == false) {
                     throw new IllegalArgumentException("expected policy [" + name + "] to specify 'module: ...'");
                 }
-                parser.nextToken();
-                if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                     throw new IllegalArgumentException("expected policy [" + name + "] to specify 'module: ...'");
                 }
                 parseModulePolicy(name, parser);
+                if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    throw new IllegalArgumentException("expected policy [" + name + "] to specify closing brace '}'");
+                }
+            }
+            if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                throw new IllegalArgumentException("expected policy [" + name + "] to specify closing brace '}'");
             }
         } catch (IOException ioe) {
             throw new RuntimeException(ioe);
@@ -93,14 +100,12 @@ public class PolicyBuilder {
             }
             String currentFieldName = parser.currentName();
             if (currentFieldName.equals(NAME_PARSEFIELD.getPreferredName())) {
-                parser.nextToken();
-                if (parser.currentToken() != XContentParser.Token.VALUE_STRING) {
+                if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
                     throw new IllegalArgumentException("expected policy [" + name + "] to specify value for 'name: <name>'");
                 }
-                // TODO: store module name
+                // TODO: store module name and check for duplicates
             } else if (currentFieldName.equals(ENTITLEMENTS_PARSEFIELD.getPreferredName())) {
-                parser.nextToken();
-                if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+                if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
                     throw new IllegalArgumentException("expected policy [" + name + "] to specify 'entitlements: [...]'");
                 }
                 parseEntitlements(name, parser);
@@ -119,14 +124,63 @@ public class PolicyBuilder {
                 throw new IllegalArgumentException("expected policy [" + name + "] to specify '- <entitlement name>: ...'");
             }
             String currentFieldName = parser.currentName();
-            if (currentFieldName.equals("file")) {
+            if (currentFieldName.equals(FILE_PARSEFIELD.getPreferredName())) {
                 parseFileEntitlement(name, parser);
+            } else {
+                throw new IllegalArgumentException("unexpected entitlement type [" + currentFieldName + "] for policy [" + name + "]");
+            }
+            if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                throw new IllegalArgumentException("expected policy [" + name + "] to specify closing brace '}'");
             }
         }
     }
 
-    private static void parseFileEntitlement(String name, XContentParser parser) {
-
+    private static void parseFileEntitlement(String name, XContentParser parser) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("expected policy [" + name + "] to specify '- file: ...'");
+        }
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+                throw new IllegalArgumentException("expected policy [" + name + "] to specify 'file: <path/actions>'");
+            }
+            String currentFieldName = parser.currentName();
+            if (currentFieldName.equals(PATH_PARSEFIELD.getPreferredName())) {
+                if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+                    throw new IllegalArgumentException(
+                        "expected field ["
+                            + PATH_PARSEFIELD.getPreferredName()
+                            + "] to have a value for entitlement type ["
+                            + FILE_PARSEFIELD.getPreferredName()
+                            + "] for policy ["
+                            + name
+                            + "]"
+                    );
+                }
+                // TODO: store path name and check for duplicates
+            } else if (currentFieldName.equals(ACTIONS_PARSEFIELD.getPreferredName())) {
+                if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
+                    throw new IllegalArgumentException(
+                        "expected field ["
+                        + ACTIONS_PARSEFIELD.getPreferredName()
+                        + "] to have an array for entitlement type ["
+                        + FILE_PARSEFIELD.getPreferredName()
+                        + "] for policy ["
+                        + name
+                        + "]"
+                    );
+                }
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    if (parser.currentToken() != XContentParser.Token.VALUE_STRING) {
+                        throw new IllegalArgumentException("expected value for file action in for entitlement type [" + currentFieldName + "] for policy [" + name + "]");
+                    }
+                    // TODO: store actions and check for duplicates
+                }
+            } else {
+                throw new IllegalArgumentException(
+                    "unexpected field [" + currentFieldName + "] for entitlement type [" + currentFieldName + "] for policy [" + name + "]"
+                );
+            }
+        }
     }
 
     private PolicyBuilder() {

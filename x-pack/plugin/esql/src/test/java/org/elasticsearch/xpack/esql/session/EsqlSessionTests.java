@@ -216,6 +216,7 @@ public class EsqlSessionTests extends ESTestCase {
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)
             );
+            // mark remote1 as unavailable
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Set.of(remote1Alias));
 
             EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
@@ -226,12 +227,10 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-            assertThat(remote1Cluster.getTook().millis(), equalTo(0L));
-            assertThat(remote1Cluster.getTotalShards(), equalTo(0));
-            assertThat(remote1Cluster.getSuccessfulShards(), equalTo(0));
-            assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
-            assertThat(remote1Cluster.getFailedShards(), equalTo(0));
+            // remote1 is left as RUNNING, since another method (updateExecutionInfoWithUnavailableClusters) not under test changes status
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+            assertNull(remote1Cluster.getTook());
+            assertNull(remote1Cluster.getTotalShards());
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));

@@ -210,7 +210,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "Ingest load ratio on nodeId {}: previous ({}), current ({}), threshold ({}), above sensibility threshold: {}",
-                node.getId(),
+                node == null ? "" : node.getId(),
                 previousRatio,
                 currentRatio,
                 minSensitivityRatio,

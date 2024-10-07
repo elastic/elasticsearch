@@ -1298,7 +1298,7 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFunctionTargetsExistingField() throws Exception {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\"" + ")"));
+        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
     }
 
     public void testCoalesceWithMixedNumericTypes() {

@@ -566,9 +566,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertThat(
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
-                Arrays.stream(mappings)
-                    .map(mapping -> mapping + (readOnly ? " " + RESERVED_ROLE_MAPPING_SUFFIX : ""))
-                    .toArray(String[]::new)
+                Arrays.stream(mappings).map(mapping -> mapping + (readOnly ? RESERVED_ROLE_MAPPING_SUFFIX : "")).toArray(String[]::new)
             )
         );
     }

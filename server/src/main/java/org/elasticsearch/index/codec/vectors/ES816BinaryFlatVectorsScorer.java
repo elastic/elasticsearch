@@ -26,7 +26,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.elasticsearch.script.field.vectors.ESVectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 

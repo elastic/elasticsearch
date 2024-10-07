@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
@@ -59,8 +60,17 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
 
+    public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
+        SourceFieldMapper.Mode.class,
+        "index.mapping.source.mode",
+        Mode.UNDEFINED,
+        Setting.Property.Final,
+        Setting.Property.IndexScope
+    );
+
     /** The source mode */
-    private enum Mode {
+    public enum Mode {
+        UNDEFINED,
         DISABLED,
         STORED,
         SYNTHETIC
@@ -75,8 +85,26 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         true
     );
 
+    private static final SourceFieldMapper DEFAULT_SYNTHETIC = new SourceFieldMapper(
+        Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        null,
+        true
+    );
+
     private static final SourceFieldMapper DEFAULT_NO_RECOVERY_SOURCE = new SourceFieldMapper(
         null,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        null,
+        false
+    );
+
+    private static final SourceFieldMapper DEFAULT_NO_RECOVERY_SOURCE_SYNTHETIC = new SourceFieldMapper(
+        Mode.SYNTHETIC,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
@@ -194,6 +222,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             m -> Arrays.asList(toType(m).excludes)
         );
 
+        private final Settings settings;
+
         private final IndexMode indexMode;
 
         private final boolean supportsNonDefaultParameterValues;
@@ -207,6 +237,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             boolean enableRecoverySource
         ) {
             super(Defaults.NAME);
+            this.settings = settings;
             this.indexMode = indexMode;
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
@@ -238,7 +269,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 if (indexMode != null && indexMode.isSyntheticSourceEnabled()) {
                     throw new MapperParsingException("Indices with with index mode [" + indexMode + "] only support synthetic source");
                 }
-                if (mode.get() != null) {
+                if (mode.get() != null && mode.get() != Mode.UNDEFINED) {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
             }
@@ -246,7 +277,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 return switch (indexMode) {
                     case TIME_SERIES -> enableRecoverySource ? TSDB_DEFAULT : TSDB_DEFAULT_NO_RECOVERY_SOURCE;
                     case LOGSDB -> enableRecoverySource ? LOGSDB_DEFAULT : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
-                    default -> enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;
+                    default -> getDefaultSourceMode(enableRecoverySource, mode.get());
                 };
             }
             if (supportsNonDefaultParameterValues == false) {
@@ -271,8 +302,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     );
                 }
             }
+
+            final Mode settingsSourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
+            final Mode sourceMode = settingsSourceMode == Mode.UNDEFINED ? mode.get() : settingsSourceMode;
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
-                mode.get(),
+                sourceMode,
                 enabled.get(),
                 includes.getValue().toArray(Strings.EMPTY_ARRAY),
                 excludes.getValue().toArray(Strings.EMPTY_ARRAY),
@@ -301,7 +335,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 return enableRecoverySource ? LOGSDB_DEFAULT : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
             }
         }
-        return enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;
+        return getDefaultSourceMode(enableRecoverySource, INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings()));
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),
@@ -370,7 +404,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         IndexMode indexMode,
         boolean enableRecoverySource
     ) {
-        super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
+        super(
+            new SourceFieldType(
+                (enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED && mode != Mode.UNDEFINED)
+            )
+        );
         assert enabled.explicit() == false || mode == null;
         this.mode = mode;
         this.enabled = enabled;
@@ -393,7 +431,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private boolean stored() {
-        if (enabled.explicit() || mode == null) {
+        if (enabled.explicit() || mode == null || mode == Mode.UNDEFINED) {
             return enabled.value();
         }
         return mode == Mode.STORED;
@@ -404,7 +442,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return enabled.value();
         }
         if (mode != null) {
-            return mode != Mode.DISABLED;
+            return mode != Mode.DISABLED && mode != Mode.UNDEFINED;
         }
         return enabled.value();
     }
@@ -470,5 +508,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
+    }
+
+    private static SourceFieldMapper getDefaultSourceMode(boolean enableRecoverySource, final Mode mode) {
+        if (enableRecoverySource) {
+            return (mode == Mode.SYNTHETIC) ? DEFAULT_SYNTHETIC : DEFAULT;
+        } else {
+            return (mode == Mode.SYNTHETIC) ? DEFAULT_NO_RECOVERY_SOURCE_SYNTHETIC : DEFAULT_NO_RECOVERY_SOURCE;
+        }
     }
 }

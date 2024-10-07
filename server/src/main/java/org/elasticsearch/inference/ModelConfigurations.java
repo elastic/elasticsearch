@@ -25,7 +25,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     // is returned as part of a GetInferenceModelAction
     public static final String INDEX_ONLY_ID_FIELD_NAME = "model_id";
     public static final String INFERENCE_ID_FIELD_NAME = "inference_id";
-    public static final String USE_ID_FOR_INDEX = "for_index";
+    public static final String FOR_INDEX = "for_index"; // true if writing to index
     public static final String SERVICE = "service";
     public static final String SERVICE_SETTINGS = "service_settings";
     public static final String OLD_TASK_SETTINGS = "task_settings";
@@ -194,7 +194,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
+        if (params.paramAsBoolean(FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
         } else {
             builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
@@ -209,7 +209,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (params.paramAsBoolean(INCLUDE_PARAMETERS, true)) { // default true so that REST requests get parameters
             builder.field(PARAMETERS, taskSettings);
         }
-        builder.field(ENDPOINT_VERSION_FIELD_NAME, endpointVersion);
+        if (params.paramAsBoolean(FOR_INDEX, false)) {
+            builder.field(ENDPOINT_VERSION_FIELD_NAME, endpointVersion); // only write endpoint version for index, not for REST
+        }
         builder.endObject();
         return builder;
     }
@@ -217,7 +219,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     @Override
     public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
+        if (params.paramAsBoolean(FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
         } else {
             builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
@@ -232,7 +234,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (params.paramAsBoolean(INCLUDE_PARAMETERS, true)) { // default true so that REST requests get parameters
             builder.field(PARAMETERS, taskSettings);
         }
+        if (params.paramAsBoolean(FOR_INDEX, false)) {
         builder.field(ENDPOINT_VERSION_FIELD_NAME, endpointVersion);
+        }
         builder.endObject();
         return builder;
     }

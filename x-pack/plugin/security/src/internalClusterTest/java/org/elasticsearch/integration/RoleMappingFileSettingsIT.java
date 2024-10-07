@@ -384,7 +384,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
+            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
         ).get();
 
         assertNull(

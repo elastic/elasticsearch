@@ -609,7 +609,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             var batchedRequests = new EmbeddingRequestChunker(
                 input,
                 EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType())
+                embeddingTypeFromTaskTypeAndSettings(model.getTaskType(), esModel.internalServiceSettings)
             ).batchRequestsWithListeners(listener);
 
             for (var batch : batchedRequests) {
@@ -703,7 +703,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults similarity) {
                 rankings.add(new RankedDocsResults.RankedDoc(i, (float) similarity.score(), inputSupplier.apply(i)));
             } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
-                if (errorResult.getException()instanceof ElasticsearchStatusException statusException) {
+                if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
                 } else {
                     throw new ElasticsearchStatusException(
@@ -761,5 +761,22 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     protected boolean isDefaultId(String inferenceId) {
         return DEFAULT_ELSER_ID.equals(inferenceId);
+    }
+
+    static EmbeddingRequestChunker.EmbeddingType embeddingTypeFromTaskTypeAndSettings(
+        TaskType taskType,
+        ElasticsearchInternalServiceSettings serviceSettings
+    ) {
+        return switch (taskType) {
+            case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
+            case TEXT_EMBEDDING -> serviceSettings.elementType() == null
+                ? EmbeddingRequestChunker.EmbeddingType.FLOAT
+                : EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(serviceSettings.elementType());
+            default -> throw new ElasticsearchStatusException(
+                "Chunking is not supported for task type [{}]",
+                RestStatus.BAD_REQUEST,
+                taskType
+            );
+        };
     }
 }

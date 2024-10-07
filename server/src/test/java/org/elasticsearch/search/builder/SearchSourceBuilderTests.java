@@ -608,7 +608,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             + "    \"standard\": {"
             + "      \"query\": {"
             + "        \"match_all\": {}"
-            + "        }"
+            + "      },"
+            + "      \"min_score\": 10,"
+            + "      \"_name\": \"foo_standard\""
             + "    }"
             + "  }"
             + "}";
@@ -616,6 +618,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
             SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
             assertThat(source.retriever(), instanceOf(StandardRetrieverBuilder.class));
+            StandardRetrieverBuilder parsed = (StandardRetrieverBuilder) source.retriever();
+            assertThat(parsed.minScore(), equalTo(10f));
+            assertThat(parsed.retrieverName(), equalTo("foo_standard"));
             try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
                 SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
                     parseSerialized,
@@ -624,6 +629,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     nf -> true
                 );
                 assertThat(deserializedSource.retriever(), instanceOf(StandardRetrieverBuilder.class));
+                StandardRetrieverBuilder deserialized = (StandardRetrieverBuilder) source.retriever();
+                assertThat(parsed, equalTo(deserialized));
             }
         }
     }
@@ -637,14 +644,19 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             + "      ],"
             + "      \"field\": \"vector\","
             + "      \"k\": 10,"
-            + "      \"num_candidates\": 15"
-            + "    }"
+            + "      \"num_candidates\": 15,"
+            + "      \"min_score\": 10,"
+            + "      \"_name\": \"foo_knn\""
+            + "     }"
             + "  }"
             + "}";
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
         try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
             SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
             assertThat(source.retriever(), instanceOf(KnnRetrieverBuilder.class));
+            KnnRetrieverBuilder parsed = (KnnRetrieverBuilder) source.retriever();
+            assertThat(parsed.minScore(), equalTo(10f));
+            assertThat(parsed.retrieverName(), equalTo("foo_knn"));
             try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
                 SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
                     parseSerialized,
@@ -653,6 +665,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     nf -> true
                 );
                 assertThat(deserializedSource.retriever(), instanceOf(KnnRetrieverBuilder.class));
+                KnnRetrieverBuilder deserialized = (KnnRetrieverBuilder) source.retriever();
+                assertThat(parsed, equalTo(deserialized));
             }
         }
     }

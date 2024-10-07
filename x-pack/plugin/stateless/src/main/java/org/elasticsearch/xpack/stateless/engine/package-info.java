@@ -18,8 +18,7 @@
 /**
  * <h2>Stateless real-time GET</h2>
  *
- * Real-time get (RTG) requests for non-fast-refresh indices (see {@link}org.elasticsearch.index.IndexSettings#INDEX_FAST_REFRESH_SETTING)
- * are always routed to the search nodes. The search node then sends a
+ * Real-time get (RTG) requests are always routed to the search nodes. The search node then sends a
  * {@link org.elasticsearch.action.get.TransportGetFromTranslogAction.Request} request to the indexing node.
  * If the requested doc has a recent version on the indexing node's Translog, it sends it to the search node as a reply to the
  * GetFromTranslog request, and the search node uses this to handle the RTG request. If not, the search node handles the request locally.

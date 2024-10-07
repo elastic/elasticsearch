@@ -41,7 +41,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -664,39 +663,19 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         thread.join();
     }
 
-    public void testRefreshNoFastRefresh() throws Exception {
+    public void testRefresh() throws Exception {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
 
-        testRefresh(false);
-    }
-
-    public void testRefreshFastRefresh() throws Exception {
-        startIndexNodes(numShards);
-        startSearchNodes(numReplicas);
-
-        final AtomicInteger unpromotableRefreshActions = new AtomicInteger(0);
-        for (var transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
-                    unpromotableRefreshActions.incrementAndGet();
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        }
-
-        testRefresh(true);
-
-        assertThat(unpromotableRefreshActions.get(), equalTo(0));
-    }
-
-    private void testRefresh(boolean fastRefresh) throws InterruptedException, ExecutionException {
         assert cluster().numDataNodes() > 0 : "Should have already started nodes";
         final String indexName = SYSTEM_INDEX_NAME;
-        createSystemIndex(
-            indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh).build()
-        );
+        if (randomBoolean()) {
+            createSystemIndex(
+                indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), randomBoolean()).build()
+            );
+        } else {
+            createIndex(indexName, indexSettings(numShards, numReplicas).build());
+        }
         ensureGreen(indexName);
 
         List<WriteRequest.RefreshPolicy> refreshPolicies = shuffledList(List.of(NONE, WAIT_UNTIL, IMMEDIATE));
@@ -1232,6 +1211,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertHitCount(searchFuture, docCount);
     }
 
+    // TODO: Remove redundant test with ES-9563
     public void testFastRefreshSearch() throws Exception {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
@@ -1245,7 +1225,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.contains(TransportSearchAction.NAME)) {
-                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
+                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.SEARCH_ROLE));
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
@@ -1257,6 +1237,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         );
     }
 
+    // TODO: Remove redundant test with ES-9563
     public void testFastRefreshGetAndMGet() {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
@@ -1276,16 +1257,15 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         BulkResponse bulkResponse = bulkRequest.get();
         assertNoFailures(bulkResponse);
 
-        final AtomicInteger fromTranslogActionsSent = new AtomicInteger(0);
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(TransportGetAction.TYPE.name()) || action.startsWith(TransportMultiGetAction.NAME)) {
-                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
-                } else if (action.startsWith(TransportGetFromTranslogAction.NAME)
+                if (action.startsWith(TransportGetFromTranslogAction.NAME)
                     || action.startsWith(TransportShardMultiGetFomTranslogAction.NAME)) {
-                        fromTranslogActionsSent.incrementAndGet();
-                    }
+                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
+                } else if (action.startsWith(TransportGetAction.TYPE.name()) || action.startsWith(TransportMultiGetAction.NAME)) {
+                    assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.SEARCH_ROLE));
+                }
                 connection.sendRequest(requestId, action, request, options);
             });
         }
@@ -1322,8 +1302,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 assertThat(response.getResponses()[id].getId(), equalTo(stringIds[id]));
             });
         }
-
-        assertThat(fromTranslogActionsSent.get(), equalTo(0));
     }
 
     /**

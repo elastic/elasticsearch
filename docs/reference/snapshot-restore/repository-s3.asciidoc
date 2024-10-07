@@ -296,9 +296,8 @@ include::repository-shared-settings.asciidoc[]
 
 `max_multipart_parts` ::
 
-    (<<number,integer>>) The maximum number of parts that {es} will write during a multipart upload
-    of a single object. Files which are larger than `buffer_size × max_multipart_parts` will be
-    chunked into several smaller objects. {es} may also split a file across multiple objects to
+    (integer) The maximum number of parts that {es} will write during a multipart upload of a single object. Files which are larger than
+    `buffer_size × max_multipart_parts` will be chunked into several smaller objects. {es} may also split a file across multiple objects to
     satisfy other constraints such as the `chunk_size` limit. Defaults to `10000` which is the
     https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html[maximum number of parts in a multipart upload in AWS S3].
 
@@ -321,20 +320,14 @@ include::repository-shared-settings.asciidoc[]
 
 `delete_objects_max_size`::
 
-    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
-    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
-    supported by the
-    https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
-    DeleteObjects API].
+    (integer) Sets the maxmimum batch size, betewen 1 and 1000, used for `DeleteObjects` requests. Defaults to 1000 which is the maximum
+    number supported by the https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS DeleteObjects API].
 
 `max_multipart_upload_cleanup_size`::
 
-    (<<number,numeric>>) Sets the maximum number of possibly-dangling multipart
-    uploads to clean up in each batch of snapshot deletions. Defaults to `1000`
-    which is the maximum number supported by the
-    https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[AWS
-    ListMultipartUploads API]. If set to `0`, {es} will not attempt to clean up
-    dangling multipart uploads.
+    (integer) Sets the maximum number of possibly-dangling multipart uploads to clean up in each batch of snapshot deletions. Defaults to
+    `1000` which is the maximum number supported by the https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[AWS
+    ListMultipartUploads API]. If set to `0`, {es} will not attempt to clean up dangling multipart uploads.
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future

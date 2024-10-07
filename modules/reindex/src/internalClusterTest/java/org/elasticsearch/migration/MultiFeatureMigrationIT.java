@@ -10,7 +10,6 @@
 package org.elasticsearch.migration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;

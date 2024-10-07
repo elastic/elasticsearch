@@ -10,7 +10,6 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

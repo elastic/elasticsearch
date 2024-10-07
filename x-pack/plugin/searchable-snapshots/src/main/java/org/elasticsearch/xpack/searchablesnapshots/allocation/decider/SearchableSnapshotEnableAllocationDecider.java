@@ -23,41 +23,20 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
 
     static final String NAME = "searchable_snapshots_enable";
 
-    /**
-     * This setting describes whether searchable snapshots are allocated during rolling restarts. For now, whether a rolling restart is
-     * ongoing is determined by cluster.routing.allocation.enable=primaries. Notice that other values for that setting except "all" mean
-     * that no searchable snapshots are allocated anyway.
-     */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    // xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
-    public static final Setting<Boolean> SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART = Setting.boolSetting(
-        "xpack.searchable.snapshot.allocate_on_rolling_restart",
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
-    );
-
     private volatile EnableAllocationDecider.Allocation enableAllocation;
-    private volatile boolean allocateOnRollingRestart;
 
     public SearchableSnapshotEnableAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.enableAllocation = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(settings);
-        this.allocateOnRollingRestart = SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
             EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
             this::setEnableAllocation
         );
-        clusterSettings.addSettingsUpdateConsumer(SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART, this::setAllocateOnRollingRestart);
     }
 
     private void setEnableAllocation(EnableAllocationDecider.Allocation allocation) {
         this.enableAllocation = allocation;
     }
 
-    private void setAllocateOnRollingRestart(boolean allocateOnRollingRestart) {
-        this.allocateOnRollingRestart = allocateOnRollingRestart;
-    }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -73,25 +52,14 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         if (indexMetadata.isSearchableSnapshot()) {
             EnableAllocationDecider.Allocation enableAllocationCopy = this.enableAllocation;
-            boolean allocateOnRollingRestartCopy = this.allocateOnRollingRestart;
             if (enableAllocationCopy == EnableAllocationDecider.Allocation.PRIMARIES) {
-                if (allocateOnRollingRestartCopy == false) {
-                    return allocation.decision(
-                        Decision.NO,
-                        NAME,
-                        "no allocations of searchable snapshots allowed during rolling restart due to [%s=%s] and [%s=false]",
-                        EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
-                        enableAllocationCopy,
-                        SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART.getKey()
-                    );
-                } else {
-                    return allocation.decision(
-                        Decision.YES,
-                        NAME,
-                        "allocate on rolling restart enabled [%s=true]",
-                        SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART.getKey()
-                    );
-                }
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "no allocations of searchable snapshots allowed during rolling restart due to [%s=%s]",
+                    EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
+                    enableAllocationCopy
+                );
             } else {
                 return allocation.decision(
                     Decision.YES,

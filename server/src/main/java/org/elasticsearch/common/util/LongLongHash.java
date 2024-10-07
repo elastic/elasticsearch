@@ -105,6 +105,7 @@ public final class LongLongHash extends AbstractHash {
     }
 
     private void reset(long id) {
+        final LongArray keys = this.keys;
         final long keyOffset = id * 2;
         final long key1 = keys.get(keyOffset);
         final long key2 = keys.get(keyOffset + 1);

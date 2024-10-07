@@ -234,9 +234,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             if (getModelResponse.getResources().results().size() > 1) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "cannot deploy more than one models at the same time; [{}] matches [{}] models]",
+                        "cannot deploy more than one model at the same time; [{}] matches models [{}]",
                         request.getModelId(),
-                        getModelResponse.getResources().results().size()
+                        getModelResponse.getResources().results().stream().map(TrainedModelConfig::getModelId).toList()
                     )
                 );
                 return;

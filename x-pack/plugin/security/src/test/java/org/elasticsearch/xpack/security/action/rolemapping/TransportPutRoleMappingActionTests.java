@@ -97,12 +97,12 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> put("anarchy (read only)", expression, "superuser", Collections.singletonMap("dumb", true))
+            () -> put("anarchy-read-only", expression, "superuser", Collections.singletonMap("dumb", true))
         );
 
         assertThat(
             illegalArgumentException.getMessage(),
-            equalTo("Invalid mapping name [anarchy (read only)]. [(read only)] is not an allowed suffix")
+            equalTo("Invalid mapping name [anarchy-read-only]. [-read-only] is not an allowed suffix")
         );
     }
 

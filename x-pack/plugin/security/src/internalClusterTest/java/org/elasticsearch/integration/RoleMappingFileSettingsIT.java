@@ -359,9 +359,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
                 "everyone_kibana",
-                "everyone_kibana " + RESERVED_ROLE_MAPPING_SUFFIX,
+                "everyone_kibana" + RESERVED_ROLE_MAPPING_SUFFIX,
                 "_everyone_kibana",
-                "everyone_fleet " + RESERVED_ROLE_MAPPING_SUFFIX,
+                "everyone_fleet" + RESERVED_ROLE_MAPPING_SUFFIX,
                 "zzz_mapping",
                 "123_mapping"
             )
@@ -377,6 +377,16 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         // it's possible to delete overlapping native role mapping
         assertTrue(client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet().isFound());
+
+        // Fetch a specific file based role
+        request = new GetRoleMappingsRequest();
+        request.setNames("everyone_kibana" + RESERVED_ROLE_MAPPING_SUFFIX);
+        response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+        assertTrue(response.hasMappings());
+        assertThat(
+            Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
+            containsInAnyOrder("everyone_kibana" + RESERVED_ROLE_MAPPING_SUFFIX)
+        );
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
         writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);

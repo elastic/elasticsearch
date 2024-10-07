@@ -164,5 +164,7 @@
   ],
   "examples" : [
     "ROW a=[\"foo\", \"foo\", \"bar\", \"foo\"]\n| EVAL dedupe_a = MV_DEDUPE(a)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

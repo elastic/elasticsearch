@@ -1625,6 +1625,27 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
      *
+     * @param <T>          the generics type parameter reflecting the actual type of the enum
+     * @param clazz        the enum class
+     * @param defaultValue a default value function that returns the default values string representation.
+     * @param key          the key for the setting
+     * @param validator    validator for this setting
+     * @param properties   properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        Function<Settings, String> defaultValue,
+        String key,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue, e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), validator, properties);
+    }
+
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
      * @param clazz the enum class
      * @param key the key for the setting
      * @param fallbackSetting the fallback setting for this setting
@@ -1662,6 +1683,10 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {
         return memorySizeSetting(key, defaultValue.toString(), properties);
+    }
+
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
+        return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     /**

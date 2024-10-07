@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuild
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;

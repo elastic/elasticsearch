@@ -124,6 +124,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
@@ -300,22 +301,23 @@ public class EsqlFunctionRegistry {
                 def(Tau.class, Tau::new, "tau") },
             // string
             new FunctionDefinition[] {
-                def(Length.class, Length::new, "length"),
-                def(Substring.class, Substring::new, "substring"),
                 def(Concat.class, Concat::new, "concat"),
-                def(LTrim.class, LTrim::new, "ltrim"),
-                def(RTrim.class, RTrim::new, "rtrim"),
-                def(Trim.class, Trim::new, "trim"),
-                def(Left.class, Left::new, "left"),
-                def(Replace.class, Replace::new, "replace"),
-                def(Right.class, Right::new, "right"),
-                def(StartsWith.class, StartsWith::new, "starts_with"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
+                def(LTrim.class, LTrim::new, "ltrim"),
+                def(Left.class, Left::new, "left"),
+                def(Length.class, Length::new, "length"),
+                def(Locate.class, Locate::new, "locate"),
+                def(RTrim.class, RTrim::new, "rtrim"),
+                def(Repeat.class, Repeat::new, "repeat"),
+                def(Replace.class, Replace::new, "replace"),
+                def(Reverse.class, Reverse::new, "reverse"),
+                def(Right.class, Right::new, "right"),
+                def(Space.class, Space::new, "space"),
+                def(StartsWith.class, StartsWith::new, "starts_with"),
+                def(Substring.class, Substring::new, "substring"),
                 def(ToLower.class, ToLower::new, "to_lower"),
                 def(ToUpper.class, ToUpper::new, "to_upper"),
-                def(Locate.class, Locate::new, "locate"),
-                def(Repeat.class, Repeat::new, "repeat"),
-                def(Space.class, Space::new, "space") },
+                def(Trim.class, Trim::new, "trim") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, DateDiff::new, "date_diff"),

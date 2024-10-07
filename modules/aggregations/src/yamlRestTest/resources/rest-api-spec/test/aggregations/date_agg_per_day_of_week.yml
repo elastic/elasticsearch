@@ -1,8 +1,8 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v7.7.0"]
-      reason:  "Start of the week Monday was enabled in a backport to 7.7 PR#50916"
+      cluster_features: ["gte_v8.16.0"]
+      reason:  "Start of the week Sunday was changed in 8.16 as part of the locale changes"
 
   - do:
         indices.create:
@@ -25,7 +25,7 @@ setup:
 
 ---
 # The inserted document has a field date=2009-11-15T14:12:12 which is Sunday.
-# When aggregating per day of the week this should be considered as last day of the week (7)
+# When aggregating per day of the week this should be considered as first day of the week (1)
 # and this value should be used in 'key_as_string'
 "Date aggregartion per day of week":
   - do:
@@ -44,4 +44,4 @@ setup:
 
   - match: {hits.total: 1}
   - length: { aggregations.test.buckets: 1 }
-  - match: { aggregations.test.buckets.0.key_as_string: "7" }
+  - match: { aggregations.test.buckets.0.key_as_string: "1" }

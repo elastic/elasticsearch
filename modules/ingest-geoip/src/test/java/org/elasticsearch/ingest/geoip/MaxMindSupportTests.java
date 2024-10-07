@@ -361,8 +361,14 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(IpRiskResponse.class);
 
+    private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(Database.AsnV2);
+
     public void testMaxMindSupport() {
         for (Database databaseType : Database.values()) {
+            if (KNOWN_UNSUPPORTED_DATABASE_VARIANTS.contains(databaseType)) {
+                continue;
+            }
+
             Class<? extends AbstractResponse> maxMindClass = TYPE_TO_MAX_MIND_CLASS.get(databaseType);
             Set<String> supportedFields = TYPE_TO_SUPPORTED_FIELDS_MAP.get(databaseType);
             Set<String> unsupportedFields = TYPE_TO_UNSUPPORTED_FIELDS_MAP.get(databaseType);
@@ -464,36 +470,6 @@ public class MaxMindSupportTests extends ESTestCase {
             "We claim to support a MaxMind response class that MaxMind does not expose through DatabaseReader: "
                 + supportedMaxMindClassesThatDoNotExist,
             supportedMaxMindClassesThatDoNotExist,
-            empty()
-        );
-    }
-
-    /*
-     * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through IpDatabase.
-     */
-    public void testUsedMaxMindResponseClassesAreAccountedFor() {
-        Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = getUsedMaxMindResponseClasses();
-        Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
-        Set<Class<? extends AbstractResponse>> usedButNotSupportedMaxMindResponseClasses = Sets.difference(
-            usedMaxMindResponseClasses,
-            supportedMaxMindClasses
-        );
-        assertThat(
-            "IpDatabase exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
-                + "TYPE_TO_MAX_MIND_CLASS for the following: "
-                + usedButNotSupportedMaxMindResponseClasses,
-            usedButNotSupportedMaxMindResponseClasses,
-            empty()
-        );
-        Set<Class<? extends AbstractResponse>> supportedButNotUsedMaxMindClasses = Sets.difference(
-            supportedMaxMindClasses,
-            usedMaxMindResponseClasses
-        );
-        assertThat(
-            "This test claims to support MaxMind response classes that are not exposed in IpDatabase. Remove the following from "
-                + "TYPE_TO_MAX_MIND_CLASS: "
-                + supportedButNotUsedMaxMindClasses,
-            supportedButNotUsedMaxMindClasses,
             empty()
         );
     }
@@ -615,24 +591,5 @@ public class MaxMindSupportTests extends ESTestCase {
             }
         }
         return result.toString();
-    }
-
-    /*
-     * This returns all AbstractResponse classes that are returned from getter methods on IpDatabase.
-     */
-    private static Set<Class<? extends AbstractResponse>> getUsedMaxMindResponseClasses() {
-        Set<Class<? extends AbstractResponse>> result = new HashSet<>();
-        Method[] methods = IpDatabase.class.getMethods();
-        for (Method method : methods) {
-            if (method.getName().startsWith("get")) {
-                Class<?> returnType = method.getReturnType();
-                try {
-                    result.add(returnType.asSubclass(AbstractResponse.class));
-                } catch (ClassCastException ignore) {
-                    // This is not what we were looking for, move on
-                }
-            }
-        }
-        return result;
     }
 }

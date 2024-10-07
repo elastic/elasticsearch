@@ -5,14 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elser;
+package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -22,7 +21,7 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
 
     public static final String NAME = "elser_mlnode_service_settings";
 
-    public static ElasticsearchInternalServiceSettings.Builder fromRequestMap(Map<String, Object> map) {
+    public static Builder fromRequestMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
         var baseSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;

@@ -116,6 +116,6 @@ public class MMDBUtilTests extends ESTestCase {
     }
 
     private Database parseDatabaseFromType(String databaseFile) throws IOException {
-        return Database.getDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)), null);
+        return IpDataLookupFactories.getDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)));
     }
 }

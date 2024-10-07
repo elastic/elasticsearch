@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
@@ -19,12 +18,10 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * A high-level representation of a kind of geoip database that is supported by the {@link GeoIpProcessor}.
+ * A high-level representation of a kind of ip location database that is supported by the {@link GeoIpProcessor}.
  * <p>
  * A database has a set of properties that are valid to use with it (see {@link Database#properties()}),
  * as well as a list of default properties to use if no properties are specified (see {@link Database#defaultProperties()}).
- * <p>
- * See especially {@link Database#getDatabase(String, String)} which is used to obtain instances of this class.
  */
 enum Database {
 
@@ -141,61 +138,6 @@ enum Database {
             Property.MOBILE_NETWORK_CODE
         )
     );
-
-    private static final String CITY_DB_SUFFIX = "-City";
-    private static final String COUNTRY_DB_SUFFIX = "-Country";
-    private static final String ASN_DB_SUFFIX = "-ASN";
-    private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
-    private static final String CONNECTION_TYPE_DB_SUFFIX = "-Connection-Type";
-    private static final String DOMAIN_DB_SUFFIX = "-Domain";
-    private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
-    private static final String ISP_DB_SUFFIX = "-ISP";
-
-    @Nullable
-    private static Database getMaxmindDatabase(final String databaseType) {
-        if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
-            return Database.City;
-        } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
-            return Database.Country;
-        } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
-            return Database.Asn;
-        } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
-            return Database.AnonymousIp;
-        } else if (databaseType.endsWith(Database.CONNECTION_TYPE_DB_SUFFIX)) {
-            return Database.ConnectionType;
-        } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
-            return Database.Domain;
-        } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
-            return Database.Enterprise;
-        } else if (databaseType.endsWith(Database.ISP_DB_SUFFIX)) {
-            return Database.Isp;
-        } else {
-            return null; // no match was found
-        }
-    }
-
-    /**
-     * Parses the passed-in databaseType (presumably from the passed-in databaseFile) and return the Database instance that is
-     * associated with that databaseType.
-     *
-     * @param databaseType the database type String from the metadata of the database file
-     * @param databaseFile the database file from which the database type was obtained
-     * @throws IllegalArgumentException if the databaseType is not associated with a Database instance
-     * @return the Database instance that is associated with the databaseType
-     */
-    public static Database getDatabase(final String databaseType, final String databaseFile) {
-        Database database = null;
-
-        if (Strings.hasText(databaseType)) {
-            database = getMaxmindDatabase(databaseType);
-        }
-
-        if (database == null) {
-            throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
-        }
-
-        return database;
-    }
 
     private final Set<Property> properties;
     private final Set<Property> defaultProperties;

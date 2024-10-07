@@ -63,7 +63,7 @@ public class ObjectMapper extends Mapper {
             this.printedValue = printedValue;
         }
 
-        static Subobjects from(Object node) {
+        public static Subobjects from(Object node) {
             if (node instanceof Boolean value) {
                 return value ? Subobjects.ENABLED : Subobjects.DISABLED;
             }

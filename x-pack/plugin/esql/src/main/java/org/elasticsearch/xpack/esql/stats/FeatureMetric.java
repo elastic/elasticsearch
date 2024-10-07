@@ -28,11 +28,6 @@ import java.util.Locale;
 import java.util.function.Predicate;
 
 public enum FeatureMetric {
-    /**
-     * The order of these enum values is important, do not change it.
-     * For any new values added to it, they should go at the end of the list.
-     * see {@link org.elasticsearch.xpack.esql.analysis.Verifier#gatherMetrics}
-     */
     DISSECT(Dissect.class::isInstance),
     EVAL(Eval.class::isInstance),
     GROK(Grok.class::isInstance),

@@ -106,8 +106,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(8));
+        assertThat(geoData.size(), equalTo(9));
         assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("country_in_european_union"), equalTo(false));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
         assertThat(geoData.get("continent_code"), equalTo("NA"));
@@ -222,8 +223,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(12));
+        assertThat(geoData.size(), equalTo(13));
         assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("country_in_european_union"), equalTo(false));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
         assertThat(geoData.get("continent_code"), equalTo("NA"));
@@ -289,8 +291,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(5));
+        assertThat(geoData.size(), equalTo(6));
         assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("country_in_european_union"), equalTo(true));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
         assertThat(geoData.get("country_name"), equalTo("Netherlands"));
         assertThat(geoData.get("continent_code"), equalTo("EU"));
@@ -472,9 +475,10 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(29));
+        assertThat(geoData.size(), equalTo(30));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_confidence"), equalTo(99));
+        assertThat(geoData.get("country_in_european_union"), equalTo(false));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
         assertThat(geoData.get("continent_code"), equalTo("NA"));

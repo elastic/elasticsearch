@@ -32,6 +32,7 @@ enum Database {
     City(
         Set.of(
             Property.IP,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
             Property.COUNTRY_ISO_CODE,
             Property.CONTINENT_CODE,
             Property.COUNTRY_NAME,
@@ -55,7 +56,14 @@ enum Database {
         )
     ),
     Country(
-        Set.of(Property.IP, Property.CONTINENT_CODE, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(
+            Property.IP,
+            Property.CONTINENT_CODE,
+            Property.CONTINENT_NAME,
+            Property.COUNTRY_NAME,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
+            Property.COUNTRY_ISO_CODE
+        ),
         Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
     ),
     Asn(
@@ -87,6 +95,7 @@ enum Database {
         Set.of(
             Property.IP,
             Property.COUNTRY_CONFIDENCE,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
             Property.COUNTRY_ISO_CODE,
             Property.COUNTRY_NAME,
             Property.CONTINENT_CODE,
@@ -211,6 +220,7 @@ enum Database {
 
         IP,
         COUNTRY_CONFIDENCE,
+        COUNTRY_IN_EUROPEAN_UNION,
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
         CONTINENT_CODE,

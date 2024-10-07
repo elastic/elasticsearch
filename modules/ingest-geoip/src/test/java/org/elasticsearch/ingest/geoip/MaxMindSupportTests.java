@@ -78,6 +78,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "city.name",
         "continent.code",
         "continent.name",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "country.name",
         "location.accuracyRadius",
@@ -96,7 +97,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "continent.names",
         "country.confidence",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "leastSpecificSubdivision.confidence",
         "leastSpecificSubdivision.geoNameId",
@@ -159,6 +159,7 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<String> COUNTRY_SUPPORTED_FIELDS = Set.of(
         "continent.name",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "continent.code",
         "country.name"
@@ -168,7 +169,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "continent.names",
         "country.confidence",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "maxMind",
         "registeredCountry.confidence",
@@ -218,6 +218,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "continent.code",
         "continent.name",
         "country.confidence",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "country.name",
         "location.accuracyRadius",
@@ -251,7 +252,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "continent.geoNameId",
         "continent.names",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "leastSpecificSubdivision.confidence",
         "leastSpecificSubdivision.geoNameId",

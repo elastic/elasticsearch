@@ -146,6 +146,12 @@ final class MaxmindIpDataLookups {
             for (Database.Property property : this.properties) {
                 switch (property) {
                     case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (country.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("country_in_european_union", country.isInEuropeanUnion());
+                        }
+                    }
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
@@ -267,6 +273,12 @@ final class MaxmindIpDataLookups {
             for (Database.Property property : this.properties) {
                 switch (property) {
                     case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (country.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("country_in_european_union", country.isInEuropeanUnion());
+                        }
+                    }
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
@@ -369,6 +381,12 @@ final class MaxmindIpDataLookups {
                         Integer countryConfidence = country.getConfidence();
                         if (countryConfidence != null) {
                             data.put("country_confidence", countryConfidence);
+                        }
+                    }
+                    case COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (country.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("country_in_european_union", country.isInEuropeanUnion());
                         }
                     }
                     case COUNTRY_ISO_CODE -> {

@@ -123,9 +123,9 @@ public class SimulateBulkRequestTests extends ESTestCase {
         String substituteIndexTemplatesString = """
               {
                   "foo_template": {
+                    "index_patterns": ["foo*"],
+                    "composed_of": ["foo_mapping_template", "foo_settings_template"],
                     "template": {
-                      "index_patterns": ["foo*"],
-                      "composed_of": ["foo_mapping_template", "foo_settings_template"],
                       "mappings": {
                         "dynamic": "true",
                         "properties": {
@@ -142,10 +142,8 @@ public class SimulateBulkRequestTests extends ESTestCase {
                     }
                   },
                   "bar_template": {
-                    "template": {
-                      "index_patterns": ["bar*"],
-                      "composed_of": ["bar_mapping_template", "bar_settings_template"]
-                    }
+                    "index_patterns": ["bar*"],
+                    "composed_of": ["bar_mapping_template", "bar_settings_template"]
                   }
               }
             """;
@@ -171,10 +169,10 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(indexTemplateSubstitutions.get("foo_template").template().settings().size(), equalTo(1));
         assertThat(
             indexTemplateSubstitutions.get("foo_template").template().settings().get("index.default_pipeline"),
-            equalTo("bar-pipeline")
+            equalTo("foo-pipeline")
         );
-        assertNull(indexTemplateSubstitutions.get("bar_template").template().mappings());
-        assertNull(indexTemplateSubstitutions.get("bar_template").template().settings());
+        assertNull(indexTemplateSubstitutions.get("bar_template").template());
+        assertNull(indexTemplateSubstitutions.get("bar_template").template());
     }
 
     public void testShallowClone() throws IOException {

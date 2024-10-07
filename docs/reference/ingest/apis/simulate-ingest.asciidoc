@@ -105,10 +105,8 @@ POST /_ingest/_simulate
   },
   "index_template_substitutions": { <3>
     "my-index-template": {
-      "template": {
-        "index_patterns": ["my-index-*"],
-        "componsed_of": ["component_template_1", "component_template_2"]
-      }
+      "index_patterns": ["my-index-*"],
+      "composed_of": ["component_template_1", "component_template_2"]
     }
   }
 }

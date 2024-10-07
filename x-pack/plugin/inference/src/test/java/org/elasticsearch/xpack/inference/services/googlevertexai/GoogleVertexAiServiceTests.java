@@ -581,7 +581,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         builtServiceSettings.putAll(secretSettings);
 
         return new HashMap<>(
-            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.OLD_TASK_SETTINGS, taskSettings)
+            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
         );
     }
 

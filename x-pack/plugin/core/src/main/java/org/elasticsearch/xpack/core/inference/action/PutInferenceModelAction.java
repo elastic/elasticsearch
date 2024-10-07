@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME;
-import static org.elasticsearch.inference.ModelConfigurations.OLD_TASK_SETTINGS;
+import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.PARAMETERS;
 
 public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
@@ -83,16 +83,16 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         public BytesReference getRewrittenContent() {
             if (rewrittenContent == null) { // rewrittenContent is deterministic on content, so we only need to calculate it once
                 Map<String, Object> newContent = XContentHelper.convertToMap(content, false, contentType).v2();
-                if (newContent.containsKey(PARAMETERS) && newContent.containsKey(OLD_TASK_SETTINGS)) {
+                if (newContent.containsKey(PARAMETERS) && newContent.containsKey(TASK_SETTINGS)) {
                     throw new ElasticsearchStatusException(
                         "Request cannot contain both [task_settings] and [parameters], use only [parameters]",
                         RestStatus.BAD_REQUEST
                     );
                 } else if (newContent.containsKey(PARAMETERS)) {
-                    newContent.put(OLD_TASK_SETTINGS, newContent.get(PARAMETERS));
+                    newContent.put(TASK_SETTINGS, newContent.get(PARAMETERS));
                     newContent.put(ENDPOINT_VERSION_FIELD_NAME, EndpointVersions.PARAMETERS_INTRODUCED_ENDPOINT_VERSION);
                     newContent.remove(PARAMETERS);
-                } else if (newContent.containsKey(OLD_TASK_SETTINGS)) {
+                } else if (newContent.containsKey(TASK_SETTINGS)) {
                     newContent.put(ENDPOINT_VERSION_FIELD_NAME, EndpointVersions.FIRST_ENDPOINT_VERSION);
                 } else {
                     newContent.put(ENDPOINT_VERSION_FIELD_NAME, EndpointVersions.FIRST_ENDPOINT_VERSION);

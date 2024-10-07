@@ -55,7 +55,7 @@ public record AmazonBedrockChatCompletionRequestTaskSettings(
             TEMPERATURE_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.OLD_TASK_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
             validationException
         );
         var topP = extractOptionalDoubleInRange(
@@ -63,7 +63,7 @@ public record AmazonBedrockChatCompletionRequestTaskSettings(
             TOP_P_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.OLD_TASK_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
             validationException
         );
         var topK = extractOptionalDoubleInRange(
@@ -71,13 +71,13 @@ public record AmazonBedrockChatCompletionRequestTaskSettings(
             TOP_K_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.OLD_TASK_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
             validationException
         );
         Integer maxNewTokens = extractOptionalPositiveInteger(
             map,
             MAX_NEW_TOKENS_FIELD,
-            ModelConfigurations.OLD_TASK_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
             validationException
         );
 

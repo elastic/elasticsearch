@@ -26,7 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.inference.ModelConfigurations.ENDPOINT_VERSION_FIELD_NAME;
-import static org.elasticsearch.inference.ModelConfigurations.OLD_TASK_SETTINGS;
+import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.PARAMETERS;
 
 public class PutInferenceModelActionTests extends ESTestCase {
@@ -76,7 +76,7 @@ public class PutInferenceModelActionTests extends ESTestCase {
         builder.map(Map.of(PARAMETERS, parametersValues, "service", "elasticsearch", "service_settings", serviceSettingsValues));
         var request = new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID, BytesReference.bytes(builder), XContentType.JSON);
         Map<String, Object> map = XContentHelper.convertToMap(request.getContent(), false, request.getContentType()).v2();
-        assertEquals(parametersValues, map.get(OLD_TASK_SETTINGS));
+        assertEquals(parametersValues, map.get(TASK_SETTINGS));
         assertNull(map.get(PARAMETERS));
         assertEquals("elasticsearch", map.get("service"));
         assertEquals(serviceSettingsValues, map.get("service_settings"));
@@ -91,7 +91,7 @@ public class PutInferenceModelActionTests extends ESTestCase {
             Map.of(
                 PARAMETERS,
                 parametersValues,
-                OLD_TASK_SETTINGS,
+                TASK_SETTINGS,
                 taskSettingsValues,
                 "service",
                 "elasticsearch",
@@ -110,10 +110,10 @@ public class PutInferenceModelActionTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         Map<String, Object> taskSettingsValues = Map.of("top_n", 2, "top_p", 0.2);
         Map<String, Object> serviceSettingsValues = Map.of("model_id", "embed", "dimensions", 1024);
-        builder.map(Map.of(OLD_TASK_SETTINGS, taskSettingsValues, "service", "elasticsearch", "service_settings", serviceSettingsValues));
+        builder.map(Map.of(TASK_SETTINGS, taskSettingsValues, "service", "elasticsearch", "service_settings", serviceSettingsValues));
         var request = new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID, BytesReference.bytes(builder), XContentType.JSON);
         Map<String, Object> map = XContentHelper.convertToMap(request.getContent(), false, request.getContentType()).v2();
-        assertEquals(taskSettingsValues, map.get(OLD_TASK_SETTINGS));
+        assertEquals(taskSettingsValues, map.get(TASK_SETTINGS));
         assertNull(map.get(PARAMETERS));
         assertEquals("elasticsearch", map.get("service"));
         assertEquals(serviceSettingsValues, map.get("service_settings"));

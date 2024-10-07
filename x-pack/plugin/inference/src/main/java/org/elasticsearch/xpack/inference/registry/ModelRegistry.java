@@ -468,10 +468,10 @@ public class ModelRegistry {
             result.put(ModelConfigurations.SERVICE_SETTINGS, copiedServiceSettings);
         }
 
-        var taskSettings = (Map<String, Object>) other.get(ModelConfigurations.OLD_TASK_SETTINGS);
+        var taskSettings = (Map<String, Object>) other.get(ModelConfigurations.TASK_SETTINGS);
         if (taskSettings != null) {
             var copiedTaskSettings = copyMap1LevelDeep(taskSettings);
-            result.put(ModelConfigurations.OLD_TASK_SETTINGS, copiedTaskSettings);
+            result.put(ModelConfigurations.TASK_SETTINGS, copiedTaskSettings);
         }
 
         var chunkSettings = (Map<String, Object>) other.get(ModelConfigurations.CHUNKING_SETTINGS);

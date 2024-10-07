@@ -40,7 +40,7 @@ public record AzureAiStudioEmbeddingsRequestTaskSettings(@Nullable String user) 
 
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(map, USER_FIELD, ModelConfigurations.OLD_TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

@@ -53,7 +53,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettings implements TaskSettings {
         InputType inputType = extractOptionalEnum(
             map,
             INPUT_TYPE,
-            ModelConfigurations.OLD_TASK_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
             VALID_REQUEST_VALUES,
             validationException

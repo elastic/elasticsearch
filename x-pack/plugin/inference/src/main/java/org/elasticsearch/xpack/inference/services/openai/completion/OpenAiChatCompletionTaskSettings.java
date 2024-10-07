@@ -31,7 +31,7 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
     public static OpenAiChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(map, USER, ModelConfigurations.OLD_TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

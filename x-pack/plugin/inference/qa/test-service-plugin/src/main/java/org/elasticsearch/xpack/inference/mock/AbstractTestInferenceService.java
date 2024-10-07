@@ -45,8 +45,8 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     protected static Map<String, Object> getTaskSettingsMap(Map<String, Object> settings) {
         Map<String, Object> taskSettingsMap;
         // task settings are optional
-        if (settings.containsKey(ModelConfigurations.OLD_TASK_SETTINGS)) {
-            taskSettingsMap = (Map<String, Object>) settings.remove(ModelConfigurations.OLD_TASK_SETTINGS);
+        if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+            taskSettingsMap = (Map<String, Object>) settings.remove(ModelConfigurations.TASK_SETTINGS);
         } else {
             taskSettingsMap = Map.of();
         }

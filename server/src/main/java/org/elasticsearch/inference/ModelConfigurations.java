@@ -28,7 +28,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     public static final String FOR_INDEX = "for_index"; // true if writing to index
     public static final String SERVICE = "service";
     public static final String SERVICE_SETTINGS = "service_settings";
-    public static final String OLD_TASK_SETTINGS = "task_settings";
+    public static final String TASK_SETTINGS = "task_settings";
     public static final String PARAMETERS = "parameters";
     public static final String CHUNKING_SETTINGS = "chunking_settings";
     public static final String INCLUDE_PARAMETERS = "include_parameters";
@@ -200,7 +200,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
-        builder.field(OLD_TASK_SETTINGS, taskSettings);
+        builder.field(TASK_SETTINGS, taskSettings);
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
@@ -225,7 +225,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
-        builder.field(OLD_TASK_SETTINGS, taskSettings);
+        builder.field(TASK_SETTINGS, taskSettings);
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }

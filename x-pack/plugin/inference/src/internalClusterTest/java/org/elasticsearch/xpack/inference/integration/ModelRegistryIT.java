@@ -740,7 +740,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());
-            builder.field(OLD_TASK_SETTINGS, getTaskSettings());
+            builder.field(TASK_SETTINGS, getTaskSettings());
             builder.endObject();
             return builder;
         }
@@ -767,7 +767,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());
-            builder.field(OLD_TASK_SETTINGS, getTaskSettings());
+            builder.field(TASK_SETTINGS, getTaskSettings());
             builder.endObject();
             return builder;
         }

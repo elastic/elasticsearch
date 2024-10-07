@@ -404,7 +404,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
             var returnDocs = randomBoolean();
             settings.put(
-                ModelConfigurations.OLD_TASK_SETTINGS,
+                ModelConfigurations.TASK_SETTINGS,
                 new HashMap<>(Map.of(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, returnDocs))
             );
 
@@ -940,7 +940,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             settings.put(ElasticsearchInternalServiceSettings.MODEL_ID, "foo");
             var returnDocs = randomBoolean();
             settings.put(
-                ModelConfigurations.OLD_TASK_SETTINGS,
+                ModelConfigurations.TASK_SETTINGS,
                 new HashMap<>(Map.of(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, returnDocs))
             );
 

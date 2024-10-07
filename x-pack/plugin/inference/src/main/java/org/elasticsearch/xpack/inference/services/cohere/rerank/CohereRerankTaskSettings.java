@@ -53,13 +53,13 @@ public class CohereRerankTaskSettings implements TaskSettings {
         Integer topNDocumentsOnly = extractOptionalPositiveInteger(
             map,
             TOP_N_DOCS_ONLY,
-            ModelConfigurations.OLD_TASK_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
             validationException
         );
         Integer maxChunksPerDoc = extractOptionalPositiveInteger(
             map,
             MAX_CHUNKS_PER_DOC,
-            ModelConfigurations.OLD_TASK_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
             validationException
         );
 

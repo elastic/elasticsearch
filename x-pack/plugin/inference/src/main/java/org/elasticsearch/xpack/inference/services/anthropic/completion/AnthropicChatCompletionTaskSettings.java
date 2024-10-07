@@ -62,7 +62,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
     private record CommonFields(int maxTokens, Double temperature, Double topP, Integer topK) {}
 
     private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer maxTokens = extractRequiredPositiveInteger(map, MAX_TOKENS, ModelConfigurations.OLD_TASK_SETTINGS, validationException);
+        Integer maxTokens = extractRequiredPositiveInteger(map, MAX_TOKENS, ModelConfigurations.TASK_SETTINGS, validationException);
 
         // At the time of writing the allowed values for the temperature field are -1, and range 0-1.
         // I'm intentionally not validating the values here, we'll let Anthropic return an error when we send it instead.

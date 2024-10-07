@@ -1184,7 +1184,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         builtServiceSettings.putAll(secretSettings);
 
         return new HashMap<>(
-            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.OLD_TASK_SETTINGS, taskSettings)
+            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
         );
     }
 
@@ -1195,9 +1195,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     ) {
 
         return new Utils.PersistedConfig(
-            new HashMap<>(
-                Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.OLD_TASK_SETTINGS, taskSettings)
-            ),
+            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
         );
     }

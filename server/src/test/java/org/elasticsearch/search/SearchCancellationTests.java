@@ -106,14 +106,17 @@ public class SearchCancellationTests extends ESTestCase {
             true
         );
 
-        Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+        Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
         assertThat(totalHits, equalTo(reader.numDocs()));
 
         searcher.addQueryCancellation(cancellation);
-        expectThrows(TaskCancelledException.class, () -> searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager()));
+        expectThrows(
+            TaskCancelledException.class,
+            () -> searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()))
+        );
 
         searcher.removeQueryCancellation(cancellation);
-        Integer totalHits2 = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+        Integer totalHits2 = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
         assertThat(totalHits2, equalTo(reader.numDocs()));
     }
 

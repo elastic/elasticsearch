@@ -206,7 +206,12 @@ GET /_xpack/usage
   "inference": {
     "available" : true,
     "enabled" : true,
-    "models" : []
+    "models" : [{
+        "service": "elasticsearch",
+        "task_type": "SPARSE_EMBEDDING",
+        "count": 1
+      }
+    ]
   },
   "logstash" : {
     "available" : true,

@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -38,9 +39,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -68,7 +72,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
@@ -82,7 +86,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TIMEOUT));
@@ -99,7 +103,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -116,7 +120,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -150,7 +154,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         var modelConfig = listener.actionGet(TIMEOUT);
@@ -179,7 +183,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModel("1", listener);
 
         registry.getModel("1", listener);
@@ -285,6 +289,80 @@ public class ModelRegistryTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is(format("Failed to store inference endpoint [%s]", model.getConfigurations().getInferenceEntityId()))
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDeepCopyDefaultConfig() {
+        {
+            var toCopy = new UnparsedModel("tocopy", randomFrom(TaskType.values()), "service-a", Map.of(), Map.of());
+            var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
+            assertThat(copied, not(sameInstance(toCopy)));
+            assertThat(copied.taskType(), is(toCopy.taskType()));
+            assertThat(copied.service(), is(toCopy.service()));
+            assertThat(copied.secrets(), not(sameInstance(toCopy.secrets())));
+            assertThat(copied.secrets(), is(toCopy.secrets()));
+            // Test copied is a modifiable map
+            copied.secrets().put("foo", "bar");
+
+            assertThat(copied.settings(), not(sameInstance(toCopy.settings())));
+            assertThat(copied.settings(), is(toCopy.settings()));
+            // Test copied is a modifiable map
+            copied.settings().put("foo", "bar");
+        }
+
+        {
+            Map<String, Object> secretsMap = Map.of("secret", "value");
+            Map<String, Object> chunking = Map.of("strategy", "word");
+            Map<String, Object> task = Map.of("user", "name");
+            Map<String, Object> service = Map.of("num_threads", 1, "adaptive_allocations", Map.of("enabled", true));
+            Map<String, Object> settings = Map.of("chunking_settings", chunking, "service_settings", service, "task_settings", task);
+
+            var toCopy = new UnparsedModel("tocopy", randomFrom(TaskType.values()), "service-a", settings, secretsMap);
+            var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
+            assertThat(copied, not(sameInstance(toCopy)));
+
+            assertThat(copied.secrets(), not(sameInstance(toCopy.secrets())));
+            assertThat(copied.secrets(), is(toCopy.secrets()));
+            // Test copied is a modifiable map
+            copied.secrets().remove("secret");
+
+            assertThat(copied.settings(), not(sameInstance(toCopy.settings())));
+            assertThat(copied.settings(), is(toCopy.settings()));
+            // Test copied is a modifiable map
+            var chunkOut = (Map<String, Object>) copied.settings().get("chunking_settings");
+            assertThat(chunkOut, is(chunking));
+            chunkOut.remove("strategy");
+
+            var taskOut = (Map<String, Object>) copied.settings().get("task_settings");
+            assertThat(taskOut, is(task));
+            taskOut.remove("user");
+
+            var serviceOut = (Map<String, Object>) copied.settings().get("service_settings");
+            assertThat(serviceOut, is(service));
+            var adaptiveOut = (Map<String, Object>) serviceOut.remove("adaptive_allocations");
+            assertThat(adaptiveOut, is(Map.of("enabled", true)));
+            adaptiveOut.remove("enabled");
+        }
+    }
+
+    public void testDuplicateDefaultIds() {
+        var client = mockBulkClient();
+        var registry = new ModelRegistry(client);
+
+        var id = "my-inference";
+
+        registry.addDefaultConfiguration(new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of()));
+        var ise = expectThrows(
+            IllegalStateException.class,
+            () -> registry.addDefaultConfiguration(new UnparsedModel(id, randomFrom(TaskType.values()), "service-b", Map.of(), Map.of()))
+        );
+        assertThat(
+            ise.getMessage(),
+            containsString(
+                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id [my-inference] declared by "
+                    + "service [service-b]. The inference Id is already use by [service-a] service."
+            )
         );
     }
 

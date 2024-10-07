@@ -18,4 +18,3 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250

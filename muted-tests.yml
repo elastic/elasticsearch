@@ -345,9 +345,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGet
   issue: https://github.com/elastic/elasticsearch/issues/114135
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testIncrementalBulkHighWatermarkBackOff
-  issue: https://github.com/elastic/elasticsearch/issues/114073
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: "testFold {TestCase=<double> #7}"
   issue: https://github.com/elastic/elasticsearch/issues/114175

@@ -170,7 +170,7 @@ public class AzureBlobStore implements BlobStore {
                     return;
                 }
             }
-            logger.debug("Request was not consumed by the stats consumer: {} {}", method, url);
+            logger.debug("Request did not match any of the tracked patterns: {} {}", method, url);
         };
     }
 

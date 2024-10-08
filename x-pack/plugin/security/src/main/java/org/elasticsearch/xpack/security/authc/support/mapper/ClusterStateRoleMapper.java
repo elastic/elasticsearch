@@ -31,9 +31,9 @@ import static org.elasticsearch.xpack.core.security.SecurityExtension.SecurityCo
 public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
 
     /**
-     * This setting is never registered by the xpack security plugin - in order to enable the
+     * This setting is never registered by the xpack security plugin - in order to disable the
      * cluster-state based role mapper another plugin must register it as a boolean setting
-     * and set it to `true`.
+     * and set it to `false`.
      * If this setting is set to <code>true</code> then:
      * <ul>
      *     <li>Realms that make use role mappings (all realms but file and native) will,
@@ -54,8 +54,8 @@ public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCa
     public ClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
-        // this role mapper is disabled by default and only code in other plugins can enable it
-        this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, false);
+        // this role mapper is enabled by default and only code in other plugins can enable it
+        this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, true);
         if (this.enabled) {
             clusterService.addListener(this);
         }

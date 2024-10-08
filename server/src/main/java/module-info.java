@@ -429,6 +429,7 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
+            org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,
             org.elasticsearch.search.SearchFeatures,

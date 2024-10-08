@@ -53,7 +53,7 @@ public class ScriptServiceBridge extends StableBridgeAPI.Proxy<ScriptService> im
             PainlessScriptEngine.NAME,
             new PainlessScriptEngine(settings, scriptContexts),
             MustacheScriptEngine.NAME,
-            new MustacheScriptEngine()
+            new MustacheScriptEngine(settings)
         );
         return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider);
     }

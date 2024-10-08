@@ -113,7 +113,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
         // this is the 'free' ASN database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_asn_sample.mmdb")) {
-            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Set.of(Database.Property.values()));
+            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Database.AsnV2.properties());
             Map<String, Object> data = lookup.getData(loader, "5.182.109.0");
             assertThat(
                 data,
@@ -131,7 +131,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
         // this is the non-free or 'standard' ASN database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("asn_sample.mmdb")) {
-            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Set.of(Database.Property.values()));
+            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Database.AsnV2.properties());
             Map<String, Object> data = lookup.getData(loader, "23.53.116.0");
             assertThat(
                 data,
@@ -198,7 +198,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
         // this is the 'free' Country database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_country_sample.mmdb")) {
-            IpDataLookup lookup = new IpinfoIpDataLookups.Country(Set.of(Database.Property.values()));
+            IpDataLookup lookup = new IpinfoIpDataLookups.Country(Database.Country.properties());
             Map<String, Object> data = lookup.getData(loader, "4.221.143.168");
             assertThat(
                 data,

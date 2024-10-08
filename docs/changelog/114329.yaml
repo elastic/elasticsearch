@@ -1,0 +1,5 @@
+pr: 114329
+summary: "[Inference API] Add parameters to perform inference API as alias to `task_settings`"
+area: Machine Learning
+type: enhancement
+issues: []

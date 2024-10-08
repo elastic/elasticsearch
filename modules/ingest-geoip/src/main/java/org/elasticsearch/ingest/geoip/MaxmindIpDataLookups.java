@@ -23,6 +23,7 @@ import com.maxmind.geoip2.model.EnterpriseResponse;
 import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Location;
+import com.maxmind.geoip2.record.Postal;
 import com.maxmind.geoip2.record.Subdivision;
 
 import org.elasticsearch.common.network.InetAddresses;
@@ -139,11 +140,18 @@ final class MaxmindIpDataLookups {
             Location location = response.getLocation();
             Continent continent = response.getContinent();
             Subdivision subdivision = response.getMostSpecificSubdivision();
+            Postal postal = response.getPostal();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
                     case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (country.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("country_in_european_union", country.isInEuropeanUnion());
+                        }
+                    }
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
@@ -206,6 +214,17 @@ final class MaxmindIpDataLookups {
                             data.put("location", locationObject);
                         }
                     }
+                    case ACCURACY_RADIUS -> {
+                        Integer accuracyRadius = location.getAccuracyRadius();
+                        if (accuracyRadius != null) {
+                            data.put("accuracy_radius", accuracyRadius);
+                        }
+                    }
+                    case POSTAL_CODE -> {
+                        if (postal != null && postal.getCode() != null) {
+                            data.put("postal_code", postal.getCode());
+                        }
+                    }
                 }
             }
             return data;
@@ -254,6 +273,12 @@ final class MaxmindIpDataLookups {
             for (Database.Property property : this.properties) {
                 switch (property) {
                     case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (country.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("country_in_european_union", country.isInEuropeanUnion());
+                        }
+                    }
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
@@ -324,6 +349,7 @@ final class MaxmindIpDataLookups {
             Location location = response.getLocation();
             Continent continent = response.getContinent();
             Subdivision subdivision = response.getMostSpecificSubdivision();
+            Postal postal = response.getPostal();
 
             Long asn = response.getTraits().getAutonomousSystemNumber();
             String organizationName = response.getTraits().getAutonomousSystemOrganization();
@@ -351,6 +377,18 @@ final class MaxmindIpDataLookups {
             for (Database.Property property : this.properties) {
                 switch (property) {
                     case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case COUNTRY_CONFIDENCE -> {
+                        Integer countryConfidence = country.getConfidence();
+                        if (countryConfidence != null) {
+                            data.put("country_confidence", countryConfidence);
+                        }
+                    }
+                    case COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (country.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("country_in_european_union", country.isInEuropeanUnion());
+                        }
+                    }
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
@@ -391,6 +429,12 @@ final class MaxmindIpDataLookups {
                             data.put("region_name", subdivisionName);
                         }
                     }
+                    case CITY_CONFIDENCE -> {
+                        Integer cityConfidence = city.getConfidence();
+                        if (cityConfidence != null) {
+                            data.put("city_confidence", cityConfidence);
+                        }
+                    }
                     case CITY_NAME -> {
                         String cityName = city.getName();
                         if (cityName != null) {
@@ -411,6 +455,23 @@ final class MaxmindIpDataLookups {
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);
+                        }
+                    }
+                    case ACCURACY_RADIUS -> {
+                        Integer accuracyRadius = location.getAccuracyRadius();
+                        if (accuracyRadius != null) {
+                            data.put("accuracy_radius", accuracyRadius);
+                        }
+                    }
+                    case POSTAL_CODE -> {
+                        if (postal != null && postal.getCode() != null) {
+                            data.put("postal_code", postal.getCode());
+                        }
+                    }
+                    case POSTAL_CONFIDENCE -> {
+                        Integer postalConfidence = postal.getConfidence();
+                        if (postalConfidence != null) {
+                            data.put("postal_confidence", postalConfidence);
                         }
                     }
                     case ASN -> {

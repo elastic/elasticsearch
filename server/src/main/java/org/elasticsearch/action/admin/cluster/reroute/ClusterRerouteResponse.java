@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -43,7 +42,6 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
     /**
      * To be removed when REST compatibility with {@link org.elasticsearch.Version#V_8_6_0} / {@link RestApiVersion#V_8} no longer needed
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)    // to remove from the v9 API only
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)  // to remove entirely
     private final ClusterState state;
     private final RoutingExplanations explanations;

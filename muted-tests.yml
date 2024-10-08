@@ -382,6 +382,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/114327
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
+  issue: https://github.com/elastic/elasticsearch/issues/114331
 
 # Examples:
 #

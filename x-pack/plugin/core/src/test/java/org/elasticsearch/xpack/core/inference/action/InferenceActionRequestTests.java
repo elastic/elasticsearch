@@ -73,6 +73,77 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         }
     }
 
+    public void testParsingWithTaskSettings() throws IOException {
+        String requestText = """
+            {
+              "input": "single text input",
+                "task_settings": {
+                    "foo": "bar"
+                }
+            }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestText)) {
+            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, parser).build();
+            assertThat(request.getInput(), contains("single text input"));
+            assertThat(request.getTaskSettings(), is(Map.of("foo", "bar")));
+        }
+    }
+
+    public void testParsingWithParameters() throws IOException {
+        String requestText = """
+            {
+              "input": "single text input",
+                "parameters": {
+                    "foo": "bar"
+                }
+            }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestText)) {
+            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, parser).build();
+            assertThat(request.getInput(), contains("single text input"));
+            assertThat(request.getTaskSettings(), is(Map.of("foo", "bar")));
+        }
+    }
+
+    public void testParsingWithTaskSettingsAndParameters() throws IOException {
+        {
+            String singleInputRequest = """
+                {
+                  "input": "single text input",
+                  "parameters": {
+                        "foo": "bar"
+                    },
+                  "task_settings": {
+                        "food": "bard"
+                  }
+                }
+                """;
+            try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
+                var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, parser).build();
+                assertThat(request.getInput(), contains("single text input"));
+                assertThat(request.getTaskSettings(), is(Map.of("food", "bard")));
+            }
+        }
+        {
+            String singleInputRequest = """
+                {
+                  "input": "single text input",
+                  "task_settings": {
+                        "food": "bard"
+                  },
+                  "parameters": {
+                        "foo": "bar"
+                  }
+                }
+                """;
+            try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
+                var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, parser).build();
+                assertThat(request.getInput(), contains("single text input"));
+                assertThat(request.getTaskSettings(), is(Map.of("foo", "bar")));
+            }
+        }
+    }
+
     public void testValidation_TextEmbedding() {
         InferenceAction.Request request = new InferenceAction.Request(
             TaskType.TEXT_EMBEDDING,

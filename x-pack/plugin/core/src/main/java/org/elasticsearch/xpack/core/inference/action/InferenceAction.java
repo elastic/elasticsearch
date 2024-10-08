@@ -59,6 +59,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
+        public static final ParseField PARAMETERS = new ParseField("parameters");
         public static final ParseField QUERY = new ParseField("query");
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
@@ -66,6 +67,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         static {
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
+            PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), PARAMETERS);
             PARSER.declareString(Request.Builder::setQuery, QUERY);
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
         }

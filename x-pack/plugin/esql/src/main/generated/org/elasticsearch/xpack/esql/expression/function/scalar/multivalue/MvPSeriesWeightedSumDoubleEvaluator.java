@@ -13,17 +13,17 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvPSeriesWeightedSum}.
  * This class is generated. Do not edit it.
  */
 public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator block;
 
@@ -33,13 +33,15 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public MvPSeriesWeightedSumDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator block,
       CompensatedSum sum, double p, DriverContext driverContext) {
+    this.source = source;
     this.block = block;
     this.sum = sum;
     this.p = p;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -63,7 +65,7 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
         try {
           MvPSeriesWeightedSum.process(result, p, blockBlock, this.sum, this.p);
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -79,6 +81,18 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
   @Override
   public void close() {
     Releasables.closeExpectNoException(block);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

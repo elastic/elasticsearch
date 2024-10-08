@@ -251,10 +251,18 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
+        builder.startObject(getName());
         if (preFilterQueryBuilders.isEmpty() == false) {
             builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilders);
         }
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
+        if (retrieverName != null) {
+            builder.field(NAME_FIELD.getPreferredName(), retrieverName);
+        }
         doToXContent(builder, params);
+        builder.endObject();
         builder.endObject();
 
         return builder;

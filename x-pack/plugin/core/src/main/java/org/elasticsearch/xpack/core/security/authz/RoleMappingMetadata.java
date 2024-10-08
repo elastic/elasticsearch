@@ -108,8 +108,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     }
 
     public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {
-        RoleMappingMetadata roleMappingMetadata = PARSER.apply(parser, null);
-        return roleMappingMetadata;
+        return PARSER.apply(parser, null);
     }
 
     public int getVersion() {

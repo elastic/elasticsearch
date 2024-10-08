@@ -131,8 +131,11 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
         var rewrittenFilters = rewritePreFilters(ctx);
         changed |= rewrittenFilters != preFilterQueryBuilders;
 
-        var queryBuilderRewrite = queryBuilder.rewrite(ctx);
-        changed |= queryBuilderRewrite != queryBuilder;
+        QueryBuilder queryBuilderRewrite = null;
+        if (queryBuilder != null) {
+            queryBuilderRewrite = queryBuilder.rewrite(ctx);
+            changed |= queryBuilderRewrite != queryBuilder;
+        }
 
         if (changed) {
             var rewritten = new StandardRetrieverBuilder(this);

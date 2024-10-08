@@ -65,6 +65,8 @@ class KibanaOwnedReservedRoleDescriptors {
             new String[] {
                 "monitor",
                 "manage_index_templates",
+                // manage_inference required for Kibana's inference plugin to setup an ELSER endpoint.
+                "manage_inference",
                 MonitoringBulkAction.NAME,
                 "manage_saml",
                 "manage_token",

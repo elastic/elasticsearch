@@ -322,12 +322,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Similar to the lucene implementation, with the following changes made:
-     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search worker threads
-     * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
-     * does not allow consuming them from a different thread.
-     * 2) handles the ES TimeExceededException
-     * */
+     * Same implementation as the default one in Lucene, with an additional call to postCollection in cased there are no segments.
+     * The rest is a plain copy from Lucene.
+     */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
         LeafSlice[] leafSlices = getSlices();
         if (leafSlices.length == 0) {
@@ -359,14 +356,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    /**
+     * Similar to the lucene implementation, with the following changes made:
+     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search threads
+     * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
+     * does not allow consuming them from a different thread.
+     * 2) handles the ES TimeExceededException
+     */
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        collector.setWeight(weight);
         boolean success = false;
         try {
-            for (LeafReaderContext ctx : leaves) { // search each subreader
-                searchLeaf(ctx, weight, collector);
-            }
+            super.search(leaves, weight, collector);
             success = true;
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
@@ -410,13 +411,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
     }
 
-    /**
-     * Lower-level search API.
-     *
-     * {@link LeafCollector#collect(int)} is called for every matching document in
-     * the provided <code>ctx</code>.
-     */
-    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    @Override
+    protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
         final LeafCollector leafCollector;
         try {

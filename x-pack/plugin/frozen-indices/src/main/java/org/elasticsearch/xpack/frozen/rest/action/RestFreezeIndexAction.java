@@ -38,7 +38,7 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
     private static final String UNFREEZE_DEPRECATED = "Frozen indices are deprecated because they provide no benefit given improvements "
         + "in heap memory utilization. They will be removed in a future release.";
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
     // these routes were ".deprecated" in RestApiVersion.V_8 which will require use of REST API compatibility headers to access
     // this API in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
     // continue to emit deprecations warnings but will not require any special headers to access the API in v9.

@@ -15,18 +15,16 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * An abstract class for representing various types of allocation decisions.
@@ -135,12 +133,12 @@ public abstract class AbstractAllocationDecision implements ChunkedToXContentObj
      * Generates X-Content chunks for the node-level decisions, creating the outer "node_allocation_decisions" object
      * in which they are serialized.
      */
-    public static Iterator<ToXContent> nodeDecisionsToXContentChunked(List<NodeAllocationResult> nodeDecisions) {
+    public static Consumer<ChunkedToXContentBuilder> nodeDecisionsToXContentChunked(List<NodeAllocationResult> nodeDecisions) {
         if (nodeDecisions == null || nodeDecisions.isEmpty()) {
-            return Collections.emptyIterator();
+            return b -> {};
         }
 
-        return ChunkedToXContentHelper.array("node_allocation_decisions", nodeDecisions.iterator());
+        return b -> b.array("node_allocation_decisions", nodeDecisions.iterator());
     }
 
     /**

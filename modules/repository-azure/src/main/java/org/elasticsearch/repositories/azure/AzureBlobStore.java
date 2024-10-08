@@ -112,7 +112,7 @@ public class AzureBlobStore implements BlobStore {
     private final ByteSizeValue maxSinglePartUploadSize;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
-    private final AzureClientProvider.RequestMetricsHandler statsConsumer;
+    private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
 
     public AzureBlobStore(
         RepositoryMetadata metadata,
@@ -150,7 +150,7 @@ public class AzureBlobStore implements BlobStore {
             )
         );
 
-        this.statsConsumer = (purpose, method, url, metrics) -> {
+        this.requestMetricsHandler = (purpose, method, url, metrics) -> {
             try {
                 URI uri = url.toURI();
                 String path = uri.getPath() == null ? "" : uri.getPath();
@@ -661,7 +661,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private AzureBlobServiceClient getAzureBlobServiceClientClient(OperationPurpose purpose) {
-        return service.client(clientName, locationMode, purpose, statsConsumer);
+        return service.client(clientName, locationMode, purpose, requestMetricsHandler);
     }
 
     @Override

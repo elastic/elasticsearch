@@ -22,10 +22,16 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.io.IOException;
 
 public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
 
     public void testScore() throws IOException {
         int dimensions = random().nextInt(1, 4097);

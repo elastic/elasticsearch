@@ -39,8 +39,8 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
 
     static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;
-    static final String META_CODEC_NAME = "Lucene912BinaryQuantizedVectorsFormatMeta";
-    static final String VECTOR_DATA_CODEC_NAME = "Lucene912BinaryQuantizedVectorsFormatData";
+    static final String META_CODEC_NAME = "ES816BinaryQuantizedVectorsFormatMeta";
+    static final String VECTOR_DATA_CODEC_NAME = "ES816BinaryQuantizedVectorsFormatData";
     static final String META_EXTENSION = "vemb";
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
@@ -49,7 +49,7 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    private final ES816BinaryFlatVectorsScorer scorer = new ES816BinaryFlatVectorsScorer(
+    private static final ES816BinaryFlatVectorsScorer scorer = new ES816BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 

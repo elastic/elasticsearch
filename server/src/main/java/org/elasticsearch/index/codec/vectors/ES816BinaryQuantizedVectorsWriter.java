@@ -307,9 +307,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             final float[] centroid;
             final float[] mergedCentroid = new float[fieldInfo.getVectorDimension()];
             int vectorCount = mergeAndRecalculateCentroids(mergeState, fieldInfo, mergedCentroid);
-            if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
-                VectorUtil.l2normalize(mergedCentroid);
-            }
             boolean success = false;
             try {
                 // Don't need access to the random vectors, we can just use the merged
@@ -424,9 +421,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             final float cDotC;
             final float[] mergedCentroid = new float[fieldInfo.getVectorDimension()];
             int vectorCount = mergeAndRecalculateCentroids(mergeState, fieldInfo, mergedCentroid);
-            if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
-                VectorUtil.l2normalize(mergedCentroid);
-            }
 
             // Don't need access to the random vectors, we can just use the merged
             rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
@@ -719,6 +713,7 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             long size = SHALLOW_SIZE;
             size += flatFieldVectorsWriter.ramBytesUsed();
             size += RamUsageEstimator.sizeOf(dimensionSums);
+            size += magnitudes.ramBytesUsed();
             return size;
         }
     }

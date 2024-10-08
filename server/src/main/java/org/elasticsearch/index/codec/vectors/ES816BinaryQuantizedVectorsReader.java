@@ -218,6 +218,12 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         return rawVectorsReader.getByteVectorValues(field);
     }
 
+    @Override
+    public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        rawVectorsReader.search(field, target, knnCollector, acceptDocs);
+    }
+
+    @Override
     public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
         if (knnCollector.k() == 0) return;
         final RandomVectorScorer scorer = getRandomVectorScorer(field, target);

@@ -61,7 +61,7 @@ public class ES816HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
     private final int beamWidth;
 
     /** The format for storing, reading, merging vectors on disk */
-    private final FlatVectorsFormat flatVectorsFormat;
+    private static final FlatVectorsFormat flatVectorsFormat = new ES816BinaryQuantizedVectorsFormat();
 
     private final int numMergeWorkers;
     private final TaskExecutor mergeExec;
@@ -114,7 +114,6 @@ public class ES816HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
         } else {
             this.mergeExec = null;
         }
-        this.flatVectorsFormat = new ES816BinaryQuantizedVectorsFormat();
     }
 
     @Override

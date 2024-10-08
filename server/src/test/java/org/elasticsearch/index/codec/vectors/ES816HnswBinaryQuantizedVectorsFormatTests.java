@@ -36,6 +36,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.util.SameThreadExecutorService;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -46,6 +47,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
 public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
 
     @Override
     protected Codec getCodec() {

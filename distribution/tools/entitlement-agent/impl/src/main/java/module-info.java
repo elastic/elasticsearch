@@ -13,7 +13,6 @@ import org.elasticsearch.entitlement.instrumentation.impl.InstrumentationService
 module org.elasticsearch.entitlement.agent.impl {
     requires org.objectweb.asm;
     requires org.elasticsearch.entitlement.agent;
-    requires org.elasticsearch.entitlement.bridge;
 
     provides InstrumentationService with InstrumentationServiceImpl;
 }

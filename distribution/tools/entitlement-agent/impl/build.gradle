@@ -11,7 +11,6 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   compileOnly project(':distribution:tools:entitlement-agent')
-  compileOnly project(':distribution:tools:entitlement-bridge')
   implementation 'org.ow2.asm:asm:9.7'
 }
 

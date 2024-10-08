@@ -9,8 +9,6 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.api.EntitlementChecks;
-import org.elasticsearch.entitlement.api.EntitlementProvider;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.objectweb.asm.AnnotationVisitor;
@@ -147,9 +145,9 @@ public class InstrumenterImpl implements Instrumenter {
         private void pushEntitlementChecksObject() {
             mv.visitMethodInsn(
                 INVOKESTATIC,
-                Type.getDescriptor(EntitlementProvider.class),
+                "org/elasticsearch/entitlement/api/EntitlementProvider",
                 "checks",
-                Type.getMethodDescriptor(Type.getType(EntitlementChecks.class)),
+                "()Lorg/elasticsearch/entitlement/api/EntitlementChecks;",
                 false
             );
         }

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -652,6 +653,7 @@ public class Verifier {
             Expression condition = f.condition();
             checkCommandsBeforeQueryStringFunction(plan, condition, failures);
             checkCommandsBeforeMatchFunction(plan, condition, failures);
+            checkFullTextFunctionsConditions(condition, failures);
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
@@ -691,6 +693,31 @@ public class Verifier {
                     );
                 }
             });
+        });
+    }
+
+    private static void checkFullTextFunctionsConditions(Expression condition, Set<Failure> failures) {
+        condition.forEachUp(Or.class, or -> {
+            Expression left = or.left();
+            Expression right = or.right();
+            checkDisjunction(failures, or, left, right);
+            checkDisjunction(failures, or, right, left);
+        });
+    }
+
+    private static void checkDisjunction(Set<Failure> failures, Or or, Expression left, Expression right) {
+        left.forEachDown(FullTextFunction.class, ftf -> {
+            if (canPushToSource(right, x -> false) == false) {
+                failures.add(
+                    fail(
+                        or,
+                        "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
+                        or.sourceText(),
+                        ftf.functionName(),
+                        right.sourceText()
+                    )
+                );
+            }
         });
     }
 

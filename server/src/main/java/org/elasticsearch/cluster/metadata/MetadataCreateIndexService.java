@@ -984,6 +984,7 @@ public class MetadataCreateIndexService {
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
             final boolean timeSeriesTemplate = Optional.of(request)
+                .filter(r -> r.isFailureIndex() == false)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
                 .map(metadata::isTimeSeriesTemplate)
                 .orElse(false);
@@ -1099,6 +1100,9 @@ public class MetadataCreateIndexService {
             );
         }
 
+        if (request.isFailureIndex()) {
+            DataStreamFailureStoreDefinition.removeUnsupportedSettings(indexSettingsBuilder);
+        }
         Settings indexSettings = indexSettingsBuilder.build();
         /*
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings

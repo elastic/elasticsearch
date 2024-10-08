@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * A utility class that contains the mappings and settings logic for failure store indices that are a part of data streams.
@@ -27,6 +28,20 @@ public class DataStreamFailureStoreDefinition {
 
     public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
     public static final Settings DATA_STREAM_FAILURE_STORE_SETTINGS;
+    // Settings for removal, we do not use the `DATA_STREAM_FAILURE_STORE_SETTINGS` because
+    // some internal index settings cannot be set to null effectively.
+    public static final Set<String> UNSUPPORTED_SETTINGS = Set.of(
+        // Override any pipeline settings on the failure store to not use any
+        // specified by the data stream template. Default pipelines are very much
+        // meant for the backing indices only.
+        IndexSettings.DEFAULT_PIPELINE.getKey(),
+        IndexSettings.FINAL_PIPELINE.getKey(),
+        // Override any time series settings on the failure store to not use any
+        // specified by the data stream template. Time series are supported only by backing indices.
+        IndexSettings.TIME_SERIES_START_TIME.getKey(),
+        IndexSettings.TIME_SERIES_END_TIME.getKey(),
+        IndexMetadata.INDEX_ROUTING_PATH.getKey(),
+        IndexSettings.MODE.getKey());
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
     public static final int FAILURE_STORE_DEFINITION_VERSION = 1;
@@ -40,11 +55,6 @@ public class DataStreamFailureStoreDefinition {
         DATA_STREAM_FAILURE_STORE_SETTINGS = Settings.builder()
             // Always start with the hidden settings for a backing index.
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-            // Override any pipeline settings on the failure store to not use any
-            // specified by the data stream template. Default pipelines are very much
-            // meant for the backing indices only.
-            .putNull(IndexSettings.DEFAULT_PIPELINE.getKey())
-            .putNull(IndexSettings.FINAL_PIPELINE.getKey())
             .put(FAILURE_STORE_DEFINITION_VERSION_SETTING.getKey(), FAILURE_STORE_DEFINITION_VERSION)
             .build();
 
@@ -196,6 +206,18 @@ public class DataStreamFailureStoreDefinition {
         TimeValue refreshInterval = getFailureStoreRefreshInterval(nodeSettings);
         if (refreshInterval != null) {
             builder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
+        }
+        return builder;
+    }
+
+    /**
+     * Removes any settings that are not supported by a data stream's failure store.
+     * @param builder to capture failure store specific index settings
+     * @return the original settings builder, with the unsupported settings removed.
+     */
+    public static Settings.Builder removeUnsupportedSettings(Settings.Builder builder) {
+        for (String setting : UNSUPPORTED_SETTINGS) {
+            builder.remove(setting);
         }
         return builder;
     }

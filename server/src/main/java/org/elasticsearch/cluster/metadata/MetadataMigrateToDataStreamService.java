@@ -248,6 +248,7 @@ public class MetadataMigrateToDataStreamService {
 
         if (failureStore) {
             DataStreamFailureStoreDefinition.applyFailureStoreSettings(nodeSettings, settingsUpdate);
+            DataStreamFailureStoreDefinition.removeUnsupportedSettings(settingsUpdate);
         }
 
         imb.settings(settingsUpdate.build())

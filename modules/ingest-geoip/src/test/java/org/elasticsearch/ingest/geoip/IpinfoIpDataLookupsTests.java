@@ -208,6 +208,35 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         }
     }
 
+    public void testGeolocation() throws IOException {
+        Path configDir = createTempDir();
+        copyDatabase("ipinfo/ip_geolocation_sample.mmdb", configDir.resolve("ip_geolocation_sample.mmdb"));
+
+        GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
+        ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
+        configDatabases.initialize(resourceWatcherService);
+
+        {
+            DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_geolocation_sample.mmdb");
+            IpDataLookup lookup = new IpinfoIpDataLookups.Geolocation(Set.of(Database.Property.values()));
+            Map<String, Object> data = lookup.getData(loader, "2.124.90.182");
+            assertThat(
+                data,
+                equalTo(
+                    Map.ofEntries(
+                        entry("ip", "2.124.90.182"),
+                        entry("country_iso_code", "GB"),
+                        entry("region_name", "England"),
+                        entry("city_name", "London"),
+                        entry("timezone", "Europe/London"),
+                        entry("postal_code", "E1W"),
+                        entry("location", Map.of("lat", 51.50853, "lon", -0.12574))
+                    )
+                )
+            );
+        }
+    }
+
     public void testGeolocationInvariants() {
         Path configDir = createTempDir();
         copyDatabase("ipinfo/ip_geolocation_sample.mmdb", configDir.resolve("ip_geolocation_sample.mmdb"));

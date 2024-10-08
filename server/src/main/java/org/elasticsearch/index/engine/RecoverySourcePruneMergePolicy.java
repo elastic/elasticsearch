@@ -35,12 +35,7 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
-    RecoverySourcePruneMergePolicy(
-        String recoverySourceField,
-        boolean pruneIdField,
-        LongSupplier minRetainingSeqNo,
-        MergePolicy in
-    ) {
+    RecoverySourcePruneMergePolicy(String recoverySourceField, boolean pruneIdField, LongSupplier minRetainingSeqNo, MergePolicy in) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
@@ -50,12 +45,8 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         });
     }
 
-    private static CodecReader wrapReader(
-        String recoverySourceField,
-        boolean pruneIdField,
-        CodecReader reader,
-        long minRetainingSeqNo
-    ) throws IOException {
+    private static CodecReader wrapReader(String recoverySourceField, boolean pruneIdField, CodecReader reader, long minRetainingSeqNo)
+        throws IOException {
         NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
@@ -114,11 +105,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         @Override
         public StoredFieldsReader getFieldsReader() {
-            return new RecoverySourcePruningStoredFieldsReader(
-                super.getFieldsReader(),
-                recoverySourceField,
-                pruneIdField
-            );
+            return new RecoverySourcePruningStoredFieldsReader(super.getFieldsReader(), recoverySourceField, pruneIdField);
         }
 
         @Override
@@ -206,11 +193,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             private final String recoverySourceField;
             private final boolean pruneIdField;
 
-            RecoverySourcePruningStoredFieldsReader(
-                StoredFieldsReader in,
-                String recoverySourceField,
-                boolean pruneIdField
-            ) {
+            RecoverySourcePruningStoredFieldsReader(StoredFieldsReader in, String recoverySourceField, boolean pruneIdField) {
                 super(in);
                 this.recoverySourceField = Objects.requireNonNull(recoverySourceField);
                 this.pruneIdField = pruneIdField;
@@ -234,11 +217,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
             @Override
             public StoredFieldsReader getMergeInstance() {
-                return new RecoverySourcePruningStoredFieldsReader(
-                    in.getMergeInstance(),
-                    recoverySourceField,
-                    pruneIdField
-                );
+                return new RecoverySourcePruningStoredFieldsReader(in.getMergeInstance(), recoverySourceField, pruneIdField);
             }
 
             @Override

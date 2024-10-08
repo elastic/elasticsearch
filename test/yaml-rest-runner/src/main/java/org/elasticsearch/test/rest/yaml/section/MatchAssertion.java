@@ -38,7 +38,7 @@ import static org.junit.Assert.assertThat;
  */
 public class MatchAssertion extends Assertion {
 
-    private static final Base64.Encoder BYTE_ARRAY_BASE64_ENCODER = Base64.getEncoder().withoutPadding();
+    private static final Base64.Encoder BYTE_ARRAY_BASE64_ENCODER = Base64.getEncoder();
 
     public static MatchAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();

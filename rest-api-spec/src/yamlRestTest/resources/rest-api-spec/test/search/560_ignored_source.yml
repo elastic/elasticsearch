@@ -68,7 +68,7 @@ setup:
           stored_fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "fetch fields by name":
@@ -83,7 +83,7 @@ setup:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "fields and stored fields combination":
@@ -102,7 +102,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields.object: null }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "wildcard fields and stored fields combination":
@@ -134,7 +134,7 @@ setup:
           fields: [ object ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
   - match: { hits.hits.0.fields: null }
 
 ---
@@ -151,7 +151,7 @@ setup:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "ignored source via fields and wildcard stored fields":
@@ -167,7 +167,7 @@ setup:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "wildcard fields and ignored source via stored fields":
@@ -183,4 +183,4 @@ setup:
           fields: [ "*" ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg" }
+  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }

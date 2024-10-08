@@ -11,8 +11,10 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -64,7 +66,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         final Set<FieldAndFormat> fetchContextMetadataFields = new HashSet<>();
         if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
             for (final FieldAndFormat fieldAndFormat : fetchFieldsContext.fields()) {
-                if (searchExecutionContext.isMetadataField(fieldAndFormat.field)) {
+                if (SourceFieldMapper.NAME.equals(fieldAndFormat.field) || IdFieldMapper.NAME.equals(fieldAndFormat.field)) {
+                    continue;
+                }
+                if (searchExecutionContext.isMetadataField(fieldAndFormat.field)
+                    && searchExecutionContext.getFieldType(fieldAndFormat.field).isStored()) {
                     fetchContextMetadataFields.add(fieldAndFormat);
                 }
             }
@@ -82,6 +88,9 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                         continue;
                     }
                     final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
+                    if (matchingFieldName.equals(IgnoredSourceFieldMapper.NAME) && Regex.isSimpleMatchPattern(storedField)) {
+                        continue;
+                    }
                     // NOTE: checking if the field is stored is required for backward compatibility reasons and to make
                     // sure we also handle here stored fields requested via `stored_fields`, which was previously a
                     // responsibility of StoredFieldsPhase.

@@ -66,6 +66,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
+    protected boolean profile;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -128,7 +129,8 @@ public class QueryRewriteContext {
         final Client client,
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final boolean profile
     ) {
         this(
             parserConfiguration,
@@ -241,6 +243,14 @@ public class QueryRewriteContext {
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
+    }
+
+    public void profile(boolean profile){
+        this.profile = profile;
+    }
+
+    public boolean profile(){
+        return this.profile;
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {

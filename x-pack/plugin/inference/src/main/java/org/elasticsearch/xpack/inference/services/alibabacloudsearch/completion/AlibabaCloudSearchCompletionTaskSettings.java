@@ -134,4 +134,10 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
     public Map<String, Object> getParameters() {
         return parameters;
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AlibabaCloudSearchCompletionTaskSettings updatedSettings = AlibabaCloudSearchCompletionTaskSettings.fromMap(newSettings);
+        return of(this, updatedSettings);
+    }
 }

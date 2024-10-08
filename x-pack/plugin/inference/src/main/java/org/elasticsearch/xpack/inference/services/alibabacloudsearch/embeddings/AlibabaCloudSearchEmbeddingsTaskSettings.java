@@ -170,4 +170,10 @@ public class AlibabaCloudSearchEmbeddingsTaskSettings implements TaskSettings {
     public static String invalidInputTypeMessage(InputType inputType) {
         return Strings.format("received invalid input type value [%s]", inputType.toString());
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AlibabaCloudSearchEmbeddingsTaskSettings newSettingsOnly = fromMap(newSettings);
+        return of(this, newSettingsOnly, newSettingsOnly.inputType != null ? newSettingsOnly.inputType : this.getInputType());
+    }
 }

@@ -189,4 +189,11 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
         return Objects.hash(temperature, topP, doSample, maxNewTokens);
     }
 
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AzureAiStudioChatCompletionRequestTaskSettings requestSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(
+            newSettings
+        );
+        return of(this, requestSettings);
+    }
 }

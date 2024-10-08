@@ -131,4 +131,10 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
     public int hashCode() {
         return Objects.hash(returnDocuments);
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        CustomElandRerankTaskSettings updatedSettings = CustomElandRerankTaskSettings.fromMap(newSettings);
+        return of(this, updatedSettings);
+    }
 }

@@ -101,4 +101,9 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
     public int hashCode() {
         return Objects.hash(serviceAccountJson);
     }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return GoogleVertexAiSecretSettings.fromMap(newSecrets);
+    }
 }

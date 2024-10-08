@@ -199,4 +199,10 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     public static String invalidInputTypeMessage(InputType inputType) {
         return Strings.format("received invalid input type value [%s]", inputType.toString());
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        CohereEmbeddingsTaskSettings updatedSettings = CohereEmbeddingsTaskSettings.fromMap(newSettings);
+        return of(this, updatedSettings, updatedSettings.inputType != null ? updatedSettings.inputType : this.inputType);
+    }
 }

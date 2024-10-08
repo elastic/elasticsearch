@@ -181,4 +181,9 @@ public class CohereRerankTaskSettings implements TaskSettings {
         return maxChunksPerDoc;
     }
 
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        CohereRerankTaskSettings updatedSettings = CohereRerankTaskSettings.fromMap(newSettings);
+        return CohereRerankTaskSettings.of(this, updatedSettings);
+    }
 }

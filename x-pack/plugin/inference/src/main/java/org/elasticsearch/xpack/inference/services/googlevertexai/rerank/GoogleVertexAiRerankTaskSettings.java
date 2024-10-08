@@ -102,4 +102,10 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
     public int hashCode() {
         return Objects.hash(topN);
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        GoogleVertexAiRerankRequestTaskSettings requestSettings = GoogleVertexAiRerankRequestTaskSettings.fromMap(newSettings);
+        return of(this, requestSettings);
+    }
 }

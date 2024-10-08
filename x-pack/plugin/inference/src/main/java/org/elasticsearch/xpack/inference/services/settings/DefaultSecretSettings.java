@@ -78,4 +78,9 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
     public void writeTo(StreamOutput out) throws IOException {
         out.writeSecureString(apiKey);
     }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return fromMap(newSecrets);
+    }
 }

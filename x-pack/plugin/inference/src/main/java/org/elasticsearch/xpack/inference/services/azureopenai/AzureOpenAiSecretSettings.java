@@ -125,4 +125,9 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
     public int hashCode() {
         return Objects.hash(entraId, apiKey);
     }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return AzureOpenAiSecretSettings.fromMap(newSecrets);
+    }
 }

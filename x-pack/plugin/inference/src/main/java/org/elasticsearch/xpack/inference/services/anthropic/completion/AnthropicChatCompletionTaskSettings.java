@@ -59,6 +59,11 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
         return new AnthropicChatCompletionTaskSettings(commonFields);
     }
 
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        return fromRequestMap(newSettings);
+    }
+
     private record CommonFields(int maxTokens, Double temperature, Double topP, Integer topK) {}
 
     private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {

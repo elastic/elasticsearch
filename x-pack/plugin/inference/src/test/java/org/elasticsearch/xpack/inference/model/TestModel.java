@@ -212,6 +212,11 @@ public class TestModel extends Model {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            return TestTaskSettings.fromMap(newSettings);
+        }
     }
 
     public record TestSecretSettings(String apiKey) implements SecretSettings {
@@ -259,6 +264,11 @@ public class TestModel extends Model {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return new TestSecretSettings(newSecrets.get("api_key").toString());
         }
     }
 }

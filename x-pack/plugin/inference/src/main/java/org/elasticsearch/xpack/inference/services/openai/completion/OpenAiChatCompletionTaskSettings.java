@@ -102,4 +102,10 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
     public int hashCode() {
         return Objects.hash(user);
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        OpenAiChatCompletionRequestTaskSettings updatedSettings = OpenAiChatCompletionRequestTaskSettings.fromMap(newSettings);
+        return of(this, updatedSettings);
+    }
 }

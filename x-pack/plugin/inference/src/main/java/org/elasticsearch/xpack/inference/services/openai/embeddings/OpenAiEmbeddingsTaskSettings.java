@@ -122,4 +122,10 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
     public int hashCode() {
         return Objects.hash(user);
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        OpenAiEmbeddingsRequestTaskSettings requestSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(newSettings);
+        return of(this, requestSettings);
+    }
 }

@@ -102,4 +102,10 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
     public int hashCode() {
         return Objects.hash(autoTruncate);
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        GoogleVertexAiEmbeddingsRequestTaskSettings requestSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(newSettings);
+        return of(this, requestSettings);
+    }
 }

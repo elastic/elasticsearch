@@ -23,6 +23,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
@@ -157,6 +158,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            return fromMap(newSettings);
+        }
     }
 
     public record TestSecretSettings(String apiKey) implements SecretSettings {
@@ -204,6 +210,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return TestSecretSettings.fromMap(newSecrets);
         }
     }
 }

@@ -592,6 +592,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             public void writeTo(StreamOutput out) throws IOException {
 
             }
+
+            @Override
+            public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+                return this;
+            }
         }
 
         record TestSecretSettings(String key) implements SecretSettings {
@@ -616,6 +621,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 builder.field("secret", key);
                 builder.endObject();
                 return builder;
+            }
+
+            @Override
+            public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+                return new TestSecretSettings(newSecrets.get("secret").toString());
             }
         }
 

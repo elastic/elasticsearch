@@ -187,4 +187,12 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
     public int hashCode() {
         return Objects.hash(temperature, topP, topK, maxNewTokens);
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AmazonBedrockChatCompletionRequestTaskSettings requestSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(
+            newSettings
+        );
+        return of(this, requestSettings);
+    }
 }

@@ -106,4 +106,10 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
     public int hashCode() {
         return Objects.hashCode(user);
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AzureAiStudioEmbeddingsRequestTaskSettings requestSettings = AzureAiStudioEmbeddingsRequestTaskSettings.fromMap(newSettings);
+        return AzureAiStudioEmbeddingsTaskSettings.of(this, requestSettings);
+    }
 }

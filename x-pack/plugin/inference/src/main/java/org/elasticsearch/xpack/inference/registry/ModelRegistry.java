@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file contains code contributed by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.registry;
@@ -21,6 +23,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -49,10 +52,13 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -82,6 +88,8 @@ public class ModelRegistry {
 
     private final OriginSettingClient client;
     private Map<String, UnparsedModel> defaultConfigs;
+
+    private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public ModelRegistry(Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
@@ -306,7 +314,89 @@ public class ModelRegistry {
         );
     }
 
+    public synchronized void updateModelTransaction(Model newModel, Model existingModel, ActionListener<Boolean> listener) {
+
+        String inferenceEntityId = newModel.getConfigurations().getInferenceEntityId();
+
+        preventDeletionLock.add(inferenceEntityId);
+
+        SubscribableListener.<BulkResponse>newForked((subListener) -> {
+
+            IndexRequest configRequest = createIndexRequest(
+                Model.documentId(inferenceEntityId),
+                InferenceIndex.INDEX_NAME,
+                newModel.getConfigurations(),
+                true
+            );
+
+            client.prepareBulk().add(configRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(subListener);
+
+        }).<BulkResponse>andThen((subListener, configResponse) -> {
+
+            if (configResponse.hasFailures()) {
+                // TODO add log message
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId),
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        configResponse.buildFailureMessage()
+                    )
+                );
+            } else {
+                IndexRequest secretsRequest = createIndexRequest(
+                    Model.documentId(newModel.getConfigurations().getInferenceEntityId()),
+                    InferenceSecretsIndex.INDEX_NAME,
+                    newModel.getSecrets(),
+                    true
+                );
+
+                client.prepareBulk().add(secretsRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(subListener);
+            }
+        }).<BulkResponse>andThen((subListener, secretsResponse) -> {
+            if (secretsResponse.hasFailures()) {
+                IndexRequest configRequest = createIndexRequest(
+                    Model.documentId(inferenceEntityId),
+                    InferenceIndex.INDEX_NAME,
+                    existingModel.getConfigurations(),
+                    true
+                );
+
+                client.prepareBulk().add(configRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(subListener);
+                // TODO add log message
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId),
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        secretsResponse.buildFailureMessage()
+                    )
+                );
+            } else {
+                preventDeletionLock.remove(inferenceEntityId);
+                listener.onResponse(true);
+            }
+        }).<BulkResponse>andThen((subListener, configResponse) -> {
+            preventDeletionLock.remove(inferenceEntityId);
+            // TODO add log message
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    format(
+                        "Failed to rollback while handling failure to update inference endpoint [%s]. "
+                            + "Endpoint may be in an inconsistent state due to [%s]",
+                        inferenceEntityId
+                    ),
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    configResponse.buildFailureMessage()
+                )
+            );
+        });
+
+    }
+
+    /**
+     * Note: storeModel does not overwrite existing models and thus does not need to check the lock
+     */
     public void storeModel(Model model, ActionListener<Boolean> listener) {
+
         ActionListener<BulkResponse> bulkResponseActionListener = getStoreModelListener(model, listener);
 
         IndexRequest configRequest = createIndexRequest(
@@ -405,6 +495,16 @@ public class ModelRegistry {
     }
 
     public void deleteModel(String inferenceEntityId, ActionListener<Boolean> listener) {
+        if (preventDeletionLock.contains(inferenceEntityId)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Model is currently being updated, you may delete the model once the update completes",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
+
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
         request.setQuery(documentIdQuery(inferenceEntityId));

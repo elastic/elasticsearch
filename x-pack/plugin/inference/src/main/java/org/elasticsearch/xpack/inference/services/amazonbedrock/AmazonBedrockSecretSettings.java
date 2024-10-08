@@ -107,4 +107,9 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
     public int hashCode() {
         return Objects.hash(accessKey, secretKey);
     }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return fromMap(newSecrets);
+    }
 }

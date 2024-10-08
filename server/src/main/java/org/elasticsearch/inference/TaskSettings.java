@@ -12,4 +12,9 @@ package org.elasticsearch.inference;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
-public interface TaskSettings extends ToXContentObject, VersionedNamedWriteable {}
+import java.util.Map;
+
+public interface TaskSettings extends ToXContentObject, VersionedNamedWriteable {
+
+    TaskSettings updatedTaskSettings(Map<String, Object> newSettings);
+}

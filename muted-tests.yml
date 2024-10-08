@@ -362,12 +362,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114232
-- class: org.elasticsearch.index.SearchSlowLogTests
-  method: testLevelPrecedence
-  issue: https://github.com/elastic/elasticsearch/issues/114300
-- class: org.elasticsearch.index.SearchSlowLogTests
-  method: testTwoLoggersDifferentLevel
-  issue: https://github.com/elastic/elasticsearch/issues/114301
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/114327

@@ -1295,7 +1295,7 @@ FROM books
 | WHERE book_no IN ("1211", "1463")
 | LIMIT 2;
 
-title:text                                      | title_reversed:text                           | author:text               | author_reversed_twice:text    | eq:boolean    | book_no:keyword
+title:text                                      | title_reversed:keyword                        | author:text               | author_reversed_twice:keyword | eq:boolean    | book_no:keyword
 The brothers Karamazov                          | vozamaraK srehtorb ehT                        | Fyodor Dostoevsky         | Fyodor Dostoevsky             | true          | 1211
 Realms of Tolkien: Images of Middle-earth       | htrae-elddiM fo segamI :neikloT fo smlaeR     | J. R. R. Tolkien          | J. R. R. Tolkien              | true          | 1463
 ;

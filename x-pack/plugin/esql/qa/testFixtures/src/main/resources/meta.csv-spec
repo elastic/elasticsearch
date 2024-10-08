@@ -69,7 +69,7 @@ double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
 "keyword repeat(string:keyword|text, number:integer)"
 "keyword replace(string:keyword|text, regex:keyword|text, newString:keyword|text)"
-"keyword|text reverse(str:keyword|text)"
+"keyword reverse(str:keyword|text)"
 "keyword right(string:keyword|text, length:integer)"
 "double|integer|long|unsigned_long round(number:double|integer|long|unsigned_long, ?decimals:integer)"
 "keyword rtrim(string:keyword|text)"
@@ -470,7 +470,6 @@ pi            |double                                                           
 pow           |double                                                                                                                      |[false, false]              |false           |false
 repeat        |keyword                                                                                                                     |[false, false]              |false           |false
 replace       |keyword                                                                                                                     |[false, false, false]       |false           |false
-right         |keyword       
 reverse       |keyword                                                                                                                     |false                       |false           |false
 right         |keyword                                                                                                                     |[false, false]              |false           |false
 round         |"double|integer|long|unsigned_long"                                                                                         |[false, true]               |false           |false
@@ -525,7 +524,7 @@ to_unsigned_lo|unsigned_long                                                    
 to_upper      |keyword                                                                                                                     |false                       |false           |false
 to_ver        |version                                                                                                                     |false                       |false           |false
 to_version    |version                                                                                                                     |false                       |false           |false
-top           |"boolean|double|integer|long|date|ip|keyword|text"                                                                                       |[false, false, false]       |false           |true
+top           |"boolean|double|integer|long|date|ip|keyword|text"                                                                          |[false, false, false]       |false           |true
 trim          |keyword                                                                                                                     |false                       |false           |false
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true

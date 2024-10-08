@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.response;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
@@ -60,12 +59,12 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     }
 
     public void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (RestStatus.isSuccessful(statusCode)) {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
         // handle error codes
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             throw handle500Error(request, result);
         } else if (statusCode == 503) {

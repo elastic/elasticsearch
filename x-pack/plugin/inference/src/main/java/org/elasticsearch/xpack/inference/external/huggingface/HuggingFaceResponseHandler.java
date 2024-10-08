@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.huggingface;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
@@ -42,11 +41,11 @@ public class HuggingFaceResponseHandler extends BaseResponseHandler {
      * @throws RetryException thrown if status code is {@code >= 300 or < 200}
      */
     void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (RestStatus.isSuccessful(statusCode)) {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 503 || statusCode == 502 || statusCode == 429) {
             throw new RetryException(true, buildError(RATE_LIMIT, request, result));
         } else if (statusCode >= 500) {

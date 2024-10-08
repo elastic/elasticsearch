@@ -39,7 +39,7 @@ public class ToUpper extends EsqlConfigurationFunction {
     private final Expression field;
 
     @FunctionInfo(
-        returnType = { "keyword", "text" },
+        returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to upper case.",
         examples = @Example(file = "string", tag = "to_upper")
     )

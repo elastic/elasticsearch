@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
 
 import java.io.ByteArrayOutputStream;
@@ -46,5 +47,9 @@ public record HttpResult(HttpResponse response, byte[] body) {
 
     public boolean isBodyEmpty() {
         return body().length == 0;
+    }
+
+    public boolean isSuccessfulResponse() {
+        return RestStatus.isSuccessful(response.getStatusLine().getStatusCode());
     }
 }

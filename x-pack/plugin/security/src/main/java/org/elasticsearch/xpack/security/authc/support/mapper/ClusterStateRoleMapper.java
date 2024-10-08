@@ -47,7 +47,7 @@ public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache im
      * </ul>
      */
     public static final String CLUSTER_STATE_ROLE_MAPPINGS_ENABLED = "xpack.security.authc.cluster_state_role_mappings.enabled";
-    public static final String RESERVED_ROLE_MAPPING_SUFFIX = "-read-only-operator-config";
+    public static final String RESERVED_ROLE_MAPPING_SUFFIX = "(read only)";
     private static final Logger logger = LogManager.getLogger(ClusterStateRoleMapper.class);
 
     private final ScriptService scriptService;

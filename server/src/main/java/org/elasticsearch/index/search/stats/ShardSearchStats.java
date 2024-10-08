@@ -65,10 +65,14 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFailedQueryPhase(SearchContext searchContext) {
-        computeStats(
-            searchContext,
-            searchContext.hasOnlySuggest() ? statsHolder -> statsHolder.suggestCurrent.dec() : statsHolder -> statsHolder.queryCurrent.dec()
-        );
+        computeStats(searchContext, statsHolder -> {
+            if (searchContext.hasOnlySuggest()) {
+                statsHolder.suggestCurrent.dec();
+            } else {
+                statsHolder.queryCurrent.dec();
+                statsHolder.queryFailure.inc();
+            }
+        });
     }
 
     @Override
@@ -89,7 +93,10 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFailedFetchPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.dec());
+        computeStats(searchContext, statsHolder -> {
+            statsHolder.fetchCurrent.dec();
+            statsHolder.fetchFailure.inc();
+        });
     }
 
     @Override
@@ -163,14 +170,19 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric scrollCurrent = new CounterMetric();
         final CounterMetric suggestCurrent = new CounterMetric();
 
+        final CounterMetric queryFailure = new CounterMetric();
+        final CounterMetric fetchFailure = new CounterMetric();
+
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
                 queryMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
                 queryCurrent.count(),
+                queryFailure.count(),
                 fetchMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
                 fetchCurrent.count(),
+                fetchFailure.count(),
                 scrollMetric.count(),
                 TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
                 scrollCurrent.count(),

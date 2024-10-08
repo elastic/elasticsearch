@@ -14,6 +14,8 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -23,10 +25,8 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.net.URL;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 
@@ -73,24 +73,38 @@ public class AzureStorageService {
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final AzureClientProvider azureClientProvider;
     private final ClientLogger clientLogger = new ClientLogger(AzureStorageService.class);
+    private final boolean stateless;
 
     public AzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
         refreshSettings(clientsSettings);
         this.azureClientProvider = azureClientProvider;
+        this.stateless = DiscoveryNode.isStateless(settings);
     }
 
-    public AzureBlobServiceClient client(String clientName, LocationMode locationMode) {
-        return client(clientName, locationMode, null);
+    public AzureBlobServiceClient client(String clientName, LocationMode locationMode, OperationPurpose purpose) {
+        return client(clientName, locationMode, purpose, null);
     }
 
-    public AzureBlobServiceClient client(String clientName, LocationMode locationMode, BiConsumer<String, URL> successfulRequestConsumer) {
+    public AzureBlobServiceClient client(
+        String clientName,
+        LocationMode locationMode,
+        OperationPurpose purpose,
+        AzureClientProvider.RequestMetricsHandler requestMetricsHandler
+    ) {
         final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
 
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
-        return azureClientProvider.createClient(azureStorageSettings, locationMode, retryOptions, proxyOptions, successfulRequestConsumer);
+        return azureClientProvider.createClient(
+            azureStorageSettings,
+            locationMode,
+            retryOptions,
+            proxyOptions,
+            requestMetricsHandler,
+            purpose
+        );
     }
 
     private AzureStorageSettings getClientSettings(String clientName) {
@@ -122,6 +136,10 @@ public class AzureStorageService {
     int getMaxReadRetries(String clientName) {
         AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
         return azureStorageSettings.getMaxRetries();
+    }
+
+    boolean isStateless() {
+        return stateless;
     }
 
     // non-static, package private for testing

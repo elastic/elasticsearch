@@ -154,7 +154,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 : null;
 
             boolean isLocalNodeAddingShutdown = false;
-            if (previousLocalNodeShutdownMetadata == null
+            if ((previousLocalNodeShutdownMetadata == null
+                // Shutdown API is idempotent, so the type of shutdown can change.
+                || previousLocalNodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.RESTART)
                 && currentLocalNodeShutdownMetadata != null
                 && currentLocalNodeShutdownMetadata.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
                 snapshotShutdownProgressTracker.onClusterStateAddShutdown();

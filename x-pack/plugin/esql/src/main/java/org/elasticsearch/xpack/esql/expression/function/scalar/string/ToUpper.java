@@ -72,7 +72,7 @@ public class ToUpper extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return DataType.KEYWORD;
     }
 
     @Override

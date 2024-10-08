@@ -72,7 +72,7 @@ public class ToLower extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return DataType.KEYWORD;
     }
 
     @Override

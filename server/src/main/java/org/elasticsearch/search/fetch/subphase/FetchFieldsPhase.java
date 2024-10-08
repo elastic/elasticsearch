@@ -27,6 +27,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -74,13 +75,16 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
         final Set<FieldAndFormat> additionalMetadataFields = new HashSet<>();
         if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
-            final List<FieldAndFormat> storedMetadataFieldsFromFetchContext = fetchFieldsContext.fields()
-                .stream()
-                .filter(
-                    fieldAndFormat -> searchExecutionContext.isMetadataField(fieldAndFormat.field)
-                        && searchExecutionContext.getFieldType(fieldAndFormat.field).isStored()
-                )
-                .toList();
+            final List<FieldAndFormat> storedMetadataFieldsFromFetchContext = new ArrayList<>();
+            for (FieldAndFormat fieldAndFormat : fetchFieldsContext.fields()) {
+                if(fieldAndFormat.field.equals(IdFieldMapper.NAME) || fieldAndFormat.field.equals(SourceFieldMapper.NAME)) {
+                    continue;
+                }
+                if (searchExecutionContext.isMetadataField(fieldAndFormat.field)
+                        && searchExecutionContext.getFieldType(fieldAndFormat.field).isStored()) {
+                    storedMetadataFieldsFromFetchContext.add(fieldAndFormat);
+                }
+            }
             additionalMetadataFields.addAll(storedMetadataFieldsFromFetchContext);
         }
         final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);

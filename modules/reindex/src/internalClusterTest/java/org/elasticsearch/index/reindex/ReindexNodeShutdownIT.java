@@ -16,7 +16,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,8 +44,7 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
     protected static final String INDEX = "reindex-shutdown-index";
 
-    private void createReindexTask(final String dataNodeName)
-    {
+    private void createReindexTask(final String dataNodeName) throws IOException {
         createIndex(INDEX); // Number of shards ?
         AbstractBulkByScrollRequest<ReindexRequest> reindexRequest = reindex().source(INDEX).destination("dest").request();
         TaskManager taskManager = internalCluster().getInstance(TransportService.class).getTaskManager();
@@ -73,14 +71,14 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
         // Check for reindex task to appear in the tasks list and Immediately stop node
         TaskInfo mainTask = findTaskAndShutdown(ReindexAction.INSTANCE.name(), reindexRequest.getSlices());
-        //assertOK(client().performRequest(putShutdown));
+        // assertOK(client().performRequest(putShutdown));
 
         // Status should show the task running. Need a way to check the task completed.
         BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.status();
         assertNull(status.getReasonCancelled());
     }
 
-    private static Request createShutdownRequest(final String dataNodeName) throws IOException {
+    private Request createShutdownRequest(final String dataNodeName) throws IOException {
         Request putShutdown = new Request("PUT", "_nodes/" + dataNodeName + "/shutdown");
         String reason = this.getTestName();
         try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
@@ -91,8 +89,9 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
             putBody.endObject();
             putShutdown.setJsonEntity(Strings.toString(putBody));
         }
-        return(putShutdown);
+        return (putShutdown);
     }
+
     private static TaskInfo findTaskAndShutdown(String actionName, int workerCount) {
         ListTasksResponse tasks;
         long start = System.nanoTime();

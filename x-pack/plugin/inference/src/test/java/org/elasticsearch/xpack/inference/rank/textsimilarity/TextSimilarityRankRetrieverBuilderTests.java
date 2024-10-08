@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.usage.SearchUsage;
+import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -64,8 +63,8 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
     }
 
     @Override
-    protected TextSimilarityRankRetrieverBuilder doParseInstance(XContentParser parser) {
-        return TextSimilarityRankRetrieverBuilder.PARSER.apply(
+    protected TextSimilarityRankRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
+        return (TextSimilarityRankRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),
@@ -121,6 +120,45 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
         }
     }
 
+    public void testTextSimilarityRetrieverParsing() throws IOException {
+        String restContent = "{"
+            + "  \"retriever\": {"
+            + "    \"text_similarity_reranker\": {"
+            + "      \"retriever\": {"
+            + "        \"test\": {"
+            + "          \"value\": \"my-test-retriever\""
+            + "        }"
+            + "      },"
+            + "      \"field\": \"my-field\","
+            + "      \"inference_id\": \"my-inference-id\","
+            + "      \"inference_text\": \"my-inference-text\","
+            + "      \"rank_window_size\": 100,"
+            + "      \"min_score\": 20.0,"
+            + "      \"_name\": \"foo_reranker\""
+            + "    }"
+            + "  }"
+            + "}";
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(TextSimilarityRankRetrieverBuilder.class));
+            TextSimilarityRankRetrieverBuilder parsed = (TextSimilarityRankRetrieverBuilder) source.retriever();
+            assertThat(parsed.minScore(), equalTo(20f));
+            assertThat(parsed.retrieverName(), equalTo("foo_reranker"));
+            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
+                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
+                    parseSerialized,
+                    true,
+                    searchUsageHolder,
+                    nf -> true
+                );
+                assertThat(deserializedSource.retriever(), instanceOf(TextSimilarityRankRetrieverBuilder.class));
+                TextSimilarityRankRetrieverBuilder deserialized = (TextSimilarityRankRetrieverBuilder) source.retriever();
+                assertThat(parsed, equalTo(deserialized));
+            }
+        }
+    }
+
     public void testTopDocsQuery() {
         RetrieverBuilder innerRetriever = new TestRetrieverBuilder(ESTestCase.randomAlphaOfLengthBetween(5, 10)) {
             @Override
@@ -131,9 +169,4 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
         TextSimilarityRankRetrieverBuilder retriever = createRandomTextSimilarityRankRetrieverBuilder(innerRetriever);
         expectThrows(IllegalStateException.class, "Should not be called, missing a rewrite?", retriever::topDocsQuery);
     }
-
-    private static void assertEqualQueryOrMatchAllNone(QueryBuilder actual, QueryBuilder expected) {
-        assertThat(actual, anyOf(instanceOf(MatchAllQueryBuilder.class), instanceOf(MatchNoneQueryBuilder.class), equalTo(expected)));
-    }
-
 }

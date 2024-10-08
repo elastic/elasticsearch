@@ -239,7 +239,6 @@ public class TransportVersions {
     public static final TransportVersion TEXT_SIMILARITY_RERANKER_QUERY_REWRITE = def(8_763_00_0);
     public static final TransportVersion INFERENCE_API_PARAMATERS_INTRODUCED = def(8_764_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

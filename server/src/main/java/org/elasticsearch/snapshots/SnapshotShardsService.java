@@ -154,18 +154,12 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 : null;
 
             boolean isLocalNodeAddingShutdown = false;
-            if ((previousLocalNodeShutdownMetadata == null
-                // Shutdown API is idempotent, so the type of shutdown can change.
-                || previousLocalNodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.RESTART)
-                && currentLocalNodeShutdownMetadata != null
-                && currentLocalNodeShutdownMetadata.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+            if (isTrackedShutdown(previousLocalNodeShutdownMetadata) == false
+                && isTrackedShutdown(currentLocalNodeShutdownMetadata)) {
                 snapshotShutdownProgressTracker.onClusterStateAddShutdown();
                 isLocalNodeAddingShutdown = true;
-            }
-
-            if (currentLocalNodeShutdownMetadata == null
-                && previousLocalNodeShutdownMetadata != null
-                && previousLocalNodeShutdownMetadata.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+            } else if (isTrackedShutdown(previousLocalNodeShutdownMetadata)
+                && isTrackedShutdown(currentLocalNodeShutdownMetadata) == false) {
                 snapshotShutdownProgressTracker.onClusterStateRemoveShutdown();
             }
 
@@ -209,6 +203,17 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             assert false : new AssertionError(e);
             logger.warn("failed to update snapshot state", e);
         }
+    }
+
+    /**
+     * Determines whether we want to track this kind of shutdown for snapshot pausing progress.
+     * We want tracking is shutdown metadata is set, and not type RESTART.
+     * Note that the Shutdown API is idempotent and the type of shutdown may change to / from RESTART to / from some other type of interest.
+     *
+     * @return true if snapshots will be paused during this type of local node shutdown.
+     */
+    private static boolean isTrackedShutdown(@Nullable SingleNodeShutdownMetadata localNodeShutdownMetadata) {
+        return localNodeShutdownMetadata != null && localNodeShutdownMetadata.getType() != SingleNodeShutdownMetadata.Type.RESTART;
     }
 
     @Override

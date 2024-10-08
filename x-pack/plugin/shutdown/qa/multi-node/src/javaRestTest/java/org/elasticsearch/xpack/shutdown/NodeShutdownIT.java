@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestIssueLogging(value="org.elasticsearch.snapshots.SnapshotShutdownProgressTracker:DEBUG", issueUrl = "kdkdk")
 public class NodeShutdownIT extends ESRestTestCase {
 
     public void testRestartCRUD() throws Exception {

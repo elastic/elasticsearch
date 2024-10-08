@@ -14,21 +14,13 @@ For information about circuit breaker errors, see <<circuit-breaker-errors>>.
 [discrete]
 ==== Parent circuit breaker
 
-The parent-level breaker can be configured with the following settings:
-
-`indices.breaker.total.use_real_memory`::
-    (<<static-cluster-setting,Static>>)
-    Determines whether the parent breaker should take real
-    memory usage into account (`true`) or only consider the amount that is
-    reserved by child circuit breakers (`false`). Defaults to `true`.
+The parent-level breaker can be configured with the following setting:
 
 [[indices-breaker-total-limit]]
 // tag::indices-breaker-total-limit-tag[]
 `indices.breaker.total.limit` {ess-icon}::
     (<<dynamic-cluster-setting,Dynamic>>)
-    Starting limit for overall parent breaker. Defaults to 70% of JVM heap if
-    `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory`
-    is `true`, defaults to 95% of the JVM heap.
+    Starting limit for overall parent breaker. Defaults to 70% of JVM heap.
 // end::indices-breaker-total-limit-tag[]
 
 [[fielddata-circuit-breaker]]

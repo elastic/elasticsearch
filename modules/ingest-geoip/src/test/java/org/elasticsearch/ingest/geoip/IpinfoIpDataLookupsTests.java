@@ -208,6 +208,43 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         }
     }
 
+    public void testGeolocationInvariants() {
+        Path configDir = createTempDir();
+        copyDatabase("ipinfo/ip_geolocation_sample.mmdb", configDir.resolve("ip_geolocation_sample.mmdb"));
+
+        {
+            final Set<String> expectedColumns = Set.of(
+                "network",
+                "city",
+                "region",
+                "country",
+                "postal_code",
+                "timezone",
+                "latitude",
+                "longitude"
+            );
+
+            Path databasePath = configDir.resolve("ip_geolocation_sample.mmdb");
+            assertDatabaseInvariants(databasePath, (ip, row) -> {
+                assertThat(row.keySet(), equalTo(expectedColumns));
+                {
+                    String latitude = (String) row.get("latitude");
+                    assertThat(latitude, equalTo(latitude.trim()));
+                    Double parsed = parseLocationDouble(latitude);
+                    assertThat(parsed, notNullValue());
+                    assertThat(latitude, equalTo(Double.toString(parsed))); // reverse it
+                }
+                {
+                    String longitude = (String) row.get("longitude");
+                    assertThat(longitude, equalTo(longitude.trim()));
+                    Double parsed = parseLocationDouble(longitude);
+                    assertThat(parsed, notNullValue());
+                    assertThat(longitude, equalTo(Double.toString(parsed))); // reverse it
+                }
+            });
+        }
+    }
+
     private static void assertDatabaseInvariants(final Path databasePath, final BiConsumer<InetAddress, Map<String, Object>> rowConsumer) {
         try (Reader reader = new Reader(pathToFile(databasePath))) {
             Networks<?> networks = reader.networks(Map.class);

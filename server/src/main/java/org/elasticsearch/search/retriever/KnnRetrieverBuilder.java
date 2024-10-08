@@ -154,13 +154,13 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                     toSet.set(v);
                     if (v == null) {
                         ll.onFailure(
-                                new IllegalArgumentException(
-                                        format(
-                                                "[%s] with name [%s] returned null query_vector",
-                                                QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                                                queryVectorBuilder.getWriteableName()
-                                        )
+                            new IllegalArgumentException(
+                                format(
+                                    "[%s] with name [%s] returned null query_vector",
+                                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                                    queryVectorBuilder.getWriteableName()
                                 )
+                            )
                         );
                         return;
                     }

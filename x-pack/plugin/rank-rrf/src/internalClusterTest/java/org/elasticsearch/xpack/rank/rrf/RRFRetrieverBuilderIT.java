@@ -697,20 +697,20 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null);
         var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
         var rrf = new RRFRetrieverBuilder(
-                List.of(
-                        new CompoundRetrieverBuilder.RetrieverSource(knn, null),
-                        new CompoundRetrieverBuilder.RetrieverSource(standard, null)
-                ), 10, 10);
+            List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
+            10,
+            10
+        );
         assertResponse(
-                client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(rrf)),
-                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
+            client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(rrf)),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(2));
 
         // check that we use the rewritten vector to build the explain query
         assertResponse(
-                client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(rrf).explain(true)),
-                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
+            client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(rrf).explain(true)),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
     }

@@ -50,6 +50,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     static MockAppender appender;
     static Logger queryLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     static Logger fetchLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+    static Level origQueryLogLevel = queryLog.getLevel();
+    static Level origFetchLogLevel = fetchLog.getLevel();
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
@@ -57,13 +59,19 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         appender.start();
         Loggers.addAppender(queryLog, appender);
         Loggers.addAppender(fetchLog, appender);
+
+        Loggers.setLevel(queryLog, Level.TRACE);
+        Loggers.setLevel(fetchLog, Level.TRACE);
     }
 
     @AfterClass
     public static void cleanup() {
-        appender.stop();
         Loggers.removeAppender(queryLog, appender);
         Loggers.removeAppender(fetchLog, appender);
+        appender.stop();
+
+        Loggers.setLevel(queryLog, origQueryLogLevel);
+        Loggers.setLevel(fetchLog, origFetchLogLevel);
     }
 
     @Override

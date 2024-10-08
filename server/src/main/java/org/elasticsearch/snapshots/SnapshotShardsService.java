@@ -154,14 +154,14 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 : null;
 
             boolean isLocalNodeAddingShutdown = false;
-            if (isTrackedShutdown(previousLocalNodeShutdownMetadata) == false
-                && isTrackedShutdown(currentLocalNodeShutdownMetadata)) {
+            if (isPausingProgressTrackedShutdown(previousLocalNodeShutdownMetadata) == false
+                && isPausingProgressTrackedShutdown(currentLocalNodeShutdownMetadata)) {
                 snapshotShutdownProgressTracker.onClusterStateAddShutdown();
                 isLocalNodeAddingShutdown = true;
-            } else if (isTrackedShutdown(previousLocalNodeShutdownMetadata)
-                && isTrackedShutdown(currentLocalNodeShutdownMetadata) == false) {
-                snapshotShutdownProgressTracker.onClusterStateRemoveShutdown();
-            }
+            } else if (isPausingProgressTrackedShutdown(previousLocalNodeShutdownMetadata)
+                && isPausingProgressTrackedShutdown(currentLocalNodeShutdownMetadata) == false) {
+                    snapshotShutdownProgressTracker.onClusterStateRemoveShutdown();
+                }
 
             final var currentSnapshots = SnapshotsInProgress.get(event.state());
 
@@ -212,7 +212,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
      *
      * @return true if snapshots will be paused during this type of local node shutdown.
      */
-    private static boolean isTrackedShutdown(@Nullable SingleNodeShutdownMetadata localNodeShutdownMetadata) {
+    private static boolean isPausingProgressTrackedShutdown(@Nullable SingleNodeShutdownMetadata localNodeShutdownMetadata) {
         return localNodeShutdownMetadata != null && localNodeShutdownMetadata.getType() != SingleNodeShutdownMetadata.Type.RESTART;
     }
 

@@ -196,7 +196,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
         configDatabases.initialize(resourceWatcherService);
 
-        // this is the non-free or 'standard' Geolocation database (sample)
+        // this is the 'free' Country database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_country_sample.mmdb")) {
             IpDataLookup lookup = new IpinfoIpDataLookups.Country(Set.of(Database.Property.values()));
             Map<String, Object> data = lookup.getData(loader, "4.221.143.168");
@@ -224,7 +224,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
         configDatabases.initialize(resourceWatcherService);
 
-        // this is the 'free' Country database (sample)
+        // this is the non-free or 'standard' Geolocation database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_geolocation_sample.mmdb")) {
             IpDataLookup lookup = new IpinfoIpDataLookups.Geolocation(Set.of(Database.Property.values()));
             Map<String, Object> data = lookup.getData(loader, "2.124.90.182");

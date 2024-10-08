@@ -16,8 +16,98 @@ steps:
               - ubuntu-2004
             PACKAGING_TASK:
               - destructiveDistroTest.docker
-              - destructiveDistroTest.packages
-              - destructiveDistroTest.archives
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env:
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix-sample 2"
+        key: "packaging-tests-unix-sample-2"
+        command: ./.ci/scripts/packaging-test.sh $$PACKAGING_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rhel-8
+              - ubuntu-2004
+            PACKAGING_TASK:
+              - destructiveDistroTest.docker
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env:
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix-sample 3"
+        key: "packaging-tests-unix-sample-3"
+        command: ./.ci/scripts/packaging-test.sh $$PACKAGING_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rhel-8
+              - ubuntu-2004
+            PACKAGING_TASK:
+              - destructiveDistroTest.docker
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env:
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix-sample 4"
+        key: "packaging-tests-unix-sample-4"
+        command: ./.ci/scripts/packaging-test.sh $$PACKAGING_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rhel-8
+              - ubuntu-2004
+            PACKAGING_TASK:
+              - destructiveDistroTest.docker
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env:
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix-sample 5"
+        key: "packaging-tests-unix-sample-5"
+        command: ./.ci/scripts/packaging-test.sh $$PACKAGING_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rhel-8
+              - ubuntu-2004
+            PACKAGING_TASK:
+              - destructiveDistroTest.docker
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env:
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix-sample 6"
+        key: "packaging-tests-unix-sample-6"
+        command: ./.ci/scripts/packaging-test.sh $$PACKAGING_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rhel-8
+              - ubuntu-2004
+            PACKAGING_TASK:
+              - destructiveDistroTest.docker
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

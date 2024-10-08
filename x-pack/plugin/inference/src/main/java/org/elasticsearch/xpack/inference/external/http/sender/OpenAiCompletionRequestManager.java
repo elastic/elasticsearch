@@ -40,7 +40,7 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -51,7 +51,7 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
         var stream = docsOnly.stream();
         OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(docsInput, model, stream);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 
     private static ResponseHandler createCompletionHandler() {

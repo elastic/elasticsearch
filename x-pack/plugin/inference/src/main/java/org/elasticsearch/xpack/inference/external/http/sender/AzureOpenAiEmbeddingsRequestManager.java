@@ -54,7 +54,7 @@ public class AzureOpenAiEmbeddingsRequestManager extends AzureOpenAiRequestManag
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -64,6 +64,6 @@ public class AzureOpenAiEmbeddingsRequestManager extends AzureOpenAiRequestManag
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
 
         AzureOpenAiEmbeddingsRequest request = new AzureOpenAiEmbeddingsRequest(truncator, truncatedInput, model);
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 }

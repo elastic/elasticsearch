@@ -81,5 +81,6 @@
     "ROW a=[\"foo\", \"zoo\", \"bar\"]\n| EVAL j = MV_CONCAT(a, \", \")",
     "ROW a=[10, 9, 8]\n| EVAL j = MV_CONCAT(TO_STRING(a), \", \")"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

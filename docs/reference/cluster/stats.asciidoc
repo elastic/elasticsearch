@@ -432,6 +432,15 @@ To get information on segment files, use the <<cluster-nodes-stats,node stats AP
 `indexed_vector_dim_max`::
 (integer) For dense_vector field types, the maximum dimension of all indexed vector types in selected nodes.
 
+`vector_index_type_count`::
+(object) For dense_vector field types, the number of indexed vector types by index type in selected nodes.
+
+`vector_similarity_type_count`::
+(object) For dense_vector field types, the number of vector types by similarity type in selected nodes.
+
+`vector_element_type_count`::
+(object) For dense_vector field types, the number of vector types by element type in selected nodes.
+
 `script_count`::
 (integer) Number of fields that declare a script.
 

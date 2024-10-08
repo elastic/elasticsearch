@@ -12,25 +12,18 @@ package org.elasticsearch.datastreams.logsdb.qa;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 public class DataGenerationHelper {
-    private final ObjectMapper.Subobjects subobjects;
     private final boolean keepArraySource;
 
     private final DataGenerator dataGenerator;
@@ -40,44 +33,10 @@ public class DataGenerationHelper {
     }
 
     public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator) {
-        // TODO enable subobjects: auto
-        // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using copy_to.
-        this.subobjects = ESTestCase.randomValueOtherThan(
-            ObjectMapper.Subobjects.AUTO,
-            () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
-        );
         this.keepArraySource = ESTestCase.randomBoolean();
 
-        var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(ESTestCase.randomBoolean());
-        if (subobjects != ObjectMapper.Subobjects.ENABLED) {
-            specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
-        }
-
-        specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
-            @Override
-            public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
-                if (subobjects == ObjectMapper.Subobjects.ENABLED) {
-                    // Use default behavior
-                    return null;
-                }
-
-                assert request.isNested() == false;
-
-                // "enabled: false" is not compatible with subobjects: false
-                // "dynamic: false/strict/runtime" is not compatible with subobjects: false
-                return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
-                    var parameters = new HashMap<String, Object>();
-                    parameters.put("subobjects", subobjects.toString());
-                    if (ESTestCase.randomBoolean()) {
-                        parameters.put("dynamic", "true");
-                    }
-                    if (ESTestCase.randomBoolean()) {
-                        parameters.put("enabled", "true");
-                    }
-                    return parameters;
-                });
-            }
-        }))
+        var specificationBuilder = DataGeneratorSpecification.builder()
+            .withFullyDynamicMapping(ESTestCase.randomBoolean())
             .withPredefinedFields(
                 List.of(
                     // Customized because it always needs doc_values for aggregations.
@@ -136,11 +95,7 @@ public class DataGenerationHelper {
     }
 
     void standardMapping(XContentBuilder builder) throws IOException {
-        if (subobjects != ObjectMapper.Subobjects.ENABLED) {
-            dataGenerator.writeMapping(builder, Map.of("subobjects", subobjects.toString()));
-        } else {
-            dataGenerator.writeMapping(builder);
-        }
+        dataGenerator.writeMapping(builder);
     }
 
     void logsDbSettings(Settings.Builder builder) {

@@ -313,12 +313,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113874
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
   issue: https://github.com/elastic/elasticsearch/issues/113661
-- class: org.elasticsearch.index.SearchSlowLogTests
-  method: testTwoLoggersDifferentLevel
-  issue: https://github.com/elastic/elasticsearch/issues/114359
-- class: org.elasticsearch.index.SearchSlowLogTests
-  method: testLevelPrecedence
-  issue: https://github.com/elastic/elasticsearch/issues/114359
 
 # Examples:
 #

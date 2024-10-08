@@ -53,7 +53,7 @@ public final class ApplicationPermission {
                 return new PermissionEntry(
                     appPriv,
                     Sets.union(existing.resourceNames, resourceNames),
-                    Automatons.unionAndMinimize(Arrays.asList(existing.resourceAutomaton, patterns))
+                    Automatons.unionAndDeterminize(Arrays.asList(existing.resourceAutomaton, patterns))
                 );
             }
         }));

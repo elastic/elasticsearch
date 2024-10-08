@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -86,27 +85,20 @@ public abstract class FullTextFunction extends Function {
     }
 
     /**
-     * Returns the resulting Query for the function parameters so it can be pushed down to Lucene
+     * Returns the resulting query as a String
      *
-     * @return Lucene query
+     * @return query expression as a string
      */
-    public final Query asQuery() {
+    public final String queryAsText() {
         Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef bytesRef) {
-            return asQuery(bytesRef.utf8ToString());
+            return bytesRef.utf8ToString();
         }
 
         throw new IllegalArgumentException(
             format(null, "{} argument in {} function needs to be resolved to a string", queryParamOrdinal(), functionName())
         );
     }
-
-    /**
-     * Overriden by subclasses to return the corresponding Lucene query from a query text
-     *
-     * @return corresponding query for the query text
-     */
-    protected abstract Query asQuery(String queryText);
 
     /**
      * Returns the param ordinal for the query parameter so it can be used in error messages

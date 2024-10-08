@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
-import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -85,11 +83,6 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     public String functionName() {
         return "MATCH";
-    }
-
-    @Override
-    public Query asQuery(String queryText) {
-        return new MatchQuery(source(), ((FieldAttribute) field).name(), queryText);
     }
 
     @Override

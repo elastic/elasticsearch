@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
@@ -70,11 +68,6 @@ public class QueryStringFunction extends FullTextFunction {
     @Override
     public String functionName() {
         return "QSTR";
-    }
-
-    @Override
-    public Query asQuery(String queryText) {
-        return new QueryStringQuery(source(), queryText, Map.of(), null);
     }
 
     @Override

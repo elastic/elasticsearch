@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
@@ -29,7 +30,8 @@ public class TransportExternalInferModelAction extends TransportInternalInferMod
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider,
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
-        TrainedModelAssignmentService assignmentService
+        TrainedModelAssignmentService assignmentService,
+        ThreadPool threadPool
     ) {
         super(
             InferModelAction.EXTERNAL_NAME,
@@ -41,7 +43,8 @@ public class TransportExternalInferModelAction extends TransportInternalInferMod
             licenseState,
             trainedModelProvider,
             adaptiveAllocationsScalerService,
-            assignmentService
+            assignmentService,
+            threadPool
         );
     }
 }

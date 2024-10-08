@@ -41,7 +41,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.ml.MachineLearning.ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME;
 
 /**
  * Periodically schedules adaptive allocations scaling. This process consists
@@ -201,6 +204,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private volatile Scheduler.Cancellable cancellable;
     private final AtomicBoolean busy;
 
+    private final AtomicLong scaleToZeroAfterNoRequestsSeconds = new AtomicLong();
+
     public AdaptiveAllocationsScalerService(
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -236,6 +241,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         scalers = new HashMap<>();
         metrics = new Metrics();
         busy = new AtomicBoolean(false);
+
+        setScaleToZeroPeriod(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME.get(clusterService.getSettings()));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME, this::setScaleToZeroPeriod);
     }
 
     public synchronized void start() {
@@ -279,14 +287,15 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
                 AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.computeIfAbsent(
                     assignment.getDeploymentId(),
-                    key -> new AdaptiveAllocationsScaler(assignment.getDeploymentId(), assignment.totalTargetAllocations())
+                    key -> new AdaptiveAllocationsScaler(assignment.getDeploymentId(), assignment.totalTargetAllocations(),
+                        scaleToZeroAfterNoRequestsSeconds.get())
                 );
                 adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(
                     assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations(),
                     assignment.getAdaptiveAllocationsSettings().getMaxNumberOfAllocations()
                 );
             } else {
-                scalers.remove(assignment.getDeploymentId());
+                var scaler = scalers.remove(assignment.getDeploymentId());
                 lastInferenceStatsByDeploymentAndNode.remove(assignment.getDeploymentId());
             }
         }
@@ -319,6 +328,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     private void trigger() {
+        logger.info("trigger adaptive");
+
         if (busy.getAndSet(true)) {
             logger.debug("Skipping inference adaptive allocations scaling, because it's still busy.");
             return;
@@ -331,6 +342,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     private void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
+        logger.info("get deployment stats");
         String deploymentIds = String.join(",", scalers.keySet());
         ClientHelper.executeAsyncWithOrigin(
             client,
@@ -458,5 +470,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     );
             })
         );
+    }
+
+    private void setScaleToZeroPeriod(TimeValue timeValue) {
+        logger.info("setting scaler service to zero " + timeValue);
+        scaleToZeroAfterNoRequestsSeconds.set(timeValue.seconds());
     }
 }

@@ -108,6 +108,9 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     @Override
     public void close() throws IOException {
         delegate.close();
+        stringCache.clear();
+        cachedEsFields.clear();
+        cachedAttributes.clear();
     }
 
     @Override

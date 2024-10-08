@@ -197,10 +197,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     private Attribute attributeFromCache(int id) throws IOException {
-        if (attributesCache[id] == null) {
+        Attribute attribute = attributesCache[id];
+        if (attribute == null) {
             throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
         }
-        return attributesCache[id];
+        return attribute;
     }
 
     /**
@@ -259,10 +260,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     private EsField esFieldFromCache(int id) throws IOException {
-        if (esFieldsCache[id] == null) {
+        EsField field = esFieldsCache[id];
+        if (field == null) {
             throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
         }
-        return esFieldsCache[id];
+        return field;
     }
 
     /**
@@ -292,5 +294,13 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             stringCache = ArrayUtil.grow(stringCache);
         }
         stringCache[id] = string;
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        this.stringCache = null;
+        this.attributesCache = null;
+        this.esFieldsCache = null;
     }
 }

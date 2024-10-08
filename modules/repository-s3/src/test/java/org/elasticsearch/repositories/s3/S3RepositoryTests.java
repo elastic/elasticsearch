@@ -175,4 +175,37 @@ public class S3RepositoryTests extends ESTestCase {
         }
     }
 
+    // ensures that chunkSize is limited to chunk_size setting, when buffer_size * parts_num is bigger
+    public void testChunkSizeLimit() {
+        var meta = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), "1GB")
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), "100MB")
+                .put(S3Repository.MAX_MULTIPART_PARTS.getKey(), 10_000) // ~1TB
+                .build()
+        );
+        try (var repo = createS3Repo(meta)) {
+            assertEquals(ByteSizeValue.ofGb(1), repo.chunkSize());
+        }
+    }
+
+    // ensures that chunkSize is limited to buffer_size * parts_num, when chunk_size setting is bigger
+    public void testPartsNumLimit() {
+        var meta = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), "5TB")
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), "100MB")
+                .put(S3Repository.MAX_MULTIPART_PARTS.getKey(), 10_000)
+                .build()
+        );
+        try (var repo = createS3Repo(meta)) {
+            assertEquals(ByteSizeValue.ofMb(1_000_000), repo.chunkSize());
+        }
+    }
 }

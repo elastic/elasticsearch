@@ -38,8 +38,10 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.hamcrest.CoreMatchers;
@@ -53,7 +55,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -124,7 +125,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -159,7 +159,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap(user),
                     getSecretSettingsMap(secret)
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -183,7 +182,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -209,7 +207,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -227,7 +225,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -245,7 +243,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -263,7 +261,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -284,7 +282,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -311,7 +308,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 getRequestConfigMap(getServiceSettingsMap(model, null, null), getTaskSettingsMap(null), getSecretSettingsMap(secret)),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -338,7 +334,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -365,7 +360,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -396,7 +390,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -422,7 +415,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -1013,6 +1005,76 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(requestMap.get("model"), Matchers.is("model"));
             assertThat(requestMap.get("user"), Matchers.is("user"));
         }
+    }
+
+    public void testInfer_StreamRequest() throws Exception {
+        String responseJson = """
+            data: {\
+                "id":"12345",\
+                "object":"chat.completion.chunk",\
+                "created":123456789,\
+                "model":"gpt-4o-mini",\
+                "system_fingerprint": "123456789",\
+                "choices":[\
+                    {\
+                        "index":0,\
+                        "delta":{\
+                            "content":"hello, world"\
+                        },\
+                        "logprobs":null,\
+                        "finish_reason":null\
+                    }\
+                ]\
+            }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var result = streamChatCompletion();
+
+        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+            {"completion":[{"delta":"hello, world"}]}""");
+    }
+
+    private InferenceServiceResults streamChatCompletion() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                true,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            return listener.actionGet(TIMEOUT);
+        }
+    }
+
+    public void testInfer_StreamRequest_ErrorResponse() throws Exception {
+        String responseJson = """
+            {
+              "error": {
+                "message": "You didn't provide an API key...",
+                "type": "invalid_request_error",
+                "param": null,
+                "code": null
+              }
+            }""";
+        webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
+
+        var result = streamChatCompletion();
+
+        InferenceEventsAssertion.assertThat(result)
+            .hasFinishedStream()
+            .hasNoEvents()
+            .hasErrorWithStatusCode(401)
+            .hasErrorContaining("You didn't provide an API key...");
     }
 
     public void testCheckModelConfig_IncludesMaxTokens() throws IOException {

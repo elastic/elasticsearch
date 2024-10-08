@@ -22,7 +22,7 @@ public class ES815BitFlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES815BitFlatVectorFormat";
 
-    private final FlatVectorsFormat format = new ES815BitFlatVectorsFormat();
+    private static final FlatVectorsFormat format = new ES815BitFlatVectorsFormat();
 
     /**
      * Sole constructor

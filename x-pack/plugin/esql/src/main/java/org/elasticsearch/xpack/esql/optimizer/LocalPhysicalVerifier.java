@@ -33,9 +33,7 @@ public final class LocalPhysicalVerifier {
     public Collection<Failure> verify(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
         Set<Failure> failures = new LinkedHashSet<>();
 
-        plan.forEachDown(p -> {
-            checkFullTextQueryFunctions(p, context, failures);
-        });
+        plan.forEachDown(p -> { checkFullTextQueryFunctions(p, context, failures); });
 
         return failures;
     }

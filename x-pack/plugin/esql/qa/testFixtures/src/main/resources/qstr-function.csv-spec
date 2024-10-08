@@ -122,7 +122,7 @@ required_capability: metadata_score
 // tag::qstr-with-field-scoring-sorted[]
 from books metadata _score
 | where qstr("title:rings")
-| sort _score desc
+| sort _score desc, book_no desc
 | keep book_no, title, _score
 | limit 3;
 // end::qstr-with-field-scoring-sorted[]

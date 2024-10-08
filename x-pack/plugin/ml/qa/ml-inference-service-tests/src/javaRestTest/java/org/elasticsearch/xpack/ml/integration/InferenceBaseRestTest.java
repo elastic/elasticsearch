@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -51,6 +53,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var request = new Request("PUT", endpoint);
         var modelConfig = ExampleModels.mockServiceModelConfig();
         request.setJsonEntity(modelConfig);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build()); // TODO remove
+        // permissive warnings once the deprecation warnings are removed in 9.0
         var response = client().performRequest(request);
         return entityAsMap(response);
     }

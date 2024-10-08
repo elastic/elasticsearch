@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.application;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockWebServer;
@@ -105,6 +107,8 @@ public class InferenceUpgradeTestCase extends AbstractRollingUpgradeTestCase {
         String endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, inferenceId);
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build()); // TODO remove
+        // permissive warnings once the deprecation warnings are removed in 9.0
         var response = client().performRequest(request);
         assertOKAndConsume(response);
     }

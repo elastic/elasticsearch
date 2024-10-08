@@ -73,7 +73,7 @@ public class PutInferenceModelActionTests extends ESTestCase {
         Map<String, Object> serviceSettingsValues = Map.of("model_id", "embed", "dimensions", 1024);
         builder.map(Map.of(PARAMETERS, parametersValues, "service", "elasticsearch", "service_settings", serviceSettingsValues));
         var request = new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID, BytesReference.bytes(builder), XContentType.JSON);
-        Map<String, Object> map = XContentHelper.convertToMap(request.getContent(), false, request.getContentType()).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(request.getRewrittenContent(), false, request.getContentType()).v2();
         assertEquals(parametersValues, map.get(TASK_SETTINGS));
         assertNull(map.get(PARAMETERS));
         assertEquals("elasticsearch", map.get("service"));
@@ -99,7 +99,8 @@ public class PutInferenceModelActionTests extends ESTestCase {
         );
         assertThrows(
             ElasticsearchStatusException.class,
-            () -> new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID, BytesReference.bytes(builder), XContentType.JSON).getContent()
+            () -> new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID, BytesReference.bytes(builder), XContentType.JSON)
+                .getRewrittenContent()
         );
 
     }

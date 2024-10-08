@@ -753,7 +753,7 @@ public class AzureBlobStore implements BlobStore {
             }
 
             repositoriesMetrics.operationCounter().incrementBy(1, attributes);
-            if (requestMetrics.getStatusCode() <= 199 || requestMetrics.getStatusCode() > 299) {
+            if (RestStatus.isSuccessful(requestMetrics.getStatusCode()) == false) {
                 repositoriesMetrics.unsuccessfulOperationCounter().incrementBy(1, attributes);
             }
 

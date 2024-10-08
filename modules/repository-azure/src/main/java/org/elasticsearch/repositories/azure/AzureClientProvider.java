@@ -328,7 +328,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 logger.debug("Detected error in RetryMetricsTracker", throwable);
                 metrics.errorCount++;
             }).doOnSuccess(response -> {
-                if (isErrorCode(response.getStatusCode())) {
+                if (RestStatus.isSuccessful(response.getStatusCode()) == false) {
                     metrics.errorCount++;
                     if (response.getStatusCode() == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
                         metrics.throttleCount++;
@@ -340,10 +340,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         @Override
         public HttpPipelinePosition getPipelinePosition() {
             return HttpPipelinePosition.PER_RETRY;
-        }
-
-        private static boolean isErrorCode(int statusCode) {
-            return statusCode < 200 || statusCode > 299;
         }
     }
 

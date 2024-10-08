@@ -43,9 +43,11 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.inference.waitforallocations.ScalingInference;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.Collections;
@@ -68,6 +70,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
     private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
+    private final ScalingInference scalingInference;
 
     TransportInternalInferModelAction(
         String actionName,
@@ -78,7 +81,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         ClusterService clusterService,
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider,
-        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
+        TrainedModelAssignmentService assignmentService
     ) {
         super(actionName, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelLoadingService = modelLoadingService;
@@ -87,6 +91,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
+        this.scalingInference = new ScalingInference(assignmentService, this::inferOnBlockedRequest);
     }
 
     @Inject
@@ -98,7 +103,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         ClusterService clusterService,
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider,
-        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
+        TrainedModelAssignmentService assignmentService
     ) {
         this(
             InferModelAction.NAME,
@@ -109,7 +115,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             clusterService,
             licenseState,
             trainedModelProvider,
-            adaptiveAllocationsScalerService
+            adaptiveAllocationsScalerService,
+            assignmentService
         );
     }
 
@@ -262,8 +269,12 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             String message = "Trained model deployment [" + request.getId() + "] is not allocated to any nodes";
             boolean starting = adaptiveAllocationsScalerService.maybeStartAllocation(assignment);
             if (starting) {
+                scalingInference.waitForAssignment(new ScalingInference.WaitingRequest(request, responseBuilder, parentTaskId, listener));
                 message += "; starting deployment of one allocation";
+                logger.info(message);
+                return;
             }
+
             logger.debug(message);
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -271,7 +282,33 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         assert nodes.stream().mapToInt(Tuple::v2).sum() == request.numberOfDocuments()
             : "mismatch; sum of node requests does not match number of documents in request";
+    }
 
+    private void inferOnBlockedRequest(ScalingInference.WaitingRequest request, TrainedModelAssignment assignment) {
+        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(
+            request.request().numberOfDocuments(),
+            RoutingState.STARTING
+        );
+
+        if (nodes.isEmpty()) {
+            request.listener()
+                .onFailure(
+                    new IllegalStateException(
+                        "[" + request.deploymentId() + "] error waiting for started allocations. The assignment has 0 started nodes"
+                    )
+                );
+        }
+
+        inferOnAssignmentNodes(nodes, request.request(), request.responseBuilder(), request.parentTaskId(), request.listener());
+    }
+
+    private void inferOnAssignmentNodes(
+        List<Tuple<String, Integer>> nodes,
+        Request request,
+        Response.Builder responseBuilder,
+        TaskId parentTaskId,
+        ActionListener<Response> listener
+    ) {
         AtomicInteger count = new AtomicInteger();
         AtomicArray<List<InferenceResults>> results = new AtomicArray<>(nodes.size());
         AtomicReference<Exception> failure = new AtomicReference<>();
@@ -282,14 +319,14 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             InferTrainedModelDeploymentAction.Request deploymentRequest;
             if (request.getTextInput() == null) {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(
-                    assignment.getDeploymentId(),
+                    request.getId(),
                     request.getUpdate(),
                     request.getObjectsToInfer().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()
                 );
             } else {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forTextInput(
-                    assignment.getDeploymentId(),
+                    request.getId(),
                     request.getUpdate(),
                     request.getTextInput().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()

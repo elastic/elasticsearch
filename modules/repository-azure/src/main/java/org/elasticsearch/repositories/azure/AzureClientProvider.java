@@ -330,6 +330,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             }).doOnSuccess(response -> {
                 if (RestStatus.isSuccessful(response.getStatusCode()) == false) {
                     metrics.errorCount++;
+                    // Azure always throttles with a 429 response, see
+                    // https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/request-limits-and-throttling#error-code
                     if (response.getStatusCode() == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
                         metrics.throttleCount++;
                     }

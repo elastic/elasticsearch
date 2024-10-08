@@ -268,8 +268,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected  boolean supportsInferenceTestService() {
-        return Version.fromString(System.getProperty("tests.old_cluster_version")).onOrAfter("9.0.0") &&
-            Version.CURRENT.onOrAfter("9.0.0");
+    protected boolean supportsInferenceTestService() {
+        return Version.fromString(System.getProperty("tests.old_cluster_version")).onOrAfter("9.0.0") && Version.CURRENT.onOrAfter("9.0.0");
     }
 }

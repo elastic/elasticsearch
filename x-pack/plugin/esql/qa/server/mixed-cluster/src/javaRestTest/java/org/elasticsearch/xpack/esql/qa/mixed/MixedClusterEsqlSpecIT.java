@@ -92,8 +92,8 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected  boolean supportsInferenceTestService() {
-        return org.elasticsearch.test.cluster.util.Version.fromString(System.getProperty("tests.old_cluster_version")).onOrAfter("9.0.0") &&
-            org.elasticsearch.test.cluster.util.Version.CURRENT.onOrAfter("9.0.0");
+    protected boolean supportsInferenceTestService() {
+        return org.elasticsearch.test.cluster.util.Version.fromString(System.getProperty("tests.old_cluster_version")).onOrAfter("9.0.0")
+            && org.elasticsearch.test.cluster.util.Version.CURRENT.onOrAfter("9.0.0");
     }
 }

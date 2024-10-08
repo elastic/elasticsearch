@@ -35,7 +35,7 @@ public class Clusters {
             cluster = cluster.plugin("inference-service-test");
         }
 
-         return cluster.build();
+        return cluster.build();
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {

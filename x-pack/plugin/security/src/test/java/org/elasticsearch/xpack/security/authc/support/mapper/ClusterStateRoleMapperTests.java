@@ -82,7 +82,7 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
         ExpressionRoleMapping mapping1 = mockExpressionRoleMapping(false, Set.of("role1"), expressionModel);
         ExpressionRoleMapping mapping2 = mockExpressionRoleMapping(true, Set.of("role2"));
         ExpressionRoleMapping mapping3 = mockExpressionRoleMapping(true, Set.of("role3"), expressionModel);
-        RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(Set.of(mapping1, mapping2, mapping3));
+        RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(Set.of(mapping1, mapping2, mapping3), 0);
         ClusterState state = roleMappingMetadata.updateClusterState(ClusterState.builder(new ClusterName("elasticsearch")).build());
         when(clusterService.state()).thenReturn(state);
         {
@@ -123,19 +123,19 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
         ExpressionRoleMapping mapping2 = mockExpressionRoleMapping(true, Set.of("role"), model2);
         ExpressionRoleMapping mapping3 = mockExpressionRoleMapping(true, Set.of("role3"), model2);
         ClusterState emptyState = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        RoleMappingMetadata roleMappingMetadata1 = new RoleMappingMetadata(Set.of(mapping1));
+        RoleMappingMetadata roleMappingMetadata1 = new RoleMappingMetadata(Set.of(mapping1), 0);
         ClusterState state1 = roleMappingMetadata1.updateClusterState(emptyState);
         roleMapper.clusterChanged(new ClusterChangedEvent("test", emptyState, state1));
         verify(mockRealm, times(1)).expireAll();
-        RoleMappingMetadata roleMappingMetadata2 = new RoleMappingMetadata(Set.of(mapping2));
+        RoleMappingMetadata roleMappingMetadata2 = new RoleMappingMetadata(Set.of(mapping2), 0);
         ClusterState state2 = roleMappingMetadata2.updateClusterState(state1);
         roleMapper.clusterChanged(new ClusterChangedEvent("test", state1, state2));
         verify(mockRealm, times(2)).expireAll();
-        RoleMappingMetadata roleMappingMetadata3 = new RoleMappingMetadata(Set.of(mapping3));
+        RoleMappingMetadata roleMappingMetadata3 = new RoleMappingMetadata(Set.of(mapping3), 0);
         ClusterState state3 = roleMappingMetadata3.updateClusterState(state2);
         roleMapper.clusterChanged(new ClusterChangedEvent("test", state2, state3));
         verify(mockRealm, times(3)).expireAll();
-        RoleMappingMetadata roleMappingMetadata4 = new RoleMappingMetadata(Set.of(mapping2, mapping3));
+        RoleMappingMetadata roleMappingMetadata4 = new RoleMappingMetadata(Set.of(mapping2, mapping3), 0);
         ClusterState state4 = roleMappingMetadata4.updateClusterState(state3);
         roleMapper.clusterChanged(new ClusterChangedEvent("test", state3, state4));
         verify(mockRealm, times(4)).expireAll();

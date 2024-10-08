@@ -17,6 +17,9 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
 
+/**
+ * The common set of metrics that we publish for {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} implementations.
+ */
 public record RepositoriesMetrics(
     MeterRegistry meterRegistry,
     LongCounter requestCounter,
@@ -32,15 +35,65 @@ public record RepositoriesMetrics(
 
     public static RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
 
+    /**
+     * Is incremented for each request sent to the blob store (including retries)
+     *
+     * Exposed as {@link #requestCounter()}
+     */
     public static final String METRIC_REQUESTS_TOTAL = "es.repositories.requests.total";
+    /**
+     * Is incremented for each request which returns a non <code>2xx</code> response OR fails to return a response
+     * (includes throttling and retryable errors)
+     *
+     * Exposed as {@link #exceptionCounter()}
+     */
     public static final String METRIC_EXCEPTIONS_TOTAL = "es.repositories.exceptions.total";
+    /**
+     * Is incremented each time an operation ends with a <code>416</code> response
+     *
+     * Exposed as {@link #requestRangeNotSatisfiedExceptionCounter()}
+     */
     public static final String METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL =
         "es.repositories.exceptions.request_range_not_satisfied.total";
+    /**
+     * Is incremented each time we are throttled by the blob store, e.g. upon receiving an HTTP <code>429</code> response
+     *
+     * Exposed as {@link #throttleCounter()}
+     */
     public static final String METRIC_THROTTLES_TOTAL = "es.repositories.throttles.total";
+    /**
+     * Is incremented for each operation we attempt, whether it succeeds or fails, this doesn't include retries
+     *
+     * Exposed via {@link #operationCounter()}
+     */
     public static final String METRIC_OPERATIONS_TOTAL = "es.repositories.operations.total";
+    /**
+     * Is incremented for each operation that ends with a non <code>2xx</code> response or throws an exception
+     *
+     * Exposed via {@link #unsuccessfulOperationCounter()}
+     */
     public static final String METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL = "es.repositories.operations.unsuccessful.total";
+    /**
+     * Each time an operation has one or more failed requests (from non <code>2xx</code> response or exception), the
+     * count of those is sampled
+     *
+     * Exposed via {@link #exceptionHistogram()}
+     */
     public static final String METRIC_EXCEPTIONS_HISTOGRAM = "es.repositories.exceptions.histogram";
+    /**
+     * Each time an operation has one or more throttled requests, the count of those is sampled
+     *
+     * Exposed via {@link #throttleHistogram()}
+     */
     public static final String METRIC_THROTTLES_HISTOGRAM = "es.repositories.throttles.histogram";
+    /**
+     * Any operation that returns a response will record its request time. Operations that never receive a response
+     * from the blob store do not record a value. The time recorded is from before the first request is sent until
+     * after the last response is received (i.e. it includes any retries). Doesn't include the consumption of the
+     * body of the response.
+     *
+     * Exposed via {@link #httpRequestTimeInMillisHistogram()}
+     */
     public static final String HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM = "es.repositories.requests.http_request_time.histogram";
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {

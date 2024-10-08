@@ -3,9 +3,9 @@
 
 Many search systems are built on multi-stage retrieval pipelines.
 
-Earlier stages uses cheap, fast algorithms to find a broad set of possible matches.
+Earlier stages use cheap, fast algorithms to find a broad set of possible matches.
 
-Later stages uses a more powerful model, often machine learning-based, to reorder the documents.
+Later stages use more powerful models, often machine learning-based, to reorder the documents.
 This step is called re-ranking.
 Because the resource-intensive model is only applied to the smaller set of pre-filtered results, this approach returns more relevant results while still optimizing for search performance and computational costs.
 

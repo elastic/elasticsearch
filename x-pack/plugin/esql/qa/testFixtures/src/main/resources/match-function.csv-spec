@@ -142,6 +142,21 @@ card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
 ;
 
+matchWithTextEqualsFunctionPushedToLucene
+required_capability: match_function
+
+from books 
+| where author == "Danny Faulkner"  or match(title, "Hobbit")
+| keep book_no, author, title;
+ignoreOrder:true
+
+book_no:keyword  | author:text      | title:text 
+4289             | J R R Tolkien    | Poems from the Hobbit             
+7480             | J. R. R. Tolkien | The Hobbit                        
+6405             | J. R. R. Tolkien | The Hobbit or There and Back Again
+3293             | Danny Faulkner   | Universe by Design       
+;
+
 matchWithNonPushableConjunction
 required_capability: match_function
 

@@ -31,9 +31,10 @@ public class SizeLimitingStringWriter extends StringWriter {
     }
 
     private void checkSizeLimit(int additionalChars) {
-        if (getBuffer().length() + additionalChars > sizeLimit) {
+        int bufLen = getBuffer().length();
+        if (bufLen + additionalChars > sizeLimit) {
             throw new SizeLimitExceededException(
-                Strings.format("String [%s...] has exceeded the size limit [%s]", getBuffer().substring(0, 20), sizeLimit)
+                Strings.format("String [%s...] has exceeded the size limit [%s]", getBuffer().substring(0, Math.min(bufLen, 20)), sizeLimit)
             );
         }
     }

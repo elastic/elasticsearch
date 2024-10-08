@@ -1041,7 +1041,7 @@ setup:
               dynamic: strict
               properties:
                 foo:
-                  type: keyword
+                  type: boolean
 
   - do:
       cluster.put_component_template:

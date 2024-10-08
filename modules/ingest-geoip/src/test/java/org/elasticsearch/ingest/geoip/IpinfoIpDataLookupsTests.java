@@ -73,6 +73,10 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         // the second ASN variant database is like a specialization of the ASN database
         assertThat(Sets.difference(Database.Asn.properties(), Database.AsnV2.properties()), is(empty()));
         assertThat(Database.Asn.defaultProperties(), equalTo(Database.AsnV2.defaultProperties()));
+
+        // the second City variant database is like a version of the ordinary City database but lacking many fields
+        assertThat(Sets.difference(Database.CityV2.properties(), Database.City.properties()), is(empty()));
+        assertThat(Sets.difference(Database.CityV2.defaultProperties(), Database.City.defaultProperties()), is(empty()));
     }
 
     public void testParseAsn() {
@@ -226,7 +230,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
         // this is the non-free or 'standard' Geolocation database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_geolocation_sample.mmdb")) {
-            IpDataLookup lookup = new IpinfoIpDataLookups.Geolocation(Set.of(Database.Property.values()));
+            IpDataLookup lookup = new IpinfoIpDataLookups.Geolocation(Database.CityV2.properties());
             Map<String, Object> data = lookup.getData(loader, "2.124.90.182");
             assertThat(
                 data,

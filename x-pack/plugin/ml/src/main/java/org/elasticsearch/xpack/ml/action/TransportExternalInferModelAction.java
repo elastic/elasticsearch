@@ -14,6 +14,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -27,7 +28,8 @@ public class TransportExternalInferModelAction extends TransportInternalInferMod
         ClusterService clusterService,
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider,
-        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
+        TrainedModelAssignmentService assignmentService
     ) {
         super(
             InferModelAction.EXTERNAL_NAME,
@@ -38,7 +40,8 @@ public class TransportExternalInferModelAction extends TransportInternalInferMod
             clusterService,
             licenseState,
             trainedModelProvider,
-            adaptiveAllocationsScalerService
+            adaptiveAllocationsScalerService,
+            assignmentService
         );
     }
 }

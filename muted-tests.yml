@@ -369,8 +369,6 @@ tests:
 - class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
   method: test {yaml=aggregations/stats_metric_fail_formatting/fail formatting}
   issue: https://github.com/elastic/elasticsearch/issues/114187
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  issue: https://github.com/elastic/elasticsearch/issues/114194
 
 # Examples:
 #

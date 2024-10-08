@@ -186,7 +186,6 @@ POST /_query
 [source,console-result]
 ----
 {
-  "took": 28,
   "columns": [
     { "name": "a", "type": "long"},
   ],
@@ -195,7 +194,6 @@ POST /_query
   ]
 }
 ----
-// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 [discrete]
 [[esql-multivalued-fields-functions]]

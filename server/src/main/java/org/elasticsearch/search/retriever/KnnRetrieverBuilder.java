@@ -9,10 +9,12 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
@@ -29,7 +31,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -96,7 +100,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     }
 
     private final String field;
-    private final float[] queryVector;
+    private final Supplier<float[]> queryVector;
     private final QueryVectorBuilder queryVectorBuilder;
     private final int k;
     private final int numCands;
@@ -111,18 +115,62 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         Float similarity
     ) {
         this.field = field;
-        this.queryVector = queryVector;
+        this.queryVector = () -> queryVector;
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCands;
         this.similarity = similarity;
     }
 
-    // ---- FOR TESTING XCONTENT PARSING ----
+    private KnnRetrieverBuilder(KnnRetrieverBuilder clone, Supplier<float[]> queryVector, QueryVectorBuilder queryVectorBuilder) {
+        this.queryVector = queryVector;
+        this.queryVectorBuilder = queryVectorBuilder;
+        this.field = clone.field;
+        this.k = clone.k;
+        this.numCands = clone.numCands;
+        this.similarity = clone.similarity;
+        this.retrieverName = clone.retrieverName;
+        this.preFilterQueryBuilders = clone.preFilterQueryBuilders;
+    }
 
     @Override
     public String getName() {
         return NAME;
+    }
+
+    @Override
+    public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        var rewrittenFilters = rewritePreFilters(ctx);
+        if (rewrittenFilters != preFilterQueryBuilders) {
+            var rewritten = new KnnRetrieverBuilder(this, queryVector, queryVectorBuilder);
+            rewritten.preFilterQueryBuilders = rewrittenFilters;
+            return rewritten;
+        }
+
+        if (queryVectorBuilder != null) {
+            SetOnce<float[]> toSet = new SetOnce<>();
+            ctx.registerAsyncAction((c, l) -> {
+                queryVectorBuilder.buildVector(c, l.delegateFailureAndWrap((ll, v) -> {
+                    toSet.set(v);
+                    if (v == null) {
+                        ll.onFailure(
+                                new IllegalArgumentException(
+                                        format(
+                                                "[%s] with name [%s] returned null query_vector",
+                                                QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                                                queryVectorBuilder.getWriteableName()
+                                        )
+                                )
+                        );
+                        return;
+                    }
+                    ll.onResponse(null);
+                }));
+            });
+            var rewritten = new KnnRetrieverBuilder(this, () -> toSet.get(), null);
+            return rewritten;
+        }
+        return super.rewrite(ctx);
     }
 
     @Override
@@ -142,7 +190,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         assert rankDocs != null : "rankDocs should have been materialized by now";
         var rankDocsQuery = new RankDocsQueryBuilder(
             rankDocs,
-            new QueryBuilder[] { new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), field, similarity) },
+            new QueryBuilder[] { new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector.get()), field, similarity) },
             true
         );
         if (preFilterQueryBuilders.isEmpty()) {
@@ -157,7 +205,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(
             field,
-            VectorData.fromFloats(queryVector),
+            VectorData.fromFloats(queryVector.get()),
             queryVectorBuilder,
             k,
             numCands,
@@ -174,6 +222,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         searchSourceBuilder.knnSearch(knnSearchBuilders);
     }
 
+    // ---- FOR TESTING XCONTENT PARSING ----
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(FIELD_FIELD.getPreferredName(), field);
@@ -199,7 +248,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         return k == that.k
             && numCands == that.numCands
             && Objects.equals(field, that.field)
-            && Arrays.equals(queryVector, that.queryVector)
+            && Arrays.equals(queryVector.get(), that.queryVector.get())
             && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
             && Objects.equals(similarity, that.similarity);
     }
@@ -207,7 +256,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     @Override
     public int doHashCode() {
         int result = Objects.hash(field, queryVectorBuilder, k, numCands, similarity);
-        result = 31 * result + Arrays.hashCode(queryVector);
+        result = 31 * result + Arrays.hashCode(queryVector.get());
         return result;
     }
 

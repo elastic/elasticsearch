@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.anthropic;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -62,7 +63,7 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
      */
     void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (RestStatus.isSuccessful(statusCode)) {
             return;
         }
 

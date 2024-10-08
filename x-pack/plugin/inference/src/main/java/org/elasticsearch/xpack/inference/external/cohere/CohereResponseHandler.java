@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.cohere;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
@@ -75,7 +76,7 @@ public class CohereResponseHandler extends BaseResponseHandler {
      */
     void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (RestStatus.isSuccessful(statusCode)) {
             return;
         }
 

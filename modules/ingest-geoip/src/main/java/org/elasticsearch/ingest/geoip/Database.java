@@ -32,6 +32,7 @@ enum Database {
     City(
         Set.of(
             Property.IP,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
             Property.COUNTRY_ISO_CODE,
             Property.CONTINENT_CODE,
             Property.COUNTRY_NAME,
@@ -41,7 +42,8 @@ enum Database {
             Property.CITY_NAME,
             Property.TIMEZONE,
             Property.LOCATION,
-            Property.POSTAL_CODE
+            Property.POSTAL_CODE,
+            Property.ACCURACY_RADIUS
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -54,7 +56,14 @@ enum Database {
         )
     ),
     Country(
-        Set.of(Property.IP, Property.CONTINENT_CODE, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(
+            Property.IP,
+            Property.CONTINENT_CODE,
+            Property.CONTINENT_NAME,
+            Property.COUNTRY_NAME,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
+            Property.COUNTRY_ISO_CODE
+        ),
         Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
     ),
     Asn(
@@ -85,12 +94,15 @@ enum Database {
     Enterprise(
         Set.of(
             Property.IP,
+            Property.COUNTRY_CONFIDENCE,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
             Property.COUNTRY_ISO_CODE,
             Property.COUNTRY_NAME,
             Property.CONTINENT_CODE,
             Property.CONTINENT_NAME,
             Property.REGION_ISO_CODE,
             Property.REGION_NAME,
+            Property.CITY_CONFIDENCE,
             Property.CITY_NAME,
             Property.TIMEZONE,
             Property.LOCATION,
@@ -110,7 +122,9 @@ enum Database {
             Property.MOBILE_NETWORK_CODE,
             Property.USER_TYPE,
             Property.CONNECTION_TYPE,
-            Property.POSTAL_CODE
+            Property.POSTAL_CODE,
+            Property.POSTAL_CONFIDENCE,
+            Property.ACCURACY_RADIUS
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -205,12 +219,15 @@ enum Database {
     enum Property {
 
         IP,
+        COUNTRY_CONFIDENCE,
+        COUNTRY_IN_EUROPEAN_UNION,
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
         CONTINENT_CODE,
         CONTINENT_NAME,
         REGION_ISO_CODE,
         REGION_NAME,
+        CITY_CONFIDENCE,
         CITY_NAME,
         TIMEZONE,
         LOCATION,
@@ -231,7 +248,9 @@ enum Database {
         CONNECTION_TYPE,
         USER_TYPE,
         TYPE,
-        POSTAL_CODE;
+        POSTAL_CODE,
+        POSTAL_CONFIDENCE,
+        ACCURACY_RADIUS;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

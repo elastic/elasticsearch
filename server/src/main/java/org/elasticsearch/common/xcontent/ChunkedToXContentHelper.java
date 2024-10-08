@@ -53,24 +53,8 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
     }
 
-    /**
-     * Creates an Iterator to serialize a named field where the value is represented by a {@link ChunkedToXContentObject}.
-     * Chunked equivalent for {@code XContentBuilder field(String name, ToXContent value)}
-     * @param name name of the field
-     * @param value value for this field
-     * @param params params to propagate for XContent serialization
-     * @return Iterator composing field name and value serialization
-     */
-    public static Iterator<ToXContent> field(String name, ChunkedToXContentObject value, ToXContent.Params params) {
-        return Iterators.concat(Iterators.single((builder, innerParam) -> builder.field(name)), value.toXContentChunked(params));
-    }
-
     public static Iterator<ToXContent> array(String name, Iterator<? extends ToXContent> contents) {
         return Iterators.concat(ChunkedToXContentHelper.startArray(name), contents, ChunkedToXContentHelper.endArray());
-    }
-
-    public static <T extends ToXContent> Iterator<ToXContent> wrapWithObject(String name, Iterator<T> iterator) {
-        return Iterators.concat(startObject(name), iterator, endObject());
     }
 
     /**

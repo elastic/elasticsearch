@@ -3,6 +3,20 @@
   "extends": [
     "github>elastic/renovate-config:only-chainguard"
   ],
+  "labels": [">non-issue", ":Delivery/Packaging", "Team:Delivery"],
+  "packageRules": [
+    {
+      "groupName": "wolfi (versioned)",
+      "groupSlug": "wolfi-versioned",
+      "description": "Override the `groupSlug` to create a non-special-character branch name",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackagePatterns": [
+        "^docker.elastic.co/wolfi/chainguard-base$"
+      ]
+    }
+  ],
   "customManagers": [
     {
       "description": "Extract Wolfi images from elasticsearch DockerBase configuration",

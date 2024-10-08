@@ -70,6 +70,12 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         ensureGreen(INDEX_NAME);
     }
 
+    private void performSearch(SearchSourceBuilder source) throws IOException {
+        Request request = new Request("GET", INDEX_NAME + "/_search");
+        request.setJsonEntity(Strings.toString(source));
+        getRestClient().performRequest(request);
+    }
+
     public void testTelemetryForRetrievers() throws IOException {
 
         if (false == isRetrieverTelemetryEnabled()) {
@@ -78,59 +84,40 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
 
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
-            Request request = new Request("GET", INDEX_NAME + "/_search");
-            SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null));
-            request.setJsonEntity(Strings.toString(source));
-            getRestClient().performRequest(request);
+            performSearch(new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null)));
         }
 
         // search#2 - this will record 1 entry for "retriever" in `sections`, 1 for "standard" under `retrievers`, and 1 for "range" under
         // `queries`
         {
-            Request request = new Request("GET", INDEX_NAME + "/_search");
-            SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new StandardRetrieverBuilder(QueryBuilders.rangeQuery("integer").gte(2)));
-            request.setJsonEntity(Strings.toString(source));
-            getRestClient().performRequest(request);
+            performSearch(new SearchSourceBuilder().retriever(new StandardRetrieverBuilder(QueryBuilders.rangeQuery("integer").gte(2))));
         }
 
         // search#3 - this will record 1 entry for "retriever" in `sections`, and 1 for "standard" under `retrievers`, and 1 for "knn" under
         // `queries`
         {
-            Request request = new Request("GET", INDEX_NAME + "/_search");
-            SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null)));
-            request.setJsonEntity(Strings.toString(source));
-            getRestClient().performRequest(request);
+            performSearch(
+                new SearchSourceBuilder().retriever(
+                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null))
+                )
+            );
         }
 
         // search#4 - this will record 1 entry for "retriever" in `sections`, and 1 for "standard" under `retrievers`, and 1 for "term"
         // under `queries`
         {
-            Request request = new Request("GET", INDEX_NAME + "/_search");
-            SearchSourceBuilder source = new SearchSourceBuilder();
-            source.retriever(new StandardRetrieverBuilder(QueryBuilders.termQuery("topic", "foo")));
-            request.setJsonEntity(Strings.toString(source));
-            getRestClient().performRequest(request);
+            performSearch(new SearchSourceBuilder().retriever(new StandardRetrieverBuilder(QueryBuilders.termQuery("topic", "foo"))));
         }
 
-        // search#5 - this will record 1 entry for "knn" in `sections`
+        // search#5 - t
+        // his will record 1 entry for "knn" in `sections`
         {
-            Request request = new Request("GET", INDEX_NAME + "/_search");
-            SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null)));
-            request.setJsonEntity(Strings.toString(source));
-            getRestClient().performRequest(request);
+            performSearch(new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null))));
         }
 
         // search#6 - this will record 1 entry for "query" in `sections`, and 1 for "match_all" under `queries`
         {
-            Request request = new Request("GET", INDEX_NAME + "/_search");
-            SearchSourceBuilder source = new SearchSourceBuilder();
-            source.query(QueryBuilders.matchAllQuery());
-            request.setJsonEntity(Strings.toString(source));
-            getRestClient().performRequest(request);
+            performSearch(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
         }
 
         // cluster stats

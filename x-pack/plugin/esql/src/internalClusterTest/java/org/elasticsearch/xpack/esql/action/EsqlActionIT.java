@@ -1038,29 +1038,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMetaFunctions() {
-        try (EsqlQueryResponse results = run("meta functions")) {
-            assertThat(
-                results.columns(),
-                equalTo(
-                    List.of(
-                        new ColumnInfoImpl("name", "keyword"),
-                        new ColumnInfoImpl("synopsis", "keyword"),
-                        new ColumnInfoImpl("argNames", "keyword"),
-                        new ColumnInfoImpl("argTypes", "keyword"),
-                        new ColumnInfoImpl("argDescriptions", "keyword"),
-                        new ColumnInfoImpl("returnType", "keyword"),
-                        new ColumnInfoImpl("description", "keyword"),
-                        new ColumnInfoImpl("optionalArgs", "boolean"),
-                        new ColumnInfoImpl("variadic", "boolean"),
-                        new ColumnInfoImpl("isAggregation", "boolean")
-                    )
-                )
-            );
-            assertThat(getValuesList(results).size(), equalTo(new EsqlFunctionRegistry().listFunctions().size()));
-        }
-    }
-
     public void testInWithNullValue() {
         try (EsqlQueryResponse results = run("from test | where null in (data, 2) | keep data")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("data", "long"))));

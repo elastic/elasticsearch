@@ -180,10 +180,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             builder.startArray(RETRIEVERS_FIELD.getPreferredName());
 
             for (var entry : innerRetrievers) {
-                builder.startObject();
-                builder.field(entry.retriever().getName());
                 entry.retriever().toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }

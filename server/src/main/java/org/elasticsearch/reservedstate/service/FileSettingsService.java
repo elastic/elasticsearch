@@ -11,6 +11,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -92,6 +93,16 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         }
     }
 
+    public void reprocessFileSettings(ActionListener<Void> listener) throws IOException {
+        try (
+            var fis = Files.newInputStream(watchedFile());
+            var bis = new BufferedInputStream(fis);
+            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
+        ) {
+            stateService.process(NAMESPACE, parser, true, (e) -> completeProcessing(e, listener));
+        }
+    }
+
     /**
      * If the file settings metadata version is set to zero, then we have restored from
      * a snapshot and must reprocess the file.
@@ -128,6 +139,14 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     }
 
     @Override
+    protected void processFileChangesOnStart() throws IOException, ExecutionException, InterruptedException {
+        logger.info("processing path [{}] for [{}] on start", watchedFile(), NAMESPACE);
+        PlainActionFuture<Void> completion = new PlainActionFuture<>();
+        reprocessFileSettings(completion);
+        completion.get();
+    }
+
+    @Override
     protected void processInitialFileMissing() throws ExecutionException, InterruptedException, IOException {
         PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
         logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
@@ -135,7 +154,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         completion.get();
     }
 
-    private static void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
+    private static void completeProcessing(Exception e, ActionListener<Void> completion) {
         if (e != null) {
             completion.onFailure(e);
         } else {

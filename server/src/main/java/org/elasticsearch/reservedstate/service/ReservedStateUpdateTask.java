@@ -51,6 +51,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
+    private final boolean allowSameVersion;
 
     public ReservedStateUpdateTask(
         String namespace,
@@ -60,12 +61,25 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
     ) {
+        this(namespace, stateChunk, handlers, orderedHandlers, errorReporter, listener, false);
+    }
+
+    public ReservedStateUpdateTask(
+        String namespace,
+        ReservedStateChunk stateChunk,
+        Map<String, ReservedClusterStateHandler<?>> handlers,
+        Collection<String> orderedHandlers,
+        Consumer<ErrorState> errorReporter,
+        ActionListener<ActionResponse.Empty> listener,
+        boolean allowSameVersion
+    ) {
         this.namespace = namespace;
         this.stateChunk = stateChunk;
         this.handlers = handlers;
         this.orderedHandlers = orderedHandlers;
         this.errorReporter = errorReporter;
         this.listener = listener;
+        this.allowSameVersion = allowSameVersion;
     }
 
     @Override
@@ -89,7 +103,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, allowSameVersion) == false) {
             return currentState;
         }
 
@@ -155,7 +169,8 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     static boolean checkMetadataVersion(
         String namespace,
         ReservedStateMetadata existingMetadata,
-        ReservedStateVersion reservedStateVersion
+        ReservedStateVersion reservedStateVersion,
+        boolean allowSameVersion
     ) {
         if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
             logger.warn(
@@ -185,6 +200,15 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         }
 
         if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
+            if (allowSameVersion && existingMetadata.version().equals(reservedStateVersion.version())) {
+                logger.debug(
+                    "Updating reserved cluster state for namespace [{}] and version [{}] matching current metadata version. "
+                        + "Same version run was requested for this call.",
+                    namespace,
+                    reservedStateVersion.version()
+                );
+                return true;
+            }
             logger.warn(
                 () -> format(
                     "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"

@@ -118,15 +118,7 @@ public class ReservedClusterStateService {
         }
     }
 
-    /**
-     * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
-     *
-     * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
-     * @param parser the XContentParser to process
-     * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
-     *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
-     */
-    public void process(String namespace, XContentParser parser, Consumer<Exception> errorListener) {
+    public void process(String namespace, XContentParser parser, boolean allowSameVersion, Consumer<Exception> errorListener) {
         ReservedStateChunk stateChunk;
 
         try {
@@ -142,7 +134,19 @@ public class ReservedClusterStateService {
             return;
         }
 
-        process(namespace, stateChunk, errorListener);
+        process(namespace, stateChunk, allowSameVersion, errorListener);
+    }
+
+    /**
+     * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
+     *
+     * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
+     * @param parser the XContentParser to process
+     * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
+     *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
+     */
+    public void process(String namespace, XContentParser parser, Consumer<Exception> errorListener) {
+        process(namespace, parser, false, errorListener);
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
@@ -157,11 +161,16 @@ public class ReservedClusterStateService {
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
                 errorState -> { throw new AssertionError(); },
-                listener
+                listener,
+                false
             ),
             null
         );
 
+    }
+
+    public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
+        process(namespace, reservedStateChunk, false, errorListener);
     }
 
     /**
@@ -172,7 +181,12 @@ public class ReservedClusterStateService {
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or the state failed to apply because of incompatible version.
      */
-    public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
+    public void process(
+        String namespace,
+        ReservedStateChunk reservedStateChunk,
+        boolean allowSameVersion,
+        Consumer<Exception> errorListener
+    ) {
         Map<String, Object> reservedState = reservedStateChunk.state();
         final ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
 
@@ -201,7 +215,7 @@ public class ReservedClusterStateService {
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask
         // will check again with the most current state version if this continues.
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, allowSameVersion) == false) {
             errorListener.accept(null);
             return;
         }
@@ -240,7 +254,8 @@ public class ReservedClusterStateService {
                             errorListener.accept(null);
                         }
                     }
-                }
+                },
+                allowSameVersion
             ),
             null
         );

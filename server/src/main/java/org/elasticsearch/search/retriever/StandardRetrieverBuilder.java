@@ -125,7 +125,9 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
         if (sortBuilders != null) {
             newSortBuilders = new ArrayList<>(sortBuilders.size());
             for (var sort : sortBuilders) {
-                changed |= newSortBuilders.add(sort.rewrite(ctx));
+                var newSort = sort.rewrite(ctx);
+                newSortBuilders.add(newSort);
+                changed = newSort != sort;
             }
         }
         var rewrittenFilters = rewritePreFilters(ctx);

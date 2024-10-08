@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -90,6 +92,15 @@ class IndicesAndAliasesResolver {
      * be added to the <em>remote</em> index list.
      * <br>
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
+     * <br><br>
+     * <p>
+     * If the provided <code>request</code> is of a type that {@link IndicesOptions#allowSelectors() allows selectors}, then the index
+     * names will be updated to include any {@link IndicesOptions.SelectorOptions#defaultSelectors() default selectors} that should be
+     * returned. If a wildcard selector is present on the index name then the wildcard will be resolved to
+     * {@link IndexComponentSelector#values() all applicable concrete selector names} for a given index abstraction. Selectors that are
+     * not applicable for an index abstraction (such as the <code>::failures</code> selector on non-data streams) are not returned when
+     * resolving wildcards or applying default selectors.
+     * </p>
      */
 
     ResolvedIndices resolve(
@@ -130,6 +141,8 @@ class IndicesAndAliasesResolver {
             return null;
         }
         // It's safe to cast IndicesRequest since the above test guarantees it
+        // PRTODO It seems like this should not try to resolve selectors since they could have "*" characters present
+        // But a lot of logic that calls this probably doesn't expect selectors present
         return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
     }
 
@@ -151,7 +164,12 @@ class IndicesAndAliasesResolver {
         if (indices == null || indices.length == 0) {
             throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");
         }
-        if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices))) {
+        // We need to parse off any potential selector suffixes to see if the index part of an expression is a match all
+        // Do so lazily to avoid extra work in case of a large number of indices
+        if (IndexNameExpressionResolver.isAllIndices(
+            Arrays.asList(indices),
+            (expr) -> IndexNameExpressionResolver.splitSelectorExpression(expr).v1()
+        )) {
             throw new IllegalArgumentException(
                 "the action "
                     + action
@@ -169,6 +187,7 @@ class IndicesAndAliasesResolver {
             // and no remote clusters are configured that match it
             if (split.getLocal().isEmpty() && split.getRemote().isEmpty()) {
                 for (String indexExpression : indices) {
+                    indexExpression = IndexNameExpressionResolver.splitSelectorExpression(indexExpression).v1();
                     String[] clusterAndIndex = indexExpression.split(":", 2);
                     if (clusterAndIndex.length == 2) {
                         if (clusterAndIndex[0].contains("*")) {
@@ -188,11 +207,23 @@ class IndicesAndAliasesResolver {
         // shard level requests.
         final List<String> localIndices = new ArrayList<>(split.getLocal().size());
         for (String localName : split.getLocal()) {
+            // TODO: Shard level requests should already have their selectors resolved to concrete indices by their parent requests
+            // Resolve them here as long as they are non-wildcard, or missing from the expression
+            Tuple<String, String> expressionTuple = IndexNameExpressionResolver.splitSelectorExpression(localName);
+            String selector = expressionTuple.v2();
+            if (selector != null && Regex.isSimpleMatchPattern(selector)) {
+                throwOnUnexpectedWildcardSelectors(action, split.getLocal());
+            }
+            String localExpression = expressionTuple.v1();
             // TODO: Shard level requests have wildcard expanded already and do not need go through this check
-            if (Regex.isSimpleMatchPattern(localName)) {
+            if (Regex.isSimpleMatchPattern(localExpression)) {
                 throwOnUnexpectedWildcards(action, split.getLocal());
             }
-            localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(localName));
+            String finalExpression = IndexNameExpressionResolver.resolveDateMathExpression(localExpression);
+            if (selector != null) {
+                finalExpression = IndexNameExpressionResolver.combineSelectorExpression(finalExpression, selector);
+            }
+            localIndices.add(finalExpression);
         }
 
         return new ResolvedIndices(localIndices, split.getRemote());
@@ -229,6 +260,19 @@ class IndicesAndAliasesResolver {
         );
     }
 
+    private static void throwOnUnexpectedWildcardSelectors(String action, List<String> indices) {
+        final List<String> selectorExpressions = indices.stream().filter(IndexNameExpressionResolver::hasSelectorSuffix).toList();
+        assert selectorExpressions.isEmpty() == false : "we already know that there's at least one selector in the indices";
+        throw new IllegalArgumentException(
+            "the action "
+                + action
+                + " does not support wildcard selectors;"
+                + " the provided index expression(s) ["
+                + Strings.collectionToCommaDelimitedString(selectorExpressions)
+                + "] are not allowed"
+        );
+    }
+
     ResolvedIndices resolveIndicesAndAliases(
         String action,
         IndicesRequest indicesRequest,
@@ -252,18 +296,42 @@ class IndicesAndAliasesResolver {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
 
             // check for all and return list of authorized indices
-            if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
+            boolean isAllIndices;
+            String selectorString = null;
+            if (indicesRequest.indices() != null && indicesRequest.indices().length > 0) {
+                // Always parse selectors off to see if this targets all indices
+                List<Tuple<String, String>> selectedIndices = indicesList(indicesRequest.indices()).stream()
+                    .map(IndexNameExpressionResolver::splitSelectorExpression)
+                    .toList();
+                isAllIndices = IndexNameExpressionResolver.isAllIndices(selectedIndices, Tuple::v1);
+                selectorString = selectedIndices.get(0).v2();
+            } else {
+                isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()));
+            }
+            if (isAllIndices) {
+                // First, if a selector is present, check to make sure that selectors are even allowed here
+                if (indicesOptions.allowSelectors() == false && selectorString != null) {
+                    String originalIndexExpression = indicesRequest.indices()[0];
+                    throw new IllegalArgumentException(
+                        "Index component selectors are not supported in this context but found selector in expression ["
+                            + originalIndexExpression
+                            + "]"
+                    );
+                }
                 if (indicesOptions.expandWildcardExpressions()) {
                     for (String authorizedIndex : authorizedIndices.all().get()) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
+                            selectorString,
                             authorizedIndex,
                             indicesOptions,
                             metadata,
                             nameExpressionResolver,
                             indicesRequest.includeDataStreams()
                         )) {
-                            resolvedIndicesBuilder.addLocal(authorizedIndex);
+                            resolvedIndicesBuilder.addLocal(
+                                IndexNameExpressionResolver.combineSelectorExpression(authorizedIndex, selectorString)
+                            );
                         }
                     }
                 }

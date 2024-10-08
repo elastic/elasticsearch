@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -187,6 +188,61 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(resolveMatchAllToSelectors(noneSelector, "_all"), is(EnumSet.noneOf(IndexComponentSelector.class)));
         expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "_all::data"));
         expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelectors(noneSelector, "_all::failures"));
+    }
+
+    public void testCombineExpressionWithSelector() {
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.combineSelectorExpression(null, null));
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.combineSelectorExpression(null, ""));
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.combineSelectorExpression(null, "a"));
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.combineSelectorExpression(null, "*"));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("", null), is(equalTo("")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("", ""), is(equalTo("::")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", null), is(equalTo("a")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", ""), is(equalTo("a::")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", "b"), is(equalTo("a::b")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", "*"), is(equalTo("a::*")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("*", "b"), is(equalTo("*::b")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("*", "*"), is(equalTo("*::*")));
+    }
+
+    public void testHasSelectorSuffix() {
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix(null), is(false));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix(""), is(false));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("abcdefg"), is(false));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("*"), is(false));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("cluster:index"), is(false));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("index::data"), is(true));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("index::failures"), is(true));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("index::any"), is(true));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("index::*"), is(true));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("index::::::::::toomany"), is(true));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("cluster:index::data"), is(true));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("*:*::*"), is(true));
+        assertThat(IndexNameExpressionResolver.hasSelectorSuffix("index::value::value"), is(true));
+    }
+
+    public void testSplitSelectorExpression() {
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.splitSelectorExpression(null));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression(""), is(equalTo(new Tuple<>("", null))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("a"), is(equalTo(new Tuple<>("a", null))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("*"), is(equalTo(new Tuple<>("*", null))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("index"), is(equalTo(new Tuple<>("index", null))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("cluster:index"), is(equalTo(new Tuple<>("cluster:index", null))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("*:index"), is(equalTo(new Tuple<>("*:index", null))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("cluster:*"), is(equalTo(new Tuple<>("cluster:*", null))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("*:*"), is(equalTo(new Tuple<>("*:*", null))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("*:*:*"), is(equalTo(new Tuple<>("*:*:*", null))));
+
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("a::data"), is(equalTo(new Tuple<>("a", "data"))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("a::failures"), is(equalTo(new Tuple<>("a", "failures"))));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("a::*"), is(equalTo(new Tuple<>("a", "*"))));
+        expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::random"));
+        expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::d*ta"));
+        expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::*ailures"));
+        expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::"));
+        expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("a::**"));
+        expectThrows(InvalidIndexNameException.class, () -> IndexNameExpressionResolver.splitSelectorExpression("index::data::*"));
+        assertThat(IndexNameExpressionResolver.splitSelectorExpression("::*"), is(equalTo(new Tuple<>("", "*"))));
     }
 
     private static IndicesOptions getOptionsForSelectors(IndexComponentSelector... selectors) {

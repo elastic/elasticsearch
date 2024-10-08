@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -260,7 +261,7 @@ public class IndexNameExpressionResolver {
         }
 
         public String combined() {
-            return resource + (selector == null ? "" : ("::" + selector.getKey()));
+            return combineSelectorExpression(resource, selector == null ? null : (SelectorResolver.SELECTOR_SEPARATOR + selector.getKey()));
         }
     }
 
@@ -781,9 +782,32 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * @return True if the provided expression contains the <code>::</code> character sequence.
+     */
+    public static boolean hasSelectorSuffix(String expression) {
+        if (expression == null) {
+            return false;
+        }
+        return expression.contains(SelectorResolver.SELECTOR_SEPARATOR);
+    }
+
+    /**
+     * @return If the specified string is a selector expression then this method returns the base expression and its selector part.
+     */
+    public static Tuple<String, String> splitSelectorExpression(String expression) {
+        return SelectorResolver.splitSelectorExpression(expression, Tuple::new);
+    }
+
+    public static String combineSelectorExpression(String baseExpression, @Nullable String selectorExpression) {
+        Objects.requireNonNull(baseExpression, "baseExpression is null");
+        return selectorExpression == null ? baseExpression : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression);
+    }
+
+    /**
      * @return If the specified string is data math expression then this method returns the resolved expression.
      */
     public static String resolveDateMathExpression(String dateExpression) {
+        // PRTODO: This will not resolve a date math expression that has a :: selector on the end
         return DateMathExpressionResolver.resolveExpression(dateExpression);
     }
 
@@ -792,6 +816,7 @@ public class IndexNameExpressionResolver {
      * @return If the specified string is data math expression then this method returns the resolved expression.
      */
     public static String resolveDateMathExpression(String dateExpression, long time) {
+        // PRTODO: This will not resolve a date math expression that has a :: selector on the end
         return DateMathExpressionResolver.resolveExpression(dateExpression, () -> time);
     }
 
@@ -1141,9 +1166,7 @@ public class IndexNameExpressionResolver {
      * @return true if the provided array maps to all indices, false otherwise
      */
     public static boolean isAllIndicesExpression(Collection<ResolvedExpression> aliasesOrIndices) {
-        return aliasesOrIndices == null
-            || aliasesOrIndices.isEmpty()
-            || isExplicitAllPattern(aliasesOrIndices.stream().map(ResolvedExpression::resource).toList());
+        return isAllIndices(aliasesOrIndices, ResolvedExpression::resource);
     }
 
     /**
@@ -1154,7 +1177,23 @@ public class IndexNameExpressionResolver {
      * @return true if the provided array maps to all indices, false otherwise
      */
     public static boolean isAllIndices(Collection<String> aliasesOrIndices) {
-        return aliasesOrIndices == null || aliasesOrIndices.isEmpty() || isExplicitAllPattern(aliasesOrIndices);
+        // PRTODO: Unlike isAllIndicesExpression, this will not match _all::data as an all indices pattern
+        return isAllIndices(aliasesOrIndices, Function.identity());
+    }
+
+    /**
+     * Identifies whether the array containing objects with index names given as argument refers to all indices
+     * The empty or null array identifies all indices
+     *
+     * @param aliasesOrIndices the array containing index names
+     * @param resourceGetter allows for obtaining the index name from a generic object that contains an index expression
+     * @return true if the provided array maps to all indices, false otherwise
+     * @param <T> any object that can contain an index expression in some form or another
+     */
+    public static <T> boolean isAllIndices(Collection<T> aliasesOrIndices, Function<T, String> resourceGetter) {
+        return aliasesOrIndices == null
+            || aliasesOrIndices.isEmpty()
+            || isExplicitAllPattern(aliasesOrIndices.stream().map(resourceGetter).toList());
     }
 
     /**
@@ -1964,6 +2003,7 @@ public class IndexNameExpressionResolver {
                 }
             }
             if (context.options.allowSelectors()) {
+                // PRTODO: If a user puts index::* then this will break since previous steps will produce index::failures which is invalid
                 // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
                 IndexComponentSelector selector = expression.expression().selector();
                 assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
@@ -2048,6 +2088,15 @@ public class IndexNameExpressionResolver {
          * @return A resolved expression, optionally paired with a selector if present and supported.
          */
         public static Stream<ResolvedExpression> resolve(Context context, String expression) {
+            // PRTODO: If we pass in ::* as the selector here, we create resolved expressions for both data and failures
+            // Even if the expression ends up pointing to an index that only supports data
+            // Which means there needs to be a way to persist whether or not the expression was a wildcard so we can filter out
+            // invalid selectors from abstractions that don't support them.
+            // Unfortunately, we cannot check to see if the expression supports the selector here because we still need to resolve
+            // date math.
+            // This is also a problem with default selectors - if we have both data and failures as defaults, an index won't be able
+            // to support the failures component. We basically need to capture which case is present here, and resolve it later
+            // based on the index abstraction used.
             return parseAndTransformSelector(expression, (baseExpression, selectors) -> {
                 if (context.options.allowSelectors()) {
                     // if selector was not present in the expression, use the defaults for the API
@@ -2121,9 +2170,8 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Parses selector fragments from an index expression. Selectors are always expected to be the suffix of the expression, and must
-         * equal one of the supported selector keys (data, failures) or be the match-all wildcard (*) which maps to all selectors. The
-         * expression is then split into the base expression and the selectors. A provided function binds the results to the return type.
+         * Splits off selector suffixes and converts them to their corresponding {@link IndexComponentSelector} values. A provided function
+         * binds the results to the return type.
          * @param expression The expression to parse and split apart
          * @param bindFunction A function that is handed the remainder of the expression and any selectors that were parsed off
          *                       the expression.
@@ -2135,15 +2183,38 @@ public class IndexNameExpressionResolver {
             String expression,
             BiFunction<String, Collection<IndexComponentSelector>, V> bindFunction
         ) {
+            return splitSelectorExpression(expression, (expressionBase, suffix) -> {
+                if (suffix == null) {
+                    return bindFunction.apply(expressionBase, List.of());
+                } else if (Regex.isMatchAllPattern(suffix)) {
+                    return bindFunction.apply(expressionBase, EnumSet.allOf(IndexComponentSelector.class));
+                } else {
+                    return bindFunction.apply(expressionBase, List.of(IndexComponentSelector.getByKey(suffix)));
+                }
+            });
+        }
+
+        /**
+         * Splits off selector fragments from an index expression. Selectors are always expected to be the suffix of the expression, and
+         * must equal one of the supported selector keys (data, failures) or be the match-all wildcard (*) which maps to all selectors. The
+         * expression is then split into the base expression and the selector string. A provided function binds the results to the return
+         * type.
+         * @param expression The expression to parse and split apart
+         * @param bindFunction A function that is handed the remainder of the expression and any selector suffix that was parsed off
+         *                       the expression.
+         * @return The result of the bind function
+         * @param <V> The type returned from the binding function
+         * @throws InvalidIndexNameException In the event that the selector syntax is used incorrectly.
+         */
+        private static <V> V splitSelectorExpression(
+            String expression,
+            BiFunction<String, String, V> bindFunction
+        ) {
+            Objects.requireNonNull(expression, "expression cannot be null");
             int lastDoubleColon = expression.lastIndexOf(SELECTOR_SEPARATOR);
             if (lastDoubleColon >= 0) {
                 String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
-                if (Regex.isMatchAllPattern(suffix)) {
-                    // Return all selectors
-                    String expressionBase = expression.substring(0, lastDoubleColon);
-                    ensureNoMoreSelectorSeparators(expressionBase, expression);
-                    return bindFunction.apply(expressionBase, EnumSet.allOf(IndexComponentSelector.class));
-                } else {
+                if (Regex.isMatchAllPattern(suffix) == false) {
                     IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
                     if (selector == null) {
                         // Do some work to surface a helpful error message for likely errors
@@ -2161,13 +2232,13 @@ public class IndexNameExpressionResolver {
                             );
                         }
                     }
-                    String expressionBase = expression.substring(0, lastDoubleColon);
-                    ensureNoMoreSelectorSeparators(expressionBase, expression);
-                    return bindFunction.apply(expressionBase, List.of(selector));
                 }
+                String expressionBase = expression.substring(0, lastDoubleColon);
+                ensureNoMoreSelectorSeparators(expressionBase, expression);
+                return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
-            return bindFunction.apply(expression, List.of());
+            return bindFunction.apply(expression, null);
         }
 
         /**
@@ -2220,7 +2291,9 @@ public class IndexNameExpressionResolver {
             }
 
             public String getWithSelector() {
-                return get() + (expression().selector() == null ? "" : ("::" + expression().selector().getKey()));
+                return get() + (expression().selector() == null
+                    ? ""
+                    : (SelectorResolver.SELECTOR_SEPARATOR + expression().selector().getKey()));
             }
         }
 

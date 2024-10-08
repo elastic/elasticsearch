@@ -10,11 +10,13 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
@@ -79,7 +81,9 @@ public abstract class RemoteClusterAware {
             // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
             boolean isDateMathExpression = (index.charAt(0) == '<' || index.startsWith("-<"));
             int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (isDateMathExpression == false && i >= 0) {
+            boolean hasSeparator = i >= 0;
+            boolean isSelectorSeparator = hasSeparator && i < index.length() - 1 && index.charAt(i + 1) == ':';
+            if (hasSeparator && isDateMathExpression == false && isSelectorSeparator == false) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
@@ -89,11 +93,22 @@ public abstract class RemoteClusterAware {
                 List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
                 String indexName = index.substring(i + 1);
                 if (startIdx == 1) {
+                    Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
+                    indexName = indexAndSelector.v1();
+                    String selectorString = indexAndSelector.v2();
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(
                                 "To exclude a cluster you must specify the '*' wildcard for " + "the index expression, but found: [%s]",
                                 indexName
+                            )
+                        );
+                    }
+                    if (selectorString != null && selectorString.equals("*") == false) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "To exclude a cluster you must specify the '::*' selector or leave it off, but found: [%s]",
+                                selectorString
                             )
                         );
                     }

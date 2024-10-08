@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -76,6 +78,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -736,6 +739,107 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
         var queryString = QueryBuilders.matchQuery("last_name", "Smith");
         var expected = QueryBuilders.boolQuery().must(queryString).must(range);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testQueryStringWithDisjunctionsThatCannotBePushedDown() {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        checkWithDisjunctionsThatCannotBePushedDown("QSTR", "qstr(\"first_name: Anna\")");
+    }
+
+    public void testMatchWithDisjunctionsThatCannotBePushedDown() {
+        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        checkWithDisjunctionsThatCannotBePushedDown("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkWithDisjunctionsThatCannotBePushedDown(String functionName, String functionInvocation) {
+        VerificationException ve = expectThrows(
+            VerificationException.class,
+            () -> plannerOptimizer.plan("from test | where " + functionInvocation + " or length(first_name) > 12", IS_SV_STATS)
+        );
+        assertThat(
+            ve.getMessage(),
+            containsString(
+                LoggerMessageFormat.format(
+                    null,
+                    "1:19: Invalid condition [{} or length(first_name) > 12]. "
+                        + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12]",
+                    functionInvocation,
+                    functionName
+                )
+            )
+        );
+        ve = expectThrows(
+            VerificationException.class,
+            () -> plannerOptimizer.plan(
+                "from test | where (" + functionInvocation + " and emp_no < 1000) or (length(first_name) > 12 and emp_no > 1000)",
+                IS_SV_STATS
+            )
+        );
+        assertThat(
+            ve.getMessage(),
+            containsString(
+                LoggerMessageFormat.format(
+                    null,
+                    "1:19: Invalid condition [({} and emp_no < 1000) or (length(first_name) > 12 and emp_no > 1000)]. "
+                        + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12 and emp_no > 1000]",
+                    functionInvocation,
+                    functionName
+                )
+            )
+        );
+    }
+
+    public void testMatchFunctionDisjunctionNonPushableClauses() {
+        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        String queryText = """
+            from test
+            | where match(first_name, "Peter") or length(last_name) > 10
+            """;
+
+        VerificationException ve = expectThrows(VerificationException.class, () -> plannerOptimizer.plan(queryText, IS_SV_STATS));
+        assertThat(
+            ve.getMessage(),
+            containsString(
+                "Invalid condition [match(first_name, \"Peter\") or length(last_name) > 10]. "
+                    + "Function MATCH can't be used as part of an or condition that includes [length(last_name) > 10]"
+            )
+        );
+    }
+
+    /**
+     * Expected:
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, job{f}#11, job.raw{f}#12, languages{f}#7, last_
+     * name{f}#8, long_noidx{f}#13, salary{f}#9],false]
+     *   \_ProjectExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, job{f}#11, job.raw{f}#12, languages{f}#7, last_
+     * name{f}#8, long_noidx{f}#13, salary{f}#9]]
+     *     \_FieldExtractExec[_meta_field{f}#10, emp_no{f}#4, first_name{f}
+     *       \_EsQueryExec[test], indexMode[standard],
+     *          query[{"bool":{"should":[{"match":{"first_name":{"query":"Peter"}}},{"esql_single_value":{"field":"last_name",
+     *          "next":{"term":{"last_name":{"value":"Griffin"}}},"source":"last_name == \"Griffin\"@2:39"}}],"boost":1.0}}]
+     */
+    public void testMatchFunctionDisjunctionPushableClauses() {
+        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        String queryText = """
+            from test
+            | where match(first_name, "Peter") or last_name == "Griffin"
+            """;
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        var queryStringLeft = QueryBuilders.matchQuery("first_name", "Peter");
+        Source termSource = new Source(2, 38, "last_name == \"Griffin\"");
+        var queryStringRight = wrapWithSingleQuery(queryText, QueryBuilders.termQuery("last_name", "Griffin"), "last_name", termSource);
+        var expected = QueryBuilders.boolQuery().should(queryStringLeft).should(queryStringRight);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 

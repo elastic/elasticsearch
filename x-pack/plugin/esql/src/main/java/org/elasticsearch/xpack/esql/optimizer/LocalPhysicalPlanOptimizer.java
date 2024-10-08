@@ -33,18 +33,18 @@ import static java.util.Arrays.asList;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
-    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
+    private final LocalPhysicalVerifier verifier = LocalPhysicalVerifier.INSTANCE;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
-        return verify(execute(plan));
+        return verify(execute(plan), context());
     }
 
-    PhysicalPlan verify(PhysicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+    PhysicalPlan verify(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
+        Collection<Failure> failures = verifier.verify(plan, context);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }

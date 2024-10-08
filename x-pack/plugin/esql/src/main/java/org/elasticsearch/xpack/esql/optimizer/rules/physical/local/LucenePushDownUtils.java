@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.function.Predicate;
 
-class LucenePushDownUtils {
+public class LucenePushDownUtils {
     /**
      * this method is supposed to be used to define if a field can be used for exact push down (eg. sort or filter).
      * "aggregatable" is the most accurate information we can have from field_caps as of now.

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -1194,41 +1193,6 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals("1:19: argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
         // Other value types are tested in QueryStringFunctionTests
-    }
-
-    public void testQueryStringWithDisjunctionsThatCannotBePushedDown() {
-        checkWithDisjunctionsThatCannotBePushedDown("QSTR", "qstr(\"first_name: Anna\")");
-    }
-
-    public void testMatchWithDisjunctionsThatCannotBePushedDown() {
-        checkWithDisjunctionsThatCannotBePushedDown("MATCH", "match(first_name, \"Anna\")");
-    }
-
-    private void checkWithDisjunctionsThatCannotBePushedDown(String functionName, String functionInvocation) {
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. "
-                    + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12]",
-                functionInvocation,
-                functionName
-            ),
-            error("from test | where " + functionInvocation + " or length(first_name) > 12")
-        );
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
-                    + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12 and first_name is null]",
-                functionInvocation,
-                functionName
-            ),
-            error(
-                "from test | where ("
-                    + functionInvocation
-                    + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
-            )
-        );
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {

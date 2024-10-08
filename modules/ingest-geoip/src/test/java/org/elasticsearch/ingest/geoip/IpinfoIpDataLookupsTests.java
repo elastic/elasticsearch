@@ -36,6 +36,7 @@ import java.util.function.BiConsumer;
 import static java.util.Map.entry;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseAsn;
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseLocationDouble;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -79,6 +80,18 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         assertThat(parseAsn("123"), equalTo(123L));
         // bottom case: a non-parsable string is null
         assertThat(parseAsn("anythingelse"), nullValue());
+    }
+
+    public void testParseLocationDouble() {
+        // expected case: "123.45" is 123.45
+        assertThat(parseLocationDouble("123.45"), equalTo(123.45));
+        // defensive cases: null and empty becomes null, this is not expected fwiw
+        assertThat(parseLocationDouble(null), nullValue());
+        assertThat(parseLocationDouble(""), nullValue());
+        // defensive cases: we strip whitespace
+        assertThat(parseLocationDouble("  -123.45  "), equalTo(-123.45));
+        // bottom case: a non-parsable string is null
+        assertThat(parseLocationDouble("anythingelse"), nullValue());
     }
 
     public void testAsn() throws IOException {

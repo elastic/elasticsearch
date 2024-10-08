@@ -58,6 +58,25 @@ final class IpinfoIpDataLookups {
         }
     }
 
+    /**
+     * Lax-ly parses a string that contains a double into a Double (or null, if such parsing isn't possible).
+     * @param latlon a potentially empty (or null) string that is expected to contain a parsable double
+     * @return the parsed double
+     */
+    static Double parseLocationDouble(final String latlon) {
+        if (latlon == null || Strings.hasText(latlon) == false) {
+            return null;
+        } else {
+            String stripped = latlon.trim();
+            try {
+                return Double.parseDouble(stripped);
+            } catch (NumberFormatException e) {
+                logger.trace("Unable to parse non-compliant location string [{}]", latlon);
+                return null;
+            }
+        }
+    }
+
     public record AsnResult(
         Long asn,
         @Nullable String country, // not present in the free asn database

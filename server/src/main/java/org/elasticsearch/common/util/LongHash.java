@@ -67,7 +67,7 @@ public final class LongHash extends AbstractHash {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key);
                 ++size;
                 return id;
@@ -82,13 +82,13 @@ public final class LongHash extends AbstractHash {
         keys.set(id, key);
     }
 
-    private void reset(long key, long id) {
+    private void reset(long id) {
+        final long key = keys.get(id);
         final long slot = slot(hash(key), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
-                append(id, key);
+                setId(index, id);
                 break;
             }
         }
@@ -109,10 +109,9 @@ public final class LongHash extends AbstractHash {
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
-        final long key = keys.getAndSet(id, 0);
-        reset(key, id);
+        reset(id);
     }
 
     @Override

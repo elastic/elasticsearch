@@ -372,6 +372,10 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114300
 - class: org.elasticsearch.index.SearchSlowLogTests
   method: testTwoLoggersDifferentLevel
+  issue: https://github.com/elastic/elasticsearch/issues/114301
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=aggregations/stats_metric_fail_formatting/fail formatting}
+  issue: https://github.com/elastic/elasticsearch/issues/114320
 
 # Examples:
 #

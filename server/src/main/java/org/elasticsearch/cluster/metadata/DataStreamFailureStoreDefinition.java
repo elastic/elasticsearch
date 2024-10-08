@@ -41,7 +41,8 @@ public class DataStreamFailureStoreDefinition {
         IndexSettings.TIME_SERIES_START_TIME.getKey(),
         IndexSettings.TIME_SERIES_END_TIME.getKey(),
         IndexMetadata.INDEX_ROUTING_PATH.getKey(),
-        IndexSettings.MODE.getKey());
+        IndexSettings.MODE.getKey()
+    );
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
     public static final int FAILURE_STORE_DEFINITION_VERSION = 1;

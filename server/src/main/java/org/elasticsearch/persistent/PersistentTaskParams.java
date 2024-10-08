@@ -16,5 +16,13 @@ import org.elasticsearch.xcontent.ToXContentObject;
  * Parameters used to start persistent task
  */
 public interface PersistentTaskParams extends VersionedNamedWriteable, ToXContentObject {
-
+    /**
+     * Lightweight tasks are allowed to be scheduled to nodes shutting down iff all nodes are shutting down.
+     * The setting
+     * {@link PersistentTasksClusterService#CLUSTER_TASKS_ALLOCATION_ALLOW_LIGHTWEIGHT_ASSIGNMENTS_TO_NODES_SHUTTING_DOWN_SETTING}
+     * needs to be set for this behavior to apply.
+     */
+    default boolean isLightweight() {
+        return false;
+    }
 }

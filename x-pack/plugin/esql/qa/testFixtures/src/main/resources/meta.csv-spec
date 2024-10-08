@@ -1,5 +1,7 @@
-metaFunctionsSynopsis#[skip:-8.15.99]
+metaFunctionsSynopsis
 required_capability: date_nanos_type
+required_capability: meta
+
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -31,9 +33,9 @@ double e()
 "double exp(number:double|integer|long|unsigned_long)"
 "double|integer|long|unsigned_long floor(number:double|integer|long|unsigned_long)"
 "keyword from_base64(string:keyword|text)"
-"boolean|double|integer|ip|keyword|long|text|version greatest(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
+"boolean|date|double|integer|ip|keyword|long|text|version greatest(first:boolean|date|double|integer|ip|keyword|long|text|version, ?rest...:boolean|date|double|integer|ip|keyword|long|text|version)"
 "ip ip_prefix(ip:ip, prefixLengthV4:integer, prefixLengthV6:integer)"
-"boolean|double|integer|ip|keyword|long|text|version least(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
+"boolean|date|double|integer|ip|keyword|long|text|version least(first:boolean|date|double|integer|ip|keyword|long|text|version, ?rest...:boolean|date|double|integer|ip|keyword|long|text|version)"
 "keyword left(string:keyword|text, length:integer)"
 "integer length(string:keyword|text)"
 "integer locate(string:keyword|text, substring:keyword|text, ?start:integer)"
@@ -67,6 +69,7 @@ double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
 "keyword repeat(string:keyword|text, number:integer)"
 "keyword replace(string:keyword|text, regex:keyword|text, newString:keyword|text)"
+"keyword|text reverse(str:keyword|text)"
 "keyword right(string:keyword|text, length:integer)"
 "double|integer|long|unsigned_long round(number:double|integer|long|unsigned_long, ?decimals:integer)"
 "keyword|text rtrim(string:keyword|text)"
@@ -95,6 +98,8 @@ double tau()
 "boolean to_boolean(field:boolean|keyword|text|double|long|unsigned_long|integer)"
 "cartesian_point to_cartesianpoint(field:cartesian_point|keyword|text)"
 "cartesian_shape to_cartesianshape(field:cartesian_point|cartesian_shape|keyword|text)"
+"date_nanos to_date_nanos(field:date|date_nanos|keyword|text|double|long|unsigned_long)"
+"date_nanos to_datenanos(field:date|date_nanos|keyword|text|double|long|unsigned_long)"
 "date_period to_dateperiod(field:date_period|keyword|text)"
 "date to_datetime(field:date|date_nanos|keyword|text|double|long|unsigned_long|integer)"
 "double to_dbl(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long)"
@@ -118,14 +123,16 @@ double tau()
 "keyword|text to_upper(str:keyword|text)"
 "version to_ver(field:keyword|text|version)"
 "version to_version(field:keyword|text|version)"
-"boolean|double|integer|long|date|ip top(field:boolean|double|integer|long|date|ip, limit:integer, order:keyword)"
+"boolean|double|integer|long|date|ip|keyword|text top(field:boolean|double|integer|long|date|ip|keyword|text, limit:integer, order:keyword)"
 "keyword|text trim(string:keyword|text)"
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 "double weighted_avg(number:double|integer|long, weight:double|integer|long)"
 ;
 
-metaFunctionsArgs#[skip:-8.15.99]
+metaFunctionsArgs
+required_capability: meta
 required_capability: date_nanos_type
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -159,9 +166,9 @@ ends_with     |[str, suffix]                       |["keyword|text", "keyword|te
 exp           |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 from_base64   |string                              |"keyword|text"                                                                                                                    |A base64 string.
-greatest      |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
+greatest      |first                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |First of the columns to evaluate.
 ip_prefix     |[ip, prefixLengthV4, prefixLengthV6]|[ip, integer, integer]                                                                                                            |[IP address of type `ip` (both IPv4 and IPv6 are supported)., Prefix length for IPv4 addresses., Prefix length for IPv6 addresses.]
-least         |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
+least         |first                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |First of the columns to evaluate.
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
 length        |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 locate        |[string, substring, start]          |["keyword|text", "keyword|text", "integer"]                                                                                       |[An input string, A substring to locate in the input string, The start index]
@@ -195,6 +202,7 @@ pi            |null                                |null                        
 pow           |[base, exponent]                    |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |["Numeric expression for the base. If `null`\, the function returns `null`.", "Numeric expression for the exponent. If `null`\, the function returns `null`."]
 repeat        |[string, number]                    |["keyword|text", integer]                                                                                                         |[String expression., Number times to repeat.]
 replace       |[string, regex, newString]          |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[String expression., Regular expression., Replacement string.]
+reverse       |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 right         |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to returns a substring., The number of characters to return.]
 round         |[number, decimals]                  |["double|integer|long|unsigned_long", integer]                                                                                    |["The numeric value to round. If `null`\, the function returns `null`.", "The number of decimal places to round to. Defaults to 0. If `null`\, the function returns `null`."]
 rtrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
@@ -223,6 +231,8 @@ to_bool       |field                               |"boolean|keyword|text|double
 to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
+to_date_nanos |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
+to_datenanos  |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_dateperiod |field                               |"date_period|keyword|text"                                                                                                        |Input value. The input is a valid constant date period expression.
 to_datetime   |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
 to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long"                         |Input value. The input can be a single- or multi-valued column or an expression.
@@ -246,13 +256,15 @@ to_unsigned_lo|field                               |"boolean|date|keyword|text|d
 to_upper      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 to_ver        |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
 to_version    |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
-top           |[field, limit, order]               |["boolean|double|integer|long|date|ip", integer, keyword]                                                                         |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
+top           |[field, limit, order]               |["boolean|double|integer|long|date|ip|keyword|text", integer, keyword]                                                                         |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
 trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
 ;
 
-metaFunctionsDescription#[skip:-8.15.99]
+metaFunctionsDescription
+required_capability: meta
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, description
@@ -323,6 +335,7 @@ pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference
 pow           |Returns the value of `base` raised to the power of `exponent`.
 repeat        |Returns a string constructed by concatenating `string` with itself the specified `number` of times.
 replace       |The function substitutes in the string `str` any match of the regular expression `regex` with the replacement string `newStr`.
+reverse       |Returns a new string representing the input string in reverse order.
 right         |Return the substring that extracts 'length' chars from 'str' starting from the right.
 round         |Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer. If the precision is a negative number, rounds to the number of digits left of the decimal point.
 rtrim         |Removes trailing whitespaces from a string.
@@ -351,6 +364,8 @@ to_bool       |Converts an input value to a boolean value. A string value of *tr
 to_boolean    |Converts an input value to a boolean value. A string value of *true* will be case-insensitive converted to the Boolean *true*. For anything else, including the empty string, the function will return *false*. The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.
 to_cartesianpo|Converts an input value to a `cartesian_point` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
 to_cartesiansh|Converts an input value to a `cartesian_shape` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
+to_date_nanos |Converts an input to a nanosecond-resolution date value (aka date_nanos).
+to_datenanos  |Converts an input to a nanosecond-resolution date value (aka date_nanos).
 to_dateperiod |Converts an input value into a `date_period` value.
 to_datetime   |Converts an input value to a date value. A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use <<esql-date_parse>>.
 to_dbl        |Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
@@ -380,8 +395,10 @@ values        |Returns all values in a group as a multivalued field. The order o
 weighted_avg  |The weighted average of a numeric expression.
 ;
 
-metaFunctionsRemaining#[skip:-8.15.99]
+metaFunctionsRemaining
+required_capability: meta
 required_capability: date_nanos_type
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *
@@ -417,9 +434,9 @@ ends_with     |boolean                                                          
 exp           |double                                                                                         |false                       |false           |false
 floor         |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 from_base64   |keyword                                                                                                                     |false                       |false           |false
-greatest      |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
+greatest      |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |true            |false
 ip_prefix     |ip                                                                                                                          |[false, false, false]       |false           |false
-least         |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
+least         |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |true            |false
 left          |keyword                                                                                                                     |[false, false]              |false           |false
 length        |integer                                                                                                                     |false                       |false           |false
 locate        |integer                                                                                                                     |[false, false, true]        |false           |false
@@ -453,6 +470,7 @@ pi            |double                                                           
 pow           |double                                                                                                                      |[false, false]              |false           |false
 repeat        |keyword                                                                                                                     |[false, false]              |false           |false
 replace       |keyword                                                                                                                     |[false, false, false]       |false           |false
+reverse       |"keyword|text"                                                                                                              |false                       |false           |false
 right         |keyword                                                                                                                     |[false, false]              |false           |false
 round         |"double|integer|long|unsigned_long"                                                                                         |[false, true]               |false           |false
 rtrim         |"keyword|text"                                                                                                              |false                       |false           |false
@@ -481,6 +499,8 @@ to_bool       |boolean                                                          
 to_boolean    |boolean                                                                                                                     |false                       |false           |false
 to_cartesianpo|cartesian_point                                                                                                             |false                       |false           |false
 to_cartesiansh|cartesian_shape                                                                                                             |false                       |false           |false
+to_date_nanos |date_nanos                                                                                                                  |false                       |false           |false
+to_datenanos  |date_nanos                                                                                                                  |false                       |false           |false
 to_dateperiod |date_period                                                                                                                 |false                       |false           |false
 to_datetime   |date                                                                                                                        |false                       |false           |false
 to_dbl        |double                                                                                                                      |false                       |false           |false
@@ -504,13 +524,15 @@ to_unsigned_lo|unsigned_long                                                    
 to_upper      |"keyword|text"                                                                                                              |false                       |false           |false
 to_ver        |version                                                                                                                     |false                       |false           |false
 to_version    |version                                                                                                                     |false                       |false           |false
-top           |"boolean|double|integer|long|date|ip"                                                                                       |[false, false, false]       |false           |true
+top           |"boolean|double|integer|long|date|ip|keyword|text"                                                                                       |[false, false, false]       |false           |true
 trim          |"keyword|text"                                                                                                              |false                       |false           |false
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true
 ;
 
-metaFunctionsFiltered#[skip:-8.15.99]
+metaFunctionsFiltered
+required_capability: meta
+
 META FUNCTIONS
 | WHERE STARTS_WITH(name, "sin")
 ;
@@ -520,9 +542,11 @@ sin          |"double sin(angle:double|integer|long|unsigned_long)"   |angle    
 sinh         |"double sinh(number:double|integer|long|unsigned_long)" |number            |"double|integer|long|unsigned_long" | "Numeric expression. If `null`, the function returns `null`."   | double             | "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of a number." | false                | false            | false
 ;
 
-countFunctions#[skip:-8.15.99]
+countFunctions
+required_capability: meta
+
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-119    | 119    | 119
+122    | 122    | 122
 ;

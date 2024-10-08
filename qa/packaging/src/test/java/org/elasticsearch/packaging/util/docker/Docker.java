@@ -486,9 +486,9 @@ public class Docker {
         // Ensure the `elasticsearch` user and group exist.
         // These lines will both throw an exception if the command fails
         dockerShell.run("id elasticsearch");
-        dockerShell.run("getent group elasticsearch");
+        dockerShell.run("grep -E '^elasticsearch:' /etc/group");
 
-        final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
+        final Shell.Result passwdResult = dockerShell.run("grep -E '^elasticsearch:' /etc/passwd");
         final String homeDir = passwdResult.stdout().trim().split(":")[5];
         assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
@@ -532,7 +532,9 @@ public class Docker {
                 )
             );
 
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD
+            || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS
+            || es.distribution.packaging == Packaging.DOCKER_WOLFI_ESS) {
             verifyCloudContainerInstallation(es);
         }
     }
@@ -541,7 +543,7 @@ public class Docker {
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS || es.distribution.packaging == Packaging.DOCKER_WOLFI_ESS) {
             assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
 
             final List<String> repositoryPlugins = plugins.stream()

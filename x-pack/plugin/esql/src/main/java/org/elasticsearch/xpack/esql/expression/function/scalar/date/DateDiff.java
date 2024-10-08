@@ -37,7 +37,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -66,7 +65,7 @@ public class DateDiff extends EsqlScalarFunction {
      */
     public enum Part implements DateTimeField {
 
-        YEAR((start, end) -> end.getYear() - start.getYear(), "years", "yyyy", "yy"),
+        YEAR((start, end) -> safeToInt(ChronoUnit.YEARS.between(start, end)), "years", "yyyy", "yy"),
         QUARTER((start, end) -> safeToInt(IsoFields.QUARTER_YEARS.between(start, end)), "quarters", "qq", "q"),
         MONTH((start, end) -> safeToInt(ChronoUnit.MONTHS.between(start, end)), "months", "mm", "m"),
         DAYOFYEAR((start, end) -> safeToInt(ChronoUnit.DAYS.between(start, end)), "dy", "y"),
@@ -126,36 +125,44 @@ public class DateDiff extends EsqlScalarFunction {
         }
     }
 
-    @FunctionInfo(returnType = "integer", description = """
-        Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`.
-        If `startTimestamp` is later than the `endTimestamp`, negative values are returned.""", detailedDescription = """
-        [cols=\"^,^\",role=\"styled\"]
-        |===
-        2+h|Datetime difference units
+    @FunctionInfo(
+        returnType = "integer",
+        description = """
+            Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`.
+            If `startTimestamp` is later than the `endTimestamp`, negative values are returned.""",
+        detailedDescription = """
+            [cols=\"^,^\",role=\"styled\"]
+            |===
+            2+h|Datetime difference units
 
-        s|unit
-        s|abbreviations
+            s|unit
+            s|abbreviations
 
-        | year        | years, yy, yyyy
-        | quarter     | quarters, qq, q
-        | month       | months, mm, m
-        | dayofyear   | dy, y
-        | day         | days, dd, d
-        | week        | weeks, wk, ww
-        | weekday     | weekdays, dw
-        | hour        | hours, hh
-        | minute      | minutes, mi, n
-        | second      | seconds, ss, s
-        | millisecond | milliseconds, ms
-        | microsecond | microseconds, mcs
-        | nanosecond  | nanoseconds, ns
-        |===
+            | year        | years, yy, yyyy
+            | quarter     | quarters, qq, q
+            | month       | months, mm, m
+            | dayofyear   | dy, y
+            | day         | days, dd, d
+            | week        | weeks, wk, ww
+            | weekday     | weekdays, dw
+            | hour        | hours, hh
+            | minute      | minutes, mi, n
+            | second      | seconds, ss, s
+            | millisecond | milliseconds, ms
+            | microsecond | microseconds, mcs
+            | nanosecond  | nanoseconds, ns
+            |===
 
-        Note that while there is an overlap between the function's supported units and
-        {esql}'s supported time span literals, these sets are distinct and not
-        interchangeable. Similarly, the supported abbreviations are conveniently shared
-        with implementations of this function in other established products and not
-        necessarily common with the date-time nomenclature used by {es}.""", examples = @Example(file = "date", tag = "docsDateDiff"))
+            Note that while there is an overlap between the function's supported units and
+            {esql}'s supported time span literals, these sets are distinct and not
+            interchangeable. Similarly, the supported abbreviations are conveniently shared
+            with implementations of this function in other established products and not
+            necessarily common with the date-time nomenclature used by {es}.""",
+        examples = { @Example(file = "date", tag = "docsDateDiff"), @Example(description = """
+            When subtracting in calendar units - like year, month a.s.o. - only the fully elapsed units are counted.
+            To avoid this and obtain also remainders, simply switch to the next smaller unit and do the date math accordingly.
+            """, file = "date", tag = "evalDateDiffYearForDocs") }
+    )
     public DateDiff(
         Source source,
         @Param(name = "unit", type = { "keyword", "text" }, description = "Time difference unit") Expression unit,
@@ -219,7 +226,7 @@ public class DateDiff extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory startTimestampEvaluator = toEvaluator.apply(startTimestamp);
         ExpressionEvaluator.Factory endTimestampEvaluator = toEvaluator.apply(endTimestamp);
 

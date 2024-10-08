@@ -693,7 +693,7 @@ public class MetadataIndexTemplateService {
     private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
-        var finalTemplate = Optional.ofNullable(indexTemplate.template());
+        var finalTemplate = indexTemplate.template();
         var finalSettings = Settings.builder();
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
@@ -717,18 +717,11 @@ public class MetadataIndexTemplateService {
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);
         // Then finally apply settings resolved from index template:
-        finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
+        if (finalTemplate != null && finalTemplate.settings() != null) {
+            finalSettings.put(finalTemplate.settings());
+        }
 
-        var templateToValidate = indexTemplate.toBuilder()
-            .template(
-                new Template(
-                    finalSettings.build(),
-                    finalTemplate.map(Template::mappings).orElse(null),
-                    finalTemplate.map(Template::aliases).orElse(null),
-                    finalTemplate.map(Template::lifecycle).orElse(null)
-                )
-            )
-            .build();
+        var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
@@ -1428,24 +1421,44 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template into a collected {@link Settings} object
      */
     public static Settings resolveSettings(final Metadata metadata, final String templateName) {
+        return resolveSettings(metadata, templateName, Map.of());
+    }
+
+    public static Settings resolveSettings(
+        final Metadata metadata,
+        final String templateName,
+        Map<String, ComponentTemplate> templateSubstitutions
+    ) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return Settings.EMPTY;
         }
-        return resolveSettings(template, metadata.componentTemplates());
+        return resolveSettings(template, metadata.componentTemplates(), templateSubstitutions);
     }
 
     /**
      * Resolve the provided v2 template and component templates into a collected {@link Settings} object
      */
     public static Settings resolveSettings(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
+        return resolveSettings(template, componentTemplates, Map.of());
+    }
+
+    public static Settings resolveSettings(
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates,
+        Map<String, ComponentTemplate> templateSubstitutions
+    ) {
         Objects.requireNonNull(template, "attempted to resolve settings for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve settings with null component templates");
+        Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
+        combinedComponentTemplates.putAll(componentTemplates);
+        // We want any substitutions to take precedence:
+        combinedComponentTemplates.putAll(templateSubstitutions);
         List<Settings> componentSettings = template.composedOf()
             .stream()
-            .map(componentTemplates::get)
+            .map(combinedComponentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::settings)

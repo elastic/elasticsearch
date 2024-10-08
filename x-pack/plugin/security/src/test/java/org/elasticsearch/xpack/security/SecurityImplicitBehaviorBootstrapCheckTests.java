@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 
 public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SECURITY)
     @AwaitsFix(bugUrl = "requires updates for version 9.0 bump")
     public void testUpgradeFrom8xWithImplicitSecuritySettings() throws Exception {
         final BuildVersion previousVersion = toBuildVersion(VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null));
@@ -46,7 +46,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         assertThat(result.isSuccess(), is(true));
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SECURITY)
     @AwaitsFix(bugUrl = "requires updates for version 9.0 bump")
     public void testUpgradeFrom8xWithExplicitSecuritySettings() throws Exception {
         final BuildVersion previousVersion = toBuildVersion(VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null));

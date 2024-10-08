@@ -28,7 +28,7 @@ public class InferenceFeatures implements FeatureSpecification {
             RandomRankRetrieverBuilder.RANDOM_RERANKER_RETRIEVER_SUPPORTED,
             SemanticTextFieldMapper.SEMANTIC_TEXT_SEARCH_INFERENCE_ID,
             SemanticQueryBuilder.SEMANTIC_TEXT_INNER_HITS,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_DEFAULT_ELSER_2
+            SemanticTextFieldMapper.SEMANTIC_TEXT_DEFAULT_ELSER_2,
             TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED
         );
     }

@@ -59,6 +59,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
@@ -158,6 +159,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaults() throws Exception {
+        assumeTrue("The default elser endpoint requires a feature flag", DefaultElserFeatureFlag.isEnabled());
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
 

@@ -321,7 +321,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
                 );
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError e) {
-            System.err.println("Assertion failed with response: " + explainIndexRef.get());
+            logger.error("Assertion failed with response: {}", explainIndexRef.get());
             throw e;
         }
     }

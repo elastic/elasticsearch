@@ -368,6 +368,17 @@ tests:
 - class: org.elasticsearch.logsdb.datageneration.DataGeneratorTests
   method: testDataGeneratorProducesValidMappingAndDocument
   issue: https://github.com/elastic/elasticsearch/issues/114188
+- class: org.elasticsearch.ingest.geoip.IpinfoIpDataLookupsTests
+  issue: https://github.com/elastic/elasticsearch/issues/114266
+- class: org.elasticsearch.index.SearchSlowLogTests
+  method: testLevelPrecedence
+  issue: https://github.com/elastic/elasticsearch/issues/114300
+- class: org.elasticsearch.index.SearchSlowLogTests
+  method: testTwoLoggersDifferentLevel
+  issue: https://github.com/elastic/elasticsearch/issues/114301
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=aggregations/stats_metric_fail_formatting/fail formatting}
+  issue: https://github.com/elastic/elasticsearch/issues/114320
 
 # Examples:
 #

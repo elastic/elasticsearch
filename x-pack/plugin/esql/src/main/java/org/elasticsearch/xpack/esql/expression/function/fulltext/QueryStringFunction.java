@@ -79,7 +79,7 @@ public class QueryStringFunction extends FullTextFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryStringFunction(source(), newChildren.getFirst());
+        return new QueryStringFunction(source(), newChildren.get(0));
     }
 
     @Override

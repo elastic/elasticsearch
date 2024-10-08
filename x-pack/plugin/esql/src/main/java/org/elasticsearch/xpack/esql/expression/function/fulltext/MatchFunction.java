@@ -114,7 +114,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         // Query is the first child, field is the second child
-        return new MatchFunction(source(), newChildren.get(1), newChildren.getFirst());
+        return new MatchFunction(source(), newChildren.get(1), newChildren.get(0));
     }
 
     @Override

@@ -42,12 +42,12 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -307,43 +307,35 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             final float[] centroid;
             final float[] mergedCentroid = new float[fieldInfo.getVectorDimension()];
             int vectorCount = mergeAndRecalculateCentroids(mergeState, fieldInfo, mergedCentroid);
-            boolean success = false;
-            try {
-                // Don't need access to the random vectors, we can just use the merged
-                rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
-                centroid = mergedCentroid;
-                if (segmentWriteState.infoStream.isEnabled(BINARIZED_VECTOR_COMPONENT)) {
-                    segmentWriteState.infoStream.message(BINARIZED_VECTOR_COMPONENT, "Vectors' count:" + vectorCount);
-                }
-                int descritizedDimension = BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64);
-                FloatVectorValues floatVectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
-                if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
-                    floatVectorValues = new NormalizedFloatVectorValues(floatVectorValues);
-                }
-                BinarizedFloatVectorValues binarizedVectorValues = new BinarizedFloatVectorValues(
-                    floatVectorValues,
-                    new BinaryQuantizer(fieldInfo.getVectorDimension(), descritizedDimension, fieldInfo.getVectorSimilarityFunction()),
-                    centroid
-                );
-                long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
-                DocsWithFieldSet docsWithField = writeBinarizedVectorData(binarizedVectorData, binarizedVectorValues);
-                long vectorDataLength = binarizedVectorData.getFilePointer() - vectorDataOffset;
-                float centroidDp = docsWithField.cardinality() > 0 ? VectorUtil.dotProduct(centroid, centroid) : 0;
-                writeMeta(
-                    fieldInfo,
-                    segmentWriteState.segmentInfo.maxDoc(),
-                    vectorDataOffset,
-                    vectorDataLength,
-                    centroid,
-                    centroidDp,
-                    docsWithField
-                );
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory);
-                }
+            // Don't need access to the random vectors, we can just use the merged
+            rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
+            centroid = mergedCentroid;
+            if (segmentWriteState.infoStream.isEnabled(BINARIZED_VECTOR_COMPONENT)) {
+                segmentWriteState.infoStream.message(BINARIZED_VECTOR_COMPONENT, "Vectors' count:" + vectorCount);
             }
+            int descritizedDimension = BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64);
+            FloatVectorValues floatVectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+            if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
+                floatVectorValues = new NormalizedFloatVectorValues(floatVectorValues);
+            }
+            BinarizedFloatVectorValues binarizedVectorValues = new BinarizedFloatVectorValues(
+                floatVectorValues,
+                new BinaryQuantizer(fieldInfo.getVectorDimension(), descritizedDimension, fieldInfo.getVectorSimilarityFunction()),
+                centroid
+            );
+            long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
+            DocsWithFieldSet docsWithField = writeBinarizedVectorData(binarizedVectorData, binarizedVectorValues);
+            long vectorDataLength = binarizedVectorData.getFilePointer() - vectorDataOffset;
+            float centroidDp = docsWithField.cardinality() > 0 ? VectorUtil.dotProduct(centroid, centroid) : 0;
+            writeMeta(
+                fieldInfo,
+                segmentWriteState.segmentInfo.maxDoc(),
+                vectorDataOffset,
+                vectorDataLength,
+                centroid,
+                centroidDp,
+                docsWithField
+            );
         } else {
             rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
         }

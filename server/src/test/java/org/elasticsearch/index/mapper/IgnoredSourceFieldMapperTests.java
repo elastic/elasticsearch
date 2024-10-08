@@ -542,6 +542,14 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField("_ignored_source"));
     }
 
+    public void testIndexStoredArraySourceSingleLeafElementAndNull() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("value").field("type", "keyword").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> b.array("value", new String[] { "foo", null }));
+        assertEquals("{\"value\":[\"foo\",null]}", syntheticSource);
+    }
+
     public void testIndexStoredArraySourceSingleObjectElement() throws IOException {
         DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
             b.startObject("path").startObject("properties");

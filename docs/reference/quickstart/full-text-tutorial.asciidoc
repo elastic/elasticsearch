@@ -1,0 +1,423 @@
+[[full-text-tutorial]]
+== Basic searching and filtering in {es}
+++++
+<titleabbrev>Basics: Searching and filtering</titleabbrev>
+++++
+
+This quick start guide is a hands-on introduction to filtering, searching, and aggregrating data using the `_search` API and QueryDSL.
+
+[discrete]
+[[full-text-tutorial-create-index]]
+=== Create an index
+
+We'll use a cooking blog dataset in this tutorial.
+Create the `cooking_blog` index and its mapping to get started.
+
+[source,console]
+----
+PUT /cooking_blog
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "standard" <1>
+      },
+      "description": {
+        "type": "text",
+      },
+      "author": {
+        "type": "text",
+        "fields": {
+          "keyword": { <2>
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "date": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
+      },
+      "category": {
+        "type": "keyword" 
+      },
+      "tags": {
+        "type": "keyword"
+      },
+      "rating": {
+        "type": "float"
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+<1> The `standard` analyzer is used by default if an `analyzer` isn't specified.
+Note that analyzers are determined per field. Each field can have a different analyzer.
+<2> Uses <<multi-fields,multi-fields>> to index `author` as both `text` and `keyword` types. This will enable both full-text search and strict term matches.
+
+[TIP]
+====
+Full-text search is powered by <<analysis,text analysis>>. 
+Text analysis normalizes and standardizes text data so it can be efficiently stored in an inverted index and searched in near real-time.
+Analysis happens at both <<analysis-index-search-time,index and search time>>.
+====
+
+[discrete]
+[[full-text-tutorial-index-data]]
+=== Add sample blog posts to your index
+
+Next, index some example blog posts.
+
+[source,console]
+----
+POST /cooking_blog/_bulk
+{"index":{"_id":"1"}}
+{"title":"Perfect Pancakes: A Fluffy Breakfast Delight","description":"Learn the secrets to making the fluffiest pancakes you've ever tasted. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.","author":"Maria Rodriguez","date":"2023-05-01","category":"Breakfast","tags":["pancakes","breakfast","easy recipes"],"rating":4.8}
+{"index":{"_id":"2"}}
+{"title":"Spicy Thai Green Curry: A Vegetarian Adventure","description":"Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying. Don't worry about the heat - you can easily adjust the spice level to your liking.","author":"Liam Chen","date":"2023-05-05","category":"Main Course","tags":["thai","vegetarian","curry","spicy"],"rating":4.6}
+{"index":{"_id":"3"}}
+{"title":"Classic Beef Stroganoff: A Creamy Comfort Food","description":"Indulge in this rich and creamy beef stroganoff. Tender strips of beef in a savory mushroom sauce, served over a bed of egg noodles. It's the ultimate comfort food for chilly evenings.","author":"Emma Watson","date":"2023-05-10","category":"Main Course","tags":["beef","pasta","comfort food"],"rating":4.7}
+{"index":{"_id":"4"}}
+{"title":"Vegan Chocolate Avocado Mousse","description":"Discover the magic of avocado in this rich, vegan chocolate mousse. Creamy, indulgent, and secretly healthy, it's the perfect guilt-free dessert for chocolate lovers.","author":"Alex Green","date":"2023-05-15","category":"Dessert","tags":["vegan","chocolate","avocado","healthy dessert"],"rating":4.5}
+{"index":{"_id":"5"}}
+{"title":"Crispy Oven-Fried Chicken","description":"Get that perfect crunch without the deep fryer! This oven-fried chicken recipe delivers crispy, juicy results every time. A healthier take on the classic comfort food.","author":"Maria Rodriguez","date":"2023-05-20","category":"Main Course","tags":["chicken","oven-fried","healthy"],"rating":4.9}
+----
+// TEST
+
+[discrete]
+[[full-text-tutorial-match-query]]
+=== Perform basic full-text searches
+
+[discrete]
+==== `match` query
+
+The <<query-dsl-match-query, `match`>> query is the standard query for full-text AKA "lexical" search.
+Input is analyzed before performing the search by tokenizing text, removing possessives, converting to lowercase, filtering out stop words, and applying stemming.
+
+Search the `description` field for "fluffy pancakes":
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "match": {
+      "description": {
+        "query": "fluffy pancakes", <1>
+        "analyzer": "standard" <2>
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+<1> By default, the `match` query uses `OR` logic between the resulting tokens. This means it will match documents that contain either "fluffy" or "pancakes", or both, in the description field.
+<2> {es} defaults to the analyzer defined in the field mapping, so this field is unnecessary here. This is only required if you're using a different analyzer at search time, which is an <<different-analyzers,advanced use case>>.
+
+[discrete]
+==== Refine the `match` query
+
+Specify the `and` operator to require both terms in the `description` field.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "match": {
+      "description": {
+        "query": "fluffy pancakes",
+        "operator": "and"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+This stricter query returns no results.
+
+Use the <<query-dsl-minimum-should-match,`minimum_should_match`>> parameter to specify the minimum number of terms a document should have to be included in the search results.
+
+Search the title field to match at least 2 of the 3 terms: "fluffy", "pancakes", or "breakfast".
+This is useful for improving relevance while allowing some flexibility.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "fluffy pancakes breakfast",
+        "minimum_should_match": 2
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+
+[discrete]
+[[full-text-tutorial-multi-match]]
+=== Search across multiple fields at once
+
+A <<query-dsl-multi-match-query,`multi_match`>> query runs the same query against multiple fields.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "vegetarian curry",
+      "fields": ["title", "description", "tags"]
+    }
+  }
+}
+----
+// TEST[continued]
+
+[discrete]
+[[full-text-tutorial-filtering]]
+=== Filter and find exact matches
+
+<<filter-context,Filtering>> allows you to narrow down your search results based on exact criteria.
+Unlike full-text searches, filters are binary (yes/no) and do not affect the relevance score.
+Filters execute faster than queries.
+
+This `bool` query will return only blog posts in the "Breakfast" category.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        { "term": { "category.keyword": "Breakfast" } }
+      ]
+    }
+  }
+}
+----
+// TEST[continued]
+
+[discrete]
+[[full-text-tutorial-range-query]]
+==== Search for posts within a date range
+
+A <<query-dsl-range-query,`range`>> query finds documents that fall within numeric or date ranges.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "range": {
+      "date": {
+        "gte": "2023-05-01", <1>
+        "lte": "2023-05-31" <2>
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+<1> Greater than or equal to May 1, 2023.
+<2> Less than or equal to May 31, 2023.
+
+[discrete]
+[[full-text-tutorial-term-query]]
+==== Find exact matches
+
+A <<query-dsl-term-query,`term`>> query searches for an exact term in a field without analyzing it.
+Exact, case-sensitive matches on specific terms are often referred to as "keyword" searches.
+
+Search for the author "Maria Rodriguez" in the `author.keyword` field.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "term": {
+      "author.keyword": "Maria Rodriguez" <1>
+    }
+  }
+}
+----
+// TEST[continued]
+<1> The `term` query has zero flexibility. For example, here the queries `maria` or `maria rodriguez` would have zero hits.
+
+[TIP]
+====
+Avoid using the `term` query for <<text,`text` fields>> because they are transformed by the analysis process.
+====
+
+[discrete]
+[[full-text-tutorial-bool-query]]
+=== Combine multiple search criteria
+
+A <<query-dsl-bool-query,`bool`>> query combines multiple queries using boolean logic.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "bool": {
+      "must": [ <1>
+        { "match": { "description": "recipe" } }
+      ],
+      "filter": [ <2>
+        { "term": { "category.keyword": "Breakfast" } },
+        { "range": { "rating": { "gte": 4.5 } } }
+      ]
+    }
+  }
+}
+----
+// TEST[continued]
+<1> The `must` clause requires the `description` field to match "recipe". This means that only documents containing the word "recipe" in the `description` field will be considered.
+<2> The `filter` clauses ensure only documents in the "Breakfast" category with a rating of 4.5 or higher are returned, without affecting the relevance score.
+
+[discrete]
+[[full-text-tutorial-fuzzy-query]]
+=== Handle typos and variations in search terms
+
+A <<query-dsl-fuzzy-query,`fuzzy` query>> finds terms that are similar to the search term, accounting for typos or slight variations.
+Fuzzy queries have no analysis phase.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "fuzzy": {
+      "description": {
+        "value": "pancaeks", <1>
+        "fuzziness": "AUTO" <2>
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+<1> The term to search for, allowing for variations.
+<2> Automatically determines the appropriate level of fuzziness.
+
+[discrete]
+[[full-text-tutorial-prefix-query]]
+=== Search by prefixes
+
+A <<query-dsl-prefix-query,`prefix`>> query finds documents that contain a specific prefix in a given field.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "prefix" : { "title" : "spicy" }, <1>
+    "case_insensitive" : "true"
+  }
+}
+----
+// TEST[continued]
+<1> Prefix queries don't perform text analysis on search terms. Because the `title` field has been analyzed at index time, it has been processed by the `lowercase` filter. The prefix query would return zero hits if you passed "Spicy" here!
+
+[discrete]
+[[full-text-tutorial-query-string]]
+=== Perform advanced searches with query strings
+
+A <<query-dsl-query-string-query,`query_string`>> query supports complex queries with a compact syntax.
+Use `query_string` for advanced, multi-field searches with complex syntax.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "query_string": {
+      "fields": ["title", "description", "tags"], <1>
+      "query": "(vegetarian OR vegan) AND (curry OR *fry) AND rating:>=4.5" <2>
+    }
+  }
+}
+----
+// TEST[continued]
+<1> Searches across multiple fields simultaneously
+<2> Combines boolean logic, wildcards, and `range` queries:
+   - `(vegetarian OR vegan)`: Matches either dietary preference
+   - `(curry OR *fry)`: Uses wildcard for various cooking methods
+   - `rating:>=4.5`: Filters for highly-rated recipes
+
+[[full-text-tutorial-aggregations]]
+[discrete]
+=== Perform basic aggregations
+
+Aggregations provide summary statistics and analytics on your data.
+
+[source, console]
+----
+GET /cooking_blog/_search
+{
+  "size": 0,
+  "aggs": {
+    "category_breakdown": {
+      "terms": {
+        "field": "category.keyword"
+      }
+    },
+    "avg_rating": {
+      "avg": {
+        "field": "rating"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+This query returns:
+1. Count of recipes per category
+2. Average rating across all recipes
+
+Aggregations can be combined with searches to analyze subsets of data.
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "size": 0,
+  "query": {
+    "match": {
+      "description": "healthy"
+    }
+  },
+  "aggs": {
+    "healthy_categories": {
+      "terms": {
+        "field": "category.keyword"
+      }
+    },
+    "avg_rating_healthy": {
+      "avg": {
+        "field": "rating"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+This query:
+
+. Searches for "healthy" recipes
+. Returns categories of healthy recipes
+. Calculates average rating of healthy recipes
+
+

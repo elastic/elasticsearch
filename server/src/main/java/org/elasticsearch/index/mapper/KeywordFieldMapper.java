@@ -67,6 +67,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -74,10 +75,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -932,27 +936,44 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldType) super.fieldType();
     }
 
+    @Override
+    public boolean parsesArrayValue() {
+        return offsetsFieldMapper != null;
+    }
+
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value = context.parser().textOrNull();
-        if (value == null) {
-            value = fieldType().nullValue;
-        }
-        boolean indexed = indexValue(context, value);
-        if (offsetsFieldMapper != null && indexed) {
-            context.recordOffset(fullPath(), value);
+        if (offsetsFieldMapper != null) {
+            if (context.parser().currentToken() == XContentParser.Token.START_ARRAY) {
+                SortedMap<String, List<Integer>> arrayOffsetsByField = new TreeMap<>();
+                int numberOfOffsets = parseArray(context, arrayOffsetsByField);
+                processOffsets(context, arrayOffsetsByField, numberOfOffsets);
+            } else if (context.parser().currentToken().isValue() || context.parser().currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                String value = context.parser().textOrNull();
+                if (value == null) {
+                    value = fieldType().nullValue;
+                }
+                indexValue(context, value);
+            } else {
+                throw new IllegalArgumentException("Encountered unexpected token [" + context.parser().currentToken() + "].");
+            }
+        } else {
+            String value = context.parser().textOrNull();
+            if (value == null) {
+                value = fieldType().nullValue;
+            }
+            indexValue(context, value);
         }
     }
 
-    public void processOffsets(DocumentParserContext context) throws IOException {
-        var values = context.getValuesWithOffsets(fullPath());
-        if (values == null || values.isEmpty()) {
+    private void processOffsets(DocumentParserContext context, SortedMap<String, List<Integer>> arrayOffsets, int numberOfOffsets)
+        throws IOException {
+        if (arrayOffsets == null || arrayOffsets.isEmpty()) {
             return;
         }
 
         int ord = 0;
-        final int arrayLength = context.getArrayValueCount(fullPath());
-        int[] offsetToOrd = new int[arrayLength];
-        for (var entry : values.entrySet()) {
+        int[] offsetToOrd = new int[numberOfOffsets];
+        for (var entry : arrayOffsets.entrySet()) {
             for (var offsetAndLevel : entry.getValue()) {
                 offsetToOrd[offsetAndLevel] = ord;
             }
@@ -960,7 +981,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         // TODO: remove later
-        logger.info("values=" + values);
+        logger.info("values=" + arrayOffsets);
         logger.info("offsetToOrd=" + Arrays.toString(offsetToOrd));
 
         try (var streamOutput = new BytesStreamOutput()) {
@@ -968,6 +989,33 @@ public final class KeywordFieldMapper extends FieldMapper {
             // This array allows to retain the original ordering of the leaf array and duplicate values.
             streamOutput.writeVIntArray(offsetToOrd);
             context.doc().add(new BinaryDocValuesField(offsetsFieldMapper.fullPath(), streamOutput.bytes().toBytesRef()));
+        }
+    }
+
+    private int parseArray(DocumentParserContext context, SortedMap<String, List<Integer>> arrayOffsets) throws IOException {
+        int numberOfOffsets = 0;
+        XContentParser parser = context.parser();
+        while (true) {
+            XContentParser.Token token = parser.nextToken();
+            if (token == XContentParser.Token.END_ARRAY) {
+                return numberOfOffsets;
+            }
+            if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
+                String value = context.parser().textOrNull();
+                if (value == null) {
+                    value = fieldType().nullValue;
+                }
+                boolean indexed = indexValue(context, value);
+                if (indexed) {
+                    int nextOffset = numberOfOffsets++;
+                    var offsets = arrayOffsets.computeIfAbsent(value, s -> new ArrayList<>());
+                    offsets.add(nextOffset);
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                numberOfOffsets += parseArray(context, arrayOffsets);
+            } else {
+                throw new IllegalArgumentException("Encountered unexpected token [" + token + "].");
+            }
         }
     }
 

@@ -846,10 +846,6 @@ public final class DocumentParser {
                 parseValue(context, lastFieldName);
             }
         }
-        // hard coded post processing of arrays:
-        if (mapper instanceof KeywordFieldMapper k) {
-            k.processOffsets(context);
-        }
         postProcessDynamicArrayMapping(context, lastFieldName);
     }
 

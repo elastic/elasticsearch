@@ -1,0 +1,8 @@
+pr: 112392
+summary: "ES|QL: Improve aggregation over constants handling"
+area: ES|QL
+type: bug
+issues:
+ - 110257
+ - 100170
+ - 104430

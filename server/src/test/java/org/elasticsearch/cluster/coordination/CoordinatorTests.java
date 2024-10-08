@@ -2051,6 +2051,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise(
                 // Pinging all peers once should be enough to discover the other nodes
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
+                    // pinging also requires a round-trip for the handshake and another for the discovery request
+                    + 4 * DEFAULT_DELAY_VARIABILITY
                     // Then wait for an election to be scheduled
                     + defaultMillis(ELECTION_INITIAL_TIMEOUT_SETTING)
                     // Allow two round-trips for pre-voting and voting

@@ -34,14 +34,13 @@ tasks.named('test').configure {
   dependsOn('jar')
   jvmArgs "-javaagent:${ tasks.named('jar').flatMap{ it.archiveFile }.get()}"
 
-  def bridgeFiles = configurations.entitlementBridge.files
-  def bridgeJars = bridgeFiles.stream().map(File::toString).collect(joining(File.pathSeparator))
-  jvmArgs "-Des.entitlements.bridgeJars=$bridgeJars"
+  def bridgeJar = configurations.entitlementBridge.singleFile
+  jvmArgs "-Des.entitlements.bridgeJar=$bridgeJar"
 
 
   // The Elasticsearch build plugin automatically adds all compileOnly deps as testImplementation.
   // We must not add the bridge this way because it is also on the boot classpath, and that would lead to jar hell.
-  classpath -= files(bridgeFiles)
+  classpath -= files(bridgeJar)
 }
 
 tasks.named('jar').configure {

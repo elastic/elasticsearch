@@ -10,16 +10,15 @@
 package org.elasticsearch.entitlement.agent;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.api.EntitlementChecks;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.jar.JarFile;
 
@@ -28,11 +27,11 @@ public class EntitlementAgent {
     public static void premain(String agentArgs, Instrumentation inst) throws Exception {
         // Add the bridge library (the one with the entitlement checking interface) to the bootstrap classpath.
         // We can't actually reference the classes here for real before this point because they won't resolve.
-        var jarsString = System.getProperty("es.entitlements.bridgeJars");
-        if (jarsString == null) {
-            throw new IllegalArgumentException("System property es.entitlements.bridgeJars is required");
+        var bridgeJarName = System.getProperty("es.entitlements.bridgeJar");
+        if (bridgeJarName == null) {
+            throw new IllegalArgumentException("System property es.entitlements.bridgeJar is required");
         }
-        addJarsToBootstrapClassLoader(inst, jarsString);
+        addJarToBootstrapClassLoader(inst, bridgeJarName);
 
         Method targetMethod = System.class.getMethod("exit", int.class);
         Method instrumentationMethod = EntitlementChecks.class.getMethod("checkSystemExit", Class.class, int.class);
@@ -43,32 +42,20 @@ public class EntitlementAgent {
     }
 
     @SuppressForbidden(reason = "The appendToBootstrapClassLoaderSearch method takes a JarFile")
-    private static void addJarsToBootstrapClassLoader(Instrumentation inst, String jarsString) throws IOException {
-        String[] jars = jarsString.split(File.pathSeparator);
-        if (jars.length != 1) {
-            throw new IllegalArgumentException(jarsString + " must point to a single jar file");
-        }
-        for (var jar : jars) {
-            // System.out.println("Adding jar " + jar);
-            inst.appendToBootstrapClassLoaderSearch(new JarFile(jar));
-        }
+    private static void addJarToBootstrapClassLoader(Instrumentation inst, String jarString) throws IOException {
+        inst.appendToBootstrapClassLoaderSearch(new JarFile(jarString));
     }
 
     private static String internalName(Class<?> c) {
         return c.getName().replace('.', '/');
     }
 
-    private static final InstrumentationService INSTRUMENTER_FACTORY = locateInstrumenterFactory();
-
-    private static InstrumentationService locateInstrumenterFactory() {
-        var providers = ServiceLoader.load(InstrumentationService.class).stream().toList();
-        if (providers.isEmpty()) {
-            throw new IllegalStateException("No InstrumentationService found");
-        } else if (providers.size() >= 2) {
-            throw new IllegalStateException("More than one InstrumentationService found");
-        }
-        return providers.get(0).get();
-    }
+    private static final InstrumentationService INSTRUMENTER_FACTORY = (new ProviderLocator<>(
+        "entitlement-agent",
+        InstrumentationService.class,
+        "org.elasticsearch.entitlement.agent.impl",
+        Set.of("org.objectweb.nonexistent.asm")
+    )).get();
 
     // private static final Logger LOGGER = LogManager.getLogger(EntitlementAgent.class);
 }

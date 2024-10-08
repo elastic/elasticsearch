@@ -1,8 +1,13 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "Introduction of META tracking in 8.14+"
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ no_meta ]
+      reason: "META command removed which changes the count of the data returned"
+      test_runner_features: [capabilities]
 
   - do:
       indices.create:
@@ -23,7 +28,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 16 }
+  - length: { esql.features: 15 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -32,7 +37,6 @@ setup:
   - set: {esql.features.grok: grok_counter}
   - set: {esql.features.keep: keep_counter}
   - set: {esql.features.limit: limit_counter}
-  - set: {esql.features.meta: meta_counter}
   - set: {esql.features.mv_expand: mv_expand_counter}
   - set: {esql.features.rename: rename_counter}
   - set: {esql.features.row: row_counter}

@@ -109,9 +109,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAsync
   issue: https://github.com/elastic/elasticsearch/issues/112212
-- class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
-  method: testRankDocsRetrieverWithCollapse
-  issue: https://github.com/elastic/elasticsearch/issues/112254
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/watcher/put-watch/line_120}
   issue: https://github.com/elastic/elasticsearch/issues/99517
@@ -336,15 +333,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformAgnosticVariant
   issue: https://github.com/elastic/elasticsearch/issues/113983
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
-  issue: https://github.com/elastic/elasticsearch/issues/114019
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5WithTrainedModelAndInference
   issue: https://github.com/elastic/elasticsearch/issues/114023
-- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderIT
-  method: testRRFWithCollapse
-  issue: https://github.com/elastic/elasticsearch/issues/114074
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
@@ -354,9 +345,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGet
   issue: https://github.com/elastic/elasticsearch/issues/114135
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testIncrementalBulkHighWatermarkBackOff
-  issue: https://github.com/elastic/elasticsearch/issues/114073
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: "testFold {TestCase=<double> #7}"
   issue: https://github.com/elastic/elasticsearch/issues/114175
@@ -366,20 +354,23 @@ tests:
 - class: org.elasticsearch.action.bulk.IncrementalBulkIT
   method: testIncrementalBulkLowWatermarkBackOff
   issue: https://github.com/elastic/elasticsearch/issues/114182
-- class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
-  method: test {yaml=aggregations/stats_metric_fail_formatting/fail formatting}
-  issue: https://github.com/elastic/elasticsearch/issues/114187
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/114194
-- class: org.elasticsearch.index.query.SpanGapQueryBuilderTests
-  method: testToQuery
-  issue: https://github.com/elastic/elasticsearch/issues/114218
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220
 - class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114232
+- class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
+  method: testInfer_StreamRequest_ErrorResponse
+  issue: https://github.com/elastic/elasticsearch/issues/114327
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
+  issue: https://github.com/elastic/elasticsearch/issues/114331
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
+  issue: https://github.com/elastic/elasticsearch/issues/114371
 
 # Examples:
 #

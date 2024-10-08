@@ -54,8 +54,8 @@ public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCa
     public ClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
-        // this role mapper is disabled by default and only code in other plugins can enable it
-        this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, false);
+        // this role mapper is enabled by default and only code in other plugins can disable it
+        this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, true);
         if (this.enabled) {
             clusterService.addListener(this);
         }

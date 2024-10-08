@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>elastic/renovate-config:only-chainguard"
+    "github>elastic/renovate-config:only-chainguard",
+    ":disableDependencyDashboard"
   ],
   "labels": [">non-issue", ":Delivery/Packaging", "Team:Delivery"],
   "packageRules": [

@@ -64,12 +64,16 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     private final Set<ExpressionRoleMapping> roleMappings;
 
+    private final int version;
+
     public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings) {
+        this.version = 0;
         this.roleMappings = roleMappings;
     }
 
     public RoleMappingMetadata(StreamInput input) throws IOException {
         this.roleMappings = input.readCollectionAsSet(ExpressionRoleMapping::new);
+        this.version = input.readOptionalInt();
     }
 
     public Set<ExpressionRoleMapping> getRoleMappings() {
@@ -100,7 +104,13 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     }
 
     public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
+        RoleMappingMetadata roleMappingMetadata = PARSER.apply(parser, null);
+        return roleMappingMetadata;
+    }
+
+    // TODO Implement rewrite of this to cluster state!
+    public int getVersion() {
+        return this.version;
     }
 
     @Override

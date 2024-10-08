@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.security.action.rolemapping;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -16,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
+import org.elasticsearch.xpack.core.security.support.RoleMappingCleanupTaskParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +42,14 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
 public class ReservedRoleMappingAction implements ReservedClusterStateHandler<List<PutRoleMappingRequest>> {
     public static final String NAME = "role_mappings";
 
+    private final PersistentTasksService persistentTasksService;
+
+    private static final Logger logger = LogManager.getLogger(ReservedRoleMappingAction.class);
+
+    public ReservedRoleMappingAction(PersistentTasksService persistentTasksService) {
+        this.persistentTasksService = persistentTasksService;
+    }
+
     @Override
     public String name() {
         return NAME;
@@ -45,7 +60,14 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         @SuppressWarnings("unchecked")
         Set<ExpressionRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
         RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings);
-        if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromClusterState(prevState.state()))) {
+        RoleMappingMetadata currentRoleMappingMetadata = RoleMappingMetadata.getFromClusterState(prevState.state());
+        int version = currentRoleMappingMetadata.getVersion();
+        logger.info("Checking role mappings version!");
+        if (version == 0) {
+            submitCleanupTask();
+        }
+        // TODO INC VERSION AND REWRITE IN NEW FORMAT
+        if (newRoleMappingMetadata.equals(currentRoleMappingMetadata)) {
             return prevState;
         } else {
             ClusterState newState = newRoleMappingMetadata.updateClusterState(prevState.state());
@@ -55,6 +77,25 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
                 .collect(Collectors.toSet());
             return new TransformState(newState, entities);
         }
+    }
+
+    private void submitCleanupTask() {
+        persistentTasksService.sendStartRequest(
+            RoleMappingCleanupTaskParams.TASK_NAME,
+            RoleMappingCleanupTaskParams.TASK_NAME,
+            new RoleMappingCleanupTaskParams(),
+            null,
+            ActionListener.wrap((response) -> {
+                logger.info("Role mapping cleanup task submitted");
+            }, (exception) -> {
+                // Do nothing if the task is already in progress
+                if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
+                    logger.info("Cleanup task already started Already started");
+                } else {
+                    logger.warn("Role mapping cleanup task failed: " + exception);
+                }
+            })
+        );
     }
 
     @Override

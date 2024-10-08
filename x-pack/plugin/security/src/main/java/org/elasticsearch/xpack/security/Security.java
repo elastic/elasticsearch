@@ -217,6 +217,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.RoleMappingCleanupTaskParams;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -409,6 +410,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
+import org.elasticsearch.xpack.security.support.RoleMappingCleanupExecutor;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityMigrationExecutor;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
@@ -629,6 +631,7 @@ public class Security extends Plugin
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
 
     private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
+    private final SetOnce<RoleMappingCleanupExecutor> roleMappingCleanupExecutor = new SetOnce<>();
 
     // Node local retry count for migration jobs that's checked only on the master node to make sure
     // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
@@ -791,6 +794,14 @@ public class Security extends Plugin
                 systemIndices.getMainIndexManager(),
                 client,
                 SecurityMigrations.MIGRATIONS_BY_VERSION
+            )
+        );
+        this.roleMappingCleanupExecutor.set(
+            new RoleMappingCleanupExecutor(
+                clusterService,
+                RoleMappingCleanupTaskParams.TASK_NAME,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                client
             )
         );
         this.persistentTasksService.set(persistentTasksService);
@@ -1198,7 +1209,7 @@ public class Security extends Plugin
             new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService, apiKeyService)
         );
 
-        reservedRoleMappingAction.set(new ReservedRoleMappingAction());
+        reservedRoleMappingAction.set(new ReservedRoleMappingAction(persistentTasksService));
 
         cacheInvalidatorRegistry.validate();
 
@@ -2345,7 +2356,15 @@ public class Security extends Plugin
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
+        List<PersistentTasksExecutor<?>> executors = new ArrayList<>();
+        if (this.securityMigrationExecutor.get() != null) {
+            executors.add(this.securityMigrationExecutor.get());
+        }
+        if (this.securityMigrationExecutor.get() != null) {
+            executors.add(this.roleMappingCleanupExecutor.get());
+        }
+
+        return executors;
     }
 
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {

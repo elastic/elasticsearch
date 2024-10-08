@@ -1,10 +1,10 @@
 simple
 required_capability: semantic_text_type
 
-FROM semantic_text;
+FROM semantic_text | sort semantic_text_field asc;
 
 semantic_text_field:semantic_text
-live long and prosper
 all we have to decide is what to do with the time that is given to us
 be excellent to each other
+live long and prosper
 ;

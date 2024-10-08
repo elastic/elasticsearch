@@ -264,6 +264,16 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     /**
+     * Creates an array with the contents set by appending together the contents of {@code items}
+     */
+    public ChunkedToXContentBuilder array(Iterator<? extends ToXContent> items) {
+        startArray();
+        items.forEachRemaining(this::append);
+        endArray();
+        return this;
+    }
+
+    /**
      * Creates an array, with the contents set by appending together
      * the return values of {@code create} called on each item returned by {@code items}
      */

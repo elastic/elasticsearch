@@ -263,3 +263,13 @@ ROW a = TO_DATE_NANOS(null), b = TO_DATE_NANOS(null + 1::long), c = TO_DATE_NANO
 a:date_nanos | b:date_nanos | c:date_nanos
 null         | null         | null
 ;
+
+
+Max and Min of date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | STATS max = MAX(nanos), min = MIN(nanos);
+
+max:date_nanos                 | min:date_nanos
+2023-10-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543123456Z
+;

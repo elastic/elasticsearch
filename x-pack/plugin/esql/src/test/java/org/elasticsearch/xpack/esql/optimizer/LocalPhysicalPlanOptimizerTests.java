@@ -792,6 +792,23 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         );
     }
 
+    public void testMatchFunctionDisjunctionNonPushableClauses() {
+        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        String queryText = """
+            from test
+            | where match(first_name, "Peter") or length(last_name) > 10
+            """;
+
+        VerificationException ve = expectThrows(VerificationException.class, () -> plannerOptimizer.plan(queryText, IS_SV_STATS));
+        assertThat(
+            ve.getMessage(),
+            containsString(
+                "Invalid condition [match(first_name, \"Peter\") or length(last_name) > 10]. "
+                    + "Function MATCH can't be used as part of an or condition that includes [length(last_name) > 10]"
+            )
+        );
+    }
+
     /**
      * Expected:
      * LimitExec[1000[INTEGER]]

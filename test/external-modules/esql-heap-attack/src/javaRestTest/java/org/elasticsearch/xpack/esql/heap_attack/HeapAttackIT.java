@@ -355,7 +355,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, mapMatcher.entry("columns", columns).entry("values", hasSize(10_000)).entry("took", greaterThanOrEqualTo(0)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1874")
     public void testTooManyEval() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyEval(490));
@@ -616,14 +615,13 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private void bulk(String name, String bulk) throws IOException {
         Request request = new Request("POST", "/" + name + "/_bulk");
-        request.addParameter("filter_path", "errors");
         request.setJsonEntity(bulk);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
         );
         Response response = client().performRequest(request);
-        assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("{\"errors\":false}"));
+        assertThat(entityAsMap(response), matchesMap().entry("errors", false).extraOk());
     }
 
     private void initIndex(String name, String bulk) throws IOException {

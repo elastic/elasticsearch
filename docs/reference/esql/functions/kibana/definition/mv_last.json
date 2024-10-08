@@ -176,5 +176,6 @@
   "examples" : [
     "ROW a=\"foo;bar;baz\"\n| EVAL last_a = MV_LAST(SPLIT(a, \";\"))"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -56,7 +56,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     /**
      * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
     public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_7_0_0;
 
@@ -64,7 +64,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     PersistentTasksService persistentTasksService;
 
     @Inject
-    @UpdateForV9 // Once we begin working on 9.x, we need to update our migration classes
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // Once we begin working on 9.x, we need to update our migration classes
     public TransportGetFeatureUpgradeStatusAction(
         TransportService transportService,
         ThreadPool threadPool,

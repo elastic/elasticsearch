@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -1361,12 +1363,26 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testNonMetadataScore() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         assertEquals("1:12: `_score` is a reserved METADATA attribute", error("from foo | eval _score = 10"));
 
         assertEquals(
             "1:48: `_score` is a reserved METADATA attribute",
             error("from foo metadata _score | where qstr(\"bar\") | eval _score = _score + 1")
         );
+    }
+
+    public void testScoreRenaming() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        assertEquals("1:33: `_score` is a reserved METADATA attribute", error("from foo METADATA _id, _score | rename _id as _score"));
+
+        assertTrue(passes("from foo metadata _score | rename _score as foo").stream().anyMatch(a -> a.name().equals("foo")));
+    }
+
+    private List<Attribute> passes(String query) {
+        LogicalPlan logicalPlan = defaultAnalyzer.analyze(parser.createStatement(query));
+        assertTrue(logicalPlan.resolved());
+        return logicalPlan.output();
     }
 
     private String error(String query) {

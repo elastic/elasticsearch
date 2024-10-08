@@ -36,18 +36,19 @@ public class ChangeDetector {
 
     private static final Logger logger = LogManager.getLogger(ChangeDetector.class);
 
+    private final MlAggsHelper.DoubleBucketValues bucketValues;
     private final double[] values;
 
-    ChangeDetector(double[] values) {
-        this.values = values;
+    ChangeDetector(MlAggsHelper.DoubleBucketValues bucketValues) {
+        this.bucketValues = bucketValues;
+        this.values = bucketValues.getValues();
     }
 
-    public ChangeType detect(double pValueThreshold, MlAggsHelper.DoubleBucketValues bucketValues) {
+    ChangeType detect(double pValueThreshold) {
         return testForChange(pValueThreshold).changeType(bucketValues, slope(values));
     }
 
-    // visible for testing
-    TestStats testForChange(double pValueThreshold) {
+    private TestStats testForChange(double pValueThreshold) {
 
         int[] candidateChangePoints = computeCandidateChangePoints(values);
         logger.trace("candidatePoints: [{}]", Arrays.toString(candidateChangePoints));
@@ -415,8 +416,7 @@ public class ChangeDetector {
         );
     }
 
-    // visible for testing
-    enum Type {
+    private enum Type {
         STATIONARY,
         NON_STATIONARY,
         STEP_CHANGE,
@@ -442,8 +442,7 @@ public class ChangeDetector {
         }
     }
 
-    // visible for testing
-    record TestStats(Type type, double pValue, double var, double nParams, int changePoint, DataStats dataStats) {
+    private record TestStats(Type type, double pValue, double var, double nParams, int changePoint, DataStats dataStats) {
         TestStats(Type type, double pValue, int changePoint, DataStats dataStats) {
             this(type, pValue, 0.0, 0.0, changePoint, dataStats);
         }

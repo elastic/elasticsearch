@@ -58,30 +58,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             );
         }
         MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketValues.get();
-        if (bucketValues.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
-            return new InternalChangePointAggregation(
-                name(),
-                metadata(),
-                null,
-                new ChangeType.Indeterminable(
-                    "not enough buckets to calculate change_point. Requires at least ["
-                        + ((2 * MINIMUM_BUCKETS) + 2)
-                        + "]; found ["
-                        + bucketValues.getValues().length
-                        + "]"
-                )
-            );
-        }
 
-        ChangeType spikeOrDip = testForSpikeOrDip(bucketValues, P_VALUE_THRESHOLD);
-
-        // Test for change step, trend and distribution changes.
-        ChangeType change = testForChange(bucketValues, changePValueThreshold(bucketValues.getValues().length));
-        logger.trace("change p-value: [{}]", change.pValue());
-
-        if (spikeOrDip.pValue() < change.pValue()) {
-            change = spikeOrDip;
-        }
+        ChangeType change = getChangeType(bucketValues);
 
         ChangePointBucket changePointBucket = null;
         if (change.changePoint() >= 0) {
@@ -93,20 +71,35 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         return new InternalChangePointAggregation(name(), metadata(), changePointBucket, change);
     }
 
+    static ChangeType getChangeType(MlAggsHelper.DoubleBucketValues bucketValues) {
+        if (bucketValues.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
+            return new ChangeType.Indeterminable(
+                "not enough buckets to calculate change_point. Requires at least ["
+                    + ((2 * MINIMUM_BUCKETS) + 2)
+                    + "]; found ["
+                    + bucketValues.getValues().length
+                    + "]"
+            );
+        }
+
+        ChangeType spikeOrDip = testForSpikeOrDip(bucketValues, P_VALUE_THRESHOLD);
+        ChangeType change = new ChangeDetector(bucketValues).detect(changePValueThreshold(bucketValues.getValues().length));
+        logger.trace("change p-value: [{}]", change.pValue());
+        if (spikeOrDip.pValue() < change.pValue()) {
+            change = spikeOrDip;
+        }
+        return change;
+    }
+
     static ChangeType testForSpikeOrDip(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
         try {
-            SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
-            ChangeType result = detect.detect(pValueThreshold, bucketValues);
+            SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues);
+            ChangeType result = detect.detect(pValueThreshold);
             logger.trace("spike or dip p-value: [{}]", result.pValue());
             return result;
         } catch (NotStrictlyPositiveException nspe) {
             logger.debug("failure testing for dips and spikes", nspe);
+            return new Indeterminable("failure testing for dips and spikes");
         }
-        return new Indeterminable("failure testing for dips and spikes");
-    }
-
-    static ChangeType testForChange(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
-        double[] timeWindow = bucketValues.getValues();
-        return new ChangeDetector(timeWindow).detect(pValueThreshold, bucketValues);
     }
 }

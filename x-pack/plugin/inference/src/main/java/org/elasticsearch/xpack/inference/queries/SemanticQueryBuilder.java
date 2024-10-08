@@ -50,6 +50,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
+    // **** THE semantic_text.inner_hits CLUSTER FEATURE IS DEFUNCT, NEVER USE IT ****
     public static final NodeFeature SEMANTIC_TEXT_INNER_HITS = new NodeFeature("semantic_text.inner_hits");
 
     public static final String NAME = "semantic";

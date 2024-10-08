@@ -28,6 +28,11 @@ import java.util.Set;
 public class EsqlCapabilities {
     public enum Cap {
         /**
+         * Support for function {@code REVERSE}.
+         */
+        FN_REVERSE,
+
+        /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,
@@ -277,6 +282,11 @@ public class EsqlCapabilities {
          * Support for to_date_nanos function
          */
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support for datetime in least and greatest functions
+         */
+        LEAST_GREATEST_FOR_DATES,
 
         /**
          * Support CIDRMatch in CombineDisjunctions rule.

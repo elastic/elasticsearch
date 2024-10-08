@@ -70,3 +70,23 @@ setup:
   - match: { hits.hits.0.fields.error\.exception\.type: ["MyException"] }
   - match: { hits.hits.0.fields.error\.exception\.message: ["foo"] }
   - match: { hits.hits.0.fields.error\.stack_trace: ["Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)"] }
+---
+"resource.attributes.host.name @timestamp should be used as sort fields":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "body_text":"error1"}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: logs-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: datastream-backing-index }
+  - do:
+      indices.get_settings:
+        index: $datastream-backing-index
+  - is_true: $datastream-backing-index
+  - match: { .$datastream-backing-index.settings.index.sort.field.0: "resource.attributes.host.name" }
+  - match: { .$datastream-backing-index.settings.index.sort.field.1: "@timestamp" }

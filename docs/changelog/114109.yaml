@@ -1,5 +1,5 @@
 pr: 114109
-summary: Add telemetry for retrievers
+summary: Update cluster stats for retrievers
 area: Search
 type: enhancement
 issues: []

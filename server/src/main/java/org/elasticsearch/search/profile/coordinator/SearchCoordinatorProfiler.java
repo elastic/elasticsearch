@@ -10,10 +10,25 @@
 package org.elasticsearch.search.profile.coordinator;
 
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
+import org.elasticsearch.search.profile.SearchProfileCoordinatorResult;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCoordinatorTimingType> {
 
+    List<RetrieverProfileResult> retrieversProfile = new ArrayList<>();
+
     public SearchCoordinatorProfiler() {
         super(SearchCoordinatorTimingType.class);
+    }
+
+    public void captureRetrieverResult(RetrieverProfileResult profileResult) {
+        retrieversProfile.add(profileResult);
+    }
+
+    public void captureRetrieverDetails(Map<String, SearchProfileCoordinatorResult> profileResults) {
+
     }
 }

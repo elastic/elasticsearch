@@ -24,6 +24,10 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.profile.coordinator.RetrieverProfileResult;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorTimingType;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -81,81 +85,105 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         if (ctx.getPointInTimeBuilder() == null) {
             throw new IllegalStateException("PIT is required");
         }
+        final SearchCoordinatorProfiler profiler = ctx.profiler();
+        Timer rewriteTimer = null;
+        if (profiler != null) {
+            rewriteTimer = profiler.getNewTimer(SearchCoordinatorTimingType.RETRIEVER_REWRITE);
+            rewriteTimer.start();
+        }
+        try {
+            // Rewrite prefilters
+            boolean hasChanged = false;
+            var newPreFilters = rewritePreFilters(ctx);
+            hasChanged |= newPreFilters != preFilterQueryBuilders;
 
-        // Rewrite prefilters
-        boolean hasChanged = false;
-        var newPreFilters = rewritePreFilters(ctx);
-        hasChanged |= newPreFilters != preFilterQueryBuilders;
-
-        // Rewrite retriever sources
-        List<RetrieverSource> newRetrievers = new ArrayList<>();
-        for (var entry : innerRetrievers) {
-            RetrieverBuilder newRetriever = entry.retriever.rewrite(ctx);
-            if (newRetriever != entry.retriever) {
-                newRetrievers.add(new RetrieverSource(newRetriever, null));
-                hasChanged |= true;
-            } else {
-                var sourceBuilder = entry.source != null
-                    ? entry.source
-                    : createSearchSourceBuilder(ctx.getPointInTimeBuilder(), newRetriever);
-                var rewrittenSource = sourceBuilder.rewrite(ctx);
-                newRetrievers.add(new RetrieverSource(newRetriever, rewrittenSource));
-                hasChanged |= rewrittenSource != entry.source;
+            // Rewrite retriever sources
+            List<RetrieverSource> newRetrievers = new ArrayList<>();
+            for (var entry : innerRetrievers) {
+                RetrieverBuilder newRetriever = entry.retriever.rewrite(ctx);
+                if (newRetriever != entry.retriever) {
+                    newRetrievers.add(new RetrieverSource(newRetriever, null));
+                    hasChanged |= true;
+                } else {
+                    var sourceBuilder = entry.source != null
+                        ? entry.source
+                        : createSearchSourceBuilder(ctx.getPointInTimeBuilder(), newRetriever);
+                    var rewrittenSource = sourceBuilder.rewrite(ctx);
+                    newRetrievers.add(new RetrieverSource(newRetriever, rewrittenSource));
+                    hasChanged |= rewrittenSource != entry.source;
+                }
             }
-        }
-        if (hasChanged) {
-            return clone(newRetrievers);
-        }
+            if (hasChanged) {
+                return clone(newRetrievers);
+            }
 
-        // execute searches
-        final SetOnce<RankDoc[]> results = new SetOnce<>();
-        final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        for (var entry : innerRetrievers) {
-            SearchRequest searchRequest = new SearchRequest().source(entry.source);
-            // The can match phase can reorder shards, so we disable it to ensure the stable ordering
-            searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
-            multiSearchRequest.add(searchRequest);
-        }
-        ctx.registerAsyncAction((client, listener) -> {
-            client.execute(TransportMultiSearchAction.TYPE, multiSearchRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(MultiSearchResponse items) {
-                    List<ScoreDoc[]> topDocs = new ArrayList<>();
-                    List<Exception> failures = new ArrayList<>();
-                    for (int i = 0; i < items.getResponses().length; i++) {
-                        var item = items.getResponses()[i];
-                        if (item.isFailure()) {
-                            failures.add(item.getFailure());
+            // execute searches
+            final SetOnce<RankDoc[]> results = new SetOnce<>();
+            final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+            for (var entry : innerRetrievers) {
+                SearchRequest searchRequest = new SearchRequest().source(entry.source);
+                searchRequest.source().profile(profiler != null);
+                // The can match phase can reorder shards, so we disable it to ensure the stable ordering
+                searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
+                multiSearchRequest.add(searchRequest);
+            }
+            ctx.registerAsyncAction((client, listener) -> {
+                client.execute(TransportMultiSearchAction.TYPE, multiSearchRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(MultiSearchResponse items) {
+                        List<ScoreDoc[]> topDocs = new ArrayList<>();
+                        List<Exception> failures = new ArrayList<>();
+                        for (int i = 0; i < items.getResponses().length; i++) {
+                            var item = items.getResponses()[i];
+                            if (item.isFailure()) {
+                                failures.add(item.getFailure());
+                            } else {
+                                assert item.getResponse() != null;
+                                var rankDocs = getRankDocs(item.getResponse());
+                                innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
+                                topDocs.add(rankDocs);
+                                if (profiler != null) {
+                                    RetrieverProfileResult profileResult = new RetrieverProfileResult(
+                                        innerRetrievers.get(i).retriever().getName(),
+                                        null,
+                                        item.getResponse().getTookInMillis(),
+                                        -1,
+                                        item.getResponse().getCoordinatorProfileResults() == null
+                                            ? null
+                                            : item.getResponse().getCoordinatorProfileResults().getRetrieverProfileResult().getChildren()
+                                    );
+                                    profiler.captureRetrieverResult(profileResult);
+                                }
+                            }
+                        }
+                        if (false == failures.isEmpty()) {
+                            IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
+                            failures.forEach(ex::addSuppressed);
+                            listener.onFailure(ex);
                         } else {
-                            assert item.getResponse() != null;
-                            var rankDocs = getRankDocs(item.getResponse());
-                            innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
-                            topDocs.add(rankDocs);
+                            results.set(combineInnerRetrieverResults(topDocs));
+                            listener.onResponse(null);
                         }
                     }
-                    if (false == failures.isEmpty()) {
-                        IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
-                        failures.forEach(ex::addSuppressed);
-                        listener.onFailure(ex);
-                    } else {
-                        results.set(combineInnerRetrieverResults(topDocs));
-                        listener.onResponse(null);
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
+                });
             });
-        });
 
-        return new RankDocsRetrieverBuilder(
-            rankWindowSize,
-            newRetrievers.stream().map(s -> s.retriever).toList(),
-            results::get,
-            newPreFilters
-        );
+            return new RankDocsRetrieverBuilder(
+                rankWindowSize,
+                newRetrievers.stream().map(s -> s.retriever).toList(),
+                results::get,
+                newPreFilters
+            );
+        } finally {
+            if (rewriteTimer != null) {
+                rewriteTimer.stop();
+            }
+        }
     }
 
     @Override

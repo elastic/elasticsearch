@@ -79,6 +79,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -313,11 +314,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        SearchCoordinatorProfiler profiler = searchRequest.source() == null || false == searchRequest.source().profile()
+            ? null
+            : new SearchCoordinatorProfiler();
         executeRequest(
             (SearchTask) task,
             searchRequest,
             new SearchResponseActionListener((SearchTask) task, listener),
-            AsyncSearchActionProvider::new
+            AsyncSearchActionProvider::new,
+            profiler
         );
     }
 
@@ -325,7 +330,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTask task,
         SearchRequest original,
         ActionListener<SearchResponse> listener,
-        Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider
+        BiFunction<ActionListener<SearchResponse>, SearchCoordinatorProfiler, SearchPhaseProvider> searchPhaseProvider,
+        SearchCoordinatorProfiler profiler
     ) {
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(
@@ -369,7 +375,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     resolvedIndices,
                     clusterState,
                     SearchResponse.Clusters.EMPTY,
-                    searchPhaseProvider.apply(delegate)
+                    searchPhaseProvider.apply(delegate, profiler)
                 );
             } else {
                 if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
@@ -434,7 +440,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             resolvedIndices,
                             clusterState,
                             clusters,
-                            searchPhaseProvider.apply(l)
+                            searchPhaseProvider.apply(l, profiler)
                         )
                     );
                 } else {
@@ -493,7 +499,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 clusterState,
                                 remoteAliasFilters,
                                 clusters,
-                                searchPhaseProvider.apply(finalDelegate)
+                                searchPhaseProvider.apply(finalDelegate, profiler)
                             );
                         })
                     );
@@ -525,12 +531,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
                     }
                 };
-                executeRequest(task, original, pitListener, searchPhaseProvider);
+                executeRequest(task, original, pitListener, searchPhaseProvider, profiler);
             }));
         } else {
             Rewriteable.rewriteAndFetch(
                 original,
-                searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, original.pointInTimeBuilder()),
+                searchService.getRewriteContext(
+                    timeProvider::absoluteStartMillis,
+                    resolvedIndices,
+                    original.pointInTimeBuilder(),
+                    profiler
+                ),
                 rewriteListener
             );
         }
@@ -1414,9 +1425,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private class AsyncSearchActionProvider implements SearchPhaseProvider {
         private final ActionListener<SearchResponse> listener;
+        private final SearchCoordinatorProfiler profiler;
 
-        AsyncSearchActionProvider(ActionListener<SearchResponse> listener) {
+        AsyncSearchActionProvider(ActionListener<SearchResponse> listener, SearchCoordinatorProfiler profiler) {
             this.listener = listener;
+            this.profiler = profiler;
         }
 
         @Override

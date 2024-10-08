@@ -11,6 +11,7 @@ package org.elasticsearch.search.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,31 +40,51 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     private static final String INDEX_NAME_FIELD = "index";
     private static final String SHARD_ID_FIELD = "shard_id";
     public static final String SHARDS_FIELD = "shards";
+    public static final String COORDINATOR_FIELD = "coordinator";
     public static final String PROFILE_FIELD = "profile";
 
     // map key is the composite "id" of form [nodeId][(clusterName:)indexName][shardId] created from SearchShardTarget.toString
     private final Map<String, SearchProfileShardResult> shardResults;
 
+    private final SearchProfileCoordinatorResult coordinatorResults;
+
     public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
         this.shardResults = Collections.unmodifiableMap(shardResults);
+        this.coordinatorResults = null;
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
         shardResults = in.readMap(SearchProfileShardResult::new);
+        this.coordinatorResults = in.getTransportVersion().onOrAfter(TransportVersions.COORDINATOR_PROFILE_RESULTS)
+            ? in.readOptionalWriteable(SearchProfileCoordinatorResult::new)
+            : null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(shardResults, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.COORDINATOR_PROFILE_RESULTS)) {
+            out.writeOptionalWriteable(coordinatorResults);
+        }
     }
 
     public Map<String, SearchProfileShardResult> getShardResults() {
         return shardResults;
     }
 
+    public SearchProfileCoordinatorResult getCoordinatorResults() {
+        return coordinatorResults;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(PROFILE_FIELD).startArray(SHARDS_FIELD);
+        builder.startObject(PROFILE_FIELD);
+        if (coordinatorResults != null) {
+            builder.startObject(COORDINATOR_FIELD);
+            coordinatorResults.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.startArray(SHARDS_FIELD);
         // shardResults is a map, but we print entries in a json array, which is ordered.
         // we sort the keys of the map, so that toXContent always prints out the same array order
         TreeSet<String> sortedKeys = new TreeSet<>(shardResults.keySet());

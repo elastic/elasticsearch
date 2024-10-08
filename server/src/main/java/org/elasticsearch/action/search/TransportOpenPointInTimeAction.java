@@ -136,7 +136,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 r.getFailedShards(),
                 r.getSkippedShards()
             );
-        }), searchListener -> new OpenPointInTimePhase(request, searchListener));
+        }), (searchListener, profiler) -> new OpenPointInTimePhase(request, searchListener), null);
     }
 
     private final class OpenPointInTimePhase implements TransportSearchAction.SearchPhaseProvider {

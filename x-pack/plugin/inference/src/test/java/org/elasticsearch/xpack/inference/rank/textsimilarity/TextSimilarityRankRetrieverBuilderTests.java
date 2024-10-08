@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -25,6 +26,8 @@ import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.usage.SearchUsage;
+import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -204,6 +207,45 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
                 assertThat(source.query(), instanceOf(RangeQueryBuilder.class));
             } else {
                 assertThat(source.query(), instanceOf(TermQueryBuilder.class));
+            }
+        }
+    }
+
+    public void testTextSimilarityRetrieverParsing() throws IOException {
+        String restContent = "{"
+            + "  \"retriever\": {"
+            + "    \"text_similarity_reranker\": {"
+            + "      \"retriever\": {"
+            + "        \"test\": {"
+            + "          \"value\": \"my-test-retriever\""
+            + "        }"
+            + "      },"
+            + "      \"field\": \"my-field\","
+            + "      \"inference_id\": \"my-inference-id\","
+            + "      \"inference_text\": \"my-inference-text\","
+            + "      \"rank_window_size\": 100,"
+            + "      \"min_score\": 20.0,"
+            + "      \"_name\": \"foo_reranker\""
+            + "    }"
+            + "  }"
+            + "}";
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(TextSimilarityRankRetrieverBuilder.class));
+            TextSimilarityRankRetrieverBuilder parsed = (TextSimilarityRankRetrieverBuilder) source.retriever();
+            assertThat(parsed.minScore(), equalTo(20f));
+            assertThat(parsed.retrieverName(), equalTo("foo_reranker"));
+            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
+                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
+                    parseSerialized,
+                    true,
+                    searchUsageHolder,
+                    nf -> true
+                );
+                assertThat(deserializedSource.retriever(), instanceOf(TextSimilarityRankRetrieverBuilder.class));
+                TextSimilarityRankRetrieverBuilder deserialized = (TextSimilarityRankRetrieverBuilder) source.retriever();
+                assertThat(parsed, equalTo(deserialized));
             }
         }
     }

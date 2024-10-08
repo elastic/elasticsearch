@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,7 +38,12 @@ public class TopLevelObjectFieldDataGenerator {
             this.mappingParameters = Map.of();
         } else {
             this.mappingParameters = new HashMap<>(
-                specification.dataSource().get(new DataSourceRequest.ObjectMappingParametersGenerator(true, false)).mappingGenerator().get()
+                // Value of subobjects here is for a parent of this object.
+                // Since there is no parent we pass ENABLED to allow to set subobjects to any value at top level.
+                specification.dataSource()
+                    .get(new DataSourceRequest.ObjectMappingParametersGenerator(true, false, ObjectMapper.Subobjects.ENABLED))
+                    .mappingGenerator()
+                    .get()
             );
             // Top-level object can't be disabled because @timestamp is a required field in data streams.
             this.mappingParameters.remove("enabled");
@@ -46,11 +52,15 @@ public class TopLevelObjectFieldDataGenerator {
                 ? DynamicMapping.FORBIDDEN
                 : DynamicMapping.SUPPORTED;
         }
-        this.context = new Context(specification, dynamicMapping);
+        var subobjects = ObjectMapper.Subobjects.from(mappingParameters.getOrDefault("subobjects", "true"));
+
+        // Value of subobjects here is for a parent of this object.
+        // Since there is no parent we pass ENABLED to allow to set subobjects to any value at top level.
+        this.context = new Context(specification, dynamicMapping, ObjectMapper.Subobjects.ENABLED);
         var genericGenerator = new GenericSubObjectFieldDataGenerator(context);
 
         this.predefinedFields = genericGenerator.generateChildFields(specification.predefinedFields());
-        this.generatedChildFields = genericGenerator.generateChildFields(dynamicMapping);
+        this.generatedChildFields = genericGenerator.generateChildFields(dynamicMapping, subobjects);
     }
 
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter(Map<String, Object> customMappingParameters) {

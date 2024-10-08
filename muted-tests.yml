@@ -373,6 +373,9 @@ tests:
 - class: org.elasticsearch.index.SearchSlowLogTests
   method: testLevelPrecedence
   issue: https://github.com/elastic/elasticsearch/issues/114300
+- class: org.elasticsearch.index.SearchSlowLogTests
+  method: testTwoLoggersDifferentLevel
+  issue: https://github.com/elastic/elasticsearch/issues/114301
 
 # Examples:
 #

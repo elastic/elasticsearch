@@ -14,8 +14,6 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
-import java.util.function.Function;
-
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 
@@ -23,6 +21,10 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
  * Expressions that have a mapping to an {@link ExpressionEvaluator}.
  */
 public interface EvaluatorMapper {
+    interface ToEvaluator {
+        ExpressionEvaluator.Factory apply(Expression expression);
+    }
+
     /**
      * <p>
      * Note for implementors:
@@ -50,7 +52,7 @@ public interface EvaluatorMapper {
      * garbage. Or return an evaluator that throws when run.
      * </p>
      */
-    ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator);
+    ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator);
 
     /**
      * Fold using {@link #toEvaluator} so you don't need a "by hand"

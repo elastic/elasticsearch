@@ -77,7 +77,7 @@ public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implem
      */
     public T remove(long key) {
         for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
-            final T previous = values.set(i, null);
+            final T previous = values.getAndSet(i, null);
             if (previous == null) {
                 return null;
             } else if (keys.get(i) == key) {
@@ -98,7 +98,7 @@ public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implem
             throw new IllegalArgumentException("Null values are not supported");
         }
         for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
-            final T previous = values.set(i, value);
+            final T previous = values.getAndSet(i, value);
             if (previous == null) {
                 // slot was free
                 keys.set(i, key);
@@ -180,7 +180,7 @@ public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implem
     @Override
     protected void removeAndAdd(long index) {
         final long key = keys.get(index);
-        final T value = values.set(index, null);
+        final T value = values.getAndSet(index, null);
         --size;
         final T removed = set(key, value);
         assert removed == null;

@@ -56,12 +56,12 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
             () -> 1L
         );
         clusterService = mock(ClusterService.class);
-        enabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", true).build();
+        disabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", false).build();
         if (randomBoolean()) {
-            disabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", false).build();
+            enabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", true).build();
         } else {
-            // the cluster state role mapper is disabled by default
-            disabledSettings = Settings.EMPTY;
+            // the cluster state role mapper is enabled by default
+            enabledSettings = Settings.EMPTY;
         }
     }
 
@@ -95,6 +95,9 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
             verify(mapping1).isEnabled();
             verify(mapping2).isEnabled();
             verify(mapping3).isEnabled();
+            verify(mapping1).getName();
+            verify(mapping2).getName();
+            verify(mapping3).getName();
             verify(mapping2).getExpression();
             verify(mapping3).getExpression();
             verify(mapping3).getRoleNames(same(scriptService), same(expressionModel));

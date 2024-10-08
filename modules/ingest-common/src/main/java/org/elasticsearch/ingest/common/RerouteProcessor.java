@@ -71,22 +71,15 @@ public final class RerouteProcessor extends AbstractProcessor {
             return ingestDocument;
         }
         final String indexName = ingestDocument.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class);
-        final String type;
-        final String currentDataset;
-        final String currentNamespace;
 
         // parse out the <type>-<dataset>-<namespace> components from _index
-        int indexOfFirstDash = indexName.indexOf('-');
-        if (indexOfFirstDash < 0) {
+        String[] splitByDash = indexName.split("-");
+        if (splitByDash.length != 3 || splitByDash[0].isEmpty() || splitByDash[1].isEmpty() || splitByDash[2].isEmpty()) {
             throw new IllegalArgumentException(format(NAMING_SCHEME_ERROR_MESSAGE, indexName));
         }
-        int indexOfSecondDash = indexName.indexOf('-', indexOfFirstDash + 1);
-        if (indexOfSecondDash < 0) {
-            throw new IllegalArgumentException(format(NAMING_SCHEME_ERROR_MESSAGE, indexName));
-        }
-        type = parseDataStreamType(indexName, indexOfFirstDash);
-        currentDataset = parseDataStreamDataset(indexName, indexOfFirstDash, indexOfSecondDash);
-        currentNamespace = parseDataStreamNamespace(indexName, indexOfSecondDash);
+        final String type = splitByDash[0];
+        final String currentDataset = splitByDash[1];
+        final String currentNamespace = splitByDash[2];
 
         String dataset = determineDataStreamField(ingestDocument, this.dataset, currentDataset);
         String namespace = determineDataStreamField(ingestDocument, this.namespace, currentNamespace);
@@ -111,18 +104,6 @@ public final class RerouteProcessor extends AbstractProcessor {
         } else {
             doc.setFieldValue(path, value);
         }
-    }
-
-    private static String parseDataStreamType(String dataStreamName, int indexOfFirstDash) {
-        return dataStreamName.substring(0, indexOfFirstDash);
-    }
-
-    private static String parseDataStreamDataset(String dataStreamName, int indexOfFirstDash, int indexOfSecondDash) {
-        return dataStreamName.substring(indexOfFirstDash + 1, indexOfSecondDash);
-    }
-
-    private static String parseDataStreamNamespace(String dataStreamName, int indexOfSecondDash) {
-        return dataStreamName.substring(indexOfSecondDash + 1);
     }
 
     private static String determineDataStreamField(

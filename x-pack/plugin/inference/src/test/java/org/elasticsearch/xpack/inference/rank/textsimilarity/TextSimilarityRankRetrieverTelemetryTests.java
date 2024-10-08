@@ -36,7 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class TextSimilarityRankRetrieverTelemetryIT extends ESIntegTestCase {
+public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_index";
 

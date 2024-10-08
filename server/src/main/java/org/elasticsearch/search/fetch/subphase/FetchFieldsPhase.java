@@ -11,10 +11,8 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -58,37 +56,25 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         }
 
         final SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
-        final FieldFetcher fieldFetcher;
+        final FieldFetcher fieldFetcher = fetchFieldsContext == null ? null
+            : fetchFieldsContext.fields() == null ? null
+            : fetchFieldsContext.fields().isEmpty() ? null
+            : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields());
+
+        final Set<FieldAndFormat> fetchContextMetadataFields = new HashSet<>();
         if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
-            final List<FieldAndFormat> fetchFields = fetchFieldsContext.fields()
-                .stream()
-                .filter(
-                    fieldAndFormat -> searchExecutionContext.isMetadataField(fieldAndFormat.field) == false
-                        || searchExecutionContext.getFieldType(fieldAndFormat.field).isStored() == false
-                )
-                .toList();
-            fieldFetcher = FieldFetcher.create(searchExecutionContext, fetchFields);
-        } else {
-            fieldFetcher = FieldFetcher.create(searchExecutionContext, Collections.emptyList());
+            for (final FieldAndFormat fieldAndFormat : fetchFieldsContext.fields()) {
+                if (searchExecutionContext.isMetadataField(fieldAndFormat.field)) {
+                    fetchContextMetadataFields.add(fieldAndFormat);
+                }
+            }
         }
 
-        final Set<FieldAndFormat> additionalMetadataFields = new HashSet<>();
-        if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
-            final List<FieldAndFormat> storedMetadataFieldsFromFetchContext = fetchFieldsContext.fields()
-                .stream()
-                .filter(
-                    fieldAndFormat -> searchExecutionContext.isMetadataField(fieldAndFormat.field)
-                        && searchExecutionContext.getFieldType(fieldAndFormat.field).isStored()
-                )
-                .toList();
-            additionalMetadataFields.addAll(storedMetadataFieldsFromFetchContext);
-        }
-        final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
-        metadataFields.addAll(additionalMetadataFields);
         final FieldFetcher metadataFieldFetcher;
         if (storedFieldsContext != null
             && storedFieldsContext.fieldNames() != null
             && storedFieldsContext.fieldNames().isEmpty() == false) {
+            final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
             for (final String storedField : storedFieldsContext.fieldNames()) {
                 final Set<String> matchingFieldNames = searchExecutionContext.getMatchingFieldNames(storedField);
                 for (final String matchingFieldName : matchingFieldNames) {
@@ -96,9 +82,6 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                         continue;
                     }
                     final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
-                    if (Regex.isSimpleMatchPattern(storedField) && IgnoredSourceFieldMapper.NAME.equals(matchingFieldName)) {
-                        continue;
-                    }
                     // NOTE: checking if the field is stored is required for backward compatibility reasons and to make
                     // sure we also handle here stored fields requested via `stored_fields`, which was previously a
                     // responsibility of StoredFieldsPhase.
@@ -107,9 +90,12 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     }
                 }
             }
+            metadataFields.addAll(fetchContextMetadataFields);
             metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields);
         } else {
-            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields);
+            final Set<FieldAndFormat> allMetadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
+            allMetadataFields.addAll(fetchContextMetadataFields);
+            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, allMetadataFields);
         }
         return new FetchSubPhaseProcessor() {
             @Override

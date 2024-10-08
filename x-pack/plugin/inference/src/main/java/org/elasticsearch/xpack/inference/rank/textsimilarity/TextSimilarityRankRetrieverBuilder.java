@@ -145,7 +145,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
         assert rankResults.size() == 1;
-        ScoreDoc[] scoreDocs = rankResults.getFirst();
+        ScoreDoc[] scoreDocs = rankResults.get(0);
         TextSimilarityRankDoc[] textSimilarityRankDocs = new TextSimilarityRankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
@@ -157,7 +157,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     @Override
     public QueryBuilder explainQuery() {
         // the original matching set of the TextSimilarityRank retriever is specified by its nested retriever
-        return new RankDocsQueryBuilder(rankDocs, new QueryBuilder[] { innerRetrievers.getFirst().retriever().explainQuery() }, true);
+        return new RankDocsQueryBuilder(rankDocs, new QueryBuilder[] { innerRetrievers.get(0).retriever().explainQuery() }, true);
     }
 
     @Override
@@ -198,7 +198,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.get(0).retriever());
         builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
         builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);

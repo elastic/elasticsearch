@@ -40,6 +40,8 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     public static final String TYPE = "role_mappings";
     public static int ROLE_MAPPING_METADATA_VERSION = 1;
 
+    private static final ParseField VERSION_PARSE_FIELD = new ParseField("version");
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RoleMappingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
@@ -57,7 +59,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
             (p, c) -> ExpressionRoleMapping.parse("name_not_available_after_deserialization", p),
             new ParseField(TYPE)
         );
-        PARSER.declareIntOrNull(optionalConstructorArg(), 0, new ParseField("version"));
+        PARSER.declareIntOrNull(optionalConstructorArg(), 0, VERSION_PARSE_FIELD);
     }
 
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of(), 0);
@@ -104,7 +106,12 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // role mappings are serialized without their names
-        return Iterators.concat(ChunkedToXContentHelper.startArray(TYPE), roleMappings.iterator(), ChunkedToXContentHelper.endArray());
+        return Iterators.concat(
+            ChunkedToXContentHelper.field(VERSION_PARSE_FIELD.getPreferredName(), version),
+            ChunkedToXContentHelper.startArray(TYPE),
+            roleMappings.iterator(),
+            ChunkedToXContentHelper.endArray()
+        );
     }
 
     public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {

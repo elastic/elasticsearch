@@ -62,7 +62,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
             description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, matchQuery, List.of(matchQuery, field));
+        super(source, matchQuery, List.of(field, matchQuery));
         this.field = field;
     }
 
@@ -114,7 +114,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         // Query is the first child, field is the second child
-        return new MatchFunction(source(), newChildren.get(1), newChildren.get(0));
+        return new MatchFunction(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override

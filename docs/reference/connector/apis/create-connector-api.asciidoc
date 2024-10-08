@@ -116,7 +116,7 @@ PUT _connector/my-connector
   "name": "My Connector",
   "description": "My Connector to sync data to Elastic index from Google Drive",
   "service_type": "google_drive",
-  "language": "english"
+  "language": "en"
 }
 ----
 

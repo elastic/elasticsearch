@@ -13,9 +13,11 @@ import com.maxmind.db.DatabaseRecord;
 import com.maxmind.db.Networks;
 import com.maxmind.db.Reader;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -49,17 +51,22 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     private ThreadPool threadPool;
     private ResourceWatcherService resourceWatcherService;
 
+    // a temporary directory that mmdb files can be copied to and read from
+    private Path tmpDir;
+
     @Before
     public void setup() {
         threadPool = new TestThreadPool(ConfigDatabases.class.getSimpleName());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
         resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+        tmpDir = createTempDir();
     }
 
     @After
-    public void cleanup() {
+    public void cleanup() throws IOException {
         resourceWatcherService.close();
         threadPool.shutdownNow();
+        IOUtils.rm(tmpDir);
     }
 
     public void testDatabasePropertyInvariants() {
@@ -95,7 +102,8 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     }
 
     public void testAsn() throws IOException {
-        Path configDir = createTempDir();
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
         copyDatabase("ipinfo/ip_asn_sample.mmdb", configDir.resolve("ip_asn_sample.mmdb"));
         copyDatabase("ipinfo/asn_sample.mmdb", configDir.resolve("asn_sample.mmdb"));
 
@@ -104,8 +112,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         configDatabases.initialize(resourceWatcherService);
 
         // this is the 'free' ASN database (sample)
-        {
-            DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_asn_sample.mmdb");
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_asn_sample.mmdb")) {
             IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Set.of(Database.Property.values()));
             Map<String, Object> data = lookup.getData(loader, "5.182.109.0");
             assertThat(
@@ -123,8 +130,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         }
 
         // this is the non-free or 'standard' ASN database (sample)
-        {
-            DatabaseReaderLazyLoader loader = configDatabases.getDatabase("asn_sample.mmdb");
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("asn_sample.mmdb")) {
             IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Set.of(Database.Property.values()));
             Map<String, Object> data = lookup.getData(loader, "23.53.116.0");
             assertThat(
@@ -145,7 +151,8 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     }
 
     public void testAsnInvariants() {
-        Path configDir = createTempDir();
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
         copyDatabase("ipinfo/ip_asn_sample.mmdb", configDir.resolve("ip_asn_sample.mmdb"));
         copyDatabase("ipinfo/asn_sample.mmdb", configDir.resolve("asn_sample.mmdb"));
 
@@ -181,16 +188,16 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     }
 
     public void testCountry() throws IOException {
-        Path configDir = createTempDir();
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
         copyDatabase("ipinfo/ip_country_sample.mmdb", configDir.resolve("ip_country_sample.mmdb"));
 
         GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
         ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
         configDatabases.initialize(resourceWatcherService);
 
-        // this is the 'free' Country database (sample)
-        {
-            DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_country_sample.mmdb");
+        // this is the non-free or 'standard' Geolocation database (sample)
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_country_sample.mmdb")) {
             IpDataLookup lookup = new IpinfoIpDataLookups.Country(Set.of(Database.Property.values()));
             Map<String, Object> data = lookup.getData(loader, "4.221.143.168");
             assertThat(
@@ -209,15 +216,16 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     }
 
     public void testGeolocation() throws IOException {
-        Path configDir = createTempDir();
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
         copyDatabase("ipinfo/ip_geolocation_sample.mmdb", configDir.resolve("ip_geolocation_sample.mmdb"));
 
         GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
         ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
         configDatabases.initialize(resourceWatcherService);
 
-        {
-            DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_geolocation_sample.mmdb");
+        // this is the 'free' Country database (sample)
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_geolocation_sample.mmdb")) {
             IpDataLookup lookup = new IpinfoIpDataLookups.Geolocation(Set.of(Database.Property.values()));
             Map<String, Object> data = lookup.getData(loader, "2.124.90.182");
             assertThat(
@@ -238,7 +246,8 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     }
 
     public void testGeolocationInvariants() {
-        Path configDir = createTempDir();
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
         copyDatabase("ipinfo/ip_geolocation_sample.mmdb", configDir.resolve("ip_geolocation_sample.mmdb"));
 
         {

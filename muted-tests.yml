@@ -354,9 +354,6 @@ tests:
 - class: org.elasticsearch.action.bulk.IncrementalBulkIT
   method: testIncrementalBulkLowWatermarkBackOff
   issue: https://github.com/elastic/elasticsearch/issues/114182
-- class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
-  method: test {yaml=aggregations/stats_metric_fail_formatting/fail formatting}
-  issue: https://github.com/elastic/elasticsearch/issues/114187
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/114194
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
@@ -365,17 +362,18 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114232
-- class: org.elasticsearch.logsdb.datageneration.DataGeneratorTests
-  method: testDataGeneratorProducesValidMappingAndDocument
-  issue: https://github.com/elastic/elasticsearch/issues/114188
-- class: org.elasticsearch.ingest.geoip.IpinfoIpDataLookupsTests
-  issue: https://github.com/elastic/elasticsearch/issues/114266
 - class: org.elasticsearch.index.SearchSlowLogTests
   method: testLevelPrecedence
   issue: https://github.com/elastic/elasticsearch/issues/114300
 - class: org.elasticsearch.index.SearchSlowLogTests
   method: testTwoLoggersDifferentLevel
   issue: https://github.com/elastic/elasticsearch/issues/114301
+- class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
+  method: testInfer_StreamRequest_ErrorResponse
+  issue: https://github.com/elastic/elasticsearch/issues/114327
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
+  issue: https://github.com/elastic/elasticsearch/issues/114331
 
 # Examples:
 #

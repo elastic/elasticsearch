@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.test.ESTestCase;
 
@@ -78,10 +79,16 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
         if (request.isNested()) {
+            assert request.parentSubobjects() != ObjectMapper.Subobjects.DISABLED;
+
             return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
                 var parameters = new HashMap<String, Object>();
+
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
+                }
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
                 }
 
                 return parameters;
@@ -90,11 +97,40 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
         return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
             var parameters = new HashMap<String, Object>();
+
+            // Changing subobjects from subobjects: false is not supported, but we can f.e. go from "true" to "false".
+            // TODO enable subobjects: auto
+            // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using
+            // copy_to.
+            var subobjects = ESTestCase.randomValueOtherThan(
+                ObjectMapper.Subobjects.AUTO,
+                () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
+            );
+
+            if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED || subobjects == ObjectMapper.Subobjects.DISABLED) {
+                // "enabled: false" is not compatible with subobjects: false
+                // changing "dynamic" from parent context is not compatible with subobjects: false
+                // changing subobjects value is not compatible with subobjects: false
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("enabled", "true");
+                }
+
+                return parameters;
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                parameters.put("subobjects", subobjects.toString());
+            }
             if (ESTestCase.randomBoolean()) {
                 parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict", "runtime"));
             }
             if (ESTestCase.randomBoolean()) {
                 parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                var value = request.isRoot() ? ESTestCase.randomFrom("none", "arrays") : ESTestCase.randomFrom("none", "arrays", "all");
+                parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
             }
 
             return parameters;

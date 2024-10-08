@@ -170,8 +170,7 @@ public class AdaptiveAllocationsScaler {
         if (maxNumberOfAllocations != null) {
             numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
         }
-        if (ScaleToZeroFeatureFlag.isEnabled()
-            && (minNumberOfAllocations == null || minNumberOfAllocations == 0)
+        if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
             && timeWithoutRequestsSeconds > SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS) {
             logger.debug("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
             numberOfAllocations = 0;

@@ -355,7 +355,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private abstract class BaseSortedSetDocValues extends SortedSetDocValues {
+    private abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
 
         final SortedSetEntry entry;
         final IndexInput data;

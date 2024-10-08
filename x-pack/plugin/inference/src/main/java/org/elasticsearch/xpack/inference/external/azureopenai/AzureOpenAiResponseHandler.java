@@ -32,7 +32,7 @@ public class AzureOpenAiResponseHandler extends OpenAiResponseHandler {
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     public AzureOpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction);
+        super(requestType, parseFunction, false);
     }
 
     @Override

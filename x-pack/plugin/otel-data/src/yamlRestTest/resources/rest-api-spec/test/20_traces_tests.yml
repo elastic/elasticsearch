@@ -76,19 +76,47 @@ setup:
   - match: { hits.hits.0._source.links.1.trace_id: "4aaa9f33312b3dbb8b2c2c62bb7abe1a1"  }
   - match: { hits.hits.0._source.links.1.span_id: "b3b7d1f1f1b4e1e1"  }
 ---
-"Default data_stream.type must be traces":
+Conflicting attribute types:
   - do:
       bulk:
         index: traces-generic.otel-default
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-02-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","type":"traces","namespace":"default"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}},"name":"foo","trace_id":"7bba9f33312b3dbb8b2c2c62bb7abe2d","span_id":"086e83747d0e381e","kind":"SERVER","status":{"code":"2xx"}}'
+          - "@timestamp": 2024-10-04T00:00:00
+            attributes:
+              http.status_code: 200
+          - create: {}
+          - "@timestamp": 2024-10-04T01:00:00
+            attributes:
+              http.status_code: "foo"
   - is_false: errors
   - do:
       search:
         index: traces-generic.otel-default
         body:
-          fields: ["data_stream.type"]
-  - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields.data_stream\.type: ["traces"] }
+          fields: ["*"]
+          "sort" : [ "@timestamp" ]
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.attributes\.http\.status_code: [200] }
+  - match: { hits.hits.1._ignored: ["attributes.http.status_code"] }
+---
+"resource.attributes.host.name @timestamp should be used as sort fields":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "span_id":"1"}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: traces-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: datastream-backing-index }
+  - do:
+      indices.get_settings:
+        index: $datastream-backing-index
+  - is_true: $datastream-backing-index
+  - match: { .$datastream-backing-index.settings.index.sort.field.0: "resource.attributes.host.name" }
+  - match: { .$datastream-backing-index.settings.index.sort.field.1: "@timestamp" }

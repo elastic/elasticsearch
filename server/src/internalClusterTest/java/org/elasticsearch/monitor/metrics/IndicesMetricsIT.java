@@ -107,14 +107,14 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String LOGSDB_INDEXING_TIME = "es.indices.logsdb.indexing.time";
     static final String LOGSDB_INDEXING_FAILURE = "es.indices.logsdb.indexing.failure.total";
 
-    public void testIndicesMetrics() throws Exception {
-        String node = internalCluster().startNode();
+    public void testIndicesMetrics() {
+        String indexNode = internalCluster().startNode();
         ensureStableCluster(1);
-        final TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class, node)
+        TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class, indexNode)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
-        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
         var indexing0 = indicesService.stats(CommonStatsFlags.ALL, false).getIndexing().getTotal();
         telemetry.resetMeter();
         long numStandardIndices = randomIntBetween(1, 5);
@@ -131,19 +131,12 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 STANDARD_BYTES_SIZE,
                 greaterThan(0L),
 
-                TIME_SERIES_INDEX_COUNT,
-                equalTo(0L),
-                TIME_SERIES_DOCS_COUNT,
-                equalTo(0L),
-                TIME_SERIES_BYTES_SIZE,
-                equalTo(0L),
-
-                LOGSDB_INDEX_COUNT,
-                equalTo(0L),
-                LOGSDB_DOCS_COUNT,
-                equalTo(0L),
-                LOGSDB_BYTES_SIZE,
-                equalTo(0L)
+                STANDARD_INDEXING_COUNT,
+                equalTo(numStandardDocs),
+                STANDARD_INDEXING_TIME,
+                greaterThanOrEqualTo(0L),
+                STANDARD_INDEXING_FAILURE,
+                equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexCount())
             )
         );
 
@@ -154,13 +147,6 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             telemetry,
             2,
             Map.of(
-                STANDARD_INDEX_COUNT,
-                equalTo(numStandardIndices),
-                STANDARD_DOCS_COUNT,
-                equalTo(numStandardDocs),
-                STANDARD_BYTES_SIZE,
-                greaterThan(0L),
-
                 TIME_SERIES_INDEX_COUNT,
                 equalTo(numTimeSeriesIndices),
                 TIME_SERIES_DOCS_COUNT,
@@ -168,12 +154,12 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 TIME_SERIES_BYTES_SIZE,
                 greaterThan(20L),
 
-                LOGSDB_INDEX_COUNT,
-                equalTo(0L),
-                LOGSDB_DOCS_COUNT,
-                equalTo(0L),
-                LOGSDB_BYTES_SIZE,
-                equalTo(0L)
+                TIME_SERIES_INDEXING_COUNT,
+                equalTo(numTimeSeriesDocs),
+                TIME_SERIES_INDEXING_TIME,
+                greaterThanOrEqualTo(0L),
+                TIME_SERIES_INDEXING_FAILURE,
+                equalTo(indexing2.getIndexFailedCount() - indexing1.getIndexFailedCount())
             )
         );
 
@@ -184,47 +170,12 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             telemetry,
             3,
             Map.of(
-                STANDARD_INDEX_COUNT,
-                equalTo(numStandardIndices),
-                STANDARD_DOCS_COUNT,
-                equalTo(numStandardDocs),
-                STANDARD_BYTES_SIZE,
-                greaterThan(0L),
-
-                TIME_SERIES_INDEX_COUNT,
-                equalTo(numTimeSeriesIndices),
-                TIME_SERIES_DOCS_COUNT,
-                equalTo(numTimeSeriesDocs),
-                TIME_SERIES_BYTES_SIZE,
-                greaterThan(20L),
-
                 LOGSDB_INDEX_COUNT,
                 equalTo(numLogsdbIndices),
                 LOGSDB_DOCS_COUNT,
                 equalTo(numLogsdbDocs),
                 LOGSDB_BYTES_SIZE,
-                greaterThan(0L)
-            )
-        );
-        // indexing stats
-        collectThenAssertMetrics(
-            telemetry,
-            4,
-            Map.of(
-                STANDARD_INDEXING_COUNT,
-                equalTo(numStandardDocs),
-                STANDARD_INDEXING_TIME,
-                greaterThanOrEqualTo(0L),
-                STANDARD_INDEXING_FAILURE,
-                equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexCount()),
-
-                TIME_SERIES_INDEXING_COUNT,
-                equalTo(numTimeSeriesDocs),
-                TIME_SERIES_INDEXING_TIME,
-                greaterThanOrEqualTo(0L),
-                TIME_SERIES_INDEXING_FAILURE,
-                equalTo(indexing2.getIndexFailedCount() - indexing1.getIndexFailedCount()),
-
+                greaterThan(0L),
                 LOGSDB_INDEXING_COUNT,
                 equalTo(numLogsdbDocs),
                 LOGSDB_INDEXING_TIME,
@@ -233,11 +184,44 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount())
             )
         );
-        telemetry.resetMeter();
+        // already collected indexing stats
+        collectThenAssertMetrics(
+            telemetry,
+            4,
+            Map.of(
+                STANDARD_INDEXING_COUNT,
+                equalTo(0L),
+                STANDARD_INDEXING_TIME,
+                equalTo(0L),
+                STANDARD_INDEXING_FAILURE,
+                equalTo(0L),
 
+                TIME_SERIES_INDEXING_COUNT,
+                equalTo(0L),
+                TIME_SERIES_INDEXING_TIME,
+                equalTo(0L),
+                TIME_SERIES_INDEXING_FAILURE,
+                equalTo(0L),
+
+                LOGSDB_INDEXING_COUNT,
+                equalTo(0L),
+                LOGSDB_INDEXING_TIME,
+                equalTo(0L),
+                LOGSDB_INDEXING_FAILURE,
+                equalTo(0L)
+            )
+        );
+        String searchNode = internalCluster().startDataOnlyNode();
+        indicesService = internalCluster().getInstance(IndicesService.class, searchNode);
+        telemetry = internalCluster().getInstance(PluginsService.class, searchNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        ensureGreen("st*", "log*", "time*");
         // search and fetch
-        client().prepareSearch("standard*").setSize(100).get().decRef();
-        var nodeStats1 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        String preference = "_only_local";
+        client(searchNode).prepareSearch("standard*").setPreference(preference).setSize(100).get().decRef();
+        var search1 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
             1,
@@ -245,11 +229,11 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 STANDARD_QUERY_COUNT,
                 equalTo(numStandardIndices),
                 STANDARD_QUERY_TIME,
-                equalTo(nodeStats1.getQueryTimeInMillis()),
+                equalTo(search1.getQueryTimeInMillis()),
                 STANDARD_FETCH_COUNT,
-                equalTo(nodeStats1.getFetchCount()),
+                equalTo(search1.getFetchCount()),
                 STANDARD_FETCH_TIME,
-                equalTo(nodeStats1.getFetchTimeInMillis()),
+                equalTo(search1.getFetchTimeInMillis()),
 
                 TIME_SERIES_QUERY_COUNT,
                 equalTo(0L),
@@ -263,25 +247,25 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             )
         );
 
-        client().prepareSearch("time*").setSize(100).get().decRef();
-        var nodeStats2 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        client(searchNode).prepareSearch("time*").setPreference(preference).setSize(100).get().decRef();
+        var search2 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
             2,
             Map.of(
                 STANDARD_QUERY_COUNT,
-                equalTo(numStandardIndices),
+                equalTo(0L),
                 STANDARD_QUERY_TIME,
-                equalTo(nodeStats1.getQueryTimeInMillis()),
+                equalTo(0L),
 
                 TIME_SERIES_QUERY_COUNT,
                 equalTo(numTimeSeriesIndices),
                 TIME_SERIES_QUERY_TIME,
-                equalTo(nodeStats2.getQueryTimeInMillis() - nodeStats1.getQueryTimeInMillis()),
+                equalTo(search2.getQueryTimeInMillis() - search1.getQueryTimeInMillis()),
                 TIME_SERIES_FETCH_COUNT,
-                equalTo(nodeStats2.getFetchCount() - nodeStats1.getFetchCount()),
+                equalTo(search2.getFetchCount() - search1.getFetchCount()),
                 TIME_SERIES_FETCH_TIME,
-                equalTo(nodeStats2.getFetchTimeInMillis() - nodeStats1.getFetchTimeInMillis()),
+                equalTo(search2.getFetchTimeInMillis() - search1.getFetchTimeInMillis()),
 
                 LOGSDB_QUERY_COUNT,
                 equalTo(0L),
@@ -289,41 +273,44 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(0L)
             )
         );
-        client().prepareSearch("logs*").setSize(100).get().decRef();
-        var nodeStats3 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
+        client(searchNode).prepareSearch("logs*").setPreference(preference).setSize(100).get().decRef();
+        var search3 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
         collectThenAssertMetrics(
             telemetry,
             3,
             Map.of(
                 STANDARD_QUERY_COUNT,
-                equalTo(numStandardIndices),
+                equalTo(0L),
                 STANDARD_QUERY_TIME,
-                equalTo(nodeStats1.getQueryTimeInMillis()),
+                equalTo(0L),
 
                 TIME_SERIES_QUERY_COUNT,
-                equalTo(numTimeSeriesIndices),
+                equalTo(0L),
                 TIME_SERIES_QUERY_TIME,
-                equalTo(nodeStats2.getQueryTimeInMillis() - nodeStats1.getQueryTimeInMillis()),
+                equalTo(0L),
 
                 LOGSDB_QUERY_COUNT,
                 equalTo(numLogsdbIndices),
                 LOGSDB_QUERY_TIME,
-                equalTo(nodeStats3.getQueryTimeInMillis() - nodeStats2.getQueryTimeInMillis()),
+                equalTo(search3.getQueryTimeInMillis() - search2.getQueryTimeInMillis()),
                 LOGSDB_FETCH_COUNT,
-                equalTo(nodeStats3.getFetchCount() - nodeStats2.getFetchCount()),
+                equalTo(search3.getFetchCount() - search2.getFetchCount()),
                 LOGSDB_FETCH_TIME,
-                equalTo(nodeStats3.getFetchTimeInMillis() - nodeStats2.getFetchTimeInMillis())
+                equalTo(search3.getFetchTimeInMillis() - search2.getFetchTimeInMillis())
             )
         );
         // search failures
-        expectThrows(Exception.class, () -> { client().prepareSearch("logs*").setRuntimeMappings(parseMapping("""
-            {
-                "fail_me": {
-                    "type": "long",
-                    "script": {"source": "<>", "lang": "failing_field"}
+        expectThrows(
+            Exception.class,
+            () -> { client(searchNode).prepareSearch("logs*").setPreference(preference).setRuntimeMappings(parseMapping("""
+                {
+                    "fail_me": {
+                        "type": "long",
+                        "script": {"source": "<>", "lang": "failing_field"}
+                    }
                 }
-            }
-            """)).setQuery(new RangeQueryBuilder("fail_me").gte(0)).setAllowPartialSearchResults(true).get(); });
+                """)).setQuery(new RangeQueryBuilder("fail_me").gte(0)).setAllowPartialSearchResults(true).get(); }
+        );
         collectThenAssertMetrics(
             telemetry,
             4,

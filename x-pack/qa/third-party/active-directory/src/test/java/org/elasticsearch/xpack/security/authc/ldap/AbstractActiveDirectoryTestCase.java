@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullS
 public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
     @ClassRule
-    public static final SmbTestContainer smbFixture = new SmbTestContainer();
+    public static final SmbTestContainer smbFixture = SmbTestContainer.create();
     // follow referrals defaults to false here which differs from the default value of the setting
     // this is needed to prevent test logs being filled by errors as the default configuration of
     // the tests run against a vagrant samba4 instance configured as a domain controller with the

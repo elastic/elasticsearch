@@ -2,6 +2,7 @@ apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.cache-test-fixtures'
 
 dependencies {
+  implementation project(':test:framework')
   api project(':test:fixtures:testcontainer-utils')
   api "junit:junit:${versions.junit}"
   api "org.testcontainers:testcontainers:${versions.testcontainer}"

@@ -37,7 +37,7 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ldap", "realm1");
 
     @ClassRule
-    public static final SmbTestContainer smbFixture = new SmbTestContainer();
+    public static final SmbTestContainer smbFixture = SmbTestContainer.create();
 
     public void testResolve() throws Exception {
         // falling back on the 'memberOf' attribute

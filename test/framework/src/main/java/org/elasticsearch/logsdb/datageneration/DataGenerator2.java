@@ -47,7 +47,7 @@ public class DataGenerator2 {
      * @throws IOException
      */
     public void generateDocument(XContentBuilder document) throws IOException {
-        topLevelGenerator.fieldValueGenerator(b -> {}).accept(document);
+        generateDocument(document, Map.of());
     }
 
     /**
@@ -59,7 +59,7 @@ public class DataGenerator2 {
      */
     public void generateDocument(XContentBuilder document, Map<String, Object> additionalFields)
         throws IOException {
-        var generated = documentGenerator.generate(mappingTemplate);
+        var generated = documentGenerator.generate(mappingTemplate, null);
         generated.putAll(additionalFields);
 
         document.map(generated);

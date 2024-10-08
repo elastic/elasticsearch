@@ -20,7 +20,7 @@ public interface PredefinedField {
 
     FieldType fieldType();
 
-    record WithGenerator(String fieldName, FieldType fieldType, FieldDataGenerator generator) implements PredefinedField {
+    record WithGenerator(String fieldName, FieldType fieldType, boolean canBeDynamic, FieldDataGenerator generator) implements PredefinedField {
         @Override
         public String name() {
             return fieldName;

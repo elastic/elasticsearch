@@ -57,7 +57,6 @@ public class MappingGenerator {
             MappingTemplate.Entry templateEntry = entry.getValue();
 
             var mappingParameters = new HashMap<String, Object>();
-            Boolean isDynamic = null;
 
             if (templateEntry instanceof MappingTemplate.Entry.Leaf leaf) {
                 // For simplicity we only copy to keyword fields, synthetic source logic to handle copy_to is generic.
@@ -65,9 +64,13 @@ public class MappingGenerator {
                     context.addCopyToCandidate(fieldName);
                 }
 
-                isDynamic = dynamicMappingGenerator.generator().apply(false);
+                boolean isDynamic = dynamicMappingGenerator.generator().apply(false);
                 // Simply skip this field if it is dynamic.
                 // Lookup will contain null signaling dynamic mapping as well.
+                if (isDynamic == false) {
+                    continue;
+                }
+
                 var mappingParametersGenerator = specification.dataSource()
                     .get(
                         new DataSourceRequest.LeafMappingParametersGenerator(
@@ -83,7 +86,12 @@ public class MappingGenerator {
                 mappingParameters.putAll(mappingParametersGenerator.get());
 
             } else if (templateEntry instanceof MappingTemplate.Entry.Object object) {
-                isDynamic = dynamicMappingGenerator.generator().apply(false);
+                boolean isDynamic = dynamicMappingGenerator.generator().apply(true);
+                // Simply skip this field if it is dynamic.
+                // Lookup will contain null signaling dynamic mapping as well.
+                if (isDynamic == false) {
+                    continue;
+                }
 
                 var mappingParametersGenerator = specification.dataSource()
                     .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, object.nested(), context.parentSubobjects()))
@@ -97,12 +105,8 @@ public class MappingGenerator {
                 generateMapping(childrenMapping, lookup, object.children(), context.stepIntoObject(object.name(), mappingParameters));
             }
 
-            // Simply skip this field if it is dynamic.
-            // Lookup will contain null signaling dynamic mapping as well.
-            if (isDynamic == false) {
-                mapping.put(fieldName, mappingParameters);
-                lookup.put(context.pathTo(fieldName), Map.copyOf(mappingParameters));
-            }
+            mapping.put(fieldName, mappingParameters);
+            lookup.put(context.pathTo(fieldName), Map.copyOf(mappingParameters));
         }
     }
 

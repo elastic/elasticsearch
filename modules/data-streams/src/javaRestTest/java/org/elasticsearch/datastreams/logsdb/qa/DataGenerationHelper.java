@@ -14,20 +14,30 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.Mapping;
+import org.elasticsearch.logsdb.datageneration.MappingGenerator;
+import org.elasticsearch.logsdb.datageneration.MappingTemplate;
+import org.elasticsearch.logsdb.datageneration.MappingTemplateGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 public class DataGenerationHelper {
     private final boolean keepArraySource;
 
-    private final DataGenerator dataGenerator;
+    private final DocumentGenerator documentGenerator;
+
+    private final MappingTemplate mappingTemplate;
+    private final Mapping mapping;
 
     public DataGenerationHelper() {
         this(b -> {});
@@ -41,7 +51,7 @@ public class DataGenerationHelper {
             .withPredefinedFields(
                 List.of(
                     // Customized because it always needs doc_values for aggregations.
-                    new PredefinedField.WithGenerator("host.name", FieldType.KEYWORD, new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("host.name", FieldType.KEYWORD, false, new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "keyword").endObject();
@@ -58,7 +68,7 @@ public class DataGenerationHelper {
                         }
                     }),
                     // Needed for terms query
-                    new PredefinedField.WithGenerator("method", FieldType.KEYWORD, new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("method", FieldType.KEYWORD, false, new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "keyword").endObject();
@@ -76,7 +86,7 @@ public class DataGenerationHelper {
                     }),
 
                     // Needed for histogram aggregation
-                    new PredefinedField.WithGenerator("memory_usage_bytes", FieldType.LONG, new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("memory_usage_bytes", FieldType.LONG, true, new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "long").endObject();
@@ -99,24 +109,52 @@ public class DataGenerationHelper {
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);
 
-        this.dataGenerator = new DataGenerator(specificationBuilder.build());
-    }
+        var specification = specificationBuilder.build();
 
-    DataGenerator getDataGenerator() {
-        return dataGenerator;
+        this.documentGenerator = new DocumentGenerator(specification);
+
+        this.mappingTemplate = new MappingTemplateGenerator(specification).generate();
+        this.mapping = new MappingGenerator(specification).generate(mappingTemplate, null);
     }
 
     void logsDbMapping(XContentBuilder builder) throws IOException {
-        dataGenerator.writeMapping(builder);
+        builder.startObject().field("properties");
+        builder.map(mapping.raw());
+        builder.endObject();
     }
 
     void standardMapping(XContentBuilder builder) throws IOException {
-        dataGenerator.writeMapping(builder);
+        var rawMapping = new HashMap<>(mapping.raw());
+        // We don't want standard to use custom subobjects values, this is not the goal of this test.
+        // We want to compare "clean" standard with logsdb.
+        removeSubobjects(rawMapping);
+
+        builder.startObject().field("properties");
+        builder.map(rawMapping);
+        builder.endObject();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void removeSubobjects(Map<String, Object> mapping) {
+        for (var entry : mapping.entrySet()) {
+            if (entry.getValue() instanceof Map<?,?> m && m.containsKey("properties")) {
+                m.remove("subobjects");
+                removeSubobjects((Map<String, Object>) m.get("properties"));
+            }
+        }
     }
 
     void logsDbSettings(Settings.Builder builder) {
         if (keepArraySource) {
             builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }
+    }
+
+    void generateDocument(XContentBuilder document, Map<String, Object> additionalFields)
+        throws IOException {
+        var generated = documentGenerator.generate(mappingTemplate, mapping);
+        generated.putAll(additionalFields);
+
+        document.map(generated);
     }
 }

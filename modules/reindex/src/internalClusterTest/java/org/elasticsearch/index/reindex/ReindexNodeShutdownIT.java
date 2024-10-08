@@ -108,6 +108,4 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
         throw new AssertionError("Couldn't find task after waiting tasks=" + tasks.getTasks());
     }
-
-
 }

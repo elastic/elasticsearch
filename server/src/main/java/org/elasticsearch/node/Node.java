@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -163,6 +164,12 @@ public class Node implements Closeable {
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "node.maximum_shutdown_grace_period",
         TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> MAXIMUM_REINDEXING_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "node.maximum_reindexing_grace_period",
+        TimeValue.timeValueSeconds(10),
         Setting.Property.NodeScope
     );
 
@@ -603,6 +610,7 @@ public class Node implements Closeable {
      */
     public void prepareForClose() {
         final var maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(this.settings());
+        final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(this.settings());
 
         record Stopper(String name, SubscribableListener<Void> listener) {
             boolean isIncomplete() {
@@ -630,7 +638,7 @@ public class Node implements Closeable {
 
             stopperRunner.accept("http-server-transport-stop", injector.getInstance(HttpServerTransport.class)::close);
             stopperRunner.accept("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout));
-            stopperRunner.accept("reindex-stop", () -> awaitReindexTasksComplete(TimeValue.min(TimeValue.timeValueMinutes(1), maxTimeout)));
+            stopperRunner.accept("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout);
             if (terminationHandler != null) {
                 stopperRunner.accept("termination-handler-stop", terminationHandler::handleTermination);
             }
@@ -658,6 +666,61 @@ public class Node implements Closeable {
         }
     }
 
+    private void waitForTasks(TimeValue timeout, String taskName) {
+        TaskManager taskManager = injector.getInstance(TransportService.class).getTaskManager();
+        long millisWaited = 0;
+        while (true) {
+            long searchTasksRemaining = taskManager.getTasks()
+                .values()
+                .stream()
+                .filter(task -> taskName.equals(task.getAction()))
+                .count();
+            if (searchTasksRemaining == 0) {
+                logger.debug("all " + taskName + " tasks complete");
+                return;
+            } else {
+                // Let the system work on those tasks for a while. We're on a dedicated thread to manage app shutdown, so we
+                // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
+                // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
+                // be spending on finishing those tasks.
+                final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
+                millisWaited += pollPeriod.millis();
+                if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
+                    logger.warn(
+                        format(
+                            "timed out after waiting [%s] for [%d] " + taskName + " tasks to finish",
+                            timeout.toString(),
+                            searchTasksRemaining
+                        )
+                    );
+                    return;
+                }
+                logger.debug(format("waiting for [%s] " + taskName + " tasks to finish, next poll in [%s]", searchTasksRemaining, pollPeriod));
+                try {
+                    Thread.sleep(pollPeriod.millis());
+                } catch (InterruptedException ex) {
+                    logger.warn(
+                        format(
+                            "interrupted while waiting [%s] for [%d] search tasks to finish",
+                            timeout.toString(),
+                            searchTasksRemaining
+                        )
+                    );
+                    return;
+                }
+            }
+        }
+    }
+
+    private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout) {
+        waitForTasks(asyncSearchTimeout, TransportSearchAction.NAME);
+    }
+
+    private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout) {
+        waitForTasks(asyncReindexTimeout, ReindexAction.NAME);
+    }
+    
+    /*
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout) {
         TaskManager taskManager = injector.getInstance(TransportService.class).getTaskManager();
         long millisWaited = 0;
@@ -749,6 +812,7 @@ public class Node implements Closeable {
             }
         }
     }
+    */
 
     /**
      * Wait for this node to be effectively closed.

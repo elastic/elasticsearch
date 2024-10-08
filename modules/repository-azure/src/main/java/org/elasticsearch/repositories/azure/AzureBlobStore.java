@@ -741,7 +741,7 @@ public class AzureBlobStore implements BlobStore {
                 k -> RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey())
             );
 
-            counter.add(requestMetrics.getRequestCount());
+            counter.add(1);
 
             // range not satisfied is not retried, so we count them by checking the final response
             if (requestMetrics.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {

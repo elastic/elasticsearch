@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -52,6 +53,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -220,6 +222,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
     private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
+        private final Set<String> seenRequestIds = ConcurrentCollections.newConcurrentSet();
 
         private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
             super(delegate);
@@ -227,6 +230,13 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         @Override
         protected void maybeTrack(String request, Headers headers) {
+            // Same request id is a retry
+            // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-ncnbi/817da997-30d2-4cd3-972f-a0073e4e98f7
+            // Do not count retries since the client side request stats do not track them yet.
+            // See https://github.com/elastic/elasticsearch/issues/104443
+            if (false == seenRequestIds.add(headers.getFirst("X-ms-client-request-id"))) {
+                return;
+            }
             if (GET_BLOB_PATTERN.test(request)) {
                 trackRequest("GetBlob");
             } else if (Regex.simpleMatch("HEAD /*/*/*", request)) {
@@ -386,7 +396,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                     OperationPurpose.parse((String) metric.attributes().get("purpose"))
                 );
                 assertThat(nodeName + "/" + statsKey + " exists", statsCollectors, hasKey(statsKey));
-                assertThat(nodeName + "/" + statsKey + " has correct sum", metric.getLong(), equalTo(statsCollectors.get(statsKey).sum()));
                 aggregatedMetrics.compute(statsKey.operation(), (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });
         }

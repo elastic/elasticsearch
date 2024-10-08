@@ -845,10 +845,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 return;
             }
         }
-        boolean hasUpdates = (numberOfAllocations != null
-            && Objects.equals(numberOfAllocations, existingAssignment.getTaskParams().getNumberOfAllocations()) == false)
-            || Objects.equals(adaptiveAllocationsSettings, existingAssignment.getAdaptiveAllocationsSettings()) == false;
+        boolean hasUpdates = hasUpdates(numberOfAllocations, adaptiveAllocationsSettingsUpdates, existingAssignment);
         if (hasUpdates == false) {
+            logger.info("no updates");
             listener.onResponse(existingAssignment);
             return;
         }
@@ -915,6 +914,17 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         );
 
         updateAssignment(clusterState, existingAssignment, numberOfAllocations, adaptiveAllocationsSettings, updatedStateListener);
+    }
+
+    static boolean hasUpdates(
+        Integer proposedNumberOfAllocations,
+        AdaptiveAllocationsSettings proposedAdaptiveSettings,
+        TrainedModelAssignment existingAssignment
+    ) {
+        return (proposedNumberOfAllocations != null
+            && Objects.equals(proposedNumberOfAllocations, existingAssignment.getTaskParams().getNumberOfAllocations()) == false)
+            || (proposedAdaptiveSettings != null
+                && Objects.equals(proposedAdaptiveSettings, existingAssignment.getAdaptiveAllocationsSettings()) == false);
     }
 
     private AdaptiveAllocationsSettings getAdaptiveAllocationsSettings(

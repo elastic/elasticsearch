@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -57,9 +58,11 @@ public class ScalingInference {
     }
 
     public synchronized void waitForAssignment(WaitingRequest request) {
+        logger.info("new wait for request");
         var p = queueRequests.computeIfAbsent(request.deploymentId(), k -> new LinkedBlockingQueue<>());
 
         if (p.isEmpty()) {
+            logger.info("will wait for condition");
             p.offer(request);
             assignmentService.waitForAssignmentCondition(
                 request.deploymentId(),
@@ -68,6 +71,7 @@ public class ScalingInference {
                 new WaitingListener(request.deploymentId())
             );
         } else {
+            logger.info("added to queue");
             p.offer(request);
         }
 
@@ -76,6 +80,7 @@ public class ScalingInference {
     private static class DeploymentHasAtLeastOneAllocation implements Predicate<ClusterState> {
 
         private final String deploymentId;
+        private Exception exception;
 
         DeploymentHasAtLeastOneAllocation(String deploymentId) {
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
@@ -83,21 +88,24 @@ public class ScalingInference {
 
         @Override
         public boolean test(ClusterState clusterState) {
+            logger.info("predicate test");
             TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
                 clusterState,
                 deploymentId
             ).orElse(null);
             if (trainedModelAssignment == null) {
                 logger.info(() -> format("[%s] assignment was null while waiting to scale up", deploymentId));
-                return true;
+                return false;
             }
 
             var allocationStatus = trainedModelAssignment.calculateAllocationStatus().orElse(null);
             if (allocationStatus == null) {
-                return true;
+                return false;
             }
 
             var state = allocationStatus.calculateState();
+            logger.info("calculated state " + state);
+
             return state.isAnyOf(AllocationStatus.State.STARTED, AllocationStatus.State.FULLY_ALLOCATED);
         }
     }
@@ -113,6 +121,7 @@ public class ScalingInference {
         @Override
         public void onResponse(TrainedModelAssignment assignment) {
             // assignment is started, do inference
+            logger.info("empyting queue");
             var queued = queueRequests.remove(deploymentId);
             for (var request : queued) {
                 queuedConsumer.accept(request, assignment);
@@ -121,6 +130,7 @@ public class ScalingInference {
 
         @Override
         public void onFailure(Exception e) {
+            logger.info("failed waiting");
             var queued = queueRequests.remove(deploymentId);
             for (var request : queued) {
                 request.listener().onFailure(e);

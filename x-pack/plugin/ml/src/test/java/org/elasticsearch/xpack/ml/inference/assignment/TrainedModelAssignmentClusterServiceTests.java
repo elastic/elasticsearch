@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
@@ -2075,6 +2076,20 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             TrainedModelAssignmentMetadata.fromState(mutationFunction.apply(originalWithStoppingAllocations)),
             equalTo(metadataWithStopping)
         );
+    }
+
+    public void testHasUpdates() {
+        var assignment = TrainedModelAssignment.Builder.empty(newParams("foo", 10_000L, 1, 1), null).build();
+        assertFalse(TrainedModelAssignmentClusterService.hasUpdates(1, null, assignment));
+        assertTrue(TrainedModelAssignmentClusterService.hasUpdates(2, null, assignment));
+
+        var adaptiveAllocations = new AdaptiveAllocationsSettings(true, 1, 4);
+        assignment = TrainedModelAssignment.Builder.empty(newParams("foo", 10_000L, 1, 1), adaptiveAllocations).build();
+        assertFalse(TrainedModelAssignmentClusterService.hasUpdates(null, new AdaptiveAllocationsSettings(true, 1, 4), assignment));
+        assertTrue(TrainedModelAssignmentClusterService.hasUpdates(null, new AdaptiveAllocationsSettings(true, 0, 4), assignment));
+
+        assertFalse(TrainedModelAssignmentClusterService.hasUpdates(1, new AdaptiveAllocationsSettings(true, 1, 4), assignment));
+        assertTrue(TrainedModelAssignmentClusterService.hasUpdates(1, new AdaptiveAllocationsSettings(true, 0, 4), assignment));
     }
 
     private TrainedModelAssignmentClusterService createClusterService(int maxLazyNodes) {

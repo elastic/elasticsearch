@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -38,7 +40,10 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.xpack.ml.MachineLearning.ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -66,6 +71,10 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
         clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME))
+        );
         client = mock(Client.class);
         inferenceAuditor = mock(InferenceAuditor.class);
         meterRegistry = mock(MeterRegistry.class);
@@ -167,6 +176,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
         verify(clusterService).state();
         verify(clusterService).addListener(same(service));
+        verify(clusterService).getSettings();
+        verify(clusterService).getClusterSettings();
         verifyNoMoreInteractions(client, clusterService);
         reset(client, clusterService);
 

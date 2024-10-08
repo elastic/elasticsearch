@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -71,6 +72,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final TrainedModelProvider trainedModelProvider;
     private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
     private final ScalingInference scalingInference;
+    private final ThreadPool threadPool;
 
     TransportInternalInferModelAction(
         String actionName,
@@ -82,7 +84,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider,
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
-        TrainedModelAssignmentService assignmentService
+        TrainedModelAssignmentService assignmentService,
+        ThreadPool threadPool
     ) {
         super(actionName, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelLoadingService = modelLoadingService;
@@ -92,6 +95,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         this.trainedModelProvider = trainedModelProvider;
         this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
         this.scalingInference = new ScalingInference(assignmentService, this::inferOnBlockedRequest);
+        this.threadPool = threadPool;
     }
 
     @Inject
@@ -104,7 +108,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider,
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
-        TrainedModelAssignmentService assignmentService
+        TrainedModelAssignmentService assignmentService,
+        ThreadPool threadPool
     ) {
         this(
             InferModelAction.NAME,
@@ -116,7 +121,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             licenseState,
             trainedModelProvider,
             adaptiveAllocationsScalerService,
-            assignmentService
+            assignmentService,
+            threadPool
         );
     }
 
@@ -258,20 +264,20 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         // Get a list of nodes to send the requests to and the number of
         // documents for each node.
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments(), RoutingState.STARTED);
+        var nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(request.numberOfDocuments(), RoutingState.STARTED);
 
         // We couldn't find any nodes in the started state so let's look for ones that are stopping in case we're shutting down some nodes
         if (nodes.isEmpty()) {
-            nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments(), RoutingState.STOPPING);
+            nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(request.numberOfDocuments(), RoutingState.STOPPING);
         }
 
         if (nodes.isEmpty()) {
             String message = "Trained model deployment [" + request.getId() + "] is not allocated to any nodes";
             boolean starting = adaptiveAllocationsScalerService.maybeStartAllocation(assignment);
             if (starting) {
-                scalingInference.waitForAssignment(new ScalingInference.WaitingRequest(request, responseBuilder, parentTaskId, listener));
                 message += "; starting deployment of one allocation";
                 logger.info(message);
+                scalingInference.waitForAssignment(new ScalingInference.WaitingRequest(request, responseBuilder, parentTaskId, listener));
                 return;
             }
 
@@ -285,21 +291,24 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     private void inferOnBlockedRequest(ScalingInference.WaitingRequest request, TrainedModelAssignment assignment) {
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(
-            request.request().numberOfDocuments(),
-            RoutingState.STARTING
-        );
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
 
-        if (nodes.isEmpty()) {
-            request.listener()
-                .onFailure(
-                    new IllegalStateException(
-                        "[" + request.deploymentId() + "] error waiting for started allocations. The assignment has 0 started nodes"
-                    )
-                );
-        }
+            var nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(
+                request.request().numberOfDocuments(),
+                RoutingState.STARTED
+            );
 
-        inferOnAssignmentNodes(nodes, request.request(), request.responseBuilder(), request.parentTaskId(), request.listener());
+            if (nodes.isEmpty()) {
+                request.listener()
+                    .onFailure(
+                        new IllegalStateException(
+                            "[" + request.deploymentId() + "] error waiting for started allocations. The assignment has 0 started nodes"
+                        )
+                    );
+            }
+
+            inferOnAssignmentNodes(nodes, request.request(), request.responseBuilder(), request.parentTaskId(), request.listener());
+        });
     }
 
     private void inferOnAssignmentNodes(

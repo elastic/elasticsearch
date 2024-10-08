@@ -766,6 +766,18 @@ public class MachineLearning extends Plugin
      */
     public static final int MAX_LOW_PRIORITY_MODELS_PER_NODE = 100;
 
+    /**
+     * The time interval without any requests that has to pass, before scaling down
+     * to zero allocations.
+     */
+    public static final Setting<TimeValue> ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME = Setting.timeSetting(
+        "xpack.ml.adaptive_allocations_scale_to_zero",
+        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueSeconds(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MachineLearning.class);
 
@@ -825,7 +837,8 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             DUMMY_ENTITY_MEMORY,
-            DUMMY_ENTITY_PROCESSORS
+            DUMMY_ENTITY_PROCESSORS,
+            ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME
         );
     }
 

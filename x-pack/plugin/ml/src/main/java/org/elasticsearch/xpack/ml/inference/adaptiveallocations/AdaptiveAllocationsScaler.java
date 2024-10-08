@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.ml.inference.adaptiveallocations;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+
+import static org.elasticsearch.xpack.ml.MachineLearning.ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME;
 
 /**
  * Processes measured requests counts and inference times and decides whether
@@ -21,12 +24,6 @@ public class AdaptiveAllocationsScaler {
     // visible for testing
     static final double SCALE_UP_THRESHOLD = 0.9;
     private static final double SCALE_DOWN_THRESHOLD = 0.85;
-
-    /**
-     * The time interval without any requests that has to pass, before scaling down
-     * to zero allocations (in case min_allocations = 0).
-     */
-    private static final long SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS = TimeValue.timeValueMinutes(15).getSeconds();
 
     /**
      * If the max_number_of_allocations is not set, use this value for now to prevent scaling up
@@ -51,8 +48,9 @@ public class AdaptiveAllocationsScaler {
     private Double lastMeasuredRequestRate;
     private Double lastMeasuredInferenceTime;
     private Long lastMeasuredQueueSize;
+    private long scaleToZeroAfterNoRequestsSeconds;
 
-    AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations) {
+    AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations, long scaleToZeroAfterNoRequestsSeconds) {
         this.deploymentId = deploymentId;
         // A smoothing factor of 100 roughly means the last 100 measurements have an effect
         // on the estimated values. The sampling time is 10 seconds, so approximately the
@@ -73,11 +71,17 @@ public class AdaptiveAllocationsScaler {
         lastMeasuredRequestRate = null;
         lastMeasuredInferenceTime = null;
         lastMeasuredQueueSize = null;
+        this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
     }
 
     void setMinMaxNumberOfAllocations(Integer minNumberOfAllocations, Integer maxNumberOfAllocations) {
         this.minNumberOfAllocations = minNumberOfAllocations;
         this.maxNumberOfAllocations = maxNumberOfAllocations;
+    }
+
+    void setScaleToZeroPeriod(long inactivitySeconds) {
+        logger.info("setting scale to zero " + inactivitySeconds);
+        this.scaleToZeroAfterNoRequestsSeconds = inactivitySeconds;
     }
 
     void process(AdaptiveAllocationsScalerService.Stats stats, double timeIntervalSeconds, int numberOfAllocations) {
@@ -143,6 +147,10 @@ public class AdaptiveAllocationsScaler {
     }
 
     Integer scale() {
+
+        logger.info("[{}] checking scale.", deploymentId);
+        logger.info("[{}] to zero", scaleToZeroAfterNoRequestsSeconds);
+
         if (requestRateEstimator.hasValue() == false) {
             return null;
         }
@@ -170,9 +178,14 @@ public class AdaptiveAllocationsScaler {
         if (maxNumberOfAllocations != null) {
             numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
         }
+
         if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
-            && timeWithoutRequestsSeconds > SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS) {
-            logger.debug("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
+            && timeWithoutRequestsSeconds > scaleToZeroAfterNoRequestsSeconds) {
+
+            if (oldNumberOfAllocations != 0) {
+                // avoid logging this message if there is no change
+                logger.info("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
+            }
             numberOfAllocations = 0;
             neededNumberOfAllocations = 0;
         }

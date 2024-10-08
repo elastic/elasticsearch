@@ -87,10 +87,10 @@ public record RepositoriesMetrics(
      */
     public static final String METRIC_THROTTLES_HISTOGRAM = "es.repositories.throttles.histogram";
     /**
-     * Any operation that returns a response will record its request time. Operations that never receive a response
-     * from the blob store do not record a value. The time recorded is from before the first request is sent until
-     * after the last response is received (i.e. it includes any retries). Doesn't include the consumption of the
-     * body of the response.
+     * Every operation that is attempted will record a time. The value recorded here is the sum of the duration of
+     * each of the requests executed to try and complete the operation. The duration of each request is the time
+     * between sending the request and either a response being received, or the request failing. Does not include
+     * the consumption of the body of the response or any time spent pausing between retries.
      *
      * Exposed via {@link #httpRequestTimeInMillisHistogram()}
      */

@@ -87,6 +87,7 @@ import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -763,9 +764,10 @@ public class AzureBlobStore implements BlobStore {
                 repositoriesMetrics.throttleHistogram().record(requestMetrics.getThrottleCount(), attributes);
             }
 
-            // There will be no time to response recorded for requests with no response (e.g. cancelled etc.)
-            if (requestMetrics.getTimeToResponseInMillis() >= 0) {
-                repositoriesMetrics.httpRequestTimeInMillisHistogram().record(requestMetrics.getTimeToResponseInMillis(), attributes);
+            // We use nanosecond precision, so a zero value indicates that no requests were executed
+            if (requestMetrics.getTotalRequestTimeNanos() > 0) {
+                repositoriesMetrics.httpRequestTimeInMillisHistogram()
+                    .record(TimeUnit.NANOSECONDS.toMillis(requestMetrics.getTotalRequestTimeNanos()), attributes);
             }
         }
     }

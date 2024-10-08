@@ -55,7 +55,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     );
     private static final int MAX_RETRIES = 3;
 
-    private Queue<ErrorResponse> errorQueue = new ConcurrentLinkedQueue<>();
+    private final Queue<RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
@@ -63,7 +63,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         assert httpHandlers.size() == 1 : "This assumes there's a single handler";
         return httpHandlers.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new ErrorInjectingAzureHttpHandler(errorQueue, e.getValue())));
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new ResponseInjectingAzureHttpHandler(requestHandlers, e.getValue())));
     }
 
     /**
@@ -75,9 +75,9 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     }
 
     @After
-    public void checkErrorQueue() {
-        if (errorQueue.isEmpty() == false) {
-            fail("There were un-returned errors left in the queue, this is probably a broken test");
+    public void checkRequestHandlerQueue() {
+        if (requestHandlers.isEmpty() == false) {
+            fail("There were unused request handlers left in the queue, this is probably a broken test");
         }
     }
 
@@ -100,7 +100,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
 
         // Queue up some throttle responses
         final int numThrottles = randomIntBetween(1, MAX_RETRIES);
-        IntStream.range(0, numThrottles).forEach(i -> errorQueue.offer(new ErrorResponse(RestStatus.TOO_MANY_REQUESTS)));
+        IntStream.range(0, numThrottles).forEach(i -> requestHandlers.offer(new FixedRequestHandler(RestStatus.TOO_MANY_REQUESTS)));
 
         // Check that the blob exists
         blobContainer.blobExists(purpose, blobName);
@@ -125,7 +125,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         clearMetrics(dataNodeName);
 
         // Queue up a range-not-satisfied error
-        errorQueue.offer(new ErrorResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, null, GET_BLOB_REQUEST_PREDICATE));
+        requestHandlers.offer(new FixedRequestHandler(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, null, GET_BLOB_REQUEST_PREDICATE));
 
         // Attempt to read the blob
         assertThrows(RequestedRangeNotSatisfiedException.class, () -> blobContainer.readBlob(purpose, blobName));
@@ -157,7 +157,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             if (status == RestStatus.TOO_MANY_REQUESTS) {
                 throttles.incrementAndGet();
             }
-            errorQueue.offer(new ErrorResponse(status));
+            requestHandlers.offer(new FixedRequestHandler(status));
         });
 
         // Check that the blob exists
@@ -178,13 +178,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         clearMetrics(dataNodeName);
 
         // Repeatedly cause a connection error to exhaust retries
-        IntStream.range(0, MAX_RETRIES + 1).forEach(i -> errorQueue.offer(new ErrorResponse(RestStatus.OK) {
-            @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
-            @Override
-            public void writeResponse(HttpExchange exchange) {
-                exchange.close();
-            }
-        }));
+        IntStream.range(0, MAX_RETRIES + 1).forEach(i -> requestHandlers.offer((exchange, delegate) -> exchange.close()));
 
         // Hit the API
         OperationPurpose purpose = randomFrom(OperationPurpose.values());
@@ -209,14 +203,10 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         IntStream.range(0, randomIntBetween(1, MAX_RETRIES)).forEach(i -> {
             long thisDelay = randomLongBetween(10, 100);
             totalDelayMillis.addAndGet(thisDelay);
-            errorQueue.offer(new ErrorResponse(RestStatus.OK) {
-                @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
-                @Override
-                public void writeResponse(HttpExchange exchange) throws IOException {
-                    safeSleep(thisDelay);
-                    // return a retry-able error
-                    exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
-                }
+            requestHandlers.offer((exchange, delegate) -> {
+                safeSleep(thisDelay);
+                // return a retry-able error
+                exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             });
         });
 
@@ -348,15 +338,11 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
                 assertNoMetricRecorded(MetricType.LongCounter, RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL);
             }
 
-            if (result != Result.Exception) {
-                assertMatchingMetricRecorded(
-                    MetricType.LongHistogram,
-                    RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM,
-                    m -> assertThat("No request time metric found", m.getLong(), greaterThanOrEqualTo(0L))
-                );
-            } else {
-                assertNoMetricRecorded(MetricType.LongHistogram, RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM);
-            }
+            assertMatchingMetricRecorded(
+                MetricType.LongHistogram,
+                RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM,
+                m -> assertThat("No request time metric found", m.getLong(), greaterThanOrEqualTo(0L))
+            );
         }
 
         private void assertIntMetricRecorded(MetricType metricType, String metricName, int expectedValue) {
@@ -405,21 +391,21 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     }
 
     @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
-    private static class ErrorInjectingAzureHttpHandler implements DelegatingHttpHandler {
+    private static class ResponseInjectingAzureHttpHandler implements DelegatingHttpHandler {
 
         private final HttpHandler delegate;
-        private final Queue<ErrorResponse> errorResponseQueue;
+        private final Queue<RequestHandler> requestHandlerQueue;
 
-        ErrorInjectingAzureHttpHandler(Queue<ErrorResponse> errorResponseQueue, HttpHandler delegate) {
+        ResponseInjectingAzureHttpHandler(Queue<RequestHandler> requestHandlerQueue, HttpHandler delegate) {
             this.delegate = delegate;
-            this.errorResponseQueue = errorResponseQueue;
+            this.requestHandlerQueue = requestHandlerQueue;
         }
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            ErrorResponse nextError = errorResponseQueue.peek();
-            if (nextError != null && nextError.matchesRequest(exchange)) {
-                errorResponseQueue.poll().writeResponse(exchange);
+            RequestHandler nextHandler = requestHandlerQueue.peek();
+            if (nextHandler != null && nextHandler.matchesRequest(exchange)) {
+                requestHandlerQueue.poll().writeResponse(exchange, delegate);
             } else {
                 delegate.handle(exchange);
             }
@@ -432,36 +418,44 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     }
 
     @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
-    private static class ErrorResponse {
+    @FunctionalInterface
+    private interface RequestHandler {
+        void writeResponse(HttpExchange exchange, HttpHandler delegate) throws IOException;
+
+        default boolean matchesRequest(HttpExchange exchange) {
+            return true;
+        }
+    }
+
+    @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
+    private static class FixedRequestHandler implements RequestHandler {
 
         private final RestStatus status;
         private final String responseBody;
         private final Predicate<HttpExchange> requestMatcher;
 
-        ErrorResponse(RestStatus status) {
-            this(status, null);
-        }
-
-        ErrorResponse(RestStatus status, String responseBody) {
-            this(status, responseBody, req -> true);
+        FixedRequestHandler(RestStatus status) {
+            this(status, null, req -> true);
         }
 
         /**
-         * Create an error response that only gets returned for requests that match the supplied predicate. Note
+         * Create a handler that only gets executed for requests that match the supplied predicate. Note
          * that because the errors are stored in a queue this will prevent any subsequently queued errors from
          * being returned until after it returns.
          */
-        ErrorResponse(RestStatus status, String responseBody, Predicate<HttpExchange> requestMatcher) {
+        FixedRequestHandler(RestStatus status, String responseBody, Predicate<HttpExchange> requestMatcher) {
             this.status = status;
             this.responseBody = responseBody;
             this.requestMatcher = requestMatcher;
         }
 
+        @Override
         public boolean matchesRequest(HttpExchange exchange) {
             return requestMatcher.test(exchange);
         }
 
-        public void writeResponse(HttpExchange exchange) throws IOException {
+        @Override
+        public void writeResponse(HttpExchange exchange, HttpHandler delegateHandler) throws IOException {
             if (responseBody != null) {
                 byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(status.getStatus(), responseBytes.length);

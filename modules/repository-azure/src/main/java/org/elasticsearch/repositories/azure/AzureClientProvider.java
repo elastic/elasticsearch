@@ -266,7 +266,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     protected void doClose() {}
 
     static class RequestMetrics {
-        private volatile long timeToResponseInMillis = -1;
+        private volatile long totalRequestTimeNanos = 0;
         private volatile int requestCount;
         private volatile int errorCount;
         private volatile int throttleCount;
@@ -289,17 +289,17 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
 
         /**
-         * Time to response, or -1 if response was never received
+         * Total time spent executing requests to complete operation in nanoseconds
          */
-        long getTimeToResponseInMillis() {
-            return timeToResponseInMillis;
+        long getTotalRequestTimeNanos() {
+            return totalRequestTimeNanos;
         }
 
         @Override
         public String toString() {
             return "RequestMetrics{"
-                + "timeToResponseInMillis="
-                + timeToResponseInMillis
+                + "totalRequestTimeNanos="
+                + totalRequestTimeNanos
                 + ", requestCount="
                 + requestCount
                 + ", errorCount="
@@ -324,10 +324,13 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             }
             RequestMetrics metrics = (RequestMetrics) metricsData.get();
             metrics.requestCount++;
+            long requestStartTimeNanos = System.nanoTime();
             return next.process().doOnError(throwable -> {
+                metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
                 logger.debug("Detected error in RetryMetricsTracker", throwable);
                 metrics.errorCount++;
             }).doOnSuccess(response -> {
+                metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
                 if (RestStatus.isSuccessful(response.getStatusCode()) == false) {
                     metrics.errorCount++;
                     // Azure always throttles with a 429 response, see
@@ -359,11 +362,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
             final RequestMetrics requestMetrics = new RequestMetrics();
-            final long requestStartTimeInMillis = System.currentTimeMillis();
             context.setData(ES_REQUEST_METRICS_CONTEXT_KEY, requestMetrics);
             return next.process().doOnSuccess((httpResponse) -> {
                 requestMetrics.statusCode = httpResponse.getStatusCode();
-                requestMetrics.timeToResponseInMillis = System.currentTimeMillis() - requestStartTimeInMillis;
                 trackCompletedRequest(context.getHttpRequest(), requestMetrics);
             }).doOnError(throwable -> {
                 logger.debug("Detected error in RequestMetricsTracker", throwable);

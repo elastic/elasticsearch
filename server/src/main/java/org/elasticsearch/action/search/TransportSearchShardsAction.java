@@ -127,7 +127,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, null),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
-                final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
+                final Set<IndexNameExpressionResolver.ResolvedExpression> indicesAndAliases = indexNameExpressionResolver
+                    .resolveExpressions(clusterState, searchRequest.indices());
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
                     clusterState,
                     indicesAndAliases,

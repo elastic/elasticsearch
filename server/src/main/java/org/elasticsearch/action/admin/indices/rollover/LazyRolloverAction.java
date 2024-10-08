@@ -121,8 +121,8 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             Metadata metadata = clusterState.metadata();
             DataStream dataStream = metadata.dataStreams().get(rolloverRequest.getRolloverTarget());
             // Skip submitting the task if we detect that the lazy rollover has been already executed.
-            if (isLazyRolloverNeeded(dataStream, rolloverRequest.targetsFailureStore()) == false) {
-                DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
+            if (isLazyRolloverNeeded(dataStream, false)) {
+                DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(false);
                 listener.onResponse(noopLazyRolloverResponse(targetIndices));
                 return;
             }
@@ -132,7 +132,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                rolloverRequest.targetsFailureStore()
+                false
             );
             final String trialSourceIndexName = trialRolloverNames.sourceName();
             final String trialRolloverIndexName = trialRolloverNames.rolloverName();
@@ -227,8 +227,8 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             final DataStream dataStream = currentState.metadata().dataStreams().get(rolloverRequest.getRolloverTarget());
             assert dataStream != null;
 
-            if (isLazyRolloverNeeded(dataStream, rolloverRequest.targetsFailureStore()) == false) {
-                final DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
+            if (isLazyRolloverNeeded(dataStream, false)) {
+                final DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(false);
                 var noopResponse = noopLazyRolloverResponse(targetIndices);
                 notifyAllListeners(rolloverTaskContexts, context -> context.getTask().listener.onResponse(noopResponse));
                 return currentState;
@@ -246,7 +246,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 false,
                 null,
                 null,
-                rolloverRequest.targetsFailureStore()
+                false
             );
             results.add(rolloverResult);
             logger.trace("lazy rollover result [{}]", rolloverResult);

@@ -10,8 +10,8 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
-import org.elasticsearch.action.support.IndicesOptions.FailureStoreOptions;
 import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
+import org.elasticsearch.action.support.IndicesOptions.SelectorOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,8 +58,9 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowAliasToMultipleIndices(randomBoolean())
                         .allowClosedIndices(randomBoolean())
                 )
-                .failureStoreOptions(
-                    FailureStoreOptions.builder().includeRegularIndices(randomBoolean()).includeFailureIndices(randomBoolean())
+                .selectorOptions(
+                    SelectorOptions.builder()
+                        .setDefaultSelectors(EnumSet.copyOf(randomNonEmptySubsetOf(EnumSet.allOf(IndexComponentSelector.class))))
                 )
                 .build();
 
@@ -345,9 +347,11 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        FailureStoreOptions failureStoreOptions = new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean());
+        SelectorOptions selectorOptions = new SelectorOptions(
+            EnumSet.copyOf(randomSubsetOf(EnumSet.allOf(IndexComponentSelector.class)))
+        );
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, failureStoreOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -362,7 +366,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
-        assertThat(map.get("failure_store"), equalTo(failureStoreOptions.displayValue()));
     }
 
     public void testFromXContent() throws IOException {

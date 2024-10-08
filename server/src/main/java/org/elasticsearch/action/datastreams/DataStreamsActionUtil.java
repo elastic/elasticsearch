@@ -9,11 +9,13 @@
 
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.index.Index;
 
 import java.util.List;
@@ -53,15 +55,22 @@ public class DataStreamsActionUtil {
         String[] names,
         IndicesOptions indicesOptions
     ) {
-        List<String> abstractionNames = getDataStreamNames(indexNameExpressionResolver, clusterState, names, indicesOptions);
+        List<ResolvedExpression> abstractionNames = indexNameExpressionResolver.dataStreams(
+            clusterState,
+            updateIndicesOptions(indicesOptions),
+            names
+        );
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
         return abstractionNames.stream().flatMap(abstractionName -> {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName.resource());
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
-                List<Index> indices = dataStream.getIndices();
+                DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(
+                    IndexComponentSelector.FAILURES.equals(abstractionName.selector())
+                );
+                List<Index> indices = dataStreamIndices.getIndices();
                 return indices.stream().map(Index::getName);
             } else {
                 return Stream.empty();

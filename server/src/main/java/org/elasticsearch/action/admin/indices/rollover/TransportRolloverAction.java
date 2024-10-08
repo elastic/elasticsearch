@@ -150,7 +150,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .matchClosed(request.indicesOptions().expandWildcardsClosed())
                 .build(),
             IndicesOptions.GatekeeperOptions.DEFAULT,
-            request.indicesOptions().failureStoreOptions()
+            IndicesOptions.SelectorOptions.DEFAULT
         );
 
         return state.blocks()
@@ -171,7 +171,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         assert task instanceof CancellableTask;
         Metadata metadata = clusterState.metadata();
         // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would* be.
-        boolean targetFailureStore = rolloverRequest.targetsFailureStore();
+        boolean targetFailureStore = false;
         final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
             clusterState,
             rolloverRequest.getRolloverTarget(),
@@ -247,7 +247,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
             IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
             IndicesOptions.GatekeeperOptions.DEFAULT,
-            rolloverRequest.indicesOptions().failureStoreOptions()
+            IndicesOptions.SelectorOptions.DEFAULT
         );
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
@@ -499,7 +499,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                rolloverRequest.targetsFailureStore()
+                false
             );
 
             // Re-evaluate the conditions, now with our final source index name
@@ -550,7 +550,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     sourceIndexStats,
                     rolloverTask.autoShardingResult(),
-                    rolloverRequest.targetsFailureStore()
+                    false
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
@@ -147,14 +146,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var failureStoreOptions = indicesOptions.failureStoreOptions();
-        if (failureStoreOptions.includeRegularIndices() && failureStoreOptions.includeFailureIndices()) {
-            validationException = addValidationError(
-                "rollover cannot be applied to both regular and failure indices at the same time",
-                validationException
-            );
-        }
-
         return validationException;
     }
 
@@ -182,13 +173,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
-    }
-
-    /**
-     * @return true of the rollover request targets the failure store, false otherwise.
-     */
-    public boolean targetsFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.failureStoreOptions().includeFailureIndices();
     }
 
     public void setIndicesOptions(IndicesOptions indicesOptions) {

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -210,11 +209,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         try (RefCountingRunnable refs = new RefCountingRunnable(runnable)) {
             for (String dataStream : failureStoresToBeRolledOver) {
                 RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
-                rolloverRequest.setIndicesOptions(
-                    IndicesOptions.builder(rolloverRequest.indicesOptions())
-                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
-                        .build()
-                );
                 // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
                 // unconditional and performant rollover.
                 rolloverClient.execute(LazyRolloverAction.INSTANCE, rolloverRequest, ActionListener.releaseAfter(new ActionListener<>() {

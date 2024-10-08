@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -360,7 +361,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             final AzureBlobStore blobStore = (AzureBlobStore) blobStoreRepository.blobStore();
-            final Map<AzureBlobStore.StatsKey, AzureBlobStore.OperationMetrics> statsCollectors = blobStore.getStatsCollectors().collectors;
+            final Map<AzureBlobStore.StatsKey, LongAdder> statsCollectors = blobStore.getMetricsRecorder().opsCounters;
 
             final List<Measurement> metrics = Measurement.combine(
                 getTelemetryPlugin(nodeName).getLongCounterMeasurement(METRIC_REQUESTS_TOTAL)
@@ -385,11 +386,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                     OperationPurpose.parse((String) metric.attributes().get("purpose"))
                 );
                 assertThat(nodeName + "/" + statsKey + " exists", statsCollectors, hasKey(statsKey));
-                assertThat(
-                    nodeName + "/" + statsKey + " has correct sum",
-                    metric.getLong(),
-                    equalTo(statsCollectors.get(statsKey).counter.sum())
-                );
+                assertThat(nodeName + "/" + statsKey + " has correct sum", metric.getLong(), equalTo(statsCollectors.get(statsKey).sum()));
                 aggregatedMetrics.compute(statsKey.operation(), (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });
         }

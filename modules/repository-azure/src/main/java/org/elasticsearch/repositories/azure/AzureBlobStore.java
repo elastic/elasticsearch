@@ -103,7 +103,6 @@ public class AzureBlobStore implements BlobStore {
 
     private final AzureStorageService service;
     private final BigArrays bigArrays;
-    private final RepositoriesMetrics repositoriesMetrics;
     private final RepositoryMetadata repositoryMetadata;
 
     private final String clientName;
@@ -111,7 +110,7 @@ public class AzureBlobStore implements BlobStore {
     private final LocationMode locationMode;
     private final ByteSizeValue maxSinglePartUploadSize;
 
-    private final StatsCollectors statsCollectors = new StatsCollectors();
+    private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
 
     public AzureBlobStore(
@@ -124,7 +123,7 @@ public class AzureBlobStore implements BlobStore {
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
         this.bigArrays = bigArrays;
-        this.repositoriesMetrics = repositoriesMetrics;
+        this.requestMetricsRecorder = new RequestMetricsRecorder(repositoriesMetrics);
         this.repositoryMetadata = metadata;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
@@ -165,7 +164,7 @@ public class AzureBlobStore implements BlobStore {
 
             for (RequestMatcher requestMatcher : requestMatchers) {
                 if (requestMatcher.matches(method, url)) {
-                    statsCollectors.onRequestComplete(requestMatcher.operation, purpose, metrics);
+                    requestMetricsRecorder.onRequestComplete(requestMatcher.operation, purpose, metrics);
                     return;
                 }
             }
@@ -666,7 +665,7 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        return statsCollectors.statsMap(service.isStateless());
+        return requestMetricsRecorder.statsMap(service.isStateless());
     }
 
     // visible for testing
@@ -707,20 +706,26 @@ public class AzureBlobStore implements BlobStore {
     }
 
     // visible for testing
-    class StatsCollectors {
-        final Map<StatsKey, OperationMetrics> collectors = new ConcurrentHashMap<>();
+    class RequestMetricsRecorder {
+        private final RepositoriesMetrics repositoriesMetrics;
+        final Map<StatsKey, LongAdder> opsCounters = new ConcurrentHashMap<>();
+        final Map<StatsKey, Map<String, Object>> opsAttributes = new ConcurrentHashMap<>();
+
+        RequestMetricsRecorder(RepositoriesMetrics repositoriesMetrics) {
+            this.repositoriesMetrics = repositoriesMetrics;
+        }
 
         Map<String, Long> statsMap(boolean stateless) {
             if (stateless) {
-                return collectors.entrySet()
+                return opsCounters.entrySet()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().count()));
+                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().sum()));
             } else {
                 Map<String, Long> normalisedStats = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, o -> 0L));
-                collectors.forEach(
+                opsCounters.forEach(
                     (key, value) -> normalisedStats.compute(
                         key.operation.getKey(),
-                        (k, current) -> Objects.requireNonNull(current) + value.count()
+                        (k, current) -> Objects.requireNonNull(current) + value.sum()
                     )
                 );
                 return Map.copyOf(normalisedStats);
@@ -728,23 +733,13 @@ public class AzureBlobStore implements BlobStore {
         }
 
         public void onRequestComplete(Operation operation, OperationPurpose purpose, AzureClientProvider.RequestMetrics requestMetrics) {
-            collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new OperationMetrics(operation, purpose))
-                .onRequestComplete(requestMetrics);
-        }
-    }
+            final StatsKey statsKey = new StatsKey(operation, purpose);
+            final LongAdder counter = opsCounters.computeIfAbsent(statsKey, k -> new LongAdder());
+            final Map<String, Object> attributes = opsAttributes.computeIfAbsent(
+                statsKey,
+                k -> RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey())
+            );
 
-    // visible for testing
-    class OperationMetrics {
-
-        final LongAdder counter;
-        final Map<String, Object> attributes;
-
-        private OperationMetrics(Operation operation, OperationPurpose purpose) {
-            this.counter = new LongAdder();
-            this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
-        }
-
-        public void onRequestComplete(AzureClientProvider.RequestMetrics requestMetrics) {
             counter.add(requestMetrics.getRequestCount());
 
             // range not satisfied is not retried, so we count them by checking the final response
@@ -773,15 +768,11 @@ public class AzureBlobStore implements BlobStore {
                 repositoriesMetrics.httpRequestTimeInMillisHistogram().record(requestMetrics.getTimeToResponseInMillis(), attributes);
             }
         }
-
-        public long count() {
-            return counter.sum();
-        }
     }
 
     // visible for testing
-    StatsCollectors getStatsCollectors() {
-        return statsCollectors;
+    RequestMetricsRecorder getMetricsRecorder() {
+        return requestMetricsRecorder;
     }
 
     private static class AzureInputStream extends InputStream {

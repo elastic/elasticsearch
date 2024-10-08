@@ -5,6 +5,7 @@
     ":disableDependencyDashboard"
   ],
   "labels": [">non-issue", ":Delivery/Packaging", "Team:Delivery"],
+  "baseBranches": ["main", "8.x"],
   "packageRules": [
     {
       "groupName": "wolfi (versioned)",

@@ -695,6 +695,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return this.version;
     }
 
+    /**
+     * @return A UUID which identifies this cluster. Nodes record the UUID of the cluster they first join on disk, and will then refuse to
+     * join clusters with different UUIDs. Note that when the cluster is forming for the first time this value may not yet be committed,
+     * and therefore it may change. Check {@link #clusterUUIDCommitted()} to verify that the value is committed if needed.
+     */
     public String clusterUUID() {
         return this.clusterUUID;
     }

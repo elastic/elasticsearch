@@ -216,6 +216,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
                 SearchResponse.Clusters.EMPTY,
+                null,
                 null
             ) {
                 @Override
@@ -376,6 +377,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY,
+            null,
             null
         );
 
@@ -517,6 +519,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY,
+            null,
             null
         ) {
             @Override
@@ -668,6 +671,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY,
+            null,
             null
         ) {
             @Override

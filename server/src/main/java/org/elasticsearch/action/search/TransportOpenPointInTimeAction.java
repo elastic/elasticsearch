@@ -242,7 +242,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 task,
                 new ArraySearchPhaseResults<>(shardIterators.size()),
                 searchRequest.getMaxConcurrentShardRequests(),
-                clusters
+                clusters,
+                null
             ) {
                 @Override
                 protected String missingShardsErrorMessage(StringBuilder missingShards) {

@@ -41,6 +41,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
@@ -75,6 +76,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
     private final SearchRequest request;
+    private final SearchCoordinatorProfiler profiler;
 
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
@@ -124,7 +126,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchCoordinatorProfiler profiler
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -177,6 +180,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // at the end of the search
         addReleasable(resultConsumer);
         this.clusters = clusters;
+        this.profiler = profiler;
     }
 
     protected void notifyListShards(
@@ -668,6 +672,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             return false;
         }
+    }
+
+    @Override
+    public SearchCoordinatorProfiler profiler() {
+        return profiler;
     }
 
     private SearchResponse buildSearchResponse(

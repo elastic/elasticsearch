@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;

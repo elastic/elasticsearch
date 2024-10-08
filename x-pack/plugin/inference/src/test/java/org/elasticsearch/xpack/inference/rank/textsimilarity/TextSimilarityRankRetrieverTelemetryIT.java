@@ -17,7 +17,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -142,15 +141,12 @@ public class TextSimilarityRankRetrieverTelemetryIT extends ESIntegTestCase {
             SearchSourceBuilder source = new SearchSourceBuilder();
             source.retriever(
                 new TextSimilarityRankRetrieverBuilder(
-                    List.of(
-                        new CompoundRetrieverBuilder.RetrieverSource(
-                            new StandardRetrieverBuilder(QueryBuilders.matchQuery("text", "foo")),
-                            null
-                        )
-                    )
-                ),
-                10,
-                10
+                    new StandardRetrieverBuilder(QueryBuilders.matchQuery("text", "foo")),
+                    "some_inference_id",
+                    "some_inference_text",
+                    "some_field",
+                    10
+                )
             );
             request.setJsonEntity(Strings.toString(source));
             getRestClient().performRequest(request);

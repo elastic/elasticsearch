@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
@@ -264,5 +265,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
+    }
+
+    @Override
+    protected  boolean supportsInferenceTestService() {
+        return Version.fromString(System.getProperty("tests.old_cluster_version")).onOrAfter("9.0.0") &&
+            Version.CURRENT.onOrAfter("9.0.0");
     }
 }

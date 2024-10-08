@@ -280,7 +280,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Does the cluster on the other side of {@code client} support the set
      * of capabilities for specified path and method.
      */
-    public static Optional<Boolean> clusterHasCapability(
+    protected static Optional<Boolean> clusterHasCapability(
         RestClient client,
         String method,
         String path,

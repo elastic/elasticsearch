@@ -796,14 +796,6 @@ public class Security extends Plugin
                 SecurityMigrations.MIGRATIONS_BY_VERSION
             )
         );
-        this.roleMappingCleanupExecutor.set(
-            new RoleMappingCleanupExecutor(
-                clusterService,
-                RoleMappingCleanupTaskParams.TASK_NAME,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                client
-            )
-        );
         this.persistentTasksService.set(persistentTasksService);
 
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
@@ -863,6 +855,15 @@ public class Security extends Plugin
             client,
             systemIndices.getMainIndexManager(),
             scriptService
+        );
+        this.roleMappingCleanupExecutor.set(
+            new RoleMappingCleanupExecutor(
+                clusterService,
+                RoleMappingCleanupTaskParams.TASK_NAME,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                nativeRoleMappingStore,
+                systemIndices.getMainIndexManager()
+            )
         );
         final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
         final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);

@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
+import static org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata.ROLE_MAPPING_METADATA_VERSION;
 
 /**
  * This Action is the reserved state save version of RestPutRoleMappingAction/RestDeleteRoleMappingAction
@@ -59,14 +60,12 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     public TransformState transform(Object source, TransformState prevState) throws Exception {
         @SuppressWarnings("unchecked")
         Set<ExpressionRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
-        RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings);
+        RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings, ROLE_MAPPING_METADATA_VERSION);
         RoleMappingMetadata currentRoleMappingMetadata = RoleMappingMetadata.getFromClusterState(prevState.state());
-        int version = currentRoleMappingMetadata.getVersion();
-        logger.info("Checking role mappings version!");
-        if (version == 0) {
+
+        if (currentRoleMappingMetadata.getVersion() < ROLE_MAPPING_METADATA_VERSION) {
             submitCleanupTask();
         }
-        // TODO INC VERSION AND REWRITE IN NEW FORMAT
         if (newRoleMappingMetadata.equals(currentRoleMappingMetadata)) {
             return prevState;
         } else {

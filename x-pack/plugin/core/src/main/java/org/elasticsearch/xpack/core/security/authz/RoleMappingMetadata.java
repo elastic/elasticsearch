@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,16 +33,21 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "role_mappings";
+    public static int ROLE_MAPPING_METADATA_VERSION = 1;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RoleMappingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         // serialization tests rely on the order of the ExpressionRoleMapping
-        args -> new RoleMappingMetadata(new LinkedHashSet<>((Collection<ExpressionRoleMapping>) args[0]))
+        args -> new RoleMappingMetadata(
+            new LinkedHashSet<>((Collection<ExpressionRoleMapping>) args[0]),
+            args[1] == null ? 0 : (int) args[1]
+        )
     );
 
     static {
@@ -53,12 +57,12 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
             (p, c) -> ExpressionRoleMapping.parse("name_not_available_after_deserialization", p),
             new ParseField(TYPE)
         );
+        PARSER.declareIntOrNull(optionalConstructorArg(), 0, new ParseField("version"));
     }
 
-    private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
+    private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of(), 0);
 
     public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         return clusterState.metadata().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
@@ -66,8 +70,8 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     private final int version;
 
-    public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings) {
-        this.version = 0;
+    public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings, int version) {
+        this.version = version;
         this.roleMappings = roleMappings;
     }
 
@@ -108,7 +112,6 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
         return roleMappingMetadata;
     }
 
-    // TODO Implement rewrite of this to cluster state!
     public int getVersion() {
         return this.version;
     }
@@ -133,17 +136,17 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final var other = (RoleMappingMetadata) o;
-        return Objects.equals(roleMappings, other.roleMappings);
+        return version == other.version && Objects.equals(roleMappings, other.roleMappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(roleMappings);
+        return Objects.hash(roleMappings, version);
     }
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder("RoleMapping[entries=[");
+        StringBuilder builder = new StringBuilder("RoleMapping[version=[" + version + "],entries=[");
         final Iterator<ExpressionRoleMapping> entryList = roleMappings.iterator();
         boolean firstEntry = true;
         while (entryList.hasNext()) {

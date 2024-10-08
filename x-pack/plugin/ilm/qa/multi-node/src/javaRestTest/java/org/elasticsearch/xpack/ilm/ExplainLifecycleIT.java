@@ -34,6 +34,8 @@ import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
@@ -305,16 +307,23 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         indexRequest.setJsonEntity("{\"test\":\"value\"}");
         assertOK(client().performRequest(indexRequest));
 
-        assertBusy(() -> {
-            Map<String, Object> explainIndex = explainIndex(client(), indexName);
-            assertThat(explainIndex.get("failed_step_retry_count"), notNullValue());
-            assertThat(explainIndex.get("previous_step_info"), notNullValue());
-            assertThat((int) explainIndex.get("failed_step_retry_count"), greaterThan(0));
-            assertThat(
-                explainIndex.get("previous_step_info").toString(),
-                containsString("rollover_alias [" + aliasName + "] does not point to index [" + indexName + "]")
-            );
-        });
+        AtomicReference<Map<String, Object>> explainIndexRef = new AtomicReference<>();
+        try {
+            assertBusy(() -> {
+                Map<String, Object> explainIndex = explainIndex(client(), indexName);
+                explainIndexRef.set(explainIndex);
+                assertThat(explainIndex.get("failed_step_retry_count"), notNullValue());
+                assertThat(explainIndex.get("previous_step_info"), notNullValue());
+                assertThat((int) explainIndex.get("failed_step_retry_count"), greaterThan(0));
+                assertThat(
+                    explainIndex.get("previous_step_info").toString(),
+                    containsString("rollover_alias [" + aliasName + "] does not point to index [" + indexName + "]")
+                );
+            }, 30, TimeUnit.SECONDS);
+        } catch (AssertionError e) {
+            System.err.println("Assertion failed with response: " + explainIndexRef.get());
+            throw e;
+        }
     }
 
     private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {

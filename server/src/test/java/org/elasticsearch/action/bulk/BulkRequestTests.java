@@ -25,6 +25,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -425,13 +426,11 @@ public class BulkRequestTests extends ESTestCase {
             { "index":{"_index":"test","_id":"1"}\s
             { "field1" : "value1" }
             """;
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted"
-                + " but will be rejected in a future version."
-        );
+        var e = expectThrows(XContentParseException.class, () -> {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        });
+        assertEquals("[1:39] A bulk action wasn't closed properly with the closing brace", e.getMessage());
     }
 
     public void testBulkActionWithAdditionalKeys() throws Exception {
@@ -439,13 +438,11 @@ public class BulkRequestTests extends ESTestCase {
             { "index":{"_index":"test","_id":"1"}, "a":"b"}\s
             { "field1" : "value1" }
             """;
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "A bulk action object contained multiple keys. Additional keys are currently ignored but will be "
-                + "rejected in a future version."
-        );
+        var e = expectThrows(XContentParseException.class, () -> {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        });
+        assertEquals("A bulk action object contained multiple keys", e.getMessage());
     }
 
     public void testBulkActionWithTrailingData() throws Exception {
@@ -453,13 +450,11 @@ public class BulkRequestTests extends ESTestCase {
             { "index":{"_index":"test","_id":"1"} } {"a":"b"}\s
             { "field1" : "value1" }
             """;
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "A bulk action contained trailing data after the closing brace. This is currently ignored "
-                + "but will be rejected in a future version."
-        );
+        var e = expectThrows(XContentParseException.class, () -> {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        });
+        assertEquals("A bulk action contained trailing data after the closing brace", e.getMessage());
     }
 
     public void testUnsupportedAction() {

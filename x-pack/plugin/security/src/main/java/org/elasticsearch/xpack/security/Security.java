@@ -2361,7 +2361,7 @@ public class Security extends Plugin
         if (this.securityMigrationExecutor.get() != null) {
             executors.add(this.securityMigrationExecutor.get());
         }
-        if (this.securityMigrationExecutor.get() != null) {
+        if (this.roleMappingCleanupExecutor.get() != null) {
             executors.add(this.roleMappingCleanupExecutor.get());
         }
 

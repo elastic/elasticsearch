@@ -41,7 +41,7 @@ public class RoleMappingCleanupTaskParams implements PersistentTaskParams {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ADD_METADATA_FLATTENED_TO_ROLES;
+        return TransportVersions.ADD_ROLE_MAPPING_CLEANUP_TASK;
     }
 
     @Override

@@ -59,9 +59,9 @@ public class RoleMappingCleanupExecutor extends PersistentTasksExecutor<RoleMapp
     protected void nodeOperation(AllocatedPersistentTask task, RoleMappingCleanupTaskParams params, PersistentTaskState state) {
         currentTask = task;
         if (securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS) == false) {
-            logger.info("Security index not available, waiting...");
+            logger.trace("Security index not available for role mapping cleanup, waiting...");
             securityIndexManager.addStateListener(this);
-        } else {
+        } else if (cleanupInProgress.compareAndSet(false, true)) {
             doCleanup();
         }
     }
@@ -70,20 +70,19 @@ public class RoleMappingCleanupExecutor extends PersistentTasksExecutor<RoleMapp
         getRoleMappingBothInClusterStateAndIndex(
             clusterService.state(),
             ActionListener.wrap(roleMappings -> disableRoleMappings(roleMappings, ActionListener.wrap(response -> {
-                markAsCompleted();
+                markAsCompleted(roleMappings);
             }, this::markAsFailed)), this::markAsFailed)
         );
     }
 
-    private void markAsCompleted() {
+    private void markAsCompleted(List<ExpressionRoleMapping> roleMappings) {
         currentTask.markAsCompleted();
-        logger.info("Successfully cleaned up role mappings");
+        logger.info("Successfully cleaned up [" + roleMappings.size() + "] stale role mappings");
         cleanupInProgress.set(false);
     }
 
     private void markAsFailed(Exception exception) {
         currentTask.markAsFailed(exception);
-        logger.warn("Role mapping clean up failed: " + exception);
         cleanupInProgress.set(false);
     }
 

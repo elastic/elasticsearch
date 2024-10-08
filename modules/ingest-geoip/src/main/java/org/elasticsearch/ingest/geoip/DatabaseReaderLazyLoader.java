@@ -87,7 +87,7 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
 
     @Override
     public void close() throws IOException {
-        if (currentUsages.updateAndGet(current -> current >= 0 ? current - 1 : current) == -1) {
+        if (currentUsages.updateAndGet(current -> current > 0 ? current - 1 : current + 1) == -1) {
             doShutdown();
         }
     }

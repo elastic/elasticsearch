@@ -59,7 +59,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
             }
             """;
         indicesAdmin().create(new CreateIndexRequest(indexName).mapping(mapping)).actionGet();
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -90,7 +90,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testMappingValidationIndexExistsWithComponentTemplate() throws IOException {
+    public void testMappingValidationIndexExistsTemplateSubstitutions() throws IOException {
         /*
          * This test simulates a BulkRequest of two documents into an existing index. Then we make sure the index contains no documents, and
          * that the index's mapping in the cluster state has not been updated with the two new field. With the mapping from the template
@@ -122,16 +122,19 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
             .indexPatterns(List.of("my-index-*"))
             .componentTemplates(List.of("test-component-template"))
             .build();
-        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("test");
+        final String indexTemplateName = "test-index-template";
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
+            indexTemplateName
+        );
         request.indexTemplate(composableIndexTemplate);
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
 
         String indexName = "my-index-1";
         // First, run before the index is created:
-        assertMappingsUpdatedFromComponentTemplateSubstitutions(indexName);
+        assertMappingsUpdatedFromComponentTemplateSubstitutions(indexName, indexTemplateName);
         // Now, create the index and make sure the component template substitutions work the same:
         indicesAdmin().create(new CreateIndexRequest(indexName)).actionGet();
-        assertMappingsUpdatedFromComponentTemplateSubstitutions(indexName);
+        assertMappingsUpdatedFromComponentTemplateSubstitutions(indexName, indexTemplateName);
         // Now make sure nothing was actually changed:
         indicesAdmin().refresh(new RefreshRequest(indexName)).actionGet();
         SearchResponse searchResponse = client().search(new SearchRequest(indexName)).actionGet();
@@ -143,7 +146,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(fields.size(), equalTo(1));
     }
 
-    private void assertMappingsUpdatedFromComponentTemplateSubstitutions(String indexName) {
+    private void assertMappingsUpdatedFromComponentTemplateSubstitutions(String indexName, String indexTemplateName) {
         IndexRequest indexRequest1 = new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -156,7 +159,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
             """, XContentType.JSON).id(randomUUID());
         {
             // First we use the original component template, and expect a failure in the second document:
-            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);
             BulkResponse response = client().execute(new ActionType<BulkResponse>(SimulateBulkAction.NAME), bulkRequest).actionGet();
@@ -188,7 +191,42 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
                             )
                         )
                     )
-                )
+                ),
+                Map.of()
+            );
+            bulkRequest.add(indexRequest1);
+            bulkRequest.add(indexRequest2);
+            BulkResponse response = client().execute(new ActionType<BulkResponse>(SimulateBulkAction.NAME), bulkRequest).actionGet();
+            assertThat(response.getItems().length, equalTo(2));
+            assertThat(response.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertNull(((SimulateIndexResponse) response.getItems()[0].getResponse()).getException());
+            assertThat(response.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertNull(((SimulateIndexResponse) response.getItems()[1].getResponse()).getException());
+        }
+
+        {
+            /*
+             * Now we substitute a "test-component-template-2" that defines both fields, and an index template that pulls it in, so we
+             * expect no exception:
+             */
+            BulkRequest bulkRequest = new SimulateBulkRequest(
+                Map.of(),
+                Map.of(
+                    "test-component-template-2",
+                    Map.of(
+                        "template",
+                        Map.of(
+                            "mappings",
+                            Map.of(
+                                "dynamic",
+                                "strict",
+                                "properties",
+                                Map.of("foo1", Map.of("type", "text"), "foo3", Map.of("type", "text"))
+                            )
+                        )
+                    )
+                ),
+                Map.of(indexTemplateName, Map.of("index_patterns", List.of(indexName), "composed_of", List.of("test-component-template-2")))
             );
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);
@@ -207,7 +245,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
          * mapping-less "random-index-template" created by the parent class), so we expect no mapping validation failure.
          */
         String indexName = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -254,7 +292,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         request.indexTemplate(composableIndexTemplate);
 
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -286,7 +324,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         indicesAdmin().putTemplate(
             new PutIndexTemplateRequest("test-template").patterns(List.of("my-index-*")).mapping("foo1", "type=integer")
         ).actionGet();
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -340,7 +378,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
         {
             // First, try with no @timestamp to make sure we're picking up data-stream-specific templates
-            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
             bulkRequest.add(new IndexRequest(indexName).source("""
                 {
                   "foo1": "baz"
@@ -366,7 +404,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         }
         {
             // Now with @timestamp
-            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
             bulkRequest.add(new IndexRequest(indexName).source("""
                 {
                   "@timestamp": "2024-08-27",

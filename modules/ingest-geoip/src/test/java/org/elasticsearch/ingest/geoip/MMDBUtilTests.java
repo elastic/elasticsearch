@@ -15,8 +15,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.hamcrest.Matchers.endsWith;
@@ -26,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 public class MMDBUtilTests extends ESTestCase {
 
     // a temporary directory that mmdb files can be copied to and read from
-    Path tmpDir;
+    private Path tmpDir;
 
     @Before
     public void setup() {
@@ -65,5 +67,55 @@ public class MMDBUtilTests extends ESTestCase {
 
         // it was once the case that we couldn't process an mmdb that was smaller than 512 bytes
         assertThat(Files.size(database), is(444L)); // 444 is <512
+    }
+
+    public void testIsGzip() throws IOException {
+        Path database = tmpDir.resolve("GeoLite2-City.mmdb");
+        copyDatabase("GeoLite2-City-Test.mmdb", database);
+
+        Path gzipDatabase = tmpDir.resolve("GeoLite2-City.mmdb.gz");
+
+        // gzip the test mmdb
+        try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(gzipDatabase))) {
+            Files.copy(database, out);
+        }
+
+        assertThat(MMDBUtil.isGzip(database), is(false));
+        assertThat(MMDBUtil.isGzip(gzipDatabase), is(true));
+    }
+
+    public void testDatabaseTypeParsing() throws IOException {
+        // this test is a little bit overloaded -- it's testing that we're getting the expected sorts of
+        // database_type strings from these files, *and* it's also testing that we dispatch on those strings
+        // correctly and associated those files with the correct high-level Elasticsearch Database type.
+        // down the road it would probably make sense to split these out and find a better home for some of the
+        // logic, but for now it's probably more valuable to have the test *somewhere* than to get especially
+        // pedantic about where precisely it should be.
+
+        copyDatabase("GeoLite2-City-Test.mmdb", tmpDir);
+        copyDatabase("GeoLite2-Country-Test.mmdb", tmpDir);
+        copyDatabase("GeoLite2-ASN-Test.mmdb", tmpDir);
+        copyDatabase("GeoIP2-Anonymous-IP-Test.mmdb", tmpDir);
+        copyDatabase("GeoIP2-City-Test.mmdb", tmpDir);
+        copyDatabase("GeoIP2-Country-Test.mmdb", tmpDir);
+        copyDatabase("GeoIP2-Connection-Type-Test.mmdb", tmpDir);
+        copyDatabase("GeoIP2-Domain-Test.mmdb", tmpDir);
+        copyDatabase("GeoIP2-Enterprise-Test.mmdb", tmpDir);
+        copyDatabase("GeoIP2-ISP-Test.mmdb", tmpDir);
+
+        assertThat(parseDatabaseFromType("GeoLite2-City-Test.mmdb"), is(Database.City));
+        assertThat(parseDatabaseFromType("GeoLite2-Country-Test.mmdb"), is(Database.Country));
+        assertThat(parseDatabaseFromType("GeoLite2-ASN-Test.mmdb"), is(Database.Asn));
+        assertThat(parseDatabaseFromType("GeoIP2-Anonymous-IP-Test.mmdb"), is(Database.AnonymousIp));
+        assertThat(parseDatabaseFromType("GeoIP2-City-Test.mmdb"), is(Database.City));
+        assertThat(parseDatabaseFromType("GeoIP2-Country-Test.mmdb"), is(Database.Country));
+        assertThat(parseDatabaseFromType("GeoIP2-Connection-Type-Test.mmdb"), is(Database.ConnectionType));
+        assertThat(parseDatabaseFromType("GeoIP2-Domain-Test.mmdb"), is(Database.Domain));
+        assertThat(parseDatabaseFromType("GeoIP2-Enterprise-Test.mmdb"), is(Database.Enterprise));
+        assertThat(parseDatabaseFromType("GeoIP2-ISP-Test.mmdb"), is(Database.Isp));
+    }
+
+    private Database parseDatabaseFromType(String databaseFile) throws IOException {
+        return IpDataLookupFactories.getDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)));
     }
 }

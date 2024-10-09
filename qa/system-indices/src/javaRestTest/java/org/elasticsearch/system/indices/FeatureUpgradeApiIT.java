@@ -10,6 +10,7 @@
 package org.elasticsearch.system.indices;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -43,13 +44,17 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
     }
 
     public void testCreatingSystemIndex() throws Exception {
-        Response response = client().performRequest(new Request("PUT", "/_net_new_sys_index/_create"));
+        var request = new Request("PUT", "/_net_new_sys_index/_create");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
+        Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     @SuppressWarnings("unchecked")
     public void testGetFeatureUpgradedStatuses() throws Exception {
-        client().performRequest(new Request("PUT", "/_net_new_sys_index/_create"));
+        var request = new Request("PUT", "/_net_new_sys_index/_create");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
+        client().performRequest(request);
         Response response = client().performRequest(new Request("GET", "/_migration/system_features"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         XContentTestUtils.JsonMapView view = XContentTestUtils.createJsonMapView(response.getEntity().getContent());

@@ -34,7 +34,8 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
     FindDanglingIndexRequest,
     FindDanglingIndexResponse,
     NodeFindDanglingIndexRequest,
-    NodeFindDanglingIndexResponse> {
+    NodeFindDanglingIndexResponse,
+    Void> {
 
     public static final ActionType<FindDanglingIndexResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/find");
 

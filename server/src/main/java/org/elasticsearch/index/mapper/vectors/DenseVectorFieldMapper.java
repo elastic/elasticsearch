@@ -2275,7 +2275,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
                 byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
             }
-            int dims = fieldType().dims;
+            int dims = fieldType().elementType == ElementType.BIT ? fieldType().dims / Byte.SIZE :fieldType().dims;
             for (int dim = 0; dim < dims; dim++) {
                 fieldType().elementType.readAndWriteValue(byteBuffer, b);
             }

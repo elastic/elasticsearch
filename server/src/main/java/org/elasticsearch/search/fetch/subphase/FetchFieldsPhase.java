@@ -90,6 +90,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                         continue;
                     }
                     final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
+                    // NOTE: Exclude _ignored_source when requested via wildcard '*'
                     if (matchingFieldName.equals(IgnoredSourceFieldMapper.NAME) && Regex.isSimpleMatchPattern(storedField)) {
                         continue;
                     }

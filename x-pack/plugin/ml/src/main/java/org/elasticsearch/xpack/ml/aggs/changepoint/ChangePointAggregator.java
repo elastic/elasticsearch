@@ -31,12 +31,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     static final double P_VALUE_THRESHOLD = 0.01;
     static final int MINIMUM_BUCKETS = 10;
 
-    private static double changePValueThreshold(int nValues) {
-        // This was obtained by simulating the test power for a fixed size effect as a
-        // function of the bucket value count.
-        return P_VALUE_THRESHOLD * Math.exp(-0.04 * (double) (nValues - 2 * (MINIMUM_BUCKETS + 1)));
-    }
-
     public ChangePointAggregator(String name, String bucketsPath, Map<String, Object> metadata) {
         super(name, new String[] { bucketsPath }, metadata);
     }
@@ -82,24 +76,22 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             );
         }
 
-        ChangeType spikeOrDip = testForSpikeOrDip(bucketValues, P_VALUE_THRESHOLD);
-        ChangeType change = new ChangeDetector(bucketValues).detect(changePValueThreshold(bucketValues.getValues().length));
+        ChangeType spikeOrDip;
+        try {
+            SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues);
+            spikeOrDip = detect.detect(P_VALUE_THRESHOLD);
+            logger.trace("spike or dip p-value: [{}]", spikeOrDip.pValue());
+        } catch (NotStrictlyPositiveException nspe) {
+            logger.debug("failure testing for dips and spikes", nspe);
+            spikeOrDip = new Indeterminable("failure testing for dips and spikes");
+        }
+
+        ChangeType change = new ChangeDetector(bucketValues).detect(P_VALUE_THRESHOLD);
         logger.trace("change p-value: [{}]", change.pValue());
+
         if (spikeOrDip.pValue() < change.pValue()) {
             change = spikeOrDip;
         }
         return change;
-    }
-
-    static ChangeType testForSpikeOrDip(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
-        try {
-            SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues);
-            ChangeType result = detect.detect(pValueThreshold);
-            logger.trace("spike or dip p-value: [{}]", result.pValue());
-            return result;
-        } catch (NotStrictlyPositiveException nspe) {
-            logger.debug("failure testing for dips and spikes", nspe);
-            return new Indeterminable("failure testing for dips and spikes");
-        }
     }
 }

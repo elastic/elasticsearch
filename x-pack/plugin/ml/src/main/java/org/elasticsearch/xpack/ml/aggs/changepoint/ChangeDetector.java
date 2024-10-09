@@ -44,7 +44,10 @@ public class ChangeDetector {
         this.values = bucketValues.getValues();
     }
 
-    ChangeType detect(double pValueThreshold) {
+    ChangeType detect(double minBucketsPValue) {
+        // This was obtained by simulating the test power for a fixed size effect as a
+        // function of the bucket value count.
+        double pValueThreshold = minBucketsPValue * Math.exp(-0.04 * (values.length - 2 * (ChangePointAggregator.MINIMUM_BUCKETS + 1)));
         return testForChange(pValueThreshold).changeType(bucketValues, slope(values));
     }
 

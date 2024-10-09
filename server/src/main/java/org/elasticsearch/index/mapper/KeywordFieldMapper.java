@@ -68,6 +68,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.ValueXContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -941,28 +942,53 @@ public final class KeywordFieldMapper extends FieldMapper {
         return offsetsFieldMapper != null;
     }
 
-    protected void parseCreateField(DocumentParserContext context) throws IOException {
+    @Override
+    public void parse(DocumentParserContext context) throws IOException {
         if (offsetsFieldMapper != null) {
+            if (builderParams.hasScript()) {
+                throwIndexingWithScriptParam();
+            }
+
+            String fieldName = context.parser().currentName();
             if (context.parser().currentToken() == XContentParser.Token.START_ARRAY) {
                 SortedMap<String, List<Integer>> arrayOffsetsByField = new TreeMap<>();
                 int numberOfOffsets = parseArray(context, arrayOffsetsByField);
                 processOffsets(context, arrayOffsetsByField, numberOfOffsets);
-            } else if (context.parser().currentToken().isValue() || context.parser().currentToken() == XContentParser.Token.VALUE_NUMBER) {
+
+                if (builderParams.multiFields().iterator().hasNext()) {
+                    for (String value : arrayOffsetsByField.keySet()) {
+                        var valueParser = new ValueXContentParser(
+                            context.parser().getTokenLocation(),
+                            value,
+                            fieldName,
+                            XContentParser.Token.VALUE_STRING
+                        );
+                        doParseMultiFields(context.switchParser(valueParser));
+                    }
+                }
+            } else if (context.parser().currentToken().isValue() || context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
                 String value = context.parser().textOrNull();
                 if (value == null) {
                     value = fieldType().nullValue;
                 }
                 indexValue(context, value);
+                if (builderParams.multiFields().iterator().hasNext()) {
+                    doParseMultiFields(context);
+                }
             } else {
                 throw new IllegalArgumentException("Encountered unexpected token [" + context.parser().currentToken() + "].");
             }
         } else {
-            String value = context.parser().textOrNull();
-            if (value == null) {
-                value = fieldType().nullValue;
-            }
-            indexValue(context, value);
+            super.parse(context);
         }
+    }
+
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        String value = context.parser().textOrNull();
+        if (value == null) {
+            value = fieldType().nullValue;
+        }
+        indexValue(context, value);
     }
 
     private void processOffsets(DocumentParserContext context, SortedMap<String, List<Integer>> arrayOffsets, int numberOfOffsets)

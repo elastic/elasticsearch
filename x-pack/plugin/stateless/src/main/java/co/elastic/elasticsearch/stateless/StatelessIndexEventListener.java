@@ -36,7 +36,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -88,23 +87,29 @@ class StatelessIndexEventListener implements IndexEventListener {
         final Store store = indexShard.store();
         try {
             store.incRef();
-            final var blobStore = objectStoreService.blobStore();
-            final ShardId shardId = indexShard.shardId();
-            final var shardBasePath = objectStoreService.shardBasePath(shardId);
-            BlobStoreCacheDirectory.unwrapDirectory(store.directory())
-                .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
-            final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
-                ? null
-                : blobStore.blobContainer(shardBasePath);
-            if (indexShard.routingEntry().isSearchable()) {
-                beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
-            } else {
-                beforeRecoveryIndexShard(indexShard, existingBlobContainer, listener);
+            boolean success = false;
+            try {
+                final var blobStore = objectStoreService.blobStore();
+                final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
+                BlobStoreCacheDirectory.unwrapDirectory(store.directory())
+                    .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
+                final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
+                    ? null
+                    : blobStore.blobContainer(shardBasePath);
+                var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
+                if (indexShard.routingEntry().isSearchable()) {
+                    beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
+                } else {
+                    beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener);
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    store.decRef();
+                }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
-        } finally {
-            store.decRef();
         }
     }
 
@@ -150,8 +155,11 @@ class StatelessIndexEventListener implements IndexEventListener {
             : recoveryState.getRecoverySource().toString();
     }
 
-    private void beforeRecoveryIndexShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
+    private void beforeRecoveryOnIndexingShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
         throws IOException {
+        assert indexShard.store().refCount() > 0 : indexShard.shardId();
+        assert indexShard.routingEntry().isPromotableToPrimary();
+
         final ObjectStoreService.IndexingShardState indexingShardState;
         if (existingBlobContainer != null) {
             indexingShardState = ObjectStoreService.readIndexingShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
@@ -160,7 +168,6 @@ class StatelessIndexEventListener implements IndexEventListener {
         }
         logBootstrapping(indexShard, indexingShardState.latestCommit());
 
-        assert indexShard.routingEntry().isPromotableToPrimary();
         ActionListener.completeWith(listener, () -> {
             final Store store = indexShard.store();
             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
@@ -232,71 +239,61 @@ class StatelessIndexEventListener implements IndexEventListener {
 
     private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
         throws IOException {
+        assert indexShard.store().refCount() > 0 : indexShard.shardId();
         assert blobContainer != null : indexShard.routingEntry();
 
         final var batchedCompoundCommit = ObjectStoreService.readSearchShardState(blobContainer, indexShard.getOperationPrimaryTerm());
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
             : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
 
-        final var store = indexShard.store();
-        store.incRef();
-        final var storeDecRef = Releasables.assertOnce(store::decRef);
-        boolean registering = false;
-        try {
-            recoveryCommitRegistrationHandler.register(
-                batchedCompoundCommit != null ? batchedCompoundCommit.primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,
-                batchedCompoundCommit != null
-                    ? batchedCompoundCommit.lastCompoundCommit().primaryTermAndGeneration()
-                    : PrimaryTermAndGeneration.ZERO,
-                indexShard.shardId(),
-                ActionListener.releaseAfter(listener.delegateFailure((l, response) -> ActionListener.completeWith(listener, () -> {
-                    var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
-                    var lastUploaded = response.getLatestUploadedBatchedCompoundCommitTermAndGen();
-                    var nodeId = response.getNodeId();
-                    assert nodeId != null : response;
+        recoveryCommitRegistrationHandler.register(
+            batchedCompoundCommit != null ? batchedCompoundCommit.primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,
+            batchedCompoundCommit != null
+                ? batchedCompoundCommit.lastCompoundCommit().primaryTermAndGeneration()
+                : PrimaryTermAndGeneration.ZERO,
+            indexShard.shardId(),
+            listener.delegateFailure((l, response) -> ActionListener.completeWith(listener, () -> {
+                var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+                var lastUploaded = response.getLatestUploadedBatchedCompoundCommitTermAndGen();
+                var nodeId = response.getNodeId();
+                assert nodeId != null : response;
 
-                    var compoundCommit = response.getCompoundCommit();
-                    if (compoundCommit == null) {
-                        // If the indexing shard provided no compound commit to recover from, then the last uploaded BCC term/gen returned
-                        // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
-                        assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
+                var compoundCommit = response.getCompoundCommit();
+                if (compoundCommit == null) {
+                    // If the indexing shard provided no compound commit to recover from, then the last uploaded BCC term/gen returned
+                    // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
+                    assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
 
-                        logBootstrapping(indexShard, batchedCompoundCommit);
-                        // If there is no batched compound commit found in the object store, then recover from an empty commit
-                        if (batchedCompoundCommit == null) {
-                            return null;
-                        }
-
-                        // Otherwise recover from the compound commit found in the object store
-                        // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
-                        // until the next new commit notification.
-                        compoundCommit = batchedCompoundCommit.lastCompoundCommit();
-                        lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
-
-                    } else {
-                        logBootstrapping(indexShard, compoundCommit, lastUploaded);
+                    logBootstrapping(indexShard, batchedCompoundCommit);
+                    // If there is no batched compound commit found in the object store, then recover from an empty commit
+                    if (batchedCompoundCommit == null) {
+                        return null;
                     }
 
-                    assert batchedCompoundCommit == null
-                        || batchedCompoundCommit.lastCompoundCommit()
-                            .primaryTermAndGeneration()
-                            .onOrBefore(compoundCommit.primaryTermAndGeneration());
-                    assert compoundCommit != null;
+                    // Otherwise recover from the compound commit found in the object store
+                    // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
+                    // until the next new commit notification.
+                    compoundCommit = batchedCompoundCommit.lastCompoundCommit();
+                    lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
 
-                    searchDirectory.updateLatestUploadedBcc(lastUploaded);
-                    searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
-                    searchDirectory.updateCommit(compoundCommit);
-                    warmingService.warmCacheForShardRecovery(SEARCH, indexShard, compoundCommit, searchDirectory);
-                    return null;
-                })), storeDecRef)
-            );
-            registering = true;
-        } finally {
-            assert registering : "unexpected exception when calling register()";
-            if (registering == false) {
-                Releasables.close(storeDecRef);
-            }
-        }
+                } else {
+                    logBootstrapping(indexShard, compoundCommit, lastUploaded);
+                }
+
+                assert batchedCompoundCommit == null
+                    || batchedCompoundCommit.lastCompoundCommit()
+                        .primaryTermAndGeneration()
+                        .onOrBefore(compoundCommit.primaryTermAndGeneration());
+                assert compoundCommit != null;
+
+                searchDirectory.updateLatestUploadedBcc(lastUploaded);
+                searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
+                searchDirectory.updateCommit(compoundCommit);
+                warmingService.warmCacheForShardRecovery(SEARCH, indexShard, compoundCommit, searchDirectory);
+                assert indexShard.store().refCount() > 0 : indexShard.shardId();
+                return null;
+            }))
+        );
     }
 
     @Override

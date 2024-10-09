@@ -61,31 +61,6 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     );
 
     @Override
-    public void testCreateSnapshot() {
-        super.testCreateSnapshot();
-    }
-
-    @Override
-    public void testIndexLatest() throws Exception {
-        super.testIndexLatest();
-    }
-
-    @Override
-    public void testListChildren() {
-        super.testListChildren();
-    }
-
-    @Override
-    public void testCleanup() throws Exception {
-        super.testCleanup();
-    }
-
-    @Override
-    public void testReadFromPositionWithLength() {
-        super.testReadFromPositionWithLength();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(AzureRepositoryPlugin.class);
     }

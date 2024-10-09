@@ -29,11 +29,13 @@ public enum DockerBase {
     CLOUD_ESS(null, "-cloud-ess", "apt-get"),
 
     // Chainguard based wolfi image with latest jdk
-    WOLFI(
-        "docker.elastic.co/wolfi/chainguard-base:latest@sha256:c16d3ad6cebf387e8dd2ad769f54320c4819fbbaa21e729fad087c7ae223b4d0",
+    // This is usually updated via renovatebot
+    // spotless:off
+    WOLFI("docker.elastic.co/wolfi/chainguard-base:latest@sha256:c16d3ad6cebf387e8dd2ad769f54320c4819fbbaa21e729fad087c7ae223b4d0",
         "-wolfi",
         "apk"
     ),
+    // spotless:on
 
     // Based on WOLFI above, with more extras. We don't set a base image because
     // we programmatically extend from the Wolfi image.

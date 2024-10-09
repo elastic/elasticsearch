@@ -12,7 +12,6 @@ package org.elasticsearch.datastreams.logsdb.qa;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
@@ -86,23 +85,28 @@ public class DataGenerationHelper {
                     }),
 
                     // Needed for histogram aggregation
-                    new PredefinedField.WithGenerator("memory_usage_bytes", FieldType.LONG, Map.of("type", "long"), new FieldDataGenerator() {
-                        @Override
-                        public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-                            return b -> b.startObject().field("type", "long").endObject();
-                        }
+                    new PredefinedField.WithGenerator(
+                        "memory_usage_bytes",
+                        FieldType.LONG,
+                        Map.of("type", "long"),
+                        new FieldDataGenerator() {
+                            @Override
+                            public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
+                                return b -> b.startObject().field("type", "long").endObject();
+                            }
 
-                        @Override
-                        public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-                            // We can generate this using standard long field but we would get "too many buckets"
-                            return b -> b.value(ESTestCase.randomLongBetween(1000, 2000));
-                        }
+                            @Override
+                            public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
+                                // We can generate this using standard long field but we would get "too many buckets"
+                                return b -> b.value(ESTestCase.randomLongBetween(1000, 2000));
+                            }
 
-                        @Override
-                        public Object generateValue() {
-                            return ESTestCase.randomLongBetween(1000, 2000);
+                            @Override
+                            public Object generateValue() {
+                                return ESTestCase.randomLongBetween(1000, 2000);
+                            }
                         }
-                    })
+                    )
                 )
             );
 
@@ -133,7 +137,7 @@ public class DataGenerationHelper {
     @SuppressWarnings("unchecked")
     private void removeSubobjects(Map<String, Object> mapping) {
         for (var entry : mapping.entrySet()) {
-            if (entry.getValue() instanceof Map<?,?> m && m.containsKey("properties")) {
+            if (entry.getValue() instanceof Map<?, ?> m && m.containsKey("properties")) {
                 m.remove("subobjects");
                 removeSubobjects((Map<String, Object>) m.get("properties"));
             }
@@ -146,8 +150,7 @@ public class DataGenerationHelper {
         }
     }
 
-    void generateDocument(XContentBuilder document, Map<String, Object> additionalFields)
-        throws IOException {
+    void generateDocument(XContentBuilder document, Map<String, Object> additionalFields) throws IOException {
         var generated = documentGenerator.generate(mappingTemplate, mapping);
         generated.putAll(additionalFields);
 

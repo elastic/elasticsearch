@@ -24,7 +24,9 @@ public interface PredefinedField {
 
     FieldDataGenerator generator(DataSource dataSource);
 
-    record WithGenerator(String name, FieldType fieldType, Map<String, Object> mapping, FieldDataGenerator generator) implements PredefinedField {
+    record WithGenerator(String name, FieldType fieldType, Map<String, Object> mapping, FieldDataGenerator generator)
+        implements
+            PredefinedField {
         @Override
         public FieldDataGenerator generator(DataSource dataSource) {
             return generator;

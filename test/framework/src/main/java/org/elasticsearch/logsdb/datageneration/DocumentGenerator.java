@@ -9,7 +9,6 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
@@ -37,7 +36,7 @@ public class DocumentGenerator {
             documentMap.put(predefinedField.name(), predefinedField.generator(specification.dataSource()).generateValue());
         }
 
-         generateDocument(documentMap, template.mapping(), new Context("", mapping.lookup()));
+        generateDocument(documentMap, template.mapping(), new Context("", mapping.lookup()));
         return documentMap;
     }
 
@@ -84,10 +83,7 @@ public class DocumentGenerator {
         return children;
     }
 
-    record Context(
-        String path,
-        Map<String, Map<String, Object>> mappingLookup
-    ) {
+    record Context(String path, Map<String, Map<String, Object>> mappingLookup) {
         Context stepIntoObject(String name) {
             return new Context(pathTo(name), mappingLookup);
         }

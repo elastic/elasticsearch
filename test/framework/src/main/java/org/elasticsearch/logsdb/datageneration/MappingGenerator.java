@@ -63,12 +63,7 @@ public class MappingGenerator {
             : DynamicMapping.SUPPORTED;
         var subobjects = ObjectMapper.Subobjects.from(mappingParameters.getOrDefault("subobjects", "true"));
 
-        generateMapping(
-            childrenMapping,
-            lookup,
-            template.mapping(),
-            new Context(new HashSet<>(), "", subobjects, dynamicMapping)
-        );
+        generateMapping(childrenMapping, lookup, template.mapping(), new Context(new HashSet<>(), "", subobjects, dynamicMapping));
 
         return new Mapping(rawMapping, lookup);
     }
@@ -91,7 +86,8 @@ public class MappingGenerator {
                     context.addCopyToCandidate(fieldName);
                 }
 
-                boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN && dynamicMappingGenerator.generator().apply(false);
+                boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN
+                    && dynamicMappingGenerator.generator().apply(false);
                 // Simply skip this field if it is dynamic.
                 // Lookup will contain null signaling dynamic mapping as well.
                 if (isDynamic) {
@@ -113,7 +109,8 @@ public class MappingGenerator {
                 mappingParameters.putAll(mappingParametersGenerator.get());
 
             } else if (templateEntry instanceof MappingTemplate.Entry.Object object) {
-                boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN && dynamicMappingGenerator.generator().apply(true);
+                boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN
+                    && dynamicMappingGenerator.generator().apply(true);
                 // Simply skip this field if it is dynamic.
                 // Lookup will contain null signaling dynamic mapping as well.
                 if (isDynamic) {
@@ -129,7 +126,12 @@ public class MappingGenerator {
 
                 var childrenMapping = new HashMap<String, Object>();
                 mappingParameters.put("properties", childrenMapping);
-                generateMapping(childrenMapping, lookup, object.children(), context.stepIntoObject(object.name(), object.nested(), mappingParameters));
+                generateMapping(
+                    childrenMapping,
+                    lookup,
+                    object.children(),
+                    context.stepIntoObject(object.name(), object.nested(), mappingParameters)
+                );
             }
 
             mapping.put(fieldName, mappingParameters);

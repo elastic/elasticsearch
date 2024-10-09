@@ -1570,7 +1570,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        int elementCount = randomIntBetween(1, 5);
+        int elementCount = randomIntBetween(2, 5);
         CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
             example.buildInputArray(builder, elementCount);
         };
@@ -1581,10 +1581,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         builder.endObject();
         String expected = Strings.toString(builder);
         String actual = syntheticSource(mapperAll, buildInput);
-        // Check for single-element array, the array source is not stored in this case.
-        if (actual.contains("[") && expected.replace("[", "").replace("]", "").equals(actual) == false) {
-            assertThat(actual, equalTo(expected));
-        }
+        assertThat(actual, equalTo(expected));
     }
 
     @Override

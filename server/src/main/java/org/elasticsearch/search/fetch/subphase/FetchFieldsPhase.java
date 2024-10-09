@@ -63,9 +63,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             : fetchFieldsContext.fields().isEmpty() ? null
             : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields());
 
+        // NOTE: Collect stored metadata fields requested via `fields` (in FetchFieldsContext`) like for instance the _ignored source field
         final Set<FieldAndFormat> fetchContextMetadataFields = new HashSet<>();
         if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
             for (final FieldAndFormat fieldAndFormat : fetchFieldsContext.fields()) {
+                // NOTE: _id and _source are always retrieved anyway, no need to do it explicitly. See FieldsVisitor.
                 if (SourceFieldMapper.NAME.equals(fieldAndFormat.field) || IdFieldMapper.NAME.equals(fieldAndFormat.field)) {
                     continue;
                 }
@@ -99,9 +101,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     }
                 }
             }
+            // NOTE: Include also metadata stored fields requested via `fields`
             metadataFields.addAll(fetchContextMetadataFields);
             metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields);
         } else {
+            // NOTE: Include also metadata stored fields requested via `fields`
             final Set<FieldAndFormat> allMetadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
             allMetadataFields.addAll(fetchContextMetadataFields);
             metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, allMetadataFields);

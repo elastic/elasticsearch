@@ -3,6 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * This Java port DeBERTa-V2 tokenizer, was derived from
+ * Microsoft's DeBERTa-V2 project at https://github.com/microsoft/DeBERTa
+ * and
+ * Huggingface's DeBERTa-V2 transformers
+ * project at https://github.com/huggingface/transformers/blob/main/src/transformers/models/deberta_v2/tokenization_deberta_v2.py
  */
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
@@ -11,7 +17,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.XLMRobertaTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
@@ -28,19 +34,18 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class XLMRobertaTokenizer extends NlpTokenizer {
+public class DebertaV2Tokenizer extends NlpTokenizer {
 
-    public static final String UNKNOWN_TOKEN = "<unk>";
-    public static final String SEPARATOR_TOKEN = "</s>";
-    public static final String PAD_TOKEN = "<pad>";
-    public static final String CLASS_TOKEN = "<s>";
-    public static final String MASK_TOKEN = XLMRobertaTokenization.MASK_TOKEN;
+    public static final String UNKNOWN_TOKEN = "[UNK]";
+    public static final String SEPARATOR_TOKEN = "[SEP]";
+    public static final String PAD_TOKEN = "[PAD]";
+    public static final String CLASS_TOKEN = "[CLS]";
+    public static final String MASK_TOKEN = "[MASK]";
 
-    private static final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
+    private static final Set<String> NEVER_SPLIT = Set.of(UNKNOWN_TOKEN, SEPARATOR_TOKEN, PAD_TOKEN, CLASS_TOKEN, MASK_TOKEN);
 
-    private final XLMAnalyzer xlmAnalyzer;
+    private final DebertaAnalyzer debertaAnalyzer;
     protected final List<String> originalVocab;
-    // TODO Not sure this needs to be a sorted map
     private final SortedMap<String, Integer> vocab;
     protected final boolean withSpecialTokens;
     protected final int sepTokenId;
@@ -48,7 +53,7 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
     protected final int padTokenId;
     private final int maxSequenceLength;
 
-    protected XLMRobertaTokenizer(
+    protected DebertaV2Tokenizer(
         List<String> originalVocab,
         SortedMap<String, Integer> vocab,
         List<Double> scores,
@@ -57,7 +62,12 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
         Set<String> neverSplit
     ) throws IOException {
         this.originalVocab = originalVocab;
-        this.xlmAnalyzer = new XLMAnalyzer(originalVocab, scores, new ArrayList<>(Sets.union(NEVER_SPLIT, neverSplit)), UNKNOWN_TOKEN);
+        this.debertaAnalyzer = new DebertaAnalyzer(
+            originalVocab,
+            scores,
+            new ArrayList<>(Sets.union(NEVER_SPLIT, neverSplit)),
+            UNKNOWN_TOKEN
+        );
         this.vocab = vocab;
         this.withSpecialTokens = withSpecialTokens;
         this.maxSequenceLength = maxSequenceLength;
@@ -82,6 +92,11 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
+    int clsTokenId() {
+        return clsTokenId;
+    }
+
+    @Override
     int sepTokenId() {
         return sepTokenId;
     }
@@ -97,36 +112,22 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
-    int getNumExtraTokensForSeqPair() {
-        return 4;
-    }
-
-    @Override
     int numExtraTokensForSingleSequence() {
+        // https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/deberta_v2/tokenization_deberta_v2.py#L164
+        // single sequence: [CLS] X [SEP]
         return 2;
     }
 
     @Override
-    int clsTokenId() {
-        return clsTokenId;
-    }
-
-    public String getPadToken() {
-        return PAD_TOKEN;
-    }
-
-    public String getUnknownToken() {
-        return UNKNOWN_TOKEN;
-    }
-
-    @Override
-    public void close() {
-        this.xlmAnalyzer.close();
+    int getNumExtraTokensForSeqPair() {
+        // https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/deberta_v2/tokenization_deberta_v2.py#L165
+        // pair of sequences: [CLS] A [SEP] B [SEP]
+        return 3;
     }
 
     @Override
     public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {
-        return new XLMRobertaTokenizationResult(originalVocab, tokenizations, padTokenId);
+        return new DebertaTokenizationResult(originalVocab, tokenizations, padTokenId);
     }
 
     @Override
@@ -142,6 +143,11 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
     @Override
     public OptionalInt getPadTokenId() {
         return OptionalInt.of(padTokenId);
+    }
+
+    @Override
+    public String getPadToken() {
+        return PAD_TOKEN;
     }
 
     @Override
@@ -165,32 +171,11 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
 
     @Override
     TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {
-        return new XLMRobertaTokenizationResult.XLMRobertaTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
+        return new DebertaTokenizationResult.DebertaTokensBuilder(clsTokenId, sepTokenId, withSpecialTokens);
     }
 
-    /**
-     * @param seq cannot be null
-     * @return InnerTokenization
-     */
-    @Override
-    public InnerTokenization innerTokenize(String seq) {
-        List<Integer> tokenPositionMap = new ArrayList<>();
-        try (TokenStream ts = xlmAnalyzer.tokenStream("input", seq)) {
-            ts.reset();
-            PositionIncrementAttribute tokenPos = ts.addAttribute(PositionIncrementAttribute.class);
-            int currPos = -1;
-            while (ts.incrementToken()) {
-                currPos += tokenPos.getPositionIncrement();
-                tokenPositionMap.add(currPos);
-            }
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-        return new InnerTokenization(new ArrayList<>(xlmAnalyzer.getTokens()), tokenPositionMap);
-    }
-
-    public static Builder builder(List<String> vocab, List<Double> scores, XLMRobertaTokenization tokenization) {
-        return new Builder(vocab, scores, tokenization);
+    public static DebertaV2Tokenizer.Builder builder(List<String> vocab, List<Double> scores, DebertaV2Tokenization tokenization) {
+        return new DebertaV2Tokenizer.Builder(vocab, scores, tokenization);
     }
 
     public static class Builder {
@@ -202,7 +187,7 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
         protected int maxSequenceLength;
         protected Set<String> neverSplit;
 
-        protected Builder(List<String> vocab, List<Double> scores, XLMRobertaTokenization tokenization) {
+        protected Builder(List<String> vocab, List<Double> scores, DebertaV2Tokenization tokenization) {
             this.originalVocab = vocab;
             this.vocab = buildSortedVocab(vocab);
             this.scores = scores;
@@ -218,12 +203,12 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
             return sortedVocab;
         }
 
-        public Builder setNeverSplit(Set<String> neverSplit) {
+        public DebertaV2Tokenizer.Builder setNeverSplit(Set<String> neverSplit) {
             this.neverSplit = neverSplit;
             return this;
         }
 
-        public Builder setMaxSequenceLength(int maxSequenceLength) {
+        public DebertaV2Tokenizer.Builder setMaxSequenceLength(int maxSequenceLength) {
             this.maxSequenceLength = maxSequenceLength;
             return this;
         }
@@ -233,21 +218,43 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
          * @param withSpecialTokens if true include CLS and SEP tokens
          * @return this
          */
-        public Builder setWithSpecialTokens(boolean withSpecialTokens) {
+        public DebertaV2Tokenizer.Builder setWithSpecialTokens(boolean withSpecialTokens) {
             this.withSpecialTokens = withSpecialTokens;
             return this;
         }
 
-        public XLMRobertaTokenizer build() throws IOException {
+        public DebertaV2Tokenizer build() throws IOException {
             if (neverSplit == null) {
                 neverSplit = Collections.emptySet();
             }
 
-            return new XLMRobertaTokenizer(originalVocab, vocab, scores, withSpecialTokens, maxSequenceLength, neverSplit);
+            return new DebertaV2Tokenizer(originalVocab, vocab, scores, withSpecialTokens, maxSequenceLength, neverSplit);
         }
     }
 
-    static class XLMAnalyzer extends Analyzer {
+    @Override
+    public InnerTokenization innerTokenize(String seq) {
+        List<Integer> tokenPositionMap = new ArrayList<>();
+        try (TokenStream ts = debertaAnalyzer.tokenStream("input", seq)) {
+            ts.reset();
+            PositionIncrementAttribute tokenPos = ts.addAttribute(PositionIncrementAttribute.class);
+            int currPos = -1; // the PositionIncrement starts at one, so this aligns the first token at position 0
+            while (ts.incrementToken()) {
+                currPos += tokenPos.getPositionIncrement();
+                tokenPositionMap.add(currPos);
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+        return new InnerTokenization(new ArrayList<>(debertaAnalyzer.getTokens()), tokenPositionMap);
+    }
+
+    @Override
+    public void close() {
+        this.debertaAnalyzer.close();
+    }
+
+    static class DebertaAnalyzer extends Analyzer {
         private final List<String> vocabulary;
         private final List<String> neverSplit;
         private final double[] scores;
@@ -255,7 +262,7 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
         private final String unknownToken;
         private final PrecompiledCharMapNormalizer.Config normalizer;
 
-        XLMAnalyzer(List<String> vocabulary, List<Double> scores, List<String> neverSplit, String unknownToken) throws IOException {
+        DebertaAnalyzer(List<String> vocabulary, List<Double> scores, List<String> neverSplit, String unknownToken) throws IOException {
             this.vocabulary = vocabulary;
             this.neverSplit = neverSplit;
             this.unknownToken = unknownToken;
@@ -279,7 +286,7 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            this.innerTokenizer = UnigramTokenizer.build(neverSplit, vocabulary, scores, unknownToken, false);
+            this.innerTokenizer = UnigramTokenizer.build(neverSplit, vocabulary, scores, unknownToken, true);
             return new TokenStreamComponents(this.innerTokenizer);
         }
 

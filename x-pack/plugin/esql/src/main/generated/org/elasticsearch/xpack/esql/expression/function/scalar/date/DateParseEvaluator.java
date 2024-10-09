@@ -16,16 +16,16 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateParse}.
  * This class is generated. Do not edit it.
  */
 public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
 
@@ -35,13 +35,15 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public DateParseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId, DriverContext driverContext) {
+    this.source = source;
     this.val = val;
     this.formatter = formatter;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -72,7 +74,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         }
         if (valBlock.getValueCount(p) != 1) {
           if (valBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -83,7 +85,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         }
         if (formatterBlock.getValueCount(p) != 1) {
           if (formatterBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -91,7 +93,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         try {
           result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), this.zoneId));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -108,7 +110,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         try {
           result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch), this.zoneId));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -124,6 +126,18 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(val, formatter);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

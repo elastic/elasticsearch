@@ -832,8 +832,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             assertThat(handler.numberOfDeleteAttempts.get(), equalTo(interruptBeforeAttempt + 1));
             assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(0));
         } finally {
-            // Clear the interrupt (this seemed to leak between tests)
-            Thread.interrupted();
+            // interrupt should be preserved, clear it to prevent it leaking between tests
+            assertTrue(Thread.interrupted());
         }
     }
 

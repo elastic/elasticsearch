@@ -297,8 +297,8 @@ public abstract class DocumentParserContext {
     }
 
     final void removeLastIgnoredField(String name) {
-        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
-            ignoredFieldValues.removeLast();
+        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.get(ignoredFieldValues.size() - 1).name().equals(name)) {
+            ignoredFieldValues.remove(ignoredFieldValues.size() - 1);
         }
     }
 

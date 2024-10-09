@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -410,11 +409,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitShowInfo(EsqlBaseParser.ShowInfoContext ctx) {
         return new ShowInfo(source(ctx));
-    }
-
-    @Override
-    public LogicalPlan visitMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx) {
-        return new MetaFunctions(source(ctx));
     }
 
     @Override

@@ -133,7 +133,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
-import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
@@ -450,31 +449,6 @@ public class EsqlFunctionRegistry {
         boolean variadic,
         boolean isAggregation
     ) {
-        public String fullSignature() {
-            StringBuilder builder = new StringBuilder();
-            builder.append(MetaFunctions.withPipes(returnType));
-            builder.append(" ");
-            builder.append(name);
-            builder.append("(");
-            for (int i = 0; i < args.size(); i++) {
-                ArgSignature arg = args.get(i);
-                if (i > 0) {
-                    builder.append(", ");
-                }
-                if (arg.optional()) {
-                    builder.append("?");
-                }
-                builder.append(arg.name());
-                if (i == args.size() - 1 && variadic) {
-                    builder.append("...");
-                }
-                builder.append(":");
-                builder.append(MetaFunctions.withPipes(arg.type()));
-            }
-            builder.append(")");
-            return builder.toString();
-        }
-
         /**
          * The name of every argument.
          */

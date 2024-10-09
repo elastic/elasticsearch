@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -50,6 +49,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -98,13 +98,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         CommonStatsFlags.Flag.SparseVector
     );
     private static final Logger logger = LogManager.getLogger(TransportClusterStatsAction.class);
-
-    public static final Setting<Boolean> REMOTE_STATS = Setting.boolSetting(
-        "stats.ccs.remote_stats",
-        true,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
 
     private final Settings settings;
     private final NodeService nodeService;
@@ -440,7 +433,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     }
 
     private boolean doRemotes(ClusterStatsRequest request) {
-        return REMOTE_STATS.get(settings) && request.doRemotes();
+        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes();
     }
 
     private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {

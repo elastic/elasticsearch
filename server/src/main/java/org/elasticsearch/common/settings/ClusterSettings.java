@@ -10,7 +10,6 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.WriteAckDelay;
@@ -616,7 +615,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
-        ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
-        TransportClusterStatsAction.REMOTE_STATS
+        ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME
     );
 }

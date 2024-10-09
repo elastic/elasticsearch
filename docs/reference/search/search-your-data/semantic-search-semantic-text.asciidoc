@@ -283,8 +283,9 @@ The call returns a task ID to monitor the progress:
 
 [source,console]
 ------------------------------------------------------------
-GET _tasks/<task_id> <1>
+GET _tasks/<task_id>
 ------------------------------------------------------------
+// TEST[skip:TBD]
 
 Reindexing large datasets can take a long time. You can test this workflow using only a subset of the dataset.
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.builder;
@@ -1104,7 +1105,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @return true if the source only has suggest
      */
     public boolean isSuggestOnly() {
-        return suggestBuilder != null && query() == null && knnSearch.isEmpty() && aggregations == null;
+        return suggestBuilder != null && knnSearch.isEmpty() && aggregations == null && subSearchSourceBuilders.isEmpty();
     }
 
     /**
@@ -2206,12 +2207,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean allowPartialSearchResults
     ) {
         if (retriever() != null) {
-            if (allowPartialSearchResults && retriever().isCompound()) {
-                validationException = addValidationError(
-                    "cannot specify a compound retriever and [allow_partial_search_results]",
-                    validationException
-                );
-            }
+            validationException = retriever().validate(this, validationException, allowPartialSearchResults);
             List<String> specified = new ArrayList<>();
             if (subSearches().isEmpty() == false) {
                 specified.add(QUERY_FIELD.getPreferredName());
@@ -2227,9 +2223,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
             if (sorts() != null) {
                 specified.add(SORT_FIELD.getPreferredName());
-            }
-            if (minScore() != null) {
-                specified.add(MIN_SCORE_FIELD.getPreferredName());
             }
             if (rankBuilder() != null) {
                 specified.add(RANK_FIELD.getPreferredName());
@@ -2330,20 +2323,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (rescores() != null && rescores().isEmpty() == false) {
                 validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
             }
-            if (sorts() != null && sorts().isEmpty() == false) {
-                validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
-            }
-            if (collapse() != null) {
-                validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
-            }
+
             if (suggest() != null && suggest().getSuggestions().isEmpty() == false) {
                 validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
-            }
-            if (highlighter() != null) {
-                validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
-            }
-            if (pointInTimeBuilder() != null) {
-                validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
             }
         }
 

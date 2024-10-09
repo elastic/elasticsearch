@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.refresh;
@@ -22,6 +23,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+
+import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO;
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 public class TransportUnpromotableShardRefreshAction extends TransportBroadcastUnpromotableAction<
     UnpromotableShardRefreshRequest,
@@ -71,6 +75,18 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             responseListener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
+
+        // During an upgrade to FAST_REFRESH_RCO, we expect search shards to be first upgraded before the primary is upgraded. Thus,
+        // when the primary is upgraded, and starts to deliver unpromotable refreshes, we expect the search shards to be upgraded already.
+        // Note that the fast refresh setting is final.
+        // TODO: remove assertion (ES-9563)
+        assert INDEX_FAST_REFRESH_SETTING.get(shard.indexSettings().getSettings()) == false
+            || transportService.getLocalNodeConnection().getTransportVersion().onOrAfter(FAST_REFRESH_RCO)
+            : "attempted to refresh a fast refresh search shard "
+                + shard
+                + " on transport version "
+                + transportService.getLocalNodeConnection().getTransportVersion()
+                + " (before FAST_REFRESH_RCO)";
 
         ActionListener.run(responseListener, listener -> {
             shard.waitForPrimaryTermAndGeneration(

@@ -19,7 +19,7 @@ setup:
                 script: |
                   Instant instant = Instant.ofEpochMilli(params._source.timestamp);
                   ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
-                  emit(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
               # Test fetching many values
               day_of_week_letters:
                 type: keyword
@@ -218,7 +218,7 @@ setup:
             day_of_week:
               type: keyword
               script: |
-                emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.SHORT, Locale.ROOT));
+                emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.SHORT, Locale.ENGLISH));
   - do:
       search:
         index: sensor

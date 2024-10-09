@@ -1,17 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -20,8 +18,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
-import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -29,10 +25,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -92,7 +88,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
     }
 
     private RankDocsRetrieverBuilder createRandomRankDocsRetrieverBuilder() {
-        return new RankDocsRetrieverBuilder(randomInt(100), innerRetrievers(), rankDocsSupplier(), preFilters());
+        return new RankDocsRetrieverBuilder(randomIntBetween(1, 100), innerRetrievers(), rankDocsSupplier(), preFilters());
     }
 
     public void testExtractToSearchSourceBuilder() {
@@ -101,32 +97,30 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             source.aggregation(new TermsAggregationBuilder("name").field("field"));
         }
+        source.explain(randomBoolean());
+        source.profile(randomBoolean());
+        source.trackTotalHits(randomBoolean());
+        final int preFilters = retriever.preFilterQueryBuilders.size();
         retriever.extractToSearchSourceBuilder(source, randomBoolean());
-        assertThat(source.sorts().size(), equalTo(2));
-        assertThat(source.sorts().get(0), instanceOf(RankDocsSortBuilder.class));
-        assertThat(source.sorts().get(1), instanceOf(ScoreSortBuilder.class));
-        assertThat(source.query(), instanceOf(BoolQueryBuilder.class));
-        BoolQueryBuilder bq = (BoolQueryBuilder) source.query();
-        if (source.aggregations() != null) {
-            assertThat(bq.must().size(), equalTo(0));
-            assertThat(bq.should().size(), greaterThanOrEqualTo(1));
-            assertThat(bq.should().get(0), instanceOf(RankDocsQueryBuilder.class));
-            assertNotNull(source.postFilter());
-            assertThat(source.postFilter(), instanceOf(RankDocsQueryBuilder.class));
-        } else {
+        assertNull(source.sorts());
+        assertThat(source.query(), anyOf(instanceOf(BoolQueryBuilder.class), instanceOf(RankDocsQueryBuilder.class)));
+        if (source.query() instanceof BoolQueryBuilder bq) {
             assertThat(bq.must().size(), equalTo(1));
             assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
-            assertNull(source.postFilter());
+            assertThat(bq.filter().size(), equalTo(preFilters));
+            for (int i = 0; i < preFilters; i++) {
+                assertThat(bq.filter().get(i), instanceOf(retriever.preFilterQueryBuilders.get(i).getClass()));
+            }
         }
-        assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
+        assertNull(source.postFilter());
     }
 
     public void testTopDocsQuery() {
         RankDocsRetrieverBuilder retriever = createRandomRankDocsRetrieverBuilder();
         QueryBuilder topDocs = retriever.topDocsQuery();
         assertNotNull(topDocs);
-        assertThat(topDocs, instanceOf(DisMaxQueryBuilder.class));
-        assertThat(((DisMaxQueryBuilder) topDocs).innerQueries(), hasSize(retriever.sources.size()));
+        assertThat(topDocs, instanceOf(BoolQueryBuilder.class));
+        assertThat(((BoolQueryBuilder) topDocs).should(), hasSize(retriever.sources.size()));
     }
 
     public void testRewrite() throws IOException {
@@ -143,22 +137,27 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         }
         SearchSourceBuilder source = new SearchSourceBuilder().retriever(retriever);
         QueryRewriteContext queryRewriteContext = mock(QueryRewriteContext.class);
-        if (compoundAdded) {
-            expectThrows(AssertionError.class, () -> Rewriteable.rewrite(source, queryRewriteContext));
+        int size = source.size() < 0 ? DEFAULT_SIZE : source.size();
+        if (retriever.rankWindowSize < size) {
+            if (compoundAdded) {
+                expectThrows(AssertionError.class, () -> Rewriteable.rewrite(source, queryRewriteContext));
+            }
         } else {
-            SearchSourceBuilder rewrittenSource = Rewriteable.rewrite(source, queryRewriteContext);
-            assertNull(rewrittenSource.retriever());
-            assertTrue(rewrittenSource.knnSearch().isEmpty());
-            assertThat(
-                rewrittenSource.query(),
-                anyOf(instanceOf(BoolQueryBuilder.class), instanceOf(MatchAllQueryBuilder.class), instanceOf(MatchNoneQueryBuilder.class))
-            );
-            if (rewrittenSource.query() instanceof BoolQueryBuilder) {
-                BoolQueryBuilder bq = (BoolQueryBuilder) rewrittenSource.query();
-                assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
-                // we don't have any aggregations so the RankDocs query is set as a must clause
-                assertThat(bq.must().size(), equalTo(1));
-                assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
+            if (compoundAdded) {
+                expectThrows(AssertionError.class, () -> Rewriteable.rewrite(source, queryRewriteContext));
+            } else {
+                SearchSourceBuilder rewrittenSource = Rewriteable.rewrite(source, queryRewriteContext);
+                assertNull(rewrittenSource.retriever());
+                assertTrue(rewrittenSource.knnSearch().isEmpty());
+                assertThat(rewrittenSource.query(), instanceOf(RankDocsQueryBuilder.class));
+                if (rewrittenSource.query() instanceof BoolQueryBuilder) {
+                    BoolQueryBuilder bq = (BoolQueryBuilder) rewrittenSource.query();
+                    assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
+                    assertThat(bq.must().size(), equalTo(1));
+                    assertThat(bq.must().get(0), instanceOf(BoolQueryBuilder.class));
+                    assertThat(bq.should().size(), equalTo(1));
+                    assertThat(bq.should().get(0), instanceOf(RankDocsQueryBuilder.class));
+                }
             }
         }
     }

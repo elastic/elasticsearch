@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
@@ -312,11 +313,15 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             fail(e);
         }
 
-        final var expectedChunks = Objects.equals(params.param("metric"), "none")
-            ? 2
-            : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
+        int[] expectedChunks = new int[] { 3 };
+        if (Objects.equals(params.param("metric"), "none") == false) {
+            expectedChunks[0] += 2 + ClusterStateTests.expectedChunkCount(params, response.getState());
+        }
+        if (params.paramAsBoolean("explain", false)) {
+            expectedChunks[0]++;
+        }
 
-        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, ignored -> expectedChunks);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks[0]);
         assertCriticalWarnings(criticalDeprecationWarnings);
 
         // check the v7 API too
@@ -330,7 +335,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             public boolean isFragment() {
                 return response.isFragment();
             }
-        }, params, ignored -> expectedChunks);
+        }, params, o -> expectedChunks[0]++);
         // the v7 API should not emit any deprecation warnings
         assertCriticalWarnings();
     }

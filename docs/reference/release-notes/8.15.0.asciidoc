@@ -30,6 +30,28 @@ signed integer) may encounter errors (issue: {es-issue}111854[#111854])
 `xpack.security.authc.realms.*.files.role_mapping` configuration option. As a workaround, custom role mappings
 can be configured using the https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html[REST API] (issue: {es-issue}112503[#112503])
 
+* ES|QL queries can lead to node crashes due to Out Of Memory errors when:
+** Multiple indices match the query pattern
+** These indices have many conflicting field mappings
+** Many of those fields are included in the request
+These issues deplete heap memory, increasing the likelihood of OOM errors. (issue: {es-issue}111964[#111964], {es-issue}111358[#111358]).
+In Kibana, you might indirectly execute these queries when using Discover, or adding a Field Statistics panel to a dashboard.
++
+To work around this issue, you have a number of options:
+** Downgrade to an earlier version
+** Upgrade to 8.15.2 upon release
+** Follow the instructions to
+<<esql-kibana-enable,disable ES|QL queries in {kib}>>
+** Change the default data view in Discover to a smaller set of indices and/or one with fewer mapping conflicts.
+
+* Synthetic source bug. Synthetic source may fail generating the _source at runtime, causing failures in get APIs or
+partial failures in the search APIs. The result is that for the affected documents the _source can't be retrieved.
+There is no workaround and the only option to is to upgrade to 8.15.2 when released.
++
+If you use synthetic source then you may be affected by this bug if the following is true:
+** If you have more fields then the `index.mapping.total_fields.limit` setting allows.
+** If you use dynamic mappings and the `index.mapping.total_fields.ignore_dynamic_beyond_limit` setting is enabled.
+
 [[breaking-8.15.0]]
 [float]
 === Breaking changes

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec;
@@ -31,19 +32,17 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  */
 public class PerFieldFormatSupplier {
 
-    private final MapperService mapperService;
-    private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    private final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
-    private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
+    private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
+    private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
+    private static final ES87TSDBDocValuesFormat tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
+    private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
 
-    private final ES812PostingsFormat es812PostingsFormat;
+    private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
+    private final MapperService mapperService;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
-        this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
-        this.es812PostingsFormat = new ES812PostingsFormat();
     }
 
     public PostingsFormat getPostingsFormatForField(String field) {

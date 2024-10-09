@@ -11,11 +11,14 @@ base {
 dependencies {
   compileOnly project(':server')
   compileOnly project('ann')
+  compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
 
   testImplementation project(':test:framework')
   testImplementation(project(xpackModule('esql-core')))
+  testImplementation(project(xpackModule('core')))
+  testImplementation(project(xpackModule('ml')))
 }
 
 def projectDirectory = project.layout.projectDirectory
@@ -631,6 +634,11 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile = topAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/TopBooleanAggregator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile = topAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopBytesRefAggregator.java"
   }
   template {
     it.properties = ipProperties

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.serialization;
@@ -29,12 +30,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -397,12 +398,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-            return Iterators.concat(
-                Iterators.single((builder, params) -> builder.startObject()),
-                Iterators.single((builder, params) -> builder.field("custom_string_object", strObject)),
-                Iterators.single((builder, params) -> builder.endObject())
-            );
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return ChunkedToXContent.builder(params).object(b -> b.field("custom_string_object", strObject));
         }
 
         @Override
@@ -440,12 +437,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-            return Iterators.concat(
-                Iterators.single((builder, params) -> builder.startObject()),
-                Iterators.single((builder, params) -> builder.field("custom_integer_object", intObject)),
-                Iterators.single((builder, params) -> builder.endObject())
-            );
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return ChunkedToXContent.builder(params).object(b -> b.field("custom_integer_object", intObject));
         }
 
         @Override

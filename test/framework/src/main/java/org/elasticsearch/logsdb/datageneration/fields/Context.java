@@ -1,19 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration.fields;
 
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class Context {
@@ -21,27 +25,41 @@ class Context {
 
     private final DataSourceResponse.ChildFieldGenerator childFieldGenerator;
     private final DataSourceResponse.ObjectArrayGenerator objectArrayGenerator;
+
+    private final String path;
     private final int objectDepth;
     // We don't need atomicity, but we need to pass counter by reference to accumulate total value from sub-objects.
     private final AtomicInteger nestedFieldsCount;
+    private final Set<String> eligibleCopyToDestinations;
     private final DynamicMapping parentDynamicMapping;
+    private final ObjectMapper.Subobjects currentSubobjectsConfig;
 
-    Context(DataGeneratorSpecification specification, DynamicMapping parentDynamicMapping) {
-        this(specification, 0, new AtomicInteger(0), parentDynamicMapping);
+    Context(
+        DataGeneratorSpecification specification,
+        DynamicMapping parentDynamicMapping,
+        ObjectMapper.Subobjects currentSubobjectsConfig
+    ) {
+        this(specification, "", 0, new AtomicInteger(0), new HashSet<>(), parentDynamicMapping, currentSubobjectsConfig);
     }
 
     private Context(
         DataGeneratorSpecification specification,
+        String path,
         int objectDepth,
         AtomicInteger nestedFieldsCount,
-        DynamicMapping parentDynamicMapping
+        Set<String> eligibleCopyToDestinations,
+        DynamicMapping parentDynamicMapping,
+        ObjectMapper.Subobjects currentSubobjectsConfig
     ) {
         this.specification = specification;
         this.childFieldGenerator = specification.dataSource().get(new DataSourceRequest.ChildFieldGenerator(specification));
         this.objectArrayGenerator = specification.dataSource().get(new DataSourceRequest.ObjectArrayGenerator());
+        this.path = path;
         this.objectDepth = objectDepth;
         this.nestedFieldsCount = nestedFieldsCount;
+        this.eligibleCopyToDestinations = eligibleCopyToDestinations;
         this.parentDynamicMapping = parentDynamicMapping;
+        this.currentSubobjectsConfig = currentSubobjectsConfig;
     }
 
     public DataGeneratorSpecification specification() {
@@ -56,13 +74,30 @@ class Context {
         return specification.dataSource().get(new DataSourceRequest.FieldTypeGenerator(dynamicMapping));
     }
 
-    public Context subObject(DynamicMapping dynamicMapping) {
-        return new Context(specification, objectDepth + 1, nestedFieldsCount, dynamicMapping);
+    public Context subObject(String name, DynamicMapping dynamicMapping, ObjectMapper.Subobjects subobjects) {
+        return new Context(
+            specification,
+            pathToField(name),
+            objectDepth + 1,
+            nestedFieldsCount,
+            eligibleCopyToDestinations,
+            dynamicMapping,
+            subobjects
+        );
     }
 
-    public Context nestedObject(DynamicMapping dynamicMapping) {
+    public Context nestedObject(String name, DynamicMapping dynamicMapping, ObjectMapper.Subobjects subobjects) {
         nestedFieldsCount.incrementAndGet();
-        return new Context(specification, objectDepth + 1, nestedFieldsCount, dynamicMapping);
+        // copy_to can't be used across nested documents so all currently eligible fields are not eligible inside nested document.
+        return new Context(
+            specification,
+            pathToField(name),
+            objectDepth + 1,
+            nestedFieldsCount,
+            new HashSet<>(),
+            dynamicMapping,
+            subobjects
+        );
     }
 
     public boolean shouldAddDynamicObjectField(DynamicMapping dynamicMapping) {
@@ -81,10 +116,11 @@ class Context {
         return childFieldGenerator.generateRegularSubObject();
     }
 
-    public boolean shouldAddNestedField() {
+    public boolean shouldAddNestedField(ObjectMapper.Subobjects subobjects) {
         if (objectDepth >= specification.maxObjectDepth()
             || nestedFieldsCount.get() >= specification.nestedFieldsLimit()
-            || parentDynamicMapping == DynamicMapping.FORCED) {
+            || parentDynamicMapping == DynamicMapping.FORCED
+            || subobjects == ObjectMapper.Subobjects.DISABLED) {
             return false;
         }
 
@@ -111,5 +147,29 @@ class Context {
         }
 
         return dynamicParameter.equals("strict") ? DynamicMapping.FORBIDDEN : DynamicMapping.SUPPORTED;
+    }
+
+    public ObjectMapper.Subobjects determineSubobjects(Map<String, Object> mappingParameters) {
+        if (currentSubobjectsConfig == ObjectMapper.Subobjects.DISABLED) {
+            return ObjectMapper.Subobjects.DISABLED;
+        }
+
+        return ObjectMapper.Subobjects.from(mappingParameters.getOrDefault("subobjects", "true"));
+    }
+
+    public Set<String> getEligibleCopyToDestinations() {
+        return eligibleCopyToDestinations;
+    }
+
+    public void markFieldAsEligibleForCopyTo(String field) {
+        eligibleCopyToDestinations.add(pathToField(field));
+    }
+
+    private String pathToField(String field) {
+        return path.isEmpty() ? field : path + "." + field;
+    }
+
+    public ObjectMapper.Subobjects getCurrentSubobjectsConfig() {
+        return currentSubobjectsConfig;
     }
 }

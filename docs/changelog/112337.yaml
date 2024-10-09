@@ -1,0 +1,5 @@
+pr: 112337
+summary: Add workaround for missing shard gen blob
+area: Snapshot/Restore
+type: enhancement
+issues: []

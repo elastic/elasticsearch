@@ -3,6 +3,8 @@
   "boolean" : "to_boolean",
   "cartesian_point" : "to_cartesianpoint",
   "cartesian_shape" : "to_cartesianshape",
+  "date_nanos" : "to_date_nanos",
+  "date_period" : "to_dateperiod",
   "datetime" : "to_datetime",
   "double" : "to_double",
   "geo_point" : "to_geopoint",
@@ -14,6 +16,7 @@
   "long" : "to_long",
   "string" : "to_string",
   "text" : "to_string",
+  "time_duration" : "to_timeduration",
   "unsigned_long" : "to_unsigned_long",
   "version" : "to_version"
 }

@@ -249,7 +249,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(2, answer.size());
+        assertEquals(3, answer.size());
+        assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
         assertEquals(List.of(colA, colB), answer.get("columns"));
@@ -290,7 +291,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql(builder);
         assertMap(
             result,
-            matchesMap().entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
+            matchesMap().entry("values", List.of(List.of(1)))
+                .entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         builder = requestObjectBuilder().query(fromIndex() + " | stats min(value) by group | sort group, `min(value)`");
@@ -299,6 +302,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             result,
             matchesMap().entry("values", List.of(List.of(2, 0), List.of(1, 1)))
                 .entry("columns", List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")))
+                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -556,7 +560,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
 
         assertThat(deleteIndex(testIndexName() + "-1").isAcknowledged(), is(true)); // clean up
         assertThat(deleteIndex(testIndexName() + "-2").isAcknowledged(), is(true)); // clean up
@@ -607,6 +611,41 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsqlSync(requestObjectBuilder().query("row a = ?n0").params("[{\"n1\": \"v1\"}]"))
         );
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Unknown query parameter [n0], did you mean [n1]"));
+    }
+
+    public void testErrorMessageForInvalidIntervalParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x + ?n2::time_duration")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 days\"}]")
+            )
+        );
+
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
+            )
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x - ?n2::date_period")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 hours\"}]")
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::date_period], expected integer followed by one of "
+                    + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 hours]"
+            )
+        );
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
@@ -711,7 +750,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     .item(matchesMap().entry("name", "value").entry("type", "long"))
                     .item(matchesMap().entry("name", "now").entry("type", "date"))
                     .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
-            ).entry("values", values)
+            ).entry("values", values).entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -725,10 +764,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             b.endObject();
         }).query(fromIndex() + " | STATS SUM(value)");
+
+        Map<String, Object> result = runEsql(builder);
         assertMap(
-            runEsql(builder),
+            result,
             matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                 .entry("values", List.of(List.of(499500)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -742,10 +784,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             b.endObject();
         }).query(fromIndex() + " | WHERE value == 12 | STATS SUM(value)");
+        Map<String, Object> result = runEsql(builder);
         assertMap(
-            runEsql(builder),
+            result,
             matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                 .entry("values", List.of(List.of(12)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -774,10 +818,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
                 b.endObject();
             }).query(fromIndex() + " | WHERE @timestamp > \"2010-01-01\" | STATS SUM(value)");
+            Map<String, Object> result = runEsql(builder);
             assertMap(
-                runEsql(builder),
+                result,
                 matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                     .entry("values", List.of(List.of(12)))
+                    .entry("took", greaterThanOrEqualTo(0))
             );
         }
     }

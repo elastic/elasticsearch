@@ -98,7 +98,7 @@ final class BytesRef3BlockHash extends BlockHash {
         }
     }
 
-    private class AddWork extends AddBlock {
+    private class AddWork extends AddPage {
         final IntBlock b1;
         final IntBlock b2;
         final IntBlock b3;
@@ -137,7 +137,7 @@ final class BytesRef3BlockHash extends BlockHash {
                 }
                 finishMv();
             }
-            emitOrds();
+            flushRemaining();
         }
     }
 

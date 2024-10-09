@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -49,6 +50,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     static MockAppender appender;
     static Logger queryLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     static Logger fetchLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+    static Level origQueryLogLevel = queryLog.getLevel();
+    static Level origFetchLogLevel = fetchLog.getLevel();
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
@@ -56,13 +59,19 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         appender.start();
         Loggers.addAppender(queryLog, appender);
         Loggers.addAppender(fetchLog, appender);
+
+        Loggers.setLevel(queryLog, Level.TRACE);
+        Loggers.setLevel(fetchLog, Level.TRACE);
     }
 
     @AfterClass
     public static void cleanup() {
-        appender.stop();
         Loggers.removeAppender(queryLog, appender);
         Loggers.removeAppender(fetchLog, appender);
+        appender.stop();
+
+        Loggers.setLevel(queryLog, origQueryLogLevel);
+        Loggers.setLevel(fetchLog, origFetchLogLevel);
     }
 
     @Override

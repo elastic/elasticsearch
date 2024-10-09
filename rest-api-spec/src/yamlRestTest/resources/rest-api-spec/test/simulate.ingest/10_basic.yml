@@ -261,7 +261,9 @@ setup:
 "Test mapping validation from templates":
 
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
 
   - requires:
       cluster_features: ["simulate.mapping.validation.templates"]
@@ -279,6 +281,8 @@ setup:
                 type: text
 
   - do:
+      allowed_warnings:
+        - "index template [v2_template] has index patterns [v2_strict_nonexistent*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [v2_template] will take precedence during new index creation"
       indices.put_index_template:
         name: v2_template
         body:
@@ -291,6 +295,8 @@ setup:
                   type: text
 
   - do:
+      allowed_warnings:
+        - "index template [v2_hidden_template] has index patterns [v2_strict_hidden_nonexistent*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [v2_hidden_template] will take precedence during new index creation"
       indices.put_index_template:
         name: v2_hidden_template
         body:

@@ -592,7 +592,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
-    private static QueryBuilder randomQueryBuilder() {
+    public static QueryBuilder randomQueryBuilder() {
         return randomFrom(
             new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 10)),
             new RangeQueryBuilder(randomAlphaOfLength(5)).gt(randomIntBetween(0, 1000))

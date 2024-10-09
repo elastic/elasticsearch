@@ -502,6 +502,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         });
         final SearchSourceBuilder source = original.source();
         if (shouldOpenPIT(source)) {
+            // disabling shard reordering for request
+            original.setPreFilterShardSize(Integer.MAX_VALUE);
             openPIT(client, original, searchService.getDefaultKeepAliveInMillis(), listener.delegateFailureAndWrap((delegate, resp) -> {
                 // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
                 // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.

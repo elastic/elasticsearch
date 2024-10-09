@@ -34,6 +34,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
         "verbose-dense-vector-mapping-stats",
         "ccs-stats"
     );
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
 
     @Override
     public List<Route> routes() {
@@ -47,7 +48,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

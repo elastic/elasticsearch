@@ -82,6 +82,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
                 leafName(),
                 context.buildFullName(leafName()),
                 enabled,
+                sourceKeepMode,
                 dynamic,
                 buildMappers(context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic)),
                 timeSeriesDimensionSubFields,
@@ -99,13 +100,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
         String name,
         String fullPath,
         Explicit<Boolean> enabled,
+        Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Explicit<Boolean> timeSeriesDimensionSubFields,
         int priority
     ) {
         // Subobjects are not currently supported.
-        super(name, fullPath, enabled, Optional.of(Subobjects.DISABLED), Explicit.IMPLICIT_FALSE, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.of(Subobjects.DISABLED), sourceKeepMode, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.priority = priority;
         if (priority < 0) {
@@ -115,7 +117,16 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     @Override
     PassThroughObjectMapper withoutMappers() {
-        return new PassThroughObjectMapper(leafName(), fullPath(), enabled, dynamic, Map.of(), timeSeriesDimensionSubFields, priority);
+        return new PassThroughObjectMapper(
+            leafName(),
+            fullPath(),
+            enabled,
+            sourceKeepMode,
+            dynamic,
+            Map.of(),
+            timeSeriesDimensionSubFields,
+            priority
+        );
     }
 
     @Override
@@ -158,6 +169,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
             leafName(),
             fullPath(),
             mergeResult.enabled(),
+            mergeResult.sourceKeepMode(),
             mergeResult.dynamic(),
             mergeResult.mappers(),
             containsDimensions,

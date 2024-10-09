@@ -119,10 +119,11 @@ public class RoleMappingCleanupExecutor extends PersistentTasksExecutor<RoleMapp
 
     @Override
     public void accept(SecurityIndexManager.State oldState, SecurityIndexManager.State newState) {
-        if (cleanupInProgress.compareAndSet(false, true)
-            && securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)) {
-            securityIndexManager.removeStateListener(this);
-            doCleanup();
+        if (securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)) {
+            if (cleanupInProgress.compareAndSet(false, true)) {
+                securityIndexManager.removeStateListener(this);
+                doCleanup();
+            }
         }
     }
 }

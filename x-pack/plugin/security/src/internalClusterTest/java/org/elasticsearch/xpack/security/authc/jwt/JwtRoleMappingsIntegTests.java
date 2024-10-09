@@ -446,7 +446,7 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
     }
 
     private void publishRoleMappings(Set<ExpressionRoleMapping> roleMappings) throws InterruptedException {
-        RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(roleMappings);
+        RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(roleMappings, 0);
         List<ClusterService> clusterServices = new ArrayList<>();
         internalCluster().getInstances(ClusterService.class).forEach(clusterServices::add);
         CountDownLatch publishedClusterState = new CountDownLatch(clusterServices.size());

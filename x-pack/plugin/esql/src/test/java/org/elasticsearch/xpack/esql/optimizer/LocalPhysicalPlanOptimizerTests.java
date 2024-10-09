@@ -809,6 +809,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         );
     }
 
+    public void testMatchFunctionIsNotNullable() {
+        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        String queryText = """
+            row n = null | eval text = n + 5 | where match(text::keyword, "Anna")
+            """;
+
+        VerificationException ve = expectThrows(VerificationException.class, () -> plannerOptimizer.plan(queryText, IS_SV_STATS));
+        assertThat(
+            ve.getMessage(),
+            containsString("[MATCH] cannot operate on [text::keyword], which is not a field from an index mapping")
+        );
+    }
+
     /**
      * Expected:
      * LimitExec[1000[INTEGER]]

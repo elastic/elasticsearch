@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -107,5 +108,10 @@ public abstract class FullTextFunction extends Function {
      */
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
         return DEFAULT;
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 }

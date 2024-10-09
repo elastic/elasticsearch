@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -29,6 +30,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
@@ -62,6 +64,8 @@ import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.API_KEY_HEADER;
@@ -109,6 +113,90 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
                 assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null),
+                    getEmbeddingsTaskSettingsMap("user"),
+                    getSecretSettingsMap("secret")
+                ),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createService()) {
+            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null);
+
+            var config = getRequestConfigMap(
+                serviceSettings,
+                getEmbeddingsTaskSettingsMap("user"),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
+                }
+            );
+
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnAzureAiStudioEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+                var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+                assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+                assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+                assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null),
+                    getEmbeddingsTaskSettingsMap("user"),
+                    createRandomChunkingSettingsMap(),
+                    getSecretSettingsMap("secret")
+                ),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnAzureAiStudioEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+                var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+                assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+                assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+                assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
@@ -461,6 +549,89 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsTaskSettingsMap("user"),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsTaskSettingsMap("user"),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsTaskSettingsMap("user"),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+        }
+    }
+
     public void testParsePersistedConfig_CreatesAnAzureAiStudioChatCompletionModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
@@ -648,6 +819,84 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+        }
+    }
+
+    public void testParsePersistedConfig_WithoutSecretsCreatesAnEmbeddingsModelWithoutChunkingSettingsFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsTaskSettingsMap("user"),
+                createRandomChunkingSettingsMap(),
+                Map.of()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+
+            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsTaskSettingsMap("user"),
+                createRandomChunkingSettingsMap(),
+                Map.of()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+
+            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsTaskSettingsMap("user"),
+                Map.of()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+
+            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
     }
 
@@ -843,6 +1092,61 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     }
 
     public void testChunkedInfer() throws IOException {
+        var model = AzureAiStudioEmbeddingsModelTests.createModel(
+            "id",
+            getUrl(webServer),
+            AzureAiStudioProvider.OPENAI,
+            AzureAiStudioEndpointType.TOKEN,
+            "apikey",
+            null,
+            false,
+            null,
+            null,
+            "user",
+            null
+        );
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_ChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        var model = AzureAiStudioEmbeddingsModelTests.createModel(
+            "id",
+            getUrl(webServer),
+            AzureAiStudioProvider.OPENAI,
+            AzureAiStudioEndpointType.TOKEN,
+            createRandomChunkingSettings(),
+            "apikey",
+            null,
+            false,
+            null,
+            null,
+            "user",
+            null
+        );
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_ChunkingSettingsNotSetAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        var model = AzureAiStudioEmbeddingsModelTests.createModel(
+            "id",
+            getUrl(webServer),
+            AzureAiStudioProvider.OPENAI,
+            AzureAiStudioEndpointType.TOKEN,
+            null,
+            "apikey",
+            null,
+            false,
+            null,
+            null,
+            "user",
+            null
+        );
+        testChunkedInfer(model);
+    }
+
+    private void testChunkedInfer(AzureAiStudioEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -877,19 +1181,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = AzureAiStudioEmbeddingsModelTests.createModel(
-                "id",
-                getUrl(webServer),
-                AzureAiStudioProvider.OPENAI,
-                AzureAiStudioEndpointType.TOKEN,
-                "apikey",
-                null,
-                false,
-                null,
-                null,
-                "user",
-                null
-            );
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
@@ -1019,6 +1310,18 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     private AzureAiStudioService createService() {
         return new AzureAiStudioService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+    }
+
+    private Map<String, Object> getRequestConfigMap(
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        Map<String, Object> chunkingSettings,
+        Map<String, Object> secretSettings
+    ) {
+        var requestConfigMap = getRequestConfigMap(serviceSettings, taskSettings, secretSettings);
+        requestConfigMap.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+
+        return requestConfigMap;
     }
 
     private Map<String, Object> getRequestConfigMap(

@@ -242,9 +242,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_force_delete/Test force deleting a running transform}
   issue: https://github.com/elastic/elasticsearch/issues/113327
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=analytics/top_metrics/sort by scaled float field}
-  issue: https://github.com/elastic/elasticsearch/issues/113340
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/ccr/apis/follow/post-resume-follow/line_84}
   issue: https://github.com/elastic/elasticsearch/issues/113343

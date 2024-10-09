@@ -32,7 +32,6 @@ query
 sourceCommand
     : explainCommand
     | fromCommand
-    | metaCommand
     | rowCommand
     | showCommand
     // in development
@@ -287,10 +286,6 @@ subqueryExpression
 
 showCommand
     : SHOW INFO                                                           #showInfo
-    ;
-
-metaCommand
-    : META FUNCTIONS                                                      #metaFunctions
     ;
 
 enrichCommand

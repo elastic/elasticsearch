@@ -391,7 +391,7 @@ public class ClusterModule extends AbstractModule {
         }
     }
 
-    @UpdateForV10 // in v10 there is only one allocator
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // in v10 there is only one allocator
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,

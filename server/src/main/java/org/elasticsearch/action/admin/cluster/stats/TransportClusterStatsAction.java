@@ -306,7 +306,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
     }
 
-    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // this can be replaced with TransportRequest.Empty in v9
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
         ClusterStatsNodeRequest() {}

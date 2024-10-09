@@ -169,7 +169,19 @@ enum Database {
             Property.TYPE
         ),
         Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
-    );
+    ),
+    CityV2(
+        Set.of(
+            Property.IP,
+            Property.COUNTRY_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.TIMEZONE,
+            Property.LOCATION,
+            Property.POSTAL_CODE
+        ),
+        Set.of(Property.COUNTRY_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION)
+    ),;
 
     private final Set<Property> properties;
     private final Set<Property> defaultProperties;

@@ -30,7 +30,9 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -45,16 +47,18 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
 public class TransportUpdateInferenceModelAction extends TransportMasterNodeAction<
@@ -66,7 +70,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Client client;
-    private volatile boolean skipValidationAndStart;
 
     @Inject
     public TransportUpdateInferenceModelAction(
@@ -94,9 +97,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.client = client;
-        this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
     }
 
     @Override
@@ -106,12 +106,16 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ClusterState state,
         ActionListener<UpdateInferenceModelAction.Response> masterListener
     ) {
+        var bodyTaskType = request.getContentAsSettings().taskType();
+        var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
+
         AtomicReference<InferenceService> service = new AtomicReference<>();
 
         var inferenceEntityId = request.getInferenceEntityId();
 
         SubscribableListener.<UnparsedModel>newForked(listener -> { checkEndpointExists(inferenceEntityId, listener); })
             .<UnparsedModel>andThen((listener, unparsedModel) -> {
+
                 Optional<InferenceService> optionalService = serviceRegistry.getService(unparsedModel.service());
                 if (optionalService.isEmpty()) {
                     listener.onFailure(
@@ -128,24 +132,25 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             })
             .<Boolean>andThen((listener, existingUnparsedModel) -> {
 
-                if (isInClusterService(service.get().name())) {
-                    updateInClusterEndpoint(request, listener);
-                } else {
-                    Model existingParsedModel = service.get()
-                        .parsePersistedConfigWithSecrets(
-                            request.getInferenceEntityId(),
-                            request.getTaskType(),
-                            new HashMap<>(existingUnparsedModel.settings()),
-                            new HashMap<>(existingUnparsedModel.secrets())
-                        );
-
-                    Model newModel = combineExistingModelWithNewSettings(
-                        existingParsedModel,
-                        request.getContentAsMaps(),
-                        service.get().name()
+                Model existingParsedModel = service.get()
+                    .parsePersistedConfigWithSecrets(
+                        request.getInferenceEntityId(),
+                        existingUnparsedModel.taskType(),
+                        new HashMap<>(existingUnparsedModel.settings()),
+                        new HashMap<>(existingUnparsedModel.secrets())
                     );
 
-                    modelRegistry.updateModelTransaction(newModel, existingParsedModel, listener); // FIXME
+                Model newModel = combineExistingModelWithNewSettings(
+                    existingParsedModel,
+                    request.getContentAsSettings(),
+                    service.get().name(),
+                    resolvedTaskType
+                );
+
+                if (isInClusterService(service.get().name())) {
+                    updateInClusterEndpoint(request, newModel, existingParsedModel, listener);
+                } else {
+                    modelRegistry.updateModelTransaction(newModel, existingParsedModel, listener);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {
@@ -163,7 +168,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                                 service.get()
                                     .parsePersistedConfig(
                                         request.getInferenceEntityId(),
-                                        request.getTaskType(),
+                                        resolvedTaskType,
                                         new HashMap<>(unparsedModel.settings())
                                     )
                                     .getConfigurations()
@@ -192,38 +197,68 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     private Model combineExistingModelWithNewSettings(
         Model existingParsedModel,
         UpdateInferenceModelAction.Settings settingsToUpdate,
-        String serviceName
+        String serviceName,
+        TaskType resolvedTaskType
     ) {
         ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
         TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
 
-        SecretSettings newSecretSettings = existingSecretSettings.newSecretSettings(settingsToUpdate.serviceSettings());
-        TaskSettings newTaskSettings = existingTaskSettings.updatedTaskSettings(settingsToUpdate.taskSettings());
+        SecretSettings newSecretSettings = existingSecretSettings;
+        TaskSettings newTaskSettings = existingTaskSettings;
+        ServiceSettings newServiceSettings = existingConfigs.getServiceSettings();
+
+        if (settingsToUpdate.serviceSettings() != null && existingSecretSettings != null) {
+            newSecretSettings = existingSecretSettings.newSecretSettings(settingsToUpdate.serviceSettings());
+        }
+        if (settingsToUpdate.serviceSettings() != null && settingsToUpdate.serviceSettings().containsKey(NUM_ALLOCATIONS)) {
+            // In cluster services can only have their num_allocations updated, so this is a special case
+            if (newServiceSettings instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {
+                newServiceSettings = new ElasticsearchInternalServiceSettings(
+                    elasticServiceSettings,
+                    (Integer) settingsToUpdate.serviceSettings().get(NUM_ALLOCATIONS)
+                );
+            }
+        }
+        if (settingsToUpdate.taskSettings() != null && existingTaskSettings != null) {
+            newTaskSettings = existingTaskSettings.updatedTaskSettings(settingsToUpdate.taskSettings());
+        }
+
+        if (existingParsedModel.getTaskType().equals(resolvedTaskType) == false) {
+            throw new ElasticsearchStatusException("Task type must match the task type of the existing endpoint", RestStatus.BAD_REQUEST);
+        }
+
         ModelConfigurations newModelConfigs = new ModelConfigurations(
             existingParsedModel.getInferenceEntityId(),
             existingParsedModel.getTaskType(),
             serviceName,
-            existingConfigs.getServiceSettings(),
+            newServiceSettings,
             newTaskSettings
         );
 
         return new Model(newModelConfigs, new ModelSecrets(newSecretSettings));
     }
 
-    private void updateInClusterEndpoint(UpdateInferenceModelAction.Request request, ActionListener<Boolean> listener) throws IOException {
+    private void updateInClusterEndpoint(
+        UpdateInferenceModelAction.Request request,
+        Model newModel,
+        Model existingParsedModel,
+        ActionListener<Boolean> listener
+    ) throws IOException {
         // The model we are trying to update must have a trained model associated with it if it is an in-cluster deployment
         throwIfTrainedModelDoesntExist(request);
 
-        if (request.getContentAsMaps().serviceSettings().get(NUM_ALLOCATIONS) instanceof Integer numAllocations) {
+        Map<String, Object> serviceSettings = request.getContentAsSettings().serviceSettings();
+        if (serviceSettings != null && serviceSettings.get(NUM_ALLOCATIONS) instanceof Integer numAllocations) {
 
             UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(
                 request.getInferenceEntityId()
             );
             updateRequest.setNumberOfAllocations(numAllocations);
 
-            var delegate = listener.<CreateTrainedModelAssignmentAction.Response>delegateFailure((l2, response) -> l2.onResponse(true));
-            // TODO on response, we need to update the model registry with the new number of allocations
+            var delegate = listener.<CreateTrainedModelAssignmentAction.Response>delegateFailure((l2, response) -> {
+                modelRegistry.updateModelTransaction(newModel, existingParsedModel, l2);
+            });
 
             logger.info(
                 "Updating trained model deployment for inference entity [{}] with [{}] num_allocations",
@@ -283,10 +318,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
     private static XContentParser getParser(UpdateInferenceModelAction.Request request) throws IOException {
         return XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType());
-    }
-
-    private void setSkipValidationAndStart(boolean skipValidationAndStart) {
-        this.skipValidationAndStart = skipValidationAndStart;
     }
 
     @Override

@@ -23,6 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_UPDATE_PATH;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_ID_UPDATE_PATH;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
@@ -35,7 +36,7 @@ public class RestUpdateInferenceModelAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, TASK_TYPE_INFERENCE_ID_UPDATE_PATH));
+        return List.of(new Route(PUT, INFERENCE_ID_UPDATE_PATH), new Route(PUT, TASK_TYPE_INFERENCE_ID_UPDATE_PATH));
     }
 
     @Override

@@ -314,11 +314,24 @@ public class ModelRegistry {
         );
     }
 
-    public synchronized void updateModelTransaction(Model newModel, Model existingModel, ActionListener<Boolean> listener) {
+    public void updateModelTransaction(Model newModel, Model existingModel, ActionListener<Boolean> finalListener) {
 
         String inferenceEntityId = newModel.getConfigurations().getInferenceEntityId();
+        logger.info("Attempting to store update to inference endpoint [{}]", inferenceEntityId);
 
-        preventDeletionLock.add(inferenceEntityId);
+        if (preventDeletionLock.contains(inferenceEntityId)) {
+            logger.warn(format("Attempted to update endpoint [{}] that is already being updated", inferenceEntityId));
+            finalListener.onFailure(
+                new ElasticsearchStatusException(
+                    "Endpoint [{}] is currently being updated. Try again once the update completes",
+                    RestStatus.CONFLICT,
+                    inferenceEntityId
+                )
+            );
+            return;
+        } else {
+            preventDeletionLock.add(inferenceEntityId);
+        }
 
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
 
@@ -334,8 +347,10 @@ public class ModelRegistry {
         }).<BulkResponse>andThen((subListener, configResponse) -> {
 
             if (configResponse.hasFailures()) {
-                // TODO add log message
-                listener.onFailure(
+                logger.error(
+                    format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
+                );
+                finalListener.onFailure(
                     new ElasticsearchStatusException(
                         format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId),
                         RestStatus.INTERNAL_SERVER_ERROR,
@@ -362,8 +377,10 @@ public class ModelRegistry {
                 );
 
                 client.prepareBulk().add(configRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(subListener);
-                // TODO add log message
-                listener.onFailure(
+                logger.error(
+                    format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, secretsResponse.buildFailureMessage())
+                );
+                subListener.onFailure(
                     new ElasticsearchStatusException(
                         format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId),
                         RestStatus.INTERNAL_SERVER_ERROR,
@@ -372,12 +389,14 @@ public class ModelRegistry {
                 );
             } else {
                 preventDeletionLock.remove(inferenceEntityId);
-                listener.onResponse(true);
+                finalListener.onResponse(true);
             }
         }).<BulkResponse>andThen((subListener, configResponse) -> {
             preventDeletionLock.remove(inferenceEntityId);
-            // TODO add log message
-            listener.onFailure(
+            logger.error(
+                format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
+            );
+            finalListener.onFailure(
                 new ElasticsearchStatusException(
                     format(
                         "Failed to rollback while handling failure to update inference endpoint [%s]. "

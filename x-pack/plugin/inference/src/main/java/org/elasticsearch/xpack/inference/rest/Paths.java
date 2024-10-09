@@ -19,6 +19,7 @@ public final class Paths {
         + "}/{"
         + INFERENCE_ID
         + "}/_update";
+    static final String INFERENCE_ID_UPDATE_PATH = "_inference/{" + TASK_TYPE_OR_INFERENCE_ID + "}/_update";
 
     static final String STREAM_INFERENCE_ID_PATH = "_inference/{" + TASK_TYPE_OR_INFERENCE_ID + "}/_stream";
     static final String STREAM_TASK_TYPE_INFERENCE_ID_PATH = "_inference/{"

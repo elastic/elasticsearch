@@ -354,6 +354,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/60_synonym_rule_get/Synonym set not found}
   issue: https://github.com/elastic/elasticsearch/issues/114432
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/60_synonym_rule_get/Get a synonym rule}
+  issue: https://github.com/elastic/elasticsearch/issues/114443
 
 # Examples:
 #

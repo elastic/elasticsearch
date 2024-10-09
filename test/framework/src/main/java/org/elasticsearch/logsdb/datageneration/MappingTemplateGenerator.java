@@ -38,7 +38,7 @@ public class MappingTemplateGenerator {
     public MappingTemplate generate() {
         var map = new HashMap<String, MappingTemplate.Entry>();
 
-        generateChildFields(map, 0);
+        generateChildFields(map, 0, new AtomicInteger(0));
         return new MappingTemplate(map);
     }
 

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -100,6 +101,7 @@ public abstract class EsqlScalarFunction extends ScalarFunction implements Evalu
         entries.add(Right.ENTRY);
         entries.add(Repeat.ENTRY);
         entries.add(Replace.ENTRY);
+        entries.add(Reverse.ENTRY);
         entries.add(Round.ENTRY);
         entries.add(Split.ENTRY);
         entries.add(Substring.ENTRY);

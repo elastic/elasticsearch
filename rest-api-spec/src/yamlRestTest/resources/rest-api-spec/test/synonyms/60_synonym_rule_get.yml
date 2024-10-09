@@ -15,6 +15,7 @@ setup:
               id: "test-id-3"
   - do:
       cluster.health:
+        index: .synonyms-2
         wait_for_status: green
 
 ---

@@ -33,11 +33,11 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
     }
 
     void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 400) {

@@ -199,14 +199,6 @@ public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         }
     }
 
-    private boolean isDateField(MappedFieldType fieldType) {
-        return fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE);
-    }
-
-    private boolean isKeywordField(MappedFieldType fieldType) {
-        return fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE);
-    }
-
     @Override
     public QueryBuilder visitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx) {
         return super.visitFieldRangeQuery(ctx);
@@ -243,5 +235,13 @@ public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     private boolean isRuntimeField(MappedFieldType fieldType) {
         return fieldType instanceof AbstractScriptFieldType<?>;
+    }
+
+    private boolean isDateField(MappedFieldType fieldType) {
+        return fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE);
+    }
+
+    private boolean isKeywordField(MappedFieldType fieldType) {
+        return fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE);
     }
 }

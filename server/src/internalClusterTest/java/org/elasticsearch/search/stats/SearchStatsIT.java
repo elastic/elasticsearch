@@ -13,23 +13,35 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -53,7 +65,7 @@ public class SearchStatsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return List.of(CustomScriptPlugin.class, FailingFieldPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -65,6 +77,50 @@ public class SearchStatsIT extends ESIntegTestCase {
                 Map<?, ?> src = ((Supplier<Source>) vars.get("_source")).get().source();
                 return src.get("field");
             });
+        }
+    }
+
+    public static class FailingFieldPlugin extends Plugin implements ScriptPlugin {
+
+        @Override
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+            return new ScriptEngine() {
+                @Override
+                public String getType() {
+                    return "failing_field";
+                }
+
+                @Override
+                @SuppressWarnings("unchecked")
+                public <FactoryType> FactoryType compile(
+                    String name,
+                    String code,
+                    ScriptContext<FactoryType> context,
+                    Map<String, String> params
+                ) {
+                    return (FactoryType) new LongFieldScript.Factory() {
+                        @Override
+                        public LongFieldScript.LeafFactory newFactory(
+                            String fieldName,
+                            Map<String, Object> params,
+                            SearchLookup searchLookup,
+                            OnScriptError onScriptError
+                        ) {
+                            return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
+                                @Override
+                                public void execute() {
+                                    throw new IllegalArgumentException("Accessing failing field");
+                                }
+                            };
+                        }
+                    };
+                }
+
+                @Override
+                public Set<ScriptContext<?>> getSupportedContexts() {
+                    return Set.of(LongFieldScript.CONTEXT);
+                }
+            };
         }
     }
 
@@ -243,5 +299,65 @@ public class SearchStatsIT extends ESIntegTestCase {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
+    }
+
+    public void testFailureStats() throws Exception {
+        String indexName = "test";
+        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
+        mapping.startObject("runtime");
+        {
+            mapping.startObject("fail_me");
+            {
+                mapping.field("type", "long");
+                mapping.startObject("script").field("source", "").field("lang", "failing_field").endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+        int numOfShards = between(1, 5);
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards))
+            .setMapping(mapping)
+            .get();
+        int numDocs = between(20, 100);
+        for (int i = 1; i < numDocs; i++) {
+            index(indexName, Integer.toString(i), Map.of("position", i));
+        }
+        refresh(indexName);
+        int numQueries = between(1, 10);
+        long failedQueries = 0;
+        for (int q = 0; q < numQueries; q++) {
+            expectThrows(Exception.class, () -> {
+                client().prepareSearch(indexName)
+                    .setQuery(new RangeQueryBuilder("fail_me").gt(10))
+                    .setAllowPartialSearchResults(true)
+                    .get();
+            });
+            failedQueries += numOfShards;
+            var stats = client().admin().indices().prepareStats(indexName).all().get().getTotal().search.getTotal();
+            assertThat(stats.getQueryCount(), equalTo(0L));
+            assertThat(stats.getQueryFailure(), equalTo(failedQueries));
+            assertThat(stats.getFetchCount(), equalTo(0L));
+            assertThat(stats.getFetchFailure(), equalTo(0L));
+        }
+        int numFetches = between(1, 10);
+        for (int q = 0; q < numFetches; q++) {
+            expectThrows(Exception.class, () -> {
+                client().prepareSearch(indexName)
+                    .setQuery(new RangeQueryBuilder("position").gt(0))
+                    .setFetchSource(false)
+                    .addFetchField("fail_me")
+                    .setSize(1000)
+                    .get();
+            });
+            var stats = client().admin().indices().prepareStats(indexName).all().get().getTotal().search.getTotal();
+            assertThat(stats.getQueryCount(), equalTo((q + 1L) * numOfShards));
+            assertThat(stats.getQueryFailure(), equalTo(failedQueries));
+            assertThat(stats.getFetchCount(), equalTo(0L));
+            assertThat(stats.getFetchFailure(), equalTo((q + 1L) * numOfShards));
+        }
     }
 }

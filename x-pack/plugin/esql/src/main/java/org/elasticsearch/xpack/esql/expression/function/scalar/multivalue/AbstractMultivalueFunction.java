@@ -84,7 +84,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     protected abstract TypeResolution resolveFieldType();
 
     @Override
-    public final ExpressionEvaluator.Factory toEvaluator(java.util.function.Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 

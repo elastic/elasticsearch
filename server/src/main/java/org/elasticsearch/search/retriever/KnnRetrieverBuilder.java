@@ -114,8 +114,25 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         int numCands,
         Float similarity
     ) {
+        if (queryVector == null && queryVectorBuilder == null) {
+            throw new IllegalArgumentException(
+                format(
+                    "either [%s] or [%s] must be provided",
+                    QUERY_VECTOR_FIELD.getPreferredName(),
+                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName()
+                )
+            );
+        } else if (queryVector != null && queryVectorBuilder != null) {
+            throw new IllegalArgumentException(
+                format(
+                    "only one of [%s] and [%s] must be provided",
+                    QUERY_VECTOR_FIELD.getPreferredName(),
+                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName()
+                )
+            );
+        }
         this.field = field;
-        this.queryVector = () -> queryVector;
+        this.queryVector = queryVector != null ? () -> queryVector : null;
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCands;
@@ -175,6 +192,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public QueryBuilder topDocsQuery() {
+        assert queryVector != null : "query vector must be materialized at this point";
         assert rankDocs != null : "rankDocs should have been materialized by now";
         var rankDocsQuery = new RankDocsQueryBuilder(rankDocs, null, true);
         if (preFilterQueryBuilders.isEmpty()) {
@@ -187,6 +205,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public QueryBuilder explainQuery() {
+        assert queryVector != null : "query vector must be materialized at this point";
         assert rankDocs != null : "rankDocs should have been materialized by now";
         var rankDocsQuery = new RankDocsQueryBuilder(
             rankDocs,
@@ -203,10 +222,11 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+        assert queryVector != null : "query vector must be materialized at this point.";
         KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(
             field,
             VectorData.fromFloats(queryVector.get()),
-            queryVectorBuilder,
+            null,
             k,
             numCands,
             similarity
@@ -223,6 +243,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----
+
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(FIELD_FIELD.getPreferredName(), field);
@@ -230,7 +251,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
         if (queryVector != null) {
-            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.get());
         }
 
         if (queryVectorBuilder != null) {
@@ -248,7 +269,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         return k == that.k
             && numCands == that.numCands
             && Objects.equals(field, that.field)
-            && Arrays.equals(queryVector.get(), that.queryVector.get())
+            && ((queryVector == null && that.queryVector == null)
+                || (queryVector != null && that.queryVector != null && Arrays.equals(queryVector.get(), that.queryVector.get())))
             && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
             && Objects.equals(similarity, that.similarity);
     }
@@ -256,7 +278,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     @Override
     public int doHashCode() {
         int result = Objects.hash(field, queryVectorBuilder, k, numCands, similarity);
-        result = 31 * result + Arrays.hashCode(queryVector.get());
+        result = 31 * result + Arrays.hashCode(queryVector != null ? queryVector.get() : null);
         return result;
     }
 

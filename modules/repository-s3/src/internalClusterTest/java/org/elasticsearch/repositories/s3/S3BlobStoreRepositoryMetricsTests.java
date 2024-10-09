@@ -355,16 +355,16 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
     private static class S3MetricErroneousHttpHandler implements DelegatingHttpHandler {
 
         private final HttpHandler delegate;
-        private final Queue<S3ErrorResponse> errorStatusQueue;
+        private final Queue<S3ErrorResponse> errorResponseQueue;
 
-        S3MetricErroneousHttpHandler(HttpHandler delegate, Queue<S3ErrorResponse> errorStatusQueue) {
+        S3MetricErroneousHttpHandler(HttpHandler delegate, Queue<S3ErrorResponse> errorResponseQueue) {
             this.delegate = delegate;
-            this.errorStatusQueue = errorStatusQueue;
+            this.errorResponseQueue = errorResponseQueue;
         }
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            final S3ErrorResponse errorResponse = errorStatusQueue.poll();
+            final S3ErrorResponse errorResponse = errorResponseQueue.poll();
             if (errorResponse == null) {
                 delegate.handle(exchange);
             } else if (errorResponse.status == INTERNAL_SERVER_ERROR) {

@@ -303,16 +303,16 @@ final class RequestXContent {
         List<XContentParseException> errors
     ) {
         Object value = paramElements.get(ParamParsingKey.VALUE);
-        Object id = paramElements.get(ParamParsingKey.KIND);
+        Object kind = paramElements.get(ParamParsingKey.KIND);
         ParserUtils.ParamClassification classification = VALUE;
-        if (id != null) {
-            classification = paramClassifications.get(id.toString().toUpperCase(Locale.ROOT));
+        if (kind != null) {
+            classification = paramClassifications.get(kind.toString().toUpperCase(Locale.ROOT));
             if (classification == null) {
                 errors.add(
                     new XContentParseException(
                         loc,
                         "["
-                            + id
+                            + kind
                             + "] is not a valid param kind, a valid kind is any of "
                             + Arrays.stream(ParserUtils.ParamClassification.values())
                                 .map(ParserUtils.ParamClassification::name)

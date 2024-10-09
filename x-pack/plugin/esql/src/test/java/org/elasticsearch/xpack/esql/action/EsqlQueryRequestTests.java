@@ -100,11 +100,11 @@ public class EsqlQueryRequestTests extends ESTestCase {
         QueryBuilder filter = randomQueryBuilder();
 
         String paramsString = """
-            ,"params":[ {"n1" : {"value" : "f1", "kind" : "identifier"}},
+            ,"params":[ {"n1" : {"value" : "f1", "kind" : "Identifier"}},
              {"n2" : {"value" : "f1*", "Kind" : "identifier"}},
-             {"n3" : {"value" : "f.1*", "KIND" : "pattern"}},
+             {"n3" : {"value" : "f.1*", "KIND" : "Pattern"}},
              {"n4" : {"value" : "*", "kind" : "pattern"}},
-             {"n5" : {"value" : "esql", "kind" : "identifier"}},
+             {"n5" : {"value" : "esql", "kind" : "Value"}},
              {"n_6" : {"value" : "null", "kind" : "identifier"}},
              {"n7_" : {"value" : "f.1.1"}},
              {"_n1" : "8.15.0"},
@@ -120,7 +120,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             paramAsIdentifier("n2", "f1*"),
             paramAsPattern("n3", "f.1*"),
             paramAsPattern("n4", "*"),
-            paramAsIdentifier("n5", "esql"),
+            paramAsConstant("n5", "esql"),
             paramAsIdentifier("n_6", "null"),
             paramAsConstant("n7_", "f.1.1"),
             paramAsConstant("_n1", "8.15.0"),
@@ -226,7 +226,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {"n7" : {"value" : 1, "kind" : "Identifier"}}, {"n8" : {"value" : true, "kind" : "Pattern"}},
             {"n9" : {"kind" : "identifier"}}, {"n10" : {"v" : "v10", "kind" : "identifier"}},
             {"n11" : {"value" : "v11", "kind" : "pattern"}}, {"n12" : {"value" : ["x", "y"], "kind" : "identifier"}},
-            {"n13" : {"value" : "v13", "kind" : "identifier", "type" : "pattern"}}]""";
+            {"n13" : {"value" : "v13", "kind" : "identifier", "type" : "pattern"}}, {"n14" : {"v" : "v14", "kind" : "value"}}]""";
         String json3 = String.format(Locale.ROOT, """
             {
                 %s
@@ -257,7 +257,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     + "a valid value for PATTERN parameter is a string and contains *; "
                     + "[7:50] [[x, y]] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
                     + "[7:50] n12={kind=identifier, value=[x, y]} is not supported as a parameter; "
-                    + "[8:1] [type] is not a valid param attribute, a valid attribute is any of VALUE, KIND"
+                    + "[8:1] [type] is not a valid param attribute, a valid attribute is any of VALUE, KIND; "
+                    + "[8:73] [v] is not a valid param attribute, a valid attribute is any of VALUE, KIND; "
+                    + "[8:73] [n14={v=v14, kind=value}] does not have a value specified"
             )
         );
     }

@@ -307,8 +307,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/112980
-- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/113753
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
   method: testNonGzippedDatabase
   issue: https://github.com/elastic/elasticsearch/issues/113821

@@ -56,7 +56,7 @@ documents can't be backed up incrementally.
 ===== Blocks during a force merge
 
 Calls to this API block until the merge is complete (unless request contains
-wait_for_completion=false, which is default true). If the client connection
+`wait_for_completion=false`, which is default `true`). If the client connection
 is lost before completion then the force merge process will continue in the
 background. Any new requests to force merge the same indices will also block
 until the ongoing force merge is complete.

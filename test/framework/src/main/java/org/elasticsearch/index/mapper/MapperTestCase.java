@@ -1580,7 +1580,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         buildInput.accept(builder);
         builder.endObject();
         String expected = Strings.toString(builder);
-        assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
+        String actual = syntheticSource(mapperAll, buildInput);
+        // Check for single-element array, the array source is not stored in this case.
+        if (expected.replace("[", "").replace("]", "").equals(actual) == false) {
+            assertThat(actual, equalTo(expected));
+        }
     }
 
     @Override

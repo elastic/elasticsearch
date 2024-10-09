@@ -51,7 +51,7 @@ public class DataGenerationHelper {
             .withPredefinedFields(
                 List.of(
                     // Customized because it always needs doc_values for aggregations.
-                    new PredefinedField.WithGenerator("host.name", FieldType.KEYWORD, false, new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("host.name", FieldType.KEYWORD, Map.of("type", "keyword"), new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "keyword").endObject();
@@ -68,7 +68,7 @@ public class DataGenerationHelper {
                         }
                     }),
                     // Needed for terms query
-                    new PredefinedField.WithGenerator("method", FieldType.KEYWORD, false, new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("method", FieldType.KEYWORD, Map.of("type", "keyword"), new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "keyword").endObject();
@@ -86,7 +86,7 @@ public class DataGenerationHelper {
                     }),
 
                     // Needed for histogram aggregation
-                    new PredefinedField.WithGenerator("memory_usage_bytes", FieldType.LONG, true, new FieldDataGenerator() {
+                    new PredefinedField.WithGenerator("memory_usage_bytes", FieldType.LONG, Map.of("type", "long"), new FieldDataGenerator() {
                         @Override
                         public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
                             return b -> b.startObject().field("type", "long").endObject();
@@ -118,9 +118,7 @@ public class DataGenerationHelper {
     }
 
     void logsDbMapping(XContentBuilder builder) throws IOException {
-        builder.startObject().field("properties");
         builder.map(mapping.raw());
-        builder.endObject();
     }
 
     void standardMapping(XContentBuilder builder) throws IOException {
@@ -129,9 +127,7 @@ public class DataGenerationHelper {
         // We want to compare "clean" standard with logsdb.
         removeSubobjects(rawMapping);
 
-        builder.startObject().field("properties");
         builder.map(rawMapping);
-        builder.endObject();
     }
 
     @SuppressWarnings("unchecked")

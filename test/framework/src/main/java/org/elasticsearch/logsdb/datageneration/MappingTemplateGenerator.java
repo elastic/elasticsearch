@@ -37,10 +37,6 @@ public class MappingTemplateGenerator {
     public MappingTemplate generate() {
         var map = new HashMap<String, MappingTemplate.Entry>();
 
-        for (var predefinedField : specification.predefinedFields()) {
-            map.put(predefinedField.name(), new MappingTemplate.Entry.Leaf(predefinedField.name(), predefinedField.fieldType()));
-        }
-
         generateChildFields(map, 0);
         return new MappingTemplate(map);
     }

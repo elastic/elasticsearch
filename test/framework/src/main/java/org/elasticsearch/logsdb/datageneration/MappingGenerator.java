@@ -31,14 +31,43 @@ public class MappingGenerator {
     }
 
     public Mapping generate(MappingTemplate template, Object someKindOfConfig) {
-        var rawMapping = new HashMap<String, Object>();
         var lookup = new HashMap<String, Map<String, Object>>();
 
+        // Top level mapping parameters
+        var mappingParametersGenerator = specification.dataSource()
+            .get(new DataSourceRequest.ObjectMappingParametersGenerator(true, false, ObjectMapper.Subobjects.ENABLED))
+            .mappingGenerator();
+
+        var mappingParameters = mappingParametersGenerator.get();
+        // Top-level object can't be disabled because @timestamp is a required field in data streams.
+        mappingParameters.remove("enabled");
+
+        var rawMapping = new HashMap<>(mappingParameters);
+
+        var childrenMapping = new HashMap<String, Object>();
+        for (var predefinedField : specification.predefinedFields()) {
+            if (predefinedField.mapping() != null) {
+                childrenMapping.put(predefinedField.name(), predefinedField.mapping());
+                lookup.put(predefinedField.name(), predefinedField.mapping());
+            }
+        }
+        rawMapping.put("properties", childrenMapping);
+
+        if (specification.fullyDynamicMapping()) {
+            // TODO dynamic should not be strict here
+            return new Mapping(rawMapping, lookup);
+        }
+
+        var dynamicMapping = mappingParameters.getOrDefault("dynamic", "true").equals("strict")
+            ? DynamicMapping.FORBIDDEN
+            : DynamicMapping.SUPPORTED;
+        var subobjects = ObjectMapper.Subobjects.from(mappingParameters.getOrDefault("subobjects", "true"));
+
         generateMapping(
-            rawMapping,
+            childrenMapping,
             lookup,
             template.mapping(),
-            new Context(new HashSet<>(), "", ObjectMapper.Subobjects.ENABLED, DynamicMapping.SUPPORTED)
+            new Context(new HashSet<>(), "", subobjects, dynamicMapping)
         );
 
         return new Mapping(rawMapping, lookup);
@@ -50,8 +79,6 @@ public class MappingGenerator {
         Map<String, MappingTemplate.Entry> mappingTemplate,
         Context context
     ) {
-        // TODO handle top-level mapping parameters
-
         for (var entry : mappingTemplate.entrySet()) {
             String fieldName = entry.getKey();
             MappingTemplate.Entry templateEntry = entry.getValue();
@@ -64,10 +91,10 @@ public class MappingGenerator {
                     context.addCopyToCandidate(fieldName);
                 }
 
-                boolean isDynamic = dynamicMappingGenerator.generator().apply(false);
+                boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN && dynamicMappingGenerator.generator().apply(false);
                 // Simply skip this field if it is dynamic.
                 // Lookup will contain null signaling dynamic mapping as well.
-                if (isDynamic == false) {
+                if (isDynamic) {
                     continue;
                 }
 
@@ -86,10 +113,10 @@ public class MappingGenerator {
                 mappingParameters.putAll(mappingParametersGenerator.get());
 
             } else if (templateEntry instanceof MappingTemplate.Entry.Object object) {
-                boolean isDynamic = dynamicMappingGenerator.generator().apply(true);
+                boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN && dynamicMappingGenerator.generator().apply(true);
                 // Simply skip this field if it is dynamic.
                 // Lookup will contain null signaling dynamic mapping as well.
-                if (isDynamic == false) {
+                if (isDynamic) {
                     continue;
                 }
 
@@ -102,7 +129,7 @@ public class MappingGenerator {
 
                 var childrenMapping = new HashMap<String, Object>();
                 mappingParameters.put("properties", childrenMapping);
-                generateMapping(childrenMapping, lookup, object.children(), context.stepIntoObject(object.name(), mappingParameters));
+                generateMapping(childrenMapping, lookup, object.children(), context.stepIntoObject(object.name(), object.nested(), mappingParameters));
             }
 
             mapping.put(fieldName, mappingParameters);
@@ -116,15 +143,16 @@ public class MappingGenerator {
         ObjectMapper.Subobjects parentSubobjects,
         DynamicMapping parentDynamicMapping
     ) {
-        Context stepIntoObject(String name, Map<String, Object> mappingParameters) {
+        Context stepIntoObject(String name, boolean nested, Map<String, Object> mappingParameters) {
             var subobjects = determineSubobjects(mappingParameters);
             var dynamicMapping = determineDynamicMapping(mappingParameters);
 
-            return new Context(eligibleCopyToDestinations, pathTo(name), subobjects, dynamicMapping);
+            // copy_to can't be used across nested documents so all currently eligible fields are not eligible inside nested document.
+            return new Context(nested ? new HashSet<>() : eligibleCopyToDestinations, pathTo(name), subobjects, dynamicMapping);
         }
 
-        void addCopyToCandidate(String field) {
-            eligibleCopyToDestinations.add(field);
+        void addCopyToCandidate(String leafFieldName) {
+            eligibleCopyToDestinations.add(pathTo(leafFieldName));
         }
 
         String pathTo(String leafFieldName) {

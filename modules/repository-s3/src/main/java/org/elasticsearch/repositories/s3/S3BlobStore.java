@@ -429,10 +429,10 @@ class S3BlobStore implements BlobStore {
             } catch (InterruptedException iex) {
                 Thread.currentThread().interrupt();
                 // If we're interrupted, record the exception and abort retries
-                logger.warn("Aborting delete retries due to interrupt");
+                logger.warn("Aborting tenacious snapshot delete retries due to interrupt");
             }
         } else {
-            logger.warn("Exceeded maximum delete retries, aborting");
+            logger.warn("Exceeded maximum tenacious snapshot delete retries, aborting");
         }
         return false;
     }

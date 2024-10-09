@@ -358,6 +358,13 @@ setup:
 
 ---
 "Search with synthetic source":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ bit_dense_vector_synthetic_source ]
+      test_runner_features: capabilities
+      reason: "Support for bit dense vector synthetic source capability required"
   - do:
       indices.create:
         index: test_synthetic_source

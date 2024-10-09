@@ -27,10 +27,6 @@ setup:
 
 ---
 "fetch stored fields wildcard":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml
@@ -44,10 +40,6 @@ setup:
 
 ---
 "fetch fields wildcard":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml
@@ -61,10 +53,6 @@ setup:
 
 ---
 "fetch stored fields by name":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml
@@ -78,10 +66,6 @@ setup:
 
 ---
 "fetch fields by name":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml
@@ -95,10 +79,6 @@ setup:
 
 ---
 "fields and stored fields combination":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml
@@ -116,10 +96,6 @@ setup:
 
 ---
 "wildcard fields and stored fields combination":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       search:
         index: test
@@ -132,10 +108,6 @@ setup:
 
 ---
 "fields with ignored source in stored fields":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml
@@ -151,10 +123,6 @@ setup:
 
 ---
 "fields with ignored source in fields":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml
@@ -169,10 +137,6 @@ setup:
 
 ---
 "ignored source via fields and wildcard stored fields":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml
@@ -187,10 +151,6 @@ setup:
 
 ---
 "wildcard fields and ignored source via stored fields":
-  - requires:
-      cluster_features: [ "mapper.ignored_source.only_if_requested" ]
-      reason: _ignored_source is not returned by default anymore
-
   - do:
       headers:
         Content-Type: application/yaml

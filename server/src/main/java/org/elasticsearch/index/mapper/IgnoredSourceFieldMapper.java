@@ -44,7 +44,6 @@ import java.util.stream.Stream;
  * if we can replace it for all use cases to avoid duplication, assuming that the storage tradeoff is favorable.
  */
 public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
-    public static final NodeFeature IGNORED_SOURCE_ONLY_IF_REQUESTED = new NodeFeature("mapper.ignored_source.only_if_requested");
     private final IndexSettings indexSettings;
 
     // This factor is used to combine two offsets within the same integer:

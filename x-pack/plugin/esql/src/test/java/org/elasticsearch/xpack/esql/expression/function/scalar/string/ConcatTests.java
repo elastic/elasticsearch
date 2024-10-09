@@ -48,7 +48,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         for (int length = 4; length < 100; length++) {
             suppliers(suppliers, length);
         }
-        Set<DataType> supported = Set.of(DataType.NULL, DataType.KEYWORD, DataType.TEXT);
+        Set<DataType> supported = Set.of(DataType.NULL, DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT);
         List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
         for (DataType lhs : DataType.types()) {
             if (lhs == DataType.NULL || DataType.isRepresentable(lhs) == false) {

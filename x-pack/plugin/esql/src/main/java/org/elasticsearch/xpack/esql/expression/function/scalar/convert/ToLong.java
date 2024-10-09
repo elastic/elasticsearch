@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
@@ -51,7 +52,8 @@ public class ToLong extends AbstractConvertFunction {
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
         Map.entry(DataType.COUNTER_LONG, (field, source) -> field),
-        Map.entry(DataType.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new)
+        Map.entry(DataType.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToLongFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(

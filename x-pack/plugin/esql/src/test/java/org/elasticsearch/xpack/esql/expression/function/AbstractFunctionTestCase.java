@@ -719,10 +719,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         for (Map.Entry<List<DataType>, DataType> entry : signatures().entrySet()) {
             List<DataType> types = entry.getKey();
+            DataType returnType = entry.getValue();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
             }
-            returnFromSignature.add(entry.getValue().esNameIfPossible());
+            if (DataType.UNDER_CONSTRUCTION.containsKey(returnType) == false) {
+                returnFromSignature.add(returnType.esNameIfPossible());
+            }
         }
 
         for (int i = 0; i < args.size(); i++) {
@@ -746,7 +749,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             );
         }
 
-        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(TreeSet::new));
+        Set<String> underConstructionTypes = DataType.UNDER_CONSTRUCTION.keySet()
+            .stream()
+            .map(dataType -> dataType.esNameIfPossible())
+            .collect(Collectors.toCollection(TreeSet::new));
+
+        Set<String> returnTypes = Arrays.stream(description.returnType())
+            .filter(typeName -> underConstructionTypes.contains(typeName) == false)
+            .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
     }
 

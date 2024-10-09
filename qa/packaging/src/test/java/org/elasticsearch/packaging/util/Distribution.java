@@ -39,8 +39,6 @@ public class Distribution {
             this.packaging = Packaging.DOCKER_CLOUD_ESS;
         } else if (filename.endsWith(".wolfi.tar")) {
             this.packaging = Packaging.DOCKER_WOLFI;
-        } else if (filename.endsWith(".wolfi-ess.tar")) {
-            this.packaging = Packaging.DOCKER_WOLFI_ESS;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
@@ -65,7 +63,7 @@ public class Distribution {
      */
     public boolean isDocker() {
         return switch (packaging) {
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS, DOCKER_WOLFI, DOCKER_WOLFI_ESS -> true;
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> true;
             default -> false;
         };
     }
@@ -81,8 +79,7 @@ public class Distribution {
         DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker()),
         DOCKER_CLOUD(".cloud.tar", Platforms.isDocker()),
         DOCKER_CLOUD_ESS(".cloud-ess.tar", Platforms.isDocker()),
-        DOCKER_WOLFI(".wolfi.tar", Platforms.isDocker()),
-        DOCKER_WOLFI_ESS(".wolfi-ess.tar", Platforms.isDocker());
+        DOCKER_WOLFI(".wolfi.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

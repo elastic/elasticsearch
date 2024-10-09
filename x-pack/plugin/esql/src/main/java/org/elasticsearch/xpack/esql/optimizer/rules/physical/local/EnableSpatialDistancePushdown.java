@@ -118,6 +118,14 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
      * </pre>
      */
     private PhysicalPlan rewriteBySplittingFilter(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {
+        // Find all pushable distance functions in the EVAL
+        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields());
+
+        // Don't do anything if there are no distances to push down
+        if (distances.isEmpty()) {
+            return filterExec;
+        }
+
         // Process the EVAL to get all aliases that might be needed in the filter rewrite
         AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
         evalExec.fields().forEach(alias -> {
@@ -127,24 +135,14 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         });
         AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
 
-        // Find all pushable distance functions in the EVAL
-        Map<NameId, StDistance> distances = new LinkedHashMap<>();
-        Map<NameId, Alias> others = new LinkedHashMap<>();
-        getPushableDistances(evalExec.fields(), distances, others);
-
-        // Don't do anything if there are no distances to push down
-        if (distances.isEmpty()) {
-            return filterExec;
-        }
-
-        // First we split the filter into multiple AND'd expressions, and then we evaluate each individually
+        // First we split the filter into multiple AND'd expressions, and then we evaluate each individually for distance rewrites
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
             Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = rewriteDistanceFilters(resExp, distances);
-            // If any pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
+            // If all pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
             if (rewritten.equals(resExp) == false && conditionHasNoReferences(rewritten, distances)) {
                 pushable.add(rewritten);
             } else {
@@ -161,7 +159,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         var distanceFilter = new FilterExec(filterExec.source(), esQueryExec, Predicates.combineAnd(pushable));
         var newEval = new EvalExec(evalExec.source(), distanceFilter, evalExec.fields());
         if (nonPushable.isEmpty()) {
-            // No other filters found, we can just return the filter with the rewritten pushable filters and the original EVAL
+            // No other filters found, we can just return the original eval with the new filter as child
             return newEval;
         } else {
             // Some other filters found, we need to return two filters with the eval in between
@@ -169,31 +167,21 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         }
     }
 
-    /**
-     * This version of the rewrite will try push the entire filter down to the source, but keep the distance function in the EVAL.
-     */
-    private PhysicalPlan rewriteBySplittingEval(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {
+    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases) {
         Map<NameId, StDistance> distances = new LinkedHashMap<>();
-        Map<NameId, Alias> others = new LinkedHashMap<>();
-        getPushableDistances(evalExec.fields(), distances, others);
-        if (distances.isEmpty() == false) {
-            // Find and rewrite any binary comparisons that involve a distance function and a literal
-            var rewritten = rewriteDistanceFilters(filterExec.condition(), distances);
-            // If any pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
-            if (rewritten.equals(filterExec.condition()) == false && conditionHasNoReferences(rewritten, distances)) {
-                // Divide the aliases into those that are referenced in the filter and those that are not
-                SplitAliases split = SplitAliases.from(filterExec, evalExec, distances, others);
-
-                // If there are aliases referenced in the filter, keep them before the filter
-                FilterExec filter = split.referencedAliases.isEmpty()
-                    ? new FilterExec(filterExec.source(), esQueryExec, rewritten)
-                    : new FilterExec(filterExec.source(), new EvalExec(evalExec.source(), esQueryExec, split.referencedAliases), rewritten);
-
-                // If there are remaining aliases, we need to keep them after the filter
-                return split.remainingAliases.isEmpty() ? filter : new EvalExec(evalExec.source(), filter, split.remainingAliases);
+        aliases.forEach(alias -> {
+            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance)) {
+                distances.put(alias.id(), distance);
+            } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
+                StDistance distance = distances.get(ref.id());
+                distances.put(alias.id(), distance);
             }
-        }
-        return filterExec;
+        });
+        return distances;
+    }
+
+    private boolean conditionHasNoReferences(Expression expr, Map<NameId, StDistance> distances) {
+        return expr.references().stream().filter(r -> distances.containsKey(r.id())).findFirst().isEmpty();
     }
 
     private Expression rewriteDistanceFilters(Expression expr, Map<NameId, StDistance> distances) {
@@ -210,52 +198,6 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
                 }
             return comparison;
         });
-    }
-
-    private void getPushableDistances(List<Alias> aliases, Map<NameId, StDistance> distances, Map<NameId, Alias> others) {
-        aliases.forEach(alias -> {
-            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance)) {
-                distances.put(alias.id(), distance);
-            } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
-                StDistance distance = distances.get(ref.id());
-                distances.put(alias.id(), distance);
-            } else {
-                others.put(alias.id(), alias);
-            }
-        });
-    }
-
-    private boolean conditionHasNoReferences(Expression expr, Map<NameId, StDistance> distances) {
-        return expr.references().stream().filter(r -> distances.containsKey(r.id())).findFirst().isEmpty();
-    }
-
-    private record SplitAliases(List<Alias> referencedAliases, List<Alias> remainingAliases) {
-        private static SplitAliases from(
-            FilterExec filterExec,
-            EvalExec evalExec,
-            Map<NameId, StDistance> distances,
-            Map<NameId, Alias> others
-        ) {
-            // Determine if the filter refers to any of the other fields in the EVAL
-            List<Alias> referencedAliases = new ArrayList<>();
-            filterExec.condition().forEachDown(ReferenceAttribute.class, r -> {
-                if (others.containsKey(r.id())) {
-                    referencedAliases.add(others.get(r.id()));
-                }
-            });
-            // If there are remaining aliases, we need to keep them after the filter
-            List<Alias> remainingAliases = new ArrayList<>(
-                others.values().stream().filter(alias -> referencedAliases.contains(alias) == false).toList()
-            );
-            // Add back the distance functions, since they might be used in later clauses
-            // TODO: Remove this if we can guarantee that the distance functions are only used in the filter
-            for (Alias alias : evalExec.fields()) {
-                if (distances.containsKey(alias.id())) {
-                    remainingAliases.add(alias);
-                }
-            }
-            return new SplitAliases(referencedAliases, remainingAliases);
-        }
     }
 
     private Expression rewriteComparison(
@@ -312,7 +254,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     /**
      * This enum captures the key differences between various inequalities as perceived from the spatial distance function.
      * In particular, we need to know which direction the inequality points, with lt=true meaning the left is expected to be smaller
-     * than the right. And eq=true meaning we expect euality as well. We currently don't support Equals and NotEquals, so the third
+     * than the right. And eq=true meaning we expect equality as well. We currently don't support Equals and NotEquals, so the third
      * field disables those.
      */
     enum ComparisonType {

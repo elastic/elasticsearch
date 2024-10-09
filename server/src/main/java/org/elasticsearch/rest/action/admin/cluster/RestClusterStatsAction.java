@@ -60,7 +60,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
             request.paramAsBoolean("include_remotes", false),
             request.paramAsStringArray("nodeId", null)
         );
-        clusterStatsRequest.timeout(getTimeout(request));
+        clusterStatsRequest.setTimeout(getTimeout(request));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));

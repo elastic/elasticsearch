@@ -33,6 +33,11 @@ public class EsqlCapabilities {
         FN_REVERSE,
 
         /**
+         * The reverse function now always emits only KEYWORD type. #114334
+         */
+        FN_REVERSE_KEYWORD,
+
+        /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,

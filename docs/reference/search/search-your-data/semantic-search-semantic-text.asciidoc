@@ -292,8 +292,9 @@ To cancel the reindexing process and generate embeddings for the subset that was
 
 [source,console]
 ------------------------------------------------------------
-POST _tasks/<task_id>/_cancel <2>
+POST _tasks/<task_id>/_cancel
 ------------------------------------------------------------
+// TEST[skip:TBD]
 
 [discrete]
 [[semantic-text-semantic-search]]

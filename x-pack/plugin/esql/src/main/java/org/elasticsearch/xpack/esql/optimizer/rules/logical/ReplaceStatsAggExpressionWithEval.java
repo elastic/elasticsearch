@@ -96,7 +96,7 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
                 else {
                     changed.set(true);
                     Expression aggExpression = child.transformUp(AggregateFunction.class, af -> {
-                        AggregateFunction canonical = (AggregateFunction) af.canonical().transformUp(e -> aliases.resolve(e, e));
+                        AggregateFunction canonical = (AggregateFunction) af.canonical();
                         Alias alias = rootAggs.get(canonical);
                         if (alias == null) {
                             // create synthetic alias ove the found agg function

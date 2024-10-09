@@ -84,7 +84,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     }
 
     @Override
-    protected void deprecatedWriteTo(StreamOutput out) throws IOException {
+    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
         out.writeNamedWriteable(timestamp);
         out.writeOptionalNamedWriteable(unit);
     }
@@ -110,10 +110,10 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
                 return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
             }
             assert false : "expected 4 children for field, filter, @timestamp, and unit; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, @timestamp, and unit; got " + newChildren);
+            throw new IllegalArgumentException("expected 4 children for field, filter, @timestamp, and unit; got " + newChildren);
         } else {
             if (newChildren.size() == 3) {
-                return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+                return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), null);
             }
             assert false : "expected 3 children for field, filter and @timestamp; got " + newChildren;
             throw new IllegalArgumentException("expected 3 children for field, filter and @timestamp; got " + newChildren);
@@ -166,11 +166,6 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
             return duration.toMillis();
         }
         throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
-    }
-
-    @Override
-    public List<Expression> inputExpressions() {
-        return List.of(field(), timestamp);
     }
 
     @Override

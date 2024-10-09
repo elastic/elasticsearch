@@ -92,12 +92,12 @@ public abstract class AggregateFunction extends Function {
             out.writeNamedWriteable(filter);
             out.writeNamedWriteableCollection(parameters);
         } else {
-            deprecatedWriteTo(out);
+            deprecatedWriteParams(out);
         }
     }
 
     @Deprecated(since = "8.16", forRemoval = true)
-    protected void deprecatedWriteTo(StreamOutput out) throws IOException {
+    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
         //
     }
 
@@ -115,14 +115,6 @@ public abstract class AggregateFunction extends Function {
 
     public Expression filter() {
         return filter;
-    }
-
-    /**
-     * Returns the input expressions used in aggregation.
-     * Defaults to a list containing the only the input field.
-     */
-    public List<Expression> inputExpressions() {
-        return List.of(field);
     }
 
     @Override

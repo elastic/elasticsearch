@@ -662,9 +662,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Alias visitField(EsqlBaseParser.FieldContext ctx) {
+        return visitField(ctx, source(ctx));
+    }
+
+    private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
-        var source = source(ctx);
         String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
     }
@@ -677,7 +680,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public NamedExpression visitAggField(EsqlBaseParser.AggFieldContext ctx) {
         Source source = source(ctx);
-        Alias field = visitField(ctx.field());
+        Alias field = visitField(ctx.field(), source);
         var filterExpression = ctx.booleanExpression();
         Expression condition = filterExpression != null ? expression(filterExpression) : null;
 

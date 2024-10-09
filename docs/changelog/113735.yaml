@@ -12,7 +12,7 @@ highlight:
     \ WHERE 500 <= code AND code < 600,\ntotal_count = COUNT(*)\n```\n\nImplementation\
     \ wise, the base AggregateFunction has been extended to \nallow a filter to be\
     \ passed on. This is required to incorporate the \nfilter as part of the aggregate\
-    \ equality/identify which would fail with \nthe filter as an external component.\n\
+    \ equality/identity which would fail with \nthe filter as an external component.\n\
     \nAs part of the process, the serialization for the existing aggregations \nhad\
     \ to be fixed so AggregateFunction implementations so that it \ndelegates to their\
     \ parent first."

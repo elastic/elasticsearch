@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -25,8 +24,12 @@ import static java.util.Arrays.asList;
 
 /**
  * Basic wrapper for expressions declared with a nested filter (typically in stats).
+ * Used during parsing to attach the filter to the nested expression - it is expected the two
+ * get fused later on.
  */
-public class FilteredExpression extends Expression implements SurrogateExpression {
+// TODO: This class should implement SurrogateExpression but it doesn't due to its use on folding aggregates
+// see https://github.com/elastic/elasticsearch/issues/100634#issuecomment-2400665066
+public class FilteredExpression extends Expression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FilteredExpression",
@@ -46,7 +49,6 @@ public class FilteredExpression extends Expression implements SurrogateExpressio
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
-    @Override
     public Expression surrogate() {
         return delegate.transformUp(AggregateFunction.class, af -> af.withFilter(filter));
     }

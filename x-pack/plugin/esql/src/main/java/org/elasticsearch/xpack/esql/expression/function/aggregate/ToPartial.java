@@ -85,12 +85,12 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
                 : Literal.TRUE,
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
                 ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-                : in.readOptionalNamedWriteable(Expression.class)
+                : in.readNamedWriteable(Expression.class)
         );
     }
 
     @Override
-    protected void deprecatedWriteTo(StreamOutput out) throws IOException {
+    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
         out.writeNamedWriteable(function);
     }
 

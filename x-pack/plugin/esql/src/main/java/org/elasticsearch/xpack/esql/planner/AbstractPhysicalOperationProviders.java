@@ -236,7 +236,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     ) {
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
-            // the filter is missing for groups
+            // a filter can only appear on aggregate function, not on the grouping columns
 
             if (ne instanceof Alias alias) {
                 var child = alias.child();

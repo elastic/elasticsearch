@@ -68,7 +68,7 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    protected void deprecatedWriteTo(StreamOutput out) throws IOException {
+    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
         out.writeNamedWriteable(function);
     }
 

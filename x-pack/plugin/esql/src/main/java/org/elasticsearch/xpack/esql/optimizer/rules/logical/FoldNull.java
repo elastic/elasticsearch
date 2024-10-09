@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
 public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
@@ -28,6 +29,13 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
         } else if (e instanceof In in) {
             if (Expressions.isNull(in.value())) {
                 return Literal.of(in, null);
+            }
+        }
+        // convert an aggregate null filter into a false
+        // this could be done inside the Aggregate but this place better centralizes the logic
+        else if (e instanceof AggregateFunction agg) {
+            if (Expressions.isNull(agg.filter())) {
+                return agg.withFilter(Literal.of(agg.filter(), false));
             }
         } else if (e instanceof Alias == false
             && e.nullable() == Nullability.TRUE

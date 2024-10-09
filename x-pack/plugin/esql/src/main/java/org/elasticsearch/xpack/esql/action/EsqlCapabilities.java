@@ -345,7 +345,12 @@ public class EsqlCapabilities {
         /**
          * Compute year differences in full calendar years.
          */
-        DATE_DIFF_YEAR_CALENDARIAL;
+        DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * Allow filter per individual aggregation.
+         */
+        PER_AGG_FILTERING;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

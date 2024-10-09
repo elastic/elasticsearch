@@ -139,7 +139,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
-    protected void deprecatedWriteTo(StreamOutput out) throws IOException {
+    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(precision);
     }
 

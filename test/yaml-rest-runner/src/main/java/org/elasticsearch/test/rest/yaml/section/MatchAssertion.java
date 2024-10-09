@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -37,9 +36,6 @@ import static org.junit.Assert.assertThat;
  *
  */
 public class MatchAssertion extends Assertion {
-
-    private static final Base64.Encoder BYTE_ARRAY_BASE64_ENCODER = Base64.getEncoder();
-
     public static MatchAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
         Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
@@ -100,10 +96,6 @@ public class MatchAssertion extends Assertion {
         } else if (expectedValue instanceof List) {
             assertThat(actualValue, instanceOf(List.class));
             assertMap((List<?>) actualValue, matchesList((List<?>) expectedValue));
-        }
-        if (expectedValue instanceof String expectedValueAsString && actualValue instanceof byte[] actualValueAsBytes) {
-            assertThat(BYTE_ARRAY_BASE64_ENCODER.encodeToString(actualValueAsBytes), equalTo(expectedValueAsString));
-            return;
         }
         assertThat(actualValue, equalTo(expectedValue));
     }

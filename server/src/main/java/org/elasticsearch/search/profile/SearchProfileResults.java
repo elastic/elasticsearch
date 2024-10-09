@@ -48,9 +48,9 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
 
     private final SearchProfileCoordinatorResult coordinatorResults;
 
-    public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
+    public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults, SearchProfileCoordinatorResult coordinatorResults) {
         this.shardResults = Collections.unmodifiableMap(shardResults);
-        this.coordinatorResults = null;
+        this.coordinatorResults = coordinatorResults;
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {

@@ -33,7 +33,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
             null
         );
         try {
-            Exception e = expectThrows(IllegalStateException.class, () -> builder(searchPhase).build(List.of(fetchPhase)));
+            Exception e = expectThrows(IllegalStateException.class, () -> builder(searchPhase).build(List.of(fetchPhase), null));
             assertThat(
                 e.getMessage(),
                 matchesPattern(
@@ -49,7 +49,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
         Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(between(1, 2));
         FetchSearchResult fetchPhase = fetchResult(searchPhase.keySet().iterator().next(), null);
         try {
-            SearchProfileResults result = builder(searchPhase).build(List.of(fetchPhase));
+            SearchProfileResults result = builder(searchPhase).build(List.of(fetchPhase), null);
             assertThat(
                 result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
                 equalTo((long) searchPhase.size())
@@ -67,7 +67,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
             .map(e -> fetchResult(e.getKey(), new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())))
             .collect(toList());
         try {
-            SearchProfileResults result = builder(searchPhase).build(fetchPhase);
+            SearchProfileResults result = builder(searchPhase).build(fetchPhase, null);
             assertThat(
                 result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
                 equalTo((long) searchPhase.size())

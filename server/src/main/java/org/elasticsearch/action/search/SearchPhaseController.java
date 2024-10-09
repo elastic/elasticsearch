@@ -49,6 +49,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -366,7 +367,8 @@ public final class SearchPhaseController {
     public static SearchResponseSections merge(
         boolean ignoreFrom,
         ReducedQueryPhase reducedQueryPhase,
-        AtomicArray<? extends SearchPhaseResult> fetchResultsArray
+        AtomicArray<? extends SearchPhaseResult> fetchResultsArray,
+        SearchCoordinatorProfiler profiler
     ) {
         if (reducedQueryPhase.isEmptyResult) {
             return SearchResponseSections.EMPTY_WITH_TOTAL_HITS;
@@ -378,7 +380,7 @@ public final class SearchPhaseController {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
                 mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
             }
-            return reducedQueryPhase.buildResponse(hits, fetchResults);
+            return reducedQueryPhase.buildResponse(hits, fetchResults, profiler);
         } finally {
             hits.decRef();
         }
@@ -779,28 +781,35 @@ public final class SearchPhaseController {
 
         /**
          * Creates a new search response from the given merged hits.
-         * @see #merge(boolean, ReducedQueryPhase, AtomicArray)
+         * @see #merge(boolean, ReducedQueryPhase, AtomicArray, SearchCoordinatorProfiler)
          */
-        public SearchResponseSections buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
+        public SearchResponseSections buildResponse(
+            SearchHits hits,
+            Collection<? extends SearchPhaseResult> fetchResults,
+            SearchCoordinatorProfiler profiler
+        ) {
             return new SearchResponseSections(
                 hits,
                 aggregations,
                 suggest,
                 timedOut,
                 terminatedEarly,
-                buildSearchProfileResults(fetchResults),
+                buildSearchProfileResults(fetchResults, profiler),
                 numReducePhases
             );
         }
 
-        private SearchProfileResults buildSearchProfileResults(Collection<? extends SearchPhaseResult> fetchResults) {
+        private SearchProfileResults buildSearchProfileResults(
+            Collection<? extends SearchPhaseResult> fetchResults,
+            SearchCoordinatorProfiler profiler
+        ) {
             if (profileBuilder == null) {
                 assert fetchResults.stream().map(SearchPhaseResult::fetchResult).allMatch(r -> r == null || r.profileResult() == null)
                     : "found fetch profile without search profile";
                 return null;
 
             }
-            return profileBuilder.build(fetchResults);
+            return profileBuilder.build(fetchResults, profiler.build());
         }
     }
 

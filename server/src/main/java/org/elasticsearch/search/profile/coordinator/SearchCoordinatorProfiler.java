@@ -18,17 +18,51 @@ import java.util.Map;
 
 public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCoordinatorTimingType> {
 
-    List<RetrieverProfileResult> retrieversProfile = new ArrayList<>();
+    private final String nodeId;
+    private String retriever;
+    private long tookInMillis = -1;
+    List<RetrieverProfileResult> children = new ArrayList<>();
 
-    public SearchCoordinatorProfiler() {
+    public SearchCoordinatorProfiler(final String nodeId) {
         super(SearchCoordinatorTimingType.class);
+        this.nodeId = nodeId;
     }
 
     public void captureRetrieverResult(RetrieverProfileResult profileResult) {
-        retrieversProfile.add(profileResult);
+        children.add(profileResult);
     }
 
-    public void captureRetrieverDetails(Map<String, SearchProfileCoordinatorResult> profileResults) {
+    public void retriever(String retriever) {
+        this.retriever = retriever;
+    }
 
+    public String getNodeId() {
+        return nodeId;
+    }
+
+    public String getRetriever() {
+        return this.retriever;
+    }
+
+    public List<RetrieverProfileResult> getRetrieverChildren() {
+        return children;
+    }
+
+    public SearchProfileCoordinatorResult build() {
+        Map<String, Long> breakdownMap = toBreakdownMap();
+        return new SearchProfileCoordinatorResult(
+            nodeId,
+            new RetrieverProfileResult(
+                retriever,
+                nodeId,
+                tookInMillis,
+                breakdownMap.getOrDefault(SearchCoordinatorTimingType.RETRIEVER_REWRITE.toString(), -1L),
+                children.toArray(new RetrieverProfileResult[0])
+            )
+        );
+    }
+
+    public void captureTook(long millis) {
+        tookInMillis = millis;
     }
 }

@@ -88,6 +88,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         final SearchCoordinatorProfiler profiler = ctx.profiler();
         Timer rewriteTimer = null;
         if (profiler != null) {
+            profiler.retriever(getName());
             rewriteTimer = profiler.getNewTimer(SearchCoordinatorTimingType.RETRIEVER_REWRITE);
             rewriteTimer.start();
         }
@@ -156,6 +157,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                                 }
                             }
                         }
+                        profiler.captureTook(items.getTook().millis());
                         if (false == failures.isEmpty()) {
                             IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
                             failures.forEach(ex::addSuppressed);

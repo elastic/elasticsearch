@@ -31,7 +31,7 @@ public class SearchProfileResultsBuilder {
      * Merge the profiling information from some fetch results into this
      * profiling information.
      */
-    public SearchProfileResults build(Collection<? extends SearchPhaseResult> fetchResults) {
+    public SearchProfileResults build(Collection<? extends SearchPhaseResult> fetchResults, SearchProfileCoordinatorResult profiler) {
         Map<String, SearchProfileShardResult> mergedShardResults = Maps.newMapWithExpectedSize(queryPhaseResults.size());
         for (SearchPhaseResult r : fetchResults) {
             FetchSearchResult fr = r.fetchResult();
@@ -52,7 +52,7 @@ public class SearchProfileResultsBuilder {
                 mergedShardResults.put(e.getKey(), new SearchProfileShardResult(e.getValue(), null));
             }
         }
-        return new SearchProfileResults(mergedShardResults);
+        return new SearchProfileResults(mergedShardResults, profiler);
     }
 
     @Override

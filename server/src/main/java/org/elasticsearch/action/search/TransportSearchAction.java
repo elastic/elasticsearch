@@ -316,7 +316,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         SearchCoordinatorProfiler profiler = searchRequest.source() == null || false == searchRequest.source().profile()
             ? null
-            : new SearchCoordinatorProfiler();
+            : new SearchCoordinatorProfiler(clusterService.localNode().getId());
         executeRequest(
             (SearchTask) task,
             searchRequest,
@@ -672,7 +672,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
                         ? null
-                        : new SearchProfileResults(profileResults);
+                        : new SearchProfileResults(profileResults, null);
 
                     ActionListener.respondAndRelease(
                         listener,

@@ -55,6 +55,7 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (retrieverProfileResult != null) {
+            builder.field("node_id", nodeId);
             builder.field("retriever", retrieverProfileResult);
         }
         return builder;

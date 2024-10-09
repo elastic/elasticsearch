@@ -176,8 +176,8 @@ public class SingleValueQuery extends Query {
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
                 Warnings.createWarnings(
                     DriverContext.WarningsMode.COLLECT,
-                    source.source().getColumnNumber(),
                     source.source().getLineNumber(),
+                    source.source().getColumnNumber(),
                     source.text()
                 )
             );

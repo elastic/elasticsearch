@@ -28,13 +28,14 @@ public class ObjectFieldDataGenerator implements FieldDataGenerator {
 
         this.mappingParameters = context.specification()
             .dataSource()
-            .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, false))
+            .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, false, context.getCurrentSubobjectsConfig()))
             .mappingGenerator()
             .get();
         var dynamicMapping = context.determineDynamicMapping(mappingParameters);
+        var subobjects = context.determineSubobjects(mappingParameters);
 
         var genericGenerator = new GenericSubObjectFieldDataGenerator(context);
-        this.childFields = genericGenerator.generateChildFields(dynamicMapping);
+        this.childFields = genericGenerator.generateChildFields(dynamicMapping, subobjects);
     }
 
     @Override

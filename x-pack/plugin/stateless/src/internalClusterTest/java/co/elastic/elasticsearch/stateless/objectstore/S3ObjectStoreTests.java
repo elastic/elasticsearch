@@ -50,6 +50,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -105,6 +106,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     private InterceptableS3HttpHandler s3HttpHandler;
+    private int maxRetries;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -121,6 +123,12 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         return Map.of("/bucket", s3HttpHandler);
     }
 
+    @Before
+    public void setupMaxRetries() {
+        // max_retries set rarely to more than 1, so that we can test more retries within reasonable backoff
+        maxRetries = rarely() ? randomIntBetween(2, 3) : 1;
+    }
+
     @Override
     protected Settings.Builder nodeSettings() {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
@@ -130,8 +138,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.S3)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test")
-            // max_retries set rarely to more than 1, so that we can test more retries within reasonable backoff
-            .put("s3.client.test.max_retries", rarely() ? randomIntBetween(2, 3) : 1)
+            .put("s3.client.test.max_retries", maxRetries)
             .setSecureSettings(mockSecureSettings);
     }
 
@@ -181,8 +188,9 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     public void testShouldRetryMoreThanMaxRetriesForIndicesData() throws IOException {
+        // More than the max retries by s3 client itself (1 original + maxRetries)
+        final int errorsPerRequest = randomIntBetween(maxRetries + 1, maxRetries + 4);
         s3HttpHandler.setInterceptor(new Interceptor() {
-            private final int errorsPerRequest = randomIntBetween(3, 5); // More than the default attempts of 2 (1 original + 1 retry)
             private final Map<String, AtomicInteger> requestPathErrorCount = ConcurrentCollections.newConcurrentMap();
 
             @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")

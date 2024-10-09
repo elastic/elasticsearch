@@ -31,7 +31,7 @@ public class RoleMappingMetadataXContentSerializationTests extends AbstractChunk
 
     @Override
     protected RoleMappingMetadata createTestInstance() {
-        return new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
+        return new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)), 0);
     }
 
     @Override
@@ -45,7 +45,7 @@ public class RoleMappingMetadataXContentSerializationTests extends AbstractChunk
         if (randomBoolean() || mutated == false) {
             mutatedRoleMappings.add(randomRoleMapping(true));
         }
-        return new RoleMappingMetadata(mutatedRoleMappings);
+        return new RoleMappingMetadata(mutatedRoleMappings, 0);
     }
 
     @Override

@@ -33,7 +33,7 @@ public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<Ro
 
     @Override
     protected RoleMappingMetadata createTestInstance() {
-        return new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
+        return new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)), 0);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<Ro
         if (randomBoolean() || mutated == false) {
             mutatedRoleMappings.add(randomRoleMapping(true));
         }
-        return new RoleMappingMetadata(mutatedRoleMappings);
+        return new RoleMappingMetadata(mutatedRoleMappings, 0);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<Ro
     }
 
     public void testSerializationBWC() throws IOException {
-        RoleMappingMetadata original = new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
+        RoleMappingMetadata original = new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)), 0);
         TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_2_0, null);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
@@ -79,8 +79,8 @@ public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<Ro
         Set<ExpressionRoleMapping> roleMappings1 = randomSet(0, 3, () -> randomRoleMapping(true));
         Set<ExpressionRoleMapping> roleMappings2 = randomSet(0, 3, () -> randomRoleMapping(true));
         assumeFalse("take 2 different role mappings", roleMappings1.equals(roleMappings2));
-        assertThat(new RoleMappingMetadata(roleMappings1).equals(new RoleMappingMetadata(roleMappings2)), is(false));
-        assertThat(new RoleMappingMetadata(roleMappings1).equals(new RoleMappingMetadata(roleMappings1)), is(true));
-        assertThat(new RoleMappingMetadata(roleMappings2).equals(new RoleMappingMetadata(roleMappings2)), is(true));
+        assertThat(new RoleMappingMetadata(roleMappings1, 0).equals(new RoleMappingMetadata(roleMappings2, 0)), is(false));
+        assertThat(new RoleMappingMetadata(roleMappings1, 0).equals(new RoleMappingMetadata(roleMappings1, 0)), is(true));
+        assertThat(new RoleMappingMetadata(roleMappings2, 0).equals(new RoleMappingMetadata(roleMappings2, 0)), is(true));
     }
 }

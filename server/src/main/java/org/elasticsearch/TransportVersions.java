@@ -224,6 +224,7 @@ public class TransportVersions {
      * </ul>
      */
     public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15 = def(8_702_00_3);
+    public static final TransportVersion ADD_ROLE_MAPPING_CLEANUP_TASK = def(8_702_00_4);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.RoleMappingCleanupTaskParams;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -304,6 +305,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 PersistentTaskParams.class,
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskParams.class,
+                RoleMappingCleanupTaskParams.TASK_NAME,
+                RoleMappingCleanupTaskParams::new
             )
         ).filter(Objects::nonNull).toList();
     }
@@ -381,6 +387,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 PersistentTaskParams.class,
                 new ParseField(SecurityMigrationTaskParams.TASK_NAME),
                 SecurityMigrationTaskParams::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(RoleMappingCleanupTaskParams.TASK_NAME),
+                RoleMappingCleanupTaskParams::fromXContent
             ),
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,

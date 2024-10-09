@@ -59,6 +59,31 @@ final class IpinfoIpDataLookups {
     }
 
     /**
+     * Lax-ly parses a string that contains a boolean into a Boolean (or null, if such parsing isn't possible).
+     * @param bool a potentially empty (or null) string that is expected to contain a parsable boolean
+     * @return the parsed boolean
+     */
+    static Boolean parseBoolean(final String bool) {
+        if (bool == null) {
+            return null;
+        } else {
+            String trimmed = bool.toLowerCase(Locale.ROOT).trim();
+            if ("true".equals(trimmed)) {
+                return true;
+            } else if ("false".equals(trimmed)) {
+                // "false" can represent false -- this an expected future enhancement in how the database represents booleans
+                return false;
+            } else if (trimmed.isEmpty()) {
+                // empty string can represent false -- this is how the database currently represents 'false' values
+                return false;
+            } else {
+                logger.trace("Unable to parse non-compliant boolean string [{}]", bool);
+                return null;
+            }
+        }
+    }
+
+    /**
      * Lax-ly parses a string that contains a double into a Double (or null, if such parsing isn't possible).
      * @param latlon a potentially empty (or null) string that is expected to contain a parsable double
      * @return the parsed double

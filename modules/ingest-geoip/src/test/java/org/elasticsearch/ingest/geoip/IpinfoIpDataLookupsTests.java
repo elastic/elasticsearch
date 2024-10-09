@@ -38,6 +38,7 @@ import java.util.function.BiConsumer;
 import static java.util.Map.entry;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseAsn;
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseBoolean;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseLocationDouble;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,6 +92,21 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         assertThat(parseAsn("123"), equalTo(123L));
         // bottom case: a non-parsable string is null
         assertThat(parseAsn("anythingelse"), nullValue());
+    }
+
+    public void testParseBoolean() {
+        // expected cases: "true" is true and "" is false
+        assertThat(parseBoolean("true"), equalTo(true));
+        assertThat(parseBoolean(""), equalTo(false));
+        assertThat(parseBoolean("false"), equalTo(false)); // future proofing
+        // defensive case: null becomes null, this is not expected fwiw
+        assertThat(parseBoolean(null), nullValue());
+        // defensive cases: we strip whitespace and ignore case
+        assertThat(parseBoolean("    "), equalTo(false));
+        assertThat(parseBoolean(" TrUe "), equalTo(true));
+        assertThat(parseBoolean(" FaLSE "), equalTo(false));
+        // bottom case: a non-parsable string is null
+        assertThat(parseBoolean(randomAlphaOfLength(8)), nullValue());
     }
 
     public void testParseLocationDouble() {

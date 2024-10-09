@@ -671,12 +671,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             )
         )
             .params(
-                "[{\"n1\" : {\"value\" : \"integer\" , \"identifier\" : true}},"
-                    + "{\"n2\" : {\"value\" : \"short\" , \"identifier\" : true}}, "
-                    + "{\"n3\" : {\"value\" : \"double\" , \"identifier\" : true}},"
-                    + "{\"n4\" : {\"value\" : \"boolean\" , \"identifier\" : true}}, "
-                    + "{\"n5\" : {\"value\" : \"xx*\" , \"identifierpattern\" : true}}, "
-                    + "{\"fn1\" : {\"value\" : \"max\" , \"identifier\" : true}}]"
+                "[{\"n1\" : {\"value\" : \"integer\" , \"kind\" : \"identifier\"}},"
+                    + "{\"n2\" : {\"value\" : \"short\" , \"kind\" : \"identifier\"}}, "
+                    + "{\"n3\" : {\"value\" : \"double\" , \"kind\" : \"identifier\"}},"
+                    + "{\"n4\" : {\"value\" : \"boolean\" , \"kind\" : \"identifier\"}}, "
+                    + "{\"n5\" : {\"value\" : \"xx*\" , \"kind\" : \"pattern\"}}, "
+                    + "{\"fn1\" : {\"value\" : \"max\" , \"kind\" : \"identifier\"}}]"
             );
         Map<String, Object> result = runEsql(query);
         Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
@@ -716,8 +716,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 () -> runEsqlSync(
                     requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
                         .params(
-                            "[{\"n1\" : {\"value\" : \"integer\" , \"identifier\" : true}},"
-                                + "{\"n2\" : {\"value\" : \"short\" , \"identifier\" : true}}]"
+                            "[{\"n1\" : {\"value\" : \"integer\" , \"kind\" : \"identifier\"}},"
+                                + "{\"n2\" : {\"value\" : \"short\" , \"kind\" : \"identifier\"}}]"
                         )
                 )
             );
@@ -738,9 +738,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 () -> runEsqlSync(
                     requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
                         .params(
-                            "[{\"n1\" : {\"value\" : \"`n1`\" , \"identifier\" : true}},"
-                                + "{\"n2\" : {\"value\" : \"`n2`\" , \"identifier\" : true}}, "
-                                + "{\"n3\" : {\"value\" : \"`n3`\" , \"identifier\" : true}}]"
+                            "[{\"n1\" : {\"value\" : \"`n1`\" , \"kind\" : \"identifier\"}},"
+                                + "{\"n2\" : {\"value\" : \"`n2`\" , \"kind\" : \"identifier\"}}, "
+                                + "{\"n3\" : {\"value\" : \"`n3`\" , \"kind\" : \"identifier\"}}]"
                         )
                 )
             );
@@ -768,7 +768,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 ResponseException.class,
                 () -> runEsqlSync(
                     requestObjectBuilder().query(format(null, "from {} | ?cmd {}", testIndexName(), command.getValue()))
-                        .params("[{\"cmd\" : {\"value\" : \"" + command.getKey() + "\", \"identifier\" : true}}]")
+                        .params("[{\"cmd\" : {\"value\" : \"" + command.getKey() + "\", \"kind\" : \"identifier\"}}]")
                 )
             );
             error = re.getMessage();

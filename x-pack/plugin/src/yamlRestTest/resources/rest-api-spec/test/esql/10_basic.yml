@@ -437,7 +437,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit 3'
-          params: [{"f1" : {"value" : "time", "identifier" : true } }, {"f2" : { "value" : "count", "identifier": true }}, {"f3" : { "value":"color", "identifier":true }}]
+          params: [{"f1" : {"value" : "time", "kind" : "identifier" }}, {"f2" : { "value" : "count", "kind" : "identifier" }}, {"f3" : { "value" : "color", "kind" : "identifier" }}]
 
   - length: {columns: 3}
   - match: {columns.0.name: "color"}

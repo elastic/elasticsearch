@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -124,6 +123,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
@@ -686,14 +688,14 @@ public final class EsqlTestUtils {
     }
 
     public static QueryParam paramAsConstant(String name, Object value) {
-        return new QueryParam(name, value, DataType.fromJava(value), ParserUtils.ParamClassification.CONSTANT);
+        return new QueryParam(name, value, DataType.fromJava(value), VALUE);
     }
 
     public static QueryParam paramAsIdentifier(String name, Object value) {
-        return new QueryParam(name, value, NULL, ParserUtils.ParamClassification.IDENTIFIER);
+        return new QueryParam(name, value, NULL, IDENTIFIER);
     }
 
     public static QueryParam paramAsPattern(String name, Object value) {
-        return new QueryParam(name, value, NULL, ParserUtils.ParamClassification.PATTERN);
+        return new QueryParam(name, value, NULL, PATTERN);
     }
 }

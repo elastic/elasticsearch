@@ -79,6 +79,8 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
@@ -798,8 +800,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         var value = param.value();
         ParserUtils.ParamClassification classification = param.classification();
         // RequestXContent does not allow null value for identifier or pattern
-        if (value != null && classification != ParserUtils.ParamClassification.CONSTANT) {
-            if (classification == ParserUtils.ParamClassification.PATTERN) {
+        if (value != null && classification != VALUE) {
+            if (classification == PATTERN) {
                 // let visitQualifiedNamePattern create a real UnresolvedNamePattern with Automaton
                 return new UnresolvedNamePattern(source, null, value.toString(), value.toString());
             } else {

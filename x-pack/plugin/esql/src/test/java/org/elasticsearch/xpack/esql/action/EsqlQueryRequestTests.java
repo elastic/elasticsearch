@@ -100,12 +100,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
         QueryBuilder filter = randomQueryBuilder();
 
         String paramsString = """
-            ,"params":[ {"n1" : {"value" : "f1", "Identifier" : true}},
-             {"n2" : {"value" : "f1*", "identifier" : true}},
-             {"n3" : {"value" : "f.1*", "identifierPattern" : true}},
-             {"n4" : {"value" : "*", "identifierPattern" : true}},
-             {"n5" : {"value" : "esql", "identifier" : true}},
-             {"n_6" : {"value" : "null", "identifier" : true}},
+            ,"params":[ {"n1" : {"value" : "f1", "kind" : "identifier"}},
+             {"n2" : {"value" : "f1*", "Kind" : "identifier"}},
+             {"n3" : {"value" : "f.1*", "KIND" : "pattern"}},
+             {"n4" : {"value" : "*", "kind" : "pattern"}},
+             {"n5" : {"value" : "esql", "kind" : "identifier"}},
+             {"n_6" : {"value" : "null", "kind" : "identifier"}},
              {"n7_" : {"value" : "f.1.1"}},
              {"_n1" : "8.15.0"},
              { "__n2" : 0.05},
@@ -220,12 +220,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         // invalid named parameter for identifier and identifier pattern
         String paramsString3 = """
-            "params":[ {"n1" : {"v" : "v1"}}, {"n2" : {"value" : "v2", "id" : true}}, {"n3" : {"value" : "v3", "pattern" : true }},
-            {"n4" : {"value" : 1, "identifier" : true}}, {"n5" : {"value" : true, "identifierPattern" : true}},
-            {"n6" : {"identifierPattern" : true}}, {"n7" : {"v" : "v7", "identifier" : true}},
-            {"n8" : {"value" : "v8", "identifierPattern" : true}}, {"n9" : {"value" : "v9", "identifierPattern" : "wrong pattern"}},
-            {"n10" : {"value" : "v10", "identifier" : 0}}, {"n11" : {"value" : ["x", "y"], "identifier" : true}},
-            {"n12" : {"value" : "v12", "identifier" : true, "identifierpattern" : true}}]""";
+            "params":[ {"n1" : {"v" : "v1"}}, {"n2" : {"value" : "v2", "type" : "identifier"}},
+            {"n3" : {"value" : "v3", "kind" : "id" }}, {"n4" : {"value" : "v4", "kind" : true}},
+            {"n5" : {"value" : "v5", "kind" : ["identifier", "pattern"]}}, {"n6" : {"value" : "v6", "kind" : 0}},
+            {"n7" : {"value" : 1, "kind" : "Identifier"}}, {"n8" : {"value" : true, "kind" : "Pattern"}},
+            {"n9" : {"kind" : "identifier"}}, {"n10" : {"v" : "v10", "kind" : "identifier"}},
+            {"n11" : {"value" : "v11", "kind" : "pattern"}}, {"n12" : {"value" : ["x", "y"], "kind" : "identifier"}},
+            {"n13" : {"value" : "v13", "kind" : "identifier", "type" : "pattern"}}]""";
         String json3 = String.format(Locale.ROOT, """
             {
                 %s
@@ -239,55 +240,24 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(
             e3.getCause().getMessage(),
             containsString(
-                "Failed to parse params: [2:16] [v] is not a valid param attribute, "
-                    + "a valid attribute is any of value, identifier, identifierpattern"
-            )
-        );
-        assertThat(e3.getCause().getMessage(), containsString("[2:39] [id] is not a valid param attribute"));
-        assertThat(e3.getCause().getMessage(), containsString("[2:79] [pattern] is not a valid param attribute"));
-        assertThat(
-            e3.getCause().getMessage(),
-            containsString("[3:1] [1] is not a valid value for identifier parameter, a valid value for identifier parameter is a string")
-        );
-        assertThat(
-            e3.getCause().getMessage(),
-            containsString(
-                "[3:46] [true] is not a valid value for pattern parameter, a valid value for pattern parameter is a string and contains *"
-            )
-        );
-        assertThat(
-            e3.getCause().getMessage(),
-            containsString(
-                "[4:40] [v] is not a valid param attribute, " + "a valid attribute is any of value, identifier, identifierpattern"
-            )
-        );
-        assertThat(
-            e3.getCause().getMessage(),
-            containsString(
-                "[5:1] [v8] is not a valid value for pattern parameter, a valid value for pattern parameter is a string and contains *"
-            )
-        );
-        assertThat(
-            e3.getCause().getMessage(),
-            containsString(
-                "[5:56] [wrong pattern] is not a valid value for an identifier pattern field, a valid value is either true or false"
-            )
-        );
-        assertThat(
-            e3.getCause().getMessage(),
-            containsString("[6:1] [0] is not a valid value for an identifier field, a valid value is either true or false")
-        );
-        assertThat(
-            e3.getCause().getMessage(),
-            containsString(
-                "[6:48] [[x, y]] is not a valid value for identifier parameter, a valid value for identifier parameter is a string"
-            )
-        );
-        assertThat(
-            e3.getCause().getMessage(),
-            containsString(
-                "[7:1] [n12 = {value=v12, identifier=true, identifierpattern=true}] "
-                    + "can be either an identifier or an identifierpattern, but cannot be both"
+                "Failed to parse params: [2:16] [v] is not a valid param attribute, a valid attribute is any of VALUE, KIND; "
+                    + "[2:39] [type] is not a valid param attribute, a valid attribute is any of VALUE, KIND; "
+                    + "[3:1] [id] is not a valid param kind, a valid kind is any of VALUE, IDENTIFIER, PATTERN; "
+                    + "[3:44] [true] is not a valid param kind, a valid kind is any of VALUE, IDENTIFIER, PATTERN; "
+                    + "[4:1] [[identifier, pattern]] is not a valid param kind, a valid kind is any of VALUE, IDENTIFIER, PATTERN; "
+                    + "[4:64] [0] is not a valid param kind, a valid kind is any of VALUE, IDENTIFIER, PATTERN; "
+                    + "[5:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
+                    + "[5:48] [true] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *; "
+                    + "[6:1] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
+                    + "[6:35] [v] is not a valid param attribute, a valid attribute is any of VALUE, KIND; "
+                    + "[6:35] [n10={v=v10, kind=identifier}] does not have a value specified; "
+                    + "[6:35] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
+                    + "[7:1] [v11] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *; "
+                    + "[7:50] [[x, y]] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
+                    + "[7:50] n12={kind=identifier, value=[x, y]} is not supported as a parameter; "
+                    + "[8:1] [type] is not a valid param attribute, a valid attribute is any of VALUE, KIND"
             )
         );
     }

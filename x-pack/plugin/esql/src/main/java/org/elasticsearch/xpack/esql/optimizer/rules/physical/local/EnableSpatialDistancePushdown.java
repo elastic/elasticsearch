@@ -128,7 +128,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
                 return comparison;
             });
             // If any pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
-            if (rewritten.equals(filterExec.condition()) == false) {
+            if (rewritten.equals(filterExec.condition()) == false && conditionHasNoReferences(rewritten, distances)) {
                 // Divide the aliases into those that are referenced in the filter and those that are not
                 SplitAliases split = SplitAliases.from(filterExec, evalExec, distances, others);
 
@@ -142,6 +142,10 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             }
         }
         return filterExec;
+    }
+
+    private boolean conditionHasNoReferences(Expression expr, Map<NameId, StDistance> distances) {
+        return expr.references().stream().filter(r -> distances.containsKey(r.id())).findFirst().isEmpty();
     }
 
     private record SplitAliases(List<Alias> referencedAliases, List<Alias> remainingAliases) {

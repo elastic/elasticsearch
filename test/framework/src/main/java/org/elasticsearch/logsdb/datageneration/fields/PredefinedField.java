@@ -13,19 +13,18 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 
+import java.util.Map;
+
 public interface PredefinedField {
     String name();
 
-    FieldDataGenerator generator(DataSource dataSource);
-
     FieldType fieldType();
 
-    record WithGenerator(String fieldName, FieldType fieldType, boolean canBeDynamic, FieldDataGenerator generator) implements PredefinedField {
-        @Override
-        public String name() {
-            return fieldName;
-        }
+    Map<String, Object> mapping();
 
+    FieldDataGenerator generator(DataSource dataSource);
+
+    record WithGenerator(String name, FieldType fieldType, Map<String, Object> mapping, FieldDataGenerator generator) implements PredefinedField {
         @Override
         public FieldDataGenerator generator(DataSource dataSource) {
             return generator;

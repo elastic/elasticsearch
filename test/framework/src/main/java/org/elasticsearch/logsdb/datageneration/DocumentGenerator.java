@@ -32,16 +32,16 @@ public class DocumentGenerator {
     }
 
     public Map<String, Object> generate(MappingTemplate template, Mapping mapping) {
-        var map = new HashMap<String, Object>();
-        generateDocument(map, template.mapping(), new Context("", mapping.lookup()));
-        return map;
+        var documentMap = new HashMap<String, Object>();
+        for (var predefinedField : specification.predefinedFields()) {
+            documentMap.put(predefinedField.name(), predefinedField.generator(specification.dataSource()).generateValue());
+        }
+
+         generateDocument(documentMap, template.mapping(), new Context("", mapping.lookup()));
+        return documentMap;
     }
 
     private void generateDocument(Map<String, Object> document, Map<String, MappingTemplate.Entry> template, Context context) {
-        for (var predefinedField : specification.predefinedFields()) {
-            document.put(predefinedField.name(), predefinedField.generator(specification.dataSource()).generateValue());
-        }
-
         for (var entry : template.entrySet()) {
             String fieldName = entry.getKey();
             MappingTemplate.Entry templateEntry = entry.getValue();

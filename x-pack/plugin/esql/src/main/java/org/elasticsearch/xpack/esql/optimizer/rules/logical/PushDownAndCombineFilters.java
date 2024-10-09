@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -46,9 +49,28 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                     || e instanceof AggregateFunction
             );
         } else if (child instanceof Eval eval) {
-            // Don't push if Filter (still) contains references of Eval's fields.
-            var attributes = new AttributeSet(Expressions.asAttributes(eval.fields()));
-            plan = maybePushDownPastUnary(filter, eval, attributes::contains);
+            // Don't push if Filter (still) contains references to Eval's fields.
+            // Account for simple aliases in the Eval, though - these shouldn't stop us.
+            AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+            for (Alias alias : eval.fields()) {
+                aliasesBuilder.put(alias.toAttribute(), alias.child());
+            }
+            AttributeMap<Expression> evalAliases = aliasesBuilder.build();
+
+            Filter filterWithResolvedRenames = (Filter) filter.transformExpressionsOnly(ReferenceAttribute.class, r -> {
+                Expression resolved = evalAliases.resolve(r, null);
+                // Avoid resolving to an intermediate attribute that only lives inside the Eval - only replace if the attribute existed
+                // before the Eval.
+                if (resolved instanceof Attribute && eval.inputSet().contains(resolved)) {
+                    return resolved;
+                }
+                return r;
+            });
+
+            LogicalPlan optimized = maybePushDownPastUnary(filterWithResolvedRenames, eval, evalAliases::containsKey);
+            if (optimized != filterWithResolvedRenames) {
+                plan = optimized;
+            }
         } else if (child instanceof RegexExtract re) {
             // Push down filters that do not rely on attributes created by RegexExtract
             var attributes = new AttributeSet(Expressions.asAttributes(re.extractedFields()));

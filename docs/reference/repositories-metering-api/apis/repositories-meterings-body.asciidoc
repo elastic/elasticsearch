@@ -125,17 +125,19 @@ grouped by request type.
 [%collapsible%open]
 ======
 `GetBlobProperties`::
-(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob-properties[Get Blob Properties] requests.
+(long) Number of https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob-properties[Get Blob Properties] requests.
 `GetBlob`::
-(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob[Get Blob] requests.
+(long) Number of https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob[Get Blob] requests.
 `ListBlobs`::
-(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs[List Blobs] requests.
+(long) Number of https://learn.microsoft.com/en-us/rest/api/storageservices/list-blobs[List Blobs] requests.
 `PutBlob`::
-(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob[Put Blob] requests.
+(long) Number of https://learn.microsoft.com/en-us/rest/api/storageservices/put-blob[Put Blob] requests.
 `PutBlock`::
-(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-block[Put Block].
+(long) Number of https://learn.microsoft.com/en-us/rest/api/storageservices/put-block[Put Block].
 `PutBlockList`::
-(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list[Put Block List] requests.
+(long) Number of https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list[Put Block List] requests.
+`DeleteBlob`::
+(long) Number of https://learn.microsoft.com/en-us/rest/api/storageservices/delete-blob[Delete Blob] requests.
 
 Azure storage https://azure.microsoft.com/en-us/pricing/details/storage/blobs/[pricing].
 ======

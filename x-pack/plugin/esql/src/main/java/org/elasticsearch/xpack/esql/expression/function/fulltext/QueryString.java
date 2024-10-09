@@ -25,13 +25,9 @@ import java.util.List;
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class QueryStringFunction extends FullTextFunction {
+public class QueryString extends FullTextFunction {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "QStr",
-        QueryStringFunction::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "QStr", QueryString::new);
 
     @FunctionInfo(
         returnType = "boolean",
@@ -39,7 +35,7 @@ public class QueryStringFunction extends FullTextFunction {
         description = "Performs a query string query. Returns true if the provided query string matches the row.",
         examples = { @Example(file = "qstr-function", tag = "qstr-with-field") }
     )
-    public QueryStringFunction(
+    public QueryString(
         Source source,
         @Param(
             name = "query",
@@ -50,7 +46,7 @@ public class QueryStringFunction extends FullTextFunction {
         super(source, queryString, List.of(queryString));
     }
 
-    private QueryStringFunction(StreamInput in) throws IOException {
+    private QueryString(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
     }
 
@@ -72,12 +68,12 @@ public class QueryStringFunction extends FullTextFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryStringFunction(source(), newChildren.get(0));
+        return new QueryString(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, QueryStringFunction::new, query());
+        return NodeInfo.create(this, QueryString::new, query());
     }
 
 }

@@ -34,10 +34,10 @@ public abstract class FullTextFunction extends Function {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
-            entries.add(QueryStringFunction.ENTRY);
+            entries.add(QueryString.ENTRY);
         }
         if (EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled()) {
-            entries.add(MatchFunction.ENTRY);
+            entries.add(Match.ENTRY);
         }
         return entries;
     }

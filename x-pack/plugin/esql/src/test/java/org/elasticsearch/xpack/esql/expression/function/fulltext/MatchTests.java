@@ -31,14 +31,14 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.MATCH_FUN
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match")
-public class MatchFunctionTests extends AbstractFunctionTestCase {
+public class MatchTests extends AbstractFunctionTestCase {
 
     @BeforeClass
     public static void checkFunctionEnabled() {
         assumeTrue("MATCH function should be enabled ", MATCH_FUNCTION.isEnabled());
     }
 
-    public MatchFunctionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public MatchTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -60,12 +60,7 @@ public class MatchFunctionTests extends AbstractFunctionTestCase {
                     new TestCaseSupplier(
                         "<" + fieldType + "-non ES field, " + queryType + ">",
                         List.of(fieldType, queryType),
-                        typeErrorSupplier(
-                            true,
-                            supportedPerPosition,
-                            List.of(fieldType, queryType),
-                            MatchFunctionTests::matchTypeErrorSupplier
-                        )
+                        typeErrorSupplier(true, supportedPerPosition, List.of(fieldType, queryType), MatchTests::matchTypeErrorSupplier)
                     )
                 );
             }
@@ -107,6 +102,6 @@ public class MatchFunctionTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MatchFunction(source, args.get(0), args.get(1));
+        return new Match(source, args.get(0), args.get(1));
     }
 }

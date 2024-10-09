@@ -35,13 +35,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class MatchFunction extends FullTextFunction implements Validatable {
+public class Match extends FullTextFunction implements Validatable {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "Match",
-        MatchFunction::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::new);
 
     private final Expression field;
 
@@ -51,7 +47,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
         description = "Performs a match query on the specified field. Returns true if the provided query matches the row.",
         examples = { @Example(file = "match-function", tag = "match-with-field") }
     )
-    public MatchFunction(
+    public Match(
         Source source,
         @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
         @Param(
@@ -64,7 +60,7 @@ public class MatchFunction extends FullTextFunction implements Validatable {
         this.field = field;
     }
 
-    private MatchFunction(StreamInput in) throws IOException {
+    private Match(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
@@ -78,11 +74,6 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    public String functionName() {
-        return "MATCH";
     }
 
     @Override
@@ -107,12 +98,12 @@ public class MatchFunction extends FullTextFunction implements Validatable {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         // Query is the first child, field is the second child
-        return new MatchFunction(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MatchFunction::new, field, query());
+        return NodeInfo.create(this, Match::new, field, query());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {

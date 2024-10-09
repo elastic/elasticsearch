@@ -34,8 +34,8 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -527,17 +527,17 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class MatchFunctionTranslator extends ExpressionTranslator<MatchFunction> {
+    public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
-        protected Query asQuery(MatchFunction matchFunction, TranslatorHandler handler) {
-            return new MatchQuery(matchFunction.source(), ((FieldAttribute) matchFunction.field()).name(), matchFunction.queryAsText());
+        protected Query asQuery(Match match, TranslatorHandler handler) {
+            return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText());
         }
     }
 
-    public static class QueryStringFunctionTranslator extends ExpressionTranslator<QueryStringFunction> {
+    public static class QueryStringFunctionTranslator extends ExpressionTranslator<QueryString> {
         @Override
-        protected Query asQuery(QueryStringFunction queryStringFunction, TranslatorHandler handler) {
-            return new QueryStringQuery(queryStringFunction.source(), queryStringFunction.queryAsText(), Map.of(), null);
+        protected Query asQuery(QueryString queryString, TranslatorHandler handler) {
+            return new QueryStringQuery(queryString.source(), queryString.queryAsText(), Map.of(), null);
         }
     }
 }

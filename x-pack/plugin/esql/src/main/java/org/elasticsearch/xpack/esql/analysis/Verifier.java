@@ -32,8 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -663,7 +663,7 @@ public class Verifier {
     }
 
     private static void checkCommandsBeforeQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(QueryStringFunction.class, qsf -> {
+        condition.forEachDown(QueryString.class, qsf -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
                     failures.add(
@@ -680,7 +680,7 @@ public class Verifier {
     }
 
     private static void checkCommandsBeforeMatchFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(MatchFunction.class, qsf -> {
+        condition.forEachDown(Match.class, qsf -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (lp instanceof Limit) {
                     failures.add(

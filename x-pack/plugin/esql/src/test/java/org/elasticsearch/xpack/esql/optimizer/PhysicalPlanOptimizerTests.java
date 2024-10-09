@@ -4850,17 +4850,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_ProjectExec[[abbrev{f}#17, name{f}#18, location{f}#21, country{f}#22, city{f}#23, distance{r}#4]]
      *       \_FieldExtractExec[abbrev{f}#17, name{f}#18, country{f}#22, city{f}#23][]
      *         \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],208]
-     *           \_EvalExec[[
-     *               STDISTANCE(location{f}#21,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
-     *             ]]
-     *             \_FilterExec[SUBSTRING(position{r}#7,1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]]
-     *               \_EvalExec[[TOSTRING(location{f}#21) AS position]]
-     *                 \_FieldExtractExec[location{f}#21][]
-     *                   \_EsQueryExec[airports], indexMode[standard], query[{
-     *                     "bool":{"must":[
-     *                       {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
-     *                       {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
-     *                     ],"boost":1.0}}][_doc{f}#35], limit[], sort[] estimatedRowSize[83]
+     *           \_FilterExec[SUBSTRING(position{r}#7,1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]]
+     *             \_EvalExec[[
+     *                 STDISTANCE(location{f}#21,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
+     *                 TOSTRING(location{f}#21) AS position
+     *               ]]
+     *               \_FieldExtractExec[location{f}#21][]
+     *                 \_EsQueryExec[airports], indexMode[standard], query[{
+     *                   "bool":{"must":[
+     *                     {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                     {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                   ],"boost":1.0}}][_doc{f}#35], limit[], sort[] estimatedRowSize[83]
      * </code>
      */
     public void testPushTopNDistanceAndNonPushableEvalWithCompoundFilterToSource() {
@@ -4882,14 +4882,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
         var topNChild = as(extract.child(), TopNExec.class);
-        var evalDistance = as(topNChild.child(), EvalExec.class);
-        var alias = as(evalDistance.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("distance"));
-        var stDistance = as(alias.child(), StDistance.class);
+        var filter = as(topNChild.child(), FilterExec.class);
+        var evalExec = as(filter.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(2));
+        var aliasDistance = as(evalExec.fields().get(0), Alias.class);
+        assertThat(aliasDistance.name(), is("distance"));
+        var stDistance = as(aliasDistance.child(), StDistance.class);
         assertThat(stDistance.left().toString(), startsWith("location"));
-        var filter = as(evalDistance.child(), FilterExec.class);
-        var evalLocation = as(filter.child(), EvalExec.class);
-        extract = as(evalLocation.child(), FieldExtractExec.class);
+        var aliasPosition = as(evalExec.fields().get(1), Alias.class);
+        assertThat(aliasPosition.name(), is("position"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("location"));
         var source = source(extract.child());
 

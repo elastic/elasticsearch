@@ -281,13 +281,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 templateSettings,
                 mappings
             );
-            for (String settingName : result.keySet()) {
-                if (additionalSettings.keys().contains(settingName)) {
-                    var name = provider.getClass().getSimpleName();
-                    var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
-                    throw new IllegalArgumentException(message);
-                }
-            }
+            MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
         }

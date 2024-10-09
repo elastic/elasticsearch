@@ -711,13 +711,7 @@ public class MetadataIndexTemplateService {
                 combinedSettings,
                 combinedMappings
             );
-            for (String settingName : newAdditionalSettings.keySet()) {
-                if (finalSettings.keys().contains(settingName)) {
-                    var simpleName = provider.getClass().getSimpleName();
-                    var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, simpleName);
-                    throw new IllegalArgumentException(message);
-                }
-            }
+            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
             finalSettings.put(newAdditionalSettings);
         }
         // Then apply setting from component templates:

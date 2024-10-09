@@ -1001,13 +1001,7 @@ public class MetadataCreateIndexService {
                     templateAndRequestSettings,
                     combinedTemplateMappings
                 );
-                for (String settingName : newAdditionalSettings.keySet()) {
-                    if (additionalIndexSettings.keys().contains(settingName)) {
-                        var name = provider.getClass().getSimpleName();
-                        var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
-                        throw new IllegalArgumentException(message);
-                    }
-                }
+                validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
                 additionalIndexSettings.put(newAdditionalSettings);
             }
 
@@ -1115,6 +1109,29 @@ public class MetadataCreateIndexService {
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSetting(indexSettings);
         return indexSettings;
+    }
+
+    /**
+     * Validates whether additional settings don't have keys that are already defined in all additional settings.
+     *
+     * @param provider                  The {@link IndexSettingProvider} that produced <code>additionalSettings</code>
+     * @param additionalSettings        The settings produced by the specified <code>provider</code>
+     * @param allAdditionalSettings     A settings builder containing all additional settings produced by any {@link IndexSettingProvider}
+     *                                  that already executed
+     * @throws IllegalArgumentException If keys in additionalSettings are already defined in allAdditionalSettings
+     */
+    public static void validateAdditionalSettings(
+        IndexSettingProvider provider,
+        Settings additionalSettings,
+        Settings.Builder allAdditionalSettings
+    ) throws IllegalArgumentException {
+        for (String settingName : additionalSettings.keySet()) {
+            if (allAdditionalSettings.keys().contains(settingName)) {
+                var name = provider.getClass().getSimpleName();
+                var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
+                throw new IllegalArgumentException(message);
+            }
+        }
     }
 
     private static void validateSoftDeleteSettings(Settings indexSettings) {

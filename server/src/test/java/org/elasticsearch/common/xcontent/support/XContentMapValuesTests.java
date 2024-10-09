@@ -730,4 +730,16 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             )
         );
     }
+
+    public void testInsertValueMixedDottedObjectNotation() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        builder.startObject("foo").field("cat", "meow").endObject();
+        builder.field("foo.cat", "miau");
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            Map<String, Object> map = parser.map();
+            assertThat((List<?>) XContentMapValues.insertValue("foo.cat", map, "woof"), containsInAnyOrder("meow", "miau"));
+            assertThat(map, equalTo(Map.of("foo", Map.of("cat", "woof"))));
+        }
+    }
 }

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class XContentMapValues {
     /**
@@ -191,62 +192,91 @@ public class XContentMapValues {
     }
 
     private static Object extractValue(String[] pathElements, int index, Object currentValue, Object nullValue) {
-        if (currentValue instanceof List<?> valueList) {
-            List<Object> newList = new ArrayList<>(valueList.size());
-            for (Object o : valueList) {
-                Object listValue = extractValue(pathElements, index, o, nullValue);
-                if (listValue != null) {
-                    // we add arrays as list elements only if we are already at leaf,
-                    // otherwise append individual elements to the new list so we don't
-                    // accumulate intermediate array structures
-                    if (listValue instanceof List<?> list) {
-                        if (index == pathElements.length) {
-                            newList.add(list);
-                        } else {
-                            newList.addAll(list);
-                        }
-                    } else {
-                        newList.add(listValue);
-                    }
-                }
-            }
-            return newList;
+        List<Object> extractedValues = new ArrayList<>();
+        extractAndInsertValue(pathElements, index, currentValue, nullValue, false, null, extractedValues);
+
+        if (extractedValues.isEmpty()) {
+            return null;
+        } else if (extractedValues.size() == 1) {
+            return extractedValues.get(0);
+        } else {
+            return extractedValues;
+        }
+    }
+
+    public static Object insertValue(String path, Map<?, ?> map, Object newValue) {
+        String[] pathElements = path.split("\\.");
+        if (pathElements.length == 0) {
+            return null;
         }
 
+        List<Object> extractedValues = new ArrayList<>();
+        extractAndInsertValue(pathElements, 0, map, null, true, newValue, extractedValues);
+
+        if (extractedValues.isEmpty()) {
+            return null;
+        } else if (extractedValues.size() == 1) {
+            return extractedValues.get(0);
+        } else {
+            return extractedValues;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void extractAndInsertValue(
+        String[] pathElements,
+        int index,
+        Object currentValue,
+        Object nullValue,
+        boolean insertNewValue,
+        Object newValue,
+        List<Object> extractedValues
+    ) {
         if (index == pathElements.length) {
-            return currentValue != null ? currentValue : nullValue;
-        }
-
-        if (currentValue instanceof Map<?, ?> map) {
+            if (currentValue instanceof List<?> valueList) {
+                extractedValues.addAll(replaceNullValues(valueList, nullValue));
+            } else {
+                extractedValues.add(currentValue != null ? currentValue : nullValue);
+            }
+        } else if (currentValue instanceof List<?> valueList) {
+            for (Object o : valueList) {
+                extractAndInsertValue(pathElements, index, o, nullValue, insertNewValue, newValue, extractedValues);
+            }
+        } else if (currentValue instanceof Map<?, ?> map) {
             String key = pathElements[index];
             int nextIndex = index + 1;
-            List<Object> extractedValues = new ArrayList<>();
             while (true) {
                 if (map.containsKey(key)) {
-                    Object mapValue = map.get(key);
-                    if (mapValue == null) {
-                        extractedValues.add(nullValue);
-                    } else {
-                        Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
-                        if (val != null) {
-                            extractedValues.add(val);
+                    extractAndInsertValue(pathElements, nextIndex, map.get(key), nullValue, insertNewValue, newValue, extractedValues);
+
+                    // TODO: If no values extracted, use flat path
+                    if (insertNewValue && nextIndex == pathElements.length) {
+                        if (extractedValues.size() == 1) {
+                            ((Map<String, Object>) map).put(key, newValue);
+                        } else if (extractedValues.size() > 1) {
+                            map.remove(key);
                         }
                     }
                 }
                 if (nextIndex == pathElements.length) {
-                    if (extractedValues.size() == 0) {
-                        return null;
-                    } else if (extractedValues.size() == 1) {
-                        return extractedValues.get(0);
-                    } else {
-                        return extractedValues;
-                    }
+                    return;
                 }
                 key += "." + pathElements[nextIndex];
                 nextIndex++;
             }
         }
-        return null;
+    }
+
+    private static List<Object> replaceNullValues(List<?> valueList, Object nullValue) {
+        return valueList.stream().map(v -> {
+            if (v == null) {
+                return nullValue;
+            } else if (v instanceof List<?> nestedList) {
+                return replaceNullValues(nestedList, nullValue);
+            } else {
+                return v;
+            }
+        }).collect(Collectors.toList());
     }
 
     /**

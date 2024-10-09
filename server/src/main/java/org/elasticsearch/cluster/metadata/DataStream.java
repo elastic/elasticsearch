@@ -1742,6 +1742,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
     }
 
+    /**
+     * This is a specialised error to capture that a document does not have a valid timestamp
+     * to index a document. It is mainly applicable for TSDS data streams because they need the timestamp
+     * to determine the write index.
+     */
     public static class TimestampError extends IllegalArgumentException {
 
         public TimestampError(String message, Exception cause) {

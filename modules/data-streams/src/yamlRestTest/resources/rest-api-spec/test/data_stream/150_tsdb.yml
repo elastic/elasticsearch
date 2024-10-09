@@ -183,7 +183,11 @@ index without timestamp:
           - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
 
 ---
-index without timestamp goes to failure store:
+TSDB failures go to failure store:
+  - requires:
+      cluster_features: ["data_stream.failure_store.tsdb_fix"]
+      reason: "tests tsdb failure store fixes in 8.16.0 that catch timestamp errors that happen earlier in the process and redirect them to the failure store."
+
   - do:
       allowed_warnings:
         - "index template [my-template2] has index patterns [fs-k8s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
@@ -234,6 +238,50 @@ index without timestamp goes to failure store:
           - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
   - match: { result : "created"}
   - match: { failure_store : "used"}
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{"@timestamp":"2021-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{ "@timestamp": "2021-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{ "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{ "@timestamp":"2000-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{ "@timestamp":"2000-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - is_true: errors
+
+  # Successfully indexed to backing index
+  - match: { items.0.create._index: '/\.ds-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.0.create.status: 201 }
+  - is_false: items.0.create.failure_store
+  - match: { items.1.create._index: '/\.ds-k8s-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.1.create.status: 201 }
+  - is_false: items.1.create.failure_store
+
+  # Successfully indexed to failure store
+  - match: { items.2.create._index: '/\.fs-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.2.create.status: 201 }
+  - match: { items.2.create.failure_store: used }
+  - match: { items.3.create._index: '/\.fs-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.3.create.status: 201 }
+  - match: { items.3.create.failure_store: used }
+
+  # Rejected, eligible to go to failure store, but failure store not enabled
+  - match: { items.4.create._index: 'k8s' }
+  - match: { items.4.create.status: 400 }
+  - match: { items.4.create.error.type: timestamp_error }
+  - match: { items.4.create.failure_store: not_enabled }
+  - match: { items.4.create._index: 'k8s' }
+  - match: { items.4.create.status: 400 }
+  - match: { items.4.create.error.type: timestamp_error }
+  - match: { items.4.create.failure_store: not_enabled }
 
 ---
 index without timestamp with pipeline:

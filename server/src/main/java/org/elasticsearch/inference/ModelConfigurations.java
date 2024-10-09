@@ -173,7 +173,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
-        builder.field(TASK_SETTINGS, taskSettings);
+        if (taskSettings != null && taskSettings.isEmpty() == false) {
+            builder.field(TASK_SETTINGS, taskSettings);
+        }
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
@@ -192,7 +194,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
-        builder.field(TASK_SETTINGS, taskSettings);
+        if (taskSettings != null && taskSettings.isEmpty() == false) {
+            builder.field(TASK_SETTINGS, taskSettings);
+        }
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }

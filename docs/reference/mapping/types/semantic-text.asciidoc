@@ -153,8 +153,8 @@ types and create an ingest pipeline with an
 <<inference-processor, {infer} processor>> to generate the embeddings.
 <<semantic-search-inference,This tutorial>> walks you through the process. In
 these cases - when you use `sparse_vector` or `dense_vector` field types instead
-of the `semantic_text` field type to customize indexing - using the 
-<<query-dsl-semantic-query,`semantic_query`>> is not supported for querying the 
+of the `semantic_text` field type to customize indexing - using the
+<<query-dsl-semantic-query,`semantic_query`>> is not supported for querying the
 field data.
 
 
@@ -220,5 +220,5 @@ Notice that both the `semantic_text` field and the source field are updated in t
 
 `semantic_text` field types have the following limitations:
 
-* `semantic_text` fields are not currently supported as elements of <<nested,nested fields>>.
+* `semantic_text` fields are not currently supported as elements of <<nested,nested fields>> or <<object,object fields>>.
 * `semantic_text` fields can't be defined as <<multi-fields,multi-fields>> of another field, nor can they contain other fields as multi-fields.

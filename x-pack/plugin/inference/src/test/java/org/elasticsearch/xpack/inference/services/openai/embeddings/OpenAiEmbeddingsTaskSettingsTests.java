@@ -13,10 +13,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,6 +37,23 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public static OpenAiEmbeddingsTaskSettings createRandom() {
         var user = randomBoolean() ? randomAlphaOfLength(15) : null;
         return new OpenAiEmbeddingsTaskSettings(user);
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.user() != null) {
+            newSettingsMap.put(OpenAiServiceFields.USER, newSettings.user());
+        }
+        OpenAiEmbeddingsTaskSettings updatedSettings = (OpenAiEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.user() == null) {
+            assertEquals(initialSettings.user(), updatedSettings.user());
+        } else {
+            assertEquals(newSettings.user(), updatedSettings.user());
+        }
     }
 
     public void testFromMap_WithUser() {

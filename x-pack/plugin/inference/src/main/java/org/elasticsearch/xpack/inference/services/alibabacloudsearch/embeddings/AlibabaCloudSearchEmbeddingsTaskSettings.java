@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -173,7 +174,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AlibabaCloudSearchEmbeddingsTaskSettings newSettingsOnly = fromMap(newSettings);
+        AlibabaCloudSearchEmbeddingsTaskSettings newSettingsOnly = fromMap(new HashMap<>(newSettings));
         return of(this, newSettingsOnly, newSettingsOnly.inputType != null ? newSettingsOnly.inputType : this.getInputType());
     }
 }

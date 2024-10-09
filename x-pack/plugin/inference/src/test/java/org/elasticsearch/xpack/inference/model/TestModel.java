@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -215,7 +216,7 @@ public class TestModel extends Model {
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-            return TestTaskSettings.fromMap(newSettings);
+            return TestTaskSettings.fromMap(new HashMap<>(newSettings));
         }
     }
 

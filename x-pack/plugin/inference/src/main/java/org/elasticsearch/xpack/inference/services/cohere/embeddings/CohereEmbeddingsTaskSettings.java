@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -202,7 +203,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        CohereEmbeddingsTaskSettings updatedSettings = CohereEmbeddingsTaskSettings.fromMap(newSettings);
+        CohereEmbeddingsTaskSettings updatedSettings = CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
         return of(this, updatedSettings, updatedSettings.inputType != null ? updatedSettings.inputType : this.inputType);
     }
 }

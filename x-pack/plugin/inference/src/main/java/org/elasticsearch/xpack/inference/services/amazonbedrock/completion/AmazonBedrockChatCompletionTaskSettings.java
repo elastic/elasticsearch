@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -191,7 +192,7 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         AmazonBedrockChatCompletionRequestTaskSettings requestSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(
-            newSettings
+            new HashMap<>(newSettings)
         );
         return of(this, requestSettings);
     }

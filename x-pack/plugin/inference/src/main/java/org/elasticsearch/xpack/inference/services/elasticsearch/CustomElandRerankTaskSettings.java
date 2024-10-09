@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -87,7 +88,11 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
     }
 
     public CustomElandRerankTaskSettings(@Nullable Boolean doReturnDocuments) {
-        this.returnDocuments = doReturnDocuments;
+        if (doReturnDocuments == null) {
+            this.returnDocuments = true;
+        } else {
+            this.returnDocuments = doReturnDocuments;
+        }
     }
 
     @Override
@@ -134,7 +139,7 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        CustomElandRerankTaskSettings updatedSettings = CustomElandRerankTaskSettings.fromMap(newSettings);
+        CustomElandRerankTaskSettings updatedSettings = CustomElandRerankTaskSettings.fromMap(new HashMap<>(newSettings));
         return of(this, updatedSettings);
     }
 }

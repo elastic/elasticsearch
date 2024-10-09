@@ -19,6 +19,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -81,6 +82,6 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(newSecrets);
+        return fromMap(new HashMap<>(newSecrets));
     }
 }

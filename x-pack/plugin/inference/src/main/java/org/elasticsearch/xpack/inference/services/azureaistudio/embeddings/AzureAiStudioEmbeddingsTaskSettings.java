@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -109,7 +110,9 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AzureAiStudioEmbeddingsRequestTaskSettings requestSettings = AzureAiStudioEmbeddingsRequestTaskSettings.fromMap(newSettings);
+        AzureAiStudioEmbeddingsRequestTaskSettings requestSettings = AzureAiStudioEmbeddingsRequestTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
         return AzureAiStudioEmbeddingsTaskSettings.of(this, requestSettings);
     }
 }

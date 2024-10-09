@@ -161,7 +161,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-            return fromMap(newSettings);
+            return fromMap(new HashMap<>(newSettings));
         }
     }
 
@@ -214,7 +214,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
         @Override
         public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-            return TestSecretSettings.fromMap(newSecrets);
+            return TestSecretSettings.fromMap(new HashMap<>(newSecrets));
         }
     }
 }

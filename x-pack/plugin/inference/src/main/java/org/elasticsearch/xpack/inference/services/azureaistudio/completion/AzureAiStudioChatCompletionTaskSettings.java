@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioCon
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -174,6 +175,20 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public String toString() {
+        return "AzureAiStudioChatCompletionTaskSettings{"
+            + "temperature="
+            + temperature
+            + ", topP="
+            + topP
+            + ", doSample="
+            + doSample
+            + ", maxNewTokens="
+            + maxNewTokens
+            + '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -192,7 +207,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         AzureAiStudioChatCompletionRequestTaskSettings requestSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(
-            newSettings
+            new HashMap<>(newSettings)
         );
         return of(this, requestSettings);
     }

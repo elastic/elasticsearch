@@ -835,8 +835,7 @@ public final class DocumentParser {
             }
         }
 
-        // hard coded exclusion keyword mapper:
-        if (mapper instanceof KeywordFieldMapper == false) {
+        if (parsesArrayValue(mapper) == false) {
             // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
             // elements from regular source loading that are then skipped from the synthesized array source.
             // To prevent this, we track that parsing sub-context is within array scope.

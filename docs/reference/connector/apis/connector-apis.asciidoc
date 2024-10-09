@@ -3,14 +3,16 @@
 
 beta::[]
 
-The connector and sync jobs APIs provide a convenient way to create and manage Elastic {enterprise-search-ref}/connectors.html[connectors^] and sync jobs in an internal index. To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+The connector and sync jobs APIs provide a convenient way to create and manage Elastic <<es-connectors,connectors>>.
+ and sync jobs in an internal index. To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 Connectors are {es} integrations that bring content from third-party data sources, which can be deployed on {ecloud} or hosted on your own infrastructure:
 
-* *Native connectors* are a managed service on {ecloud}
-* *Connector clients* are self-managed on your infrastructure
+* *Managed connectors* are a managed service on {ecloud}
+* *Self-managed connectors* are self-hosted on your infrastructure
 
-Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
+Find a list of all supported service types in the <<es-connectors,connectors documentation>>.
 
 This API provides an alternative to relying solely on {kib} UI for connector and sync job management. The API comes with a set of
 validations and assertions to ensure that the state representation in the internal index remains valid.
@@ -82,7 +84,7 @@ beta:[]
 
 preview::[]
 
-*Connector Service APIs* are a subset of Connector API endpoints, that represent framework-level operations defined in the https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md[Connector Protocol]. These APIs are not intended for direct connector management by users but are there to support the implementation of services that utilize the Conector Protocol to communicate with {es}.
+*Connector Service APIs* are a subset of Connector API endpoints, that represent framework-level operations defined in the https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md[Connector Protocol]. These APIs are not intended for direct connector management by users but are there to support the implementation of services that utilize the Connector Protocol to communicate with {es}.
 
 [TIP]
 ====

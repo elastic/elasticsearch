@@ -1,0 +1,5 @@
+pr: 113869
+summary: Upgrade protobufer to 3.25.5
+area: Snapshot/Restore
+type: upgrade
+issues: []

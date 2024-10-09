@@ -149,7 +149,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      *
      * Once {@link org.elasticsearch.Version#V_7_17_0} goes out of scope, start to properly reject such bad values.
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
     private static float ensureValidThreshold(float threshold) {
         if (1.0f <= threshold) {
             return threshold;

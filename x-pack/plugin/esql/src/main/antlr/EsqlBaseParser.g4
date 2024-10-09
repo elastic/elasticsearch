@@ -32,7 +32,6 @@ query
 sourceCommand
     : explainCommand
     | fromCommand
-    | metaCommand
     | rowCommand
     | showCommand
     // in development
@@ -55,7 +54,6 @@ processingCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? matchCommand
     ;
 
 whereCommand
@@ -290,10 +288,6 @@ showCommand
     : SHOW INFO                                                           #showInfo
     ;
 
-metaCommand
-    : META FUNCTIONS                                                      #metaFunctions
-    ;
-
 enrichCommand
     : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
@@ -311,12 +305,4 @@ lookupCommand
 
 inlinestatsCommand
     : DEV_INLINESTATS stats=fields (BY grouping=fields)?
-    ;
-
-matchCommand
-    : DEV_MATCH matchQuery
-    ;
-
-matchQuery
-    : QUOTED_STRING
     ;

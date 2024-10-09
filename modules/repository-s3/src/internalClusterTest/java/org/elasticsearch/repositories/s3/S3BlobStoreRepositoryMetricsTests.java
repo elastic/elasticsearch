@@ -383,18 +383,10 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         }
     }
 
-    static class S3ErrorResponse {
-
-        private final RestStatus status;
-        private final String responseBody;
+    record S3ErrorResponse(RestStatus status, String responseBody) {
 
         S3ErrorResponse(RestStatus status) {
             this(status, null);
-        }
-
-        S3ErrorResponse(RestStatus status, String responseBody) {
-            this.status = status;
-            this.responseBody = responseBody;
         }
 
         @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")

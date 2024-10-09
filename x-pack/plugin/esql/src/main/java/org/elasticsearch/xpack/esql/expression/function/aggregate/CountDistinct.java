@@ -37,6 +37,9 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -49,6 +52,20 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Expression.class,
         "CountDistinct",
         CountDistinct::new
+    );
+
+    private static final Map<DataType, BiFunction<List<Integer>, Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        // Booleans ignore the precision because there are only two possible values anyway
+        Map.entry(DataType.BOOLEAN, (inputChannels, precision) -> new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels)),
+        Map.entry(DataType.LONG, CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATETIME, CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATE_NANOS, CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.INTEGER, CountDistinctIntAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DOUBLE, CountDistinctDoubleAggregatorFunctionSupplier::new),
+        Map.entry(DataType.KEYWORD, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -100,7 +117,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(
@@ -161,7 +178,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             .and(
                 isType(
                     field(),
-                    dt -> dt != DataType.UNSIGNED_LONG && dt != DataType.SOURCE,
+                    SUPPLIERS::containsKey,
                     sourceText(),
                     DEFAULT,
                     "any exact type except unsigned_long, _source, or counter types"
@@ -178,23 +195,11 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
         int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
-        if (type == DataType.BOOLEAN) {
-            // Booleans ignore the precision because there are only two possible values anyway
-            return new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels);
+        if (SUPPLIERS.containsKey(type) == false) {
+            // If the type checking did its job, this should never happen
+            throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        if (type == DataType.DATETIME || type == DataType.LONG) {
-            return new CountDistinctLongAggregatorFunctionSupplier(inputChannels, precision);
-        }
-        if (type == DataType.INTEGER) {
-            return new CountDistinctIntAggregatorFunctionSupplier(inputChannels, precision);
-        }
-        if (type == DataType.DOUBLE) {
-            return new CountDistinctDoubleAggregatorFunctionSupplier(inputChannels, precision);
-        }
-        if (type == DataType.KEYWORD || type == DataType.IP || type == DataType.VERSION || type == DataType.TEXT) {
-            return new CountDistinctBytesRefAggregatorFunctionSupplier(inputChannels, precision);
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+        return SUPPLIERS.get(type).apply(inputChannels, precision);
     }
 
     @Override

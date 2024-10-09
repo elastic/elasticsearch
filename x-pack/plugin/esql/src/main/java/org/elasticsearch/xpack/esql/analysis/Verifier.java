@@ -682,7 +682,7 @@ public class Verifier {
     private static void checkCommandsBeforeMatchFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
         condition.forEachDown(MatchFunction.class, qsf -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
-                if (lp instanceof Limit || lp instanceof Row) {
+                if (lp instanceof Limit) {
                     failures.add(
                         fail(
                             plan,

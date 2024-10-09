@@ -1095,7 +1095,6 @@ public class VerifierTests extends ESTestCase {
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
         );
-        assertEquals("1:18: [MATCH] function cannot be used after ROW", error("row n = \"test\" | where match(n, \"Anna\")"));
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {

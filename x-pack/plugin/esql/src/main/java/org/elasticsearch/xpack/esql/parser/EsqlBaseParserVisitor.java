@@ -520,13 +520,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitShowInfo(EsqlBaseParser.ShowInfoContext ctx);
   /**
-   * Visit a parse tree produced by the {@code metaFunctions}
-   * labeled alternative in {@link EsqlBaseParser#metaCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#enrichCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -550,16 +543,4 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchQuery}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
 }

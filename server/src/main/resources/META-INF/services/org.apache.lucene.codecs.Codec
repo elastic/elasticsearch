@@ -1,1 +1,2 @@
 org.elasticsearch.index.codec.Elasticsearch814Codec
+org.elasticsearch.index.codec.Elasticsearch816Codec

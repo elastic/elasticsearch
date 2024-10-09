@@ -150,7 +150,7 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        @UpdateForV9 // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
         IndexSettingDeprecatedInV7AndRemovedInV8,
 
         /**
@@ -639,7 +639,7 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            @UpdateForV9 // https://github.com/elastic/elasticsearch/issues/79666
+            @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/79666
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
@@ -1366,6 +1366,16 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, Integer.toString(defaultValue), intParser(key, minValue, properties), properties);
     }
 
+    public static Setting<Integer> intSetting(
+        String key,
+        Function<Settings, String> defaultValueFn,
+        int minValue,
+        int maxValue,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValueFn, intParser(key, minValue, maxValue, properties), properties);
+    }
+
     private static Function<String, Integer> intParser(String key, int minValue, Property[] properties) {
         final boolean isFiltered = isFiltered(properties);
         return s -> parseInt(s, minValue, key, isFiltered);
@@ -1622,6 +1632,27 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
      *
+     * @param <T>          the generics type parameter reflecting the actual type of the enum
+     * @param clazz        the enum class
+     * @param defaultValue a default value function that returns the default values string representation.
+     * @param key          the key for the setting
+     * @param validator    validator for this setting
+     * @param properties   properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        Function<Settings, String> defaultValue,
+        String key,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue, e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), validator, properties);
+    }
+
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
      * @param clazz the enum class
      * @param key the key for the setting
      * @param fallbackSetting the fallback setting for this setting
@@ -1659,6 +1690,10 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {
         return memorySizeSetting(key, defaultValue.toString(), properties);
+    }
+
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
+        return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     /**

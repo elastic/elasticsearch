@@ -8,12 +8,12 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -99,11 +99,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeployment() throws Exception {
-        @UpdateForV9 // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
-        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
-        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
-
         final String modelId = "upgrade-deployment-test";
 
         switch (CLUSTER_TYPE) {
@@ -138,11 +133,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
-        @UpdateForV9 // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
-        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
-        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
-
         final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
 
         switch (CLUSTER_TYPE) {
@@ -242,14 +232,30 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        String inferenceThreadParamName = "threads_per_allocation";
+        String modelThreadParamName = "number_of_allocations";
+        String compatibleHeader = null;
+        if (CLUSTER_TYPE.equals(ClusterType.OLD) || CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+            compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
+            inferenceThreadParamName = "inference_threads";
+            modelThreadParamName = "model_threads";
+        }
+
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&"
+                + inferenceThreadParamName
+                + "=1&"
+                + modelThreadParamName
+                + "=1"
         );
+        if (compatibleHeader != null) {
+            request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
+        }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);

@@ -18,6 +18,7 @@ import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -62,30 +63,16 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     @Override
     protected void doExecute(Task task, InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
 
-        ActionListener<ModelRegistry.UnparsedModel> getModelListener = listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
+        ActionListener<UnparsedModel> getModelListener = listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Unknown service [{}] for model [{}]. ",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        unparsedModel.service(),
-                        unparsedModel.inferenceEntityId()
-                    )
-                );
+                listener.onFailure(unknownServiceException(unparsedModel.service(), request.getInferenceEntityId()));
                 return;
             }
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // not the wildcard task type and not the model task type
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
-                        RestStatus.BAD_REQUEST,
-                        request.getTaskType(),
-                        unparsedModel.taskType()
-                    )
-                );
+                listener.onFailure(incompatibleTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
 
@@ -96,7 +83,6 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     unparsedModel.settings(),
                     unparsedModel.secrets()
                 );
-            inferenceStats.incrementRequestCount(model);
             inferOnService(model, request, service.get(), delegate);
         });
 
@@ -110,10 +96,12 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         ActionListener<InferenceAction.Response> listener
     ) {
         if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
+            inferenceStats.incrementRequestCount(model);
             service.infer(
                 model,
                 request.getQuery(),
                 request.getInput(),
+                request.isStreaming(),
                 request.getTaskSettings(),
                 request.getInputType(),
                 request.getInferenceTimeout(),
@@ -157,5 +145,19 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             });
         }
         return listener.delegateFailureAndWrap((l, inferenceResults) -> l.onResponse(new InferenceAction.Response(inferenceResults)));
-    };
+    }
+
+    private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
+        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
+    }
+
+    private static ElasticsearchStatusException incompatibleTaskTypeException(TaskType requested, TaskType expected) {
+        return new ElasticsearchStatusException(
+            "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
+            RestStatus.BAD_REQUEST,
+            requested,
+            expected
+        );
+    }
+
 }

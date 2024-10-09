@@ -34,7 +34,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
@@ -1035,29 +1034,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(getValuesList(results).get(0).get(0), equalTo(Build.current().version()));
             assertThat(getValuesList(results).get(0).get(1), equalTo(Build.current().date()));
             assertThat(getValuesList(results).get(0).get(2), equalTo(Build.current().hash()));
-        }
-    }
-
-    public void testMetaFunctions() {
-        try (EsqlQueryResponse results = run("meta functions")) {
-            assertThat(
-                results.columns(),
-                equalTo(
-                    List.of(
-                        new ColumnInfoImpl("name", "keyword"),
-                        new ColumnInfoImpl("synopsis", "keyword"),
-                        new ColumnInfoImpl("argNames", "keyword"),
-                        new ColumnInfoImpl("argTypes", "keyword"),
-                        new ColumnInfoImpl("argDescriptions", "keyword"),
-                        new ColumnInfoImpl("returnType", "keyword"),
-                        new ColumnInfoImpl("description", "keyword"),
-                        new ColumnInfoImpl("optionalArgs", "boolean"),
-                        new ColumnInfoImpl("variadic", "boolean"),
-                        new ColumnInfoImpl("isAggregation", "boolean")
-                    )
-                )
-            );
-            assertThat(getValuesList(results).size(), equalTo(new EsqlFunctionRegistry().listFunctions().size()));
         }
     }
 

@@ -54,7 +54,10 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     @Override
     protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {
         var document = XContentFactory.jsonBuilder();
-        dataGenerationHelper.generateDocument(document, Map.of("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp)));
+        dataGenerationHelper.generateDocument(
+            document,
+            Map.of("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
+        );
         return document;
     }
 }

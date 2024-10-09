@@ -63,6 +63,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;
 
+    private boolean optIn = false;
+
     public EsqlExecutionInfo() {
         this(Predicates.always());  // default all clusters to skip_unavailable=true
     }
@@ -94,6 +96,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
             this.clusterInfo = m;
         }
+        this.optIn = in.readBoolean();
+        System.err.println(" 9999999 : read: optIn: " + optIn);
         this.skipUnavailablePredicate = Predicates.always();
     }
 
@@ -105,6 +109,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeCollection(Collections.emptyList());
         }
+        System.err.println(" 9999999 : writeTo: optIn: " + optIn);
+        out.writeBoolean(optIn);
+    }
+
+    public void optIn(boolean optIn) {
+        this.optIn = optIn;
+    }
+
+    public boolean optIn() {
+        return optIn;
     }
 
     public void overallTook(TimeValue took) {

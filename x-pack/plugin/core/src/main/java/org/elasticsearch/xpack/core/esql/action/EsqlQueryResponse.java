@@ -30,6 +30,7 @@ public abstract class EsqlQueryResponse extends ActionResponse implements Releas
         return responseInternal();
     }
 
+
     protected abstract EsqlResponse responseInternal();
 
     @Override

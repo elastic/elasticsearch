@@ -127,6 +127,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean keepOnCompletion = null;
 
         private Boolean profile = null;
+        private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
 
@@ -196,6 +197,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder includeCCSMetadata(boolean includeCCSMetadata) {
+            this.includeCCSMetadata = includeCCSMetadata;
+            return this;
+        }
+
         public RequestObjectBuilder filter(CheckedConsumer<XContentBuilder, IOException> filter) {
             this.filter = filter;
             return this;
@@ -218,6 +224,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
                 if (profile != null) {
                     builder.field("profile", profile);
+                }
+                if (includeCCSMetadata != null) {
+                    builder.field("include_ccs_metadata", includeCCSMetadata);
                 }
                 if (filter != null) {
                     builder.startObject("filter");

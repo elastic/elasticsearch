@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 public class MappingTemplateGenerator {
@@ -41,7 +42,7 @@ public class MappingTemplateGenerator {
         return new MappingTemplate(map);
     }
 
-    private void generateChildFields(Map<String, MappingTemplate.Entry> mapping, int depth) {
+    private void generateChildFields(Map<String, MappingTemplate.Entry> mapping, int depth, AtomicInteger nestedFieldsCount) {
         var existingFieldNames = new HashSet<String>();
         // no child fields is legal
         var childFieldsCount = childFieldGenerator.generateChildFieldCount();
@@ -52,15 +53,19 @@ public class MappingTemplateGenerator {
             if (depth <= specification.maxObjectDepth() && childFieldGenerator.generateRegularSubObject()) {
                 var children = new HashMap<String, MappingTemplate.Entry>();
                 mapping.put(fieldName, new MappingTemplate.Entry.Object(fieldName, false, children));
-                generateChildFields(children, depth + 1);
-            } else if (depth <= specification.maxObjectDepth() && childFieldGenerator.generateNestedSubObject()) {
-                var children = new HashMap<String, MappingTemplate.Entry>();
-                mapping.put(fieldName, new MappingTemplate.Entry.Object(fieldName, true, children));
-                generateChildFields(children, depth + 1);
-            } else {
-                var fieldTypeInfo = fieldTypeGenerator.get();
-                mapping.put(fieldName, new MappingTemplate.Entry.Leaf(fieldName, fieldTypeInfo.fieldType()));
-            }
+                generateChildFields(children, depth + 1, nestedFieldsCount);
+            } else if (depth <= specification.maxObjectDepth()
+                && nestedFieldsCount.get() < specification.nestedFieldsLimit()
+                && childFieldGenerator.generateNestedSubObject()) {
+                    nestedFieldsCount.incrementAndGet();
+
+                    var children = new HashMap<String, MappingTemplate.Entry>();
+                    mapping.put(fieldName, new MappingTemplate.Entry.Object(fieldName, true, children));
+                    generateChildFields(children, depth + 1, nestedFieldsCount);
+                } else {
+                    var fieldTypeInfo = fieldTypeGenerator.get();
+                    mapping.put(fieldName, new MappingTemplate.Entry.Leaf(fieldName, fieldTypeInfo.fieldType()));
+                }
         }
     }
 

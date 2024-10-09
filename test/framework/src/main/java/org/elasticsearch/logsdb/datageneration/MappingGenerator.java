@@ -54,7 +54,9 @@ public class MappingGenerator {
         rawMapping.put("properties", childrenMapping);
 
         if (specification.fullyDynamicMapping()) {
-            // TODO dynamic should not be strict here
+            // Has to be "true" for fully dynamic mapping
+            rawMapping.remove("dynamic");
+
             return new Mapping(rawMapping, lookup);
         }
 

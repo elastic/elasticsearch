@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> {
     private static final Logger log = LogManager.getLogger(DelegatingProcessor.class);
     private final AtomicLong pendingRequests = new AtomicLong();
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     private Flow.Subscriber<? super R> downstream;
     private Flow.Subscription upstream;
 
@@ -49,7 +49,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
             @Override
             public void request(long n) {
                 if (isClosed.get()) {
-                    downstream.onComplete(); // shouldn't happen, but reinforce that we're no longer listening
+                    downstream.onComplete();
                 } else if (upstream != null) {
                     upstream.request(n);
                 } else {

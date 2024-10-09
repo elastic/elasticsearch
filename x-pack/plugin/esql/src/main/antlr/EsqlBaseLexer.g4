@@ -66,7 +66,6 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
-META : 'meta'                 -> pushMode(META_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
@@ -464,26 +463,6 @@ SHOW_MULTILINE_COMMENT
     ;
 
 SHOW_WS
-    : WS -> channel(HIDDEN)
-    ;
-
-//
-// META commands
-//
-mode META_MODE;
-META_PIPE : PIPE -> type(PIPE), popMode;
-
-FUNCTIONS : 'functions';
-
-META_LINE_COMMENT
-    : LINE_COMMENT -> channel(HIDDEN)
-    ;
-
-META_MULTILINE_COMMENT
-    : MULTILINE_COMMENT -> channel(HIDDEN)
-    ;
-
-META_WS
     : WS -> channel(HIDDEN)
     ;
 

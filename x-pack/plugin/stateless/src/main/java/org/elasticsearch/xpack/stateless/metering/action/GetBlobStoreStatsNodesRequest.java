@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.metering.action;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 
-public class GetBlobStoreStatsNodesRequest extends BaseNodesRequest<GetBlobStoreStatsNodesRequest> {
+public class GetBlobStoreStatsNodesRequest extends BaseNodesRequest {
     public GetBlobStoreStatsNodesRequest() {
         super((String[]) null);
     }

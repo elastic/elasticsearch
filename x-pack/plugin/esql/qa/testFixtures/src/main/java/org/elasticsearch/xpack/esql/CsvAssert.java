@@ -33,8 +33,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.DOUBLE;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.FLOAT;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -244,14 +242,7 @@ public final class CsvAssert {
                     }
                     var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
                     var transformedActual = valueTransformer.apply(expectedType, actualValue);
-
-                    // Apply different comparison logic for specific types
-                    BiFunction<Object, Object, Boolean> equalityChecker = Objects::equals;
-                    if (expectedType == DOUBLE || expectedType == FLOAT) {
-                        equalityChecker = equalityChecker(Double.class, (e, a) -> Math.abs(e - a) < 1e-6);
-                    }
-
-                    if (equalityChecker.apply(transformedExpected, transformedActual) == false) {
+                    if (Objects.equals(transformedExpected, transformedActual) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
@@ -344,42 +335,6 @@ public final class CsvAssert {
             assertThat(expectedValue, instanceOf(clazz));
             return mapper.apply(expectedValue);
         }
-    }
-
-    /**
-     * Creates an equality checker that handles both single elements and lists of elements.
-     */
-    @SuppressWarnings("unchecked")
-    private static <T> BiFunction<Object, Object, Boolean> equalityChecker(
-        Class<T> requiredClazz,
-        BiFunction<T, T, Boolean> singleElementChecker
-    ) {
-        return (expected, actual) -> {
-            if (expected instanceof List<?> expectedList && actual instanceof List<?> actualList) {
-                if (expectedList.size() != actualList.size()) {
-                    return false;
-                }
-
-                for (int i = 0; i < expectedList.size(); i++) {
-                    T expectedValue = (T) expectedList.get(i);
-                    T actualValue = (T) actualList.get(i);
-
-                    if (requiredClazz.isInstance(expectedValue) == false || requiredClazz.isInstance(actualValue) == false) {
-                        return false;
-                    }
-
-                    if (singleElementChecker.apply(expectedValue, actualValue) == false) {
-                        return false;
-                    }
-                }
-
-                return true;
-            } else if (requiredClazz.isInstance(expected) && requiredClazz.isInstance(actual)) {
-                return singleElementChecker.apply((T) expected, (T) actual);
-            }
-
-            return expected == null && actual == null;
-        };
     }
 
     static String row(List<List<Object>> values, int row) {

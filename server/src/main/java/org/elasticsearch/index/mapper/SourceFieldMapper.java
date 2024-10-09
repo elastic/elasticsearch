@@ -51,6 +51,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX = new NodeFeature(
         "mapper.source.synthetic_source_copy_to_inside_objects_fix"
     );
+    public static final NodeFeature REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION = new NodeFeature(
+        "mapper.source.remove_synthetic_source_only_validation"
+    );
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
@@ -235,9 +238,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public SourceFieldMapper build() {
             if (enabled.getValue().explicit()) {
-                if (indexMode != null && indexMode.isSyntheticSourceEnabled()) {
-                    throw new MapperParsingException("Indices with with index mode [" + indexMode + "] only support synthetic source");
-                }
                 if (mode.get() != null) {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
@@ -279,9 +279,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 indexMode,
                 enableRecoverySource
             );
-            if (indexMode != null) {
-                indexMode.validateSourceFieldMapper(sourceFieldMapper);
-            }
             return sourceFieldMapper;
         }
 

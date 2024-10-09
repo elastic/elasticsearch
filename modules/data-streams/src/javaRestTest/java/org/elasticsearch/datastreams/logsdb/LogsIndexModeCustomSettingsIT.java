@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @SuppressWarnings("unchecked")
@@ -115,18 +114,12 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
               }
             }""";
 
-        Exception e = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertThat(
-            e.getMessage(),
-            containsString("Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source")
-        );
-        assertThat(e.getMessage(), containsString("mapper_parsing_exception"));
-
+        assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
         assertOK(createDataStream(client, "logs-custom-dev"));
 
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
-        assertThat(sourceMode, equalTo("synthetic"));
+        assertThat(sourceMode, equalTo("stored"));
     }
 
     public void testConfigureStoredSourceWhenIndexIsCreated() throws IOException {
@@ -142,8 +135,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        ResponseException e = expectThrows(ResponseException.class, () -> createDataStream(client, "logs-custom-dev"));
-        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
+        assertOK(createDataStream(client, "logs-custom-dev"));
+
+        var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
+        String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
+        assertThat(sourceMode, equalTo("stored"));
     }
 
     public void testOverrideIndexCodec() throws IOException {

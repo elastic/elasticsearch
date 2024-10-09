@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -115,9 +114,6 @@ public enum IndexMode {
         public boolean shouldValidateTimestamp() {
             return false;
         }
-
-        @Override
-        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
 
         @Override
         public boolean isSyntheticSourceEnabled() {
@@ -216,13 +212,6 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-            if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("time series indices only support synthetic source");
-            }
-        }
-
-        @Override
         public boolean isSyntheticSourceEnabled() {
             return true;
         }
@@ -288,13 +277,6 @@ public enum IndexMode {
         @Override
         public boolean shouldValidateTimestamp() {
             return false;
-        }
-
-        @Override
-        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-            if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("Indices with with index mode [" + IndexMode.LOGSDB + "] only support synthetic source");
-            }
         }
 
         @Override
@@ -464,11 +446,6 @@ public enum IndexMode {
      * @return Whether timestamps should be validated for being withing the time range of an index.
      */
     public abstract boolean shouldValidateTimestamp();
-
-    /**
-     * Validates the source field mapper
-     */
-    public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
 
     /**
      * @return whether synthetic source is the only allowed source mode.

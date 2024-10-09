@@ -28,14 +28,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -879,29 +876,6 @@ public abstract class DocumentParserContext {
         public String currentName() throws IOException {
             return field;
         }
-    }
-
-    private final Map<String, SortedMap<String, List<Integer>>> arrayOffsetsByField = new HashMap<>();
-    private final Map<String, Integer> offsetCounterByField = new HashMap<>();
-
-    public SortedMap<String, List<Integer>> getValuesWithOffsets(String field) {
-        return arrayOffsetsByField.get(field);
-    }
-
-    public int getArrayValueCount(String field) {
-        if (offsetCounterByField.containsKey(field)) {
-            // last offset + 1
-            return offsetCounterByField.get(field) + 1;
-        } else {
-            return 0;
-        }
-    }
-
-    public void recordOffset(String fieldName, String value) {
-        int nextOffset = offsetCounterByField.compute(fieldName, (s, integer) -> integer == null ? 0 : ++integer);
-        var values = arrayOffsetsByField.computeIfAbsent(fieldName, s -> new TreeMap<>(Comparator.naturalOrder()));
-        var offsets = values.computeIfAbsent(value, s -> new ArrayList<>());
-        offsets.add(nextOffset);
     }
 
 }

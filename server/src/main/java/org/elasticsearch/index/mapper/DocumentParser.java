@@ -800,7 +800,7 @@ public final class DocumentParser {
 
         // Check if we need to record the array source. This only applies to synthetic source.
         boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField() && (mapper instanceof KeywordFieldMapper == false /* hard coded exclusion keyword mapper */)) {
+        if (context.canAddIgnoredField() && (parsesArrayValue(mapper) == false)) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {

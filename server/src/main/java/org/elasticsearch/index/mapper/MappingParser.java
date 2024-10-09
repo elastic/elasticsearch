@@ -147,10 +147,6 @@ public final class MappingParser {
                 assert fieldNodeMap.isEmpty();
 
                 if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
-                    // Validation in other places should have failed first
-                    assert sfm.isSynthetic()
-                        || (sfm.isSynthetic() == false && mappingParserContext.getIndexSettings().getMode() != IndexMode.TIME_SERIES)
-                        : "synthetic source can't be disabled in a time series index";
                     isSourceSynthetic = sfm.isSynthetic();
                 }
 

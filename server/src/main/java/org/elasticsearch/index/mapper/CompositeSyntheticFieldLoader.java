@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,7 +169,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         @Override
         protected void writeValue(Object value, XContentBuilder b) throws IOException {
             if (value instanceof BytesRef r) {
-                XContentDataHelper.decodeAndWrite(XContentParserConfiguration.EMPTY, b, r);
+                XContentDataHelper.decodeAndWrite(b, r);
             } else {
                 b.value(value);
             }

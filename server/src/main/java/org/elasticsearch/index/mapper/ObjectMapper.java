@@ -1032,7 +1032,10 @@ public class ObjectMapper extends Mapper {
                 // If the root object mapper is disabled, it is expected to contain
                 // the source encapsulated within a single ignored source value.
                 assert ignoredValues.size() == 1 : ignoredValues.size();
-                XContentDataHelper.decodeAndWrite(parserConfig, b, ignoredValues.get(0).value());
+                var value = ignoredValues.get(0).value();
+                var type = XContentDataHelper.decodeType(value);
+                assert type.isPresent();
+                XContentDataHelper.decodeAndWriteXContent(parserConfig, b, type.get(), ignoredValues.get(0).value());
                 softReset();
                 return;
             }

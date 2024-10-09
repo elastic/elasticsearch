@@ -61,7 +61,7 @@ public class XContentDataHelperTests extends ESTestCase {
         var encoded = XContentDataHelper.encodeToken(parser);
         assertThat(XContentDataHelper.isEncodedObject(encoded), equalTo(value instanceof Map));
         var decoded = XContentFactory.jsonBuilder();
-        XContentDataHelper.decodeAndWrite(XContentParserConfiguration.EMPTY, decoded, encoded);
+        XContentDataHelper.decodeAndWrite(decoded, encoded);
 
         return Strings.toString(decoded);
     }
@@ -130,7 +130,7 @@ public class XContentDataHelperTests extends ESTestCase {
             assertFalse(XContentDataHelper.isEncodedObject(encoded));
 
             var decoded = XContentFactory.jsonBuilder();
-            XContentDataHelper.decodeAndWrite(XContentParserConfiguration.EMPTY, decoded, encoded);
+            XContentDataHelper.decodeAndWrite(decoded, encoded);
 
             assertEquals("\"" + Base64.getEncoder().encodeToString(embedded.compressed()) + "\"", Strings.toString(decoded));
         }
@@ -139,7 +139,7 @@ public class XContentDataHelperTests extends ESTestCase {
         assertTrue(XContentDataHelper.isEncodedObject(encoded));
 
         var decoded = XContentFactory.jsonBuilder();
-        XContentDataHelper.decodeAndWrite(XContentParserConfiguration.EMPTY, decoded, encoded);
+        XContentDataHelper.decodeAndWrite(decoded, encoded);
         var decodedBytes = BytesReference.bytes(builder);
 
         assertEquals(originalBytes, decodedBytes);
@@ -154,12 +154,12 @@ public class XContentDataHelperTests extends ESTestCase {
         builder.humanReadable(true);
         var encoded = XContentDataHelper.encodeToken(p);
         assertTrue(XContentDataHelper.isEncodedObject(encoded));
-        XContentDataHelper.decodeAndWrite(XContentParserConfiguration.EMPTY, builder, encoded);
+        XContentDataHelper.decodeAndWrite(builder, encoded);
         assertEquals(object, Strings.toString(builder));
 
         XContentBuilder builder2 = XContentFactory.jsonBuilder();
         builder2.humanReadable(true);
-        XContentDataHelper.decodeAndWrite(XContentParserConfiguration.EMPTY, builder2, XContentDataHelper.encodeXContentBuilder(builder));
+        XContentDataHelper.decodeAndWrite(builder2, XContentDataHelper.encodeXContentBuilder(builder));
         assertEquals(object, Strings.toString(builder2));
     }
 
@@ -177,12 +177,17 @@ public class XContentDataHelperTests extends ESTestCase {
         );
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
-        XContentDataHelper.decodeAndWrite(parserConfig, builder, XContentDataHelper.encodeToken(p));
+        XContentDataHelper.decodeAndWriteXContent(parserConfig, builder, XContentType.JSON, XContentDataHelper.encodeToken(p));
         assertEquals(filterObject, Strings.toString(builder));
 
         XContentBuilder builder2 = XContentFactory.jsonBuilder();
         builder2.humanReadable(true);
-        XContentDataHelper.decodeAndWrite(parserConfig, builder2, XContentDataHelper.encodeXContentBuilder(builder));
+        XContentDataHelper.decodeAndWriteXContent(
+            parserConfig,
+            builder2,
+            XContentType.JSON,
+            XContentDataHelper.encodeXContentBuilder(builder)
+        );
         assertEquals(filterObject, Strings.toString(builder2));
     }
 
@@ -200,12 +205,17 @@ public class XContentDataHelperTests extends ESTestCase {
         );
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
-        XContentDataHelper.decodeAndWrite(parserConfig, builder, XContentDataHelper.encodeToken(p));
+        XContentDataHelper.decodeAndWriteXContent(parserConfig, builder, XContentType.JSON, XContentDataHelper.encodeToken(p));
         assertEquals(filterObject, Strings.toString(builder));
 
         XContentBuilder builder2 = XContentFactory.jsonBuilder();
         builder2.humanReadable(true);
-        XContentDataHelper.decodeAndWrite(parserConfig, builder2, XContentDataHelper.encodeXContentBuilder(builder));
+        XContentDataHelper.decodeAndWriteXContent(
+            parserConfig,
+            builder2,
+            XContentType.JSON,
+            XContentDataHelper.encodeXContentBuilder(builder)
+        );
         assertEquals(filterObject, Strings.toString(builder2));
     }
 

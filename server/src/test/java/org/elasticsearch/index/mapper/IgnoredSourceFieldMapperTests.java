@@ -79,6 +79,34 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testIgnoredBooleanArray() throws IOException {
+        assertEquals(
+            "{\"my_value\":[false,true,false]}",
+            getSyntheticSourceWithFieldLimit(b -> b.field("my_value", new boolean[] { false, true, false }))
+        );
+        assertEquals(
+            "{\"my_value\":[false,true,false]}",
+            getSyntheticSourceWithFieldLimit(
+                new SourceFilter(new String[] { "my_value" }, null),
+                b -> b.array("my_value", new boolean[] { false, true, false })
+            )
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(
+                new SourceFilter(null, new String[] { "my_value" }),
+                b -> b.field("my_value", new boolean[] { false, true, false })
+            )
+        );
+        assertEquals(
+            "{}",
+            getSyntheticSourceWithFieldLimit(
+                new SourceFilter(new String[] { "my_value.object" }, null),
+                b -> b.array("my_value", new boolean[] { false, true, false })
+            )
+        );
+    }
+
     public void testIgnoredString() throws IOException {
         String value = randomAlphaOfLength(5);
         assertEquals("{\"my_value\":\"" + value + "\"}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
@@ -197,10 +225,14 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject("my_object").field("my_value", value).endObject();
         }));
 
+        assertEquals("{}", getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_object.my_value" }), b -> {
+            b.startObject("my_object").field("my_value", value).endObject();
+        }));
+
         assertEquals(
-            "{\"my_object\":{}}",
+            "{\"my_object\":{\"another_value\":\"0\"}}",
             getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_object.my_value" }), b -> {
-                b.startObject("my_object").field("my_value", value).endObject();
+                b.startObject("my_object").field("my_value", value).field("another_value", "0").endObject();
             })
         );
     }
@@ -240,13 +272,27 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         );
 
         assertEquals(
-            "{\"my_object\":{}}",
+            "{}",
             getSyntheticSourceWithFieldLimit(
                 new SourceFilter(null, new String[] { "my_object.another_value", "my_object.my_value" }),
                 b -> {
                     b.startArray("my_object");
                     b.startObject().field("my_value", value).endObject();
                     b.startObject().field("another_value", another_value).endObject();
+                    b.endArray();
+                }
+            )
+        );
+
+        assertEquals(
+            "{\"my_object\":[{\"another_field2\":2}]}",
+            getSyntheticSourceWithFieldLimit(
+                new SourceFilter(null, new String[] { "my_object.another_field1", "my_object.my_value" }),
+                b -> {
+                    b.startArray("my_object");
+                    b.startObject().field("my_value", value).endObject();
+                    b.startObject().field("another_field1", 1).endObject();
+                    b.startObject().field("another_field2", 2).endObject();
                     b.endArray();
                 }
             )
@@ -261,16 +307,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testIgnoredArray() throws IOException {
-        assertEquals(
-            "{\"my_array\":[{\"int_value\":10},{\"int_value\":20}]}",
-            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_array" }, null), b -> {
-                b.startArray("my_array");
-                b.startObject().field("int_value", 10).endObject();
-                b.startObject().field("int_value", 20).endObject();
-                b.endArray();
-            })
-        );
-
         assertEquals(
             "{\"my_array\":[{\"int_value\":10},{\"int_value\":20}]}",
             getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { "my_array" }, null), b -> {

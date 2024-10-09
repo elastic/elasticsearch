@@ -134,8 +134,8 @@ public class MvEvaluatorImplementer {
             builder.superclass(ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR);
         } else {
             builder.superclass(ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR);
-
-            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+            builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
+            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
         }
 
         builder.addMethod(ctor());
@@ -156,6 +156,9 @@ public class MvEvaluatorImplementer {
         }
 
         builder.addType(factory());
+        if (warnExceptions.isEmpty() == false) {
+            builder.addMethod(EvaluatorImplementer.warnings());
+        }
         return builder.build();
     }
 
@@ -165,10 +168,10 @@ public class MvEvaluatorImplementer {
             builder.addParameter(SOURCE, "source");
         }
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
-        builder.addStatement("super(driverContext, field)");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("super(driverContext, field)");
         if (warnExceptions.isEmpty() == false) {
-            builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
+            builder.addStatement("this.source = source");
         }
         return builder.build();
     }
@@ -241,7 +244,7 @@ public class MvEvaluatorImplementer {
                 body.accept(builder);
                 String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
                 builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
-                builder.addStatement("warnings.registerException(e)");
+                builder.addStatement("warnings().registerException(e)");
                 builder.addStatement("builder.appendNull()");
                 builder.endControlFlow();
             } else {

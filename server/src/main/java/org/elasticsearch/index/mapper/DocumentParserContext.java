@@ -296,6 +296,12 @@ public abstract class DocumentParserContext {
         }
     }
 
+    final void removeLastIgnoredField(String name) {
+        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
+            ignoredFieldValues.removeLast();
+        }
+    }
+
     /**
      * Return the collection of values for fields that have been ignored so far.
      */

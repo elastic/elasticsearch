@@ -61,6 +61,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -717,7 +718,7 @@ public class Verifier {
     }
 
     private static void checkFullTextFunctionsParents(Expression condition, Set<Failure> failures) {
-        condition.forEachParent(FullTextFunction.class, (ftf, parent) -> {
+        forEachParent(condition, FullTextFunction.class, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)
                 && (parent instanceof Not == false)) {
@@ -732,5 +733,26 @@ public class Verifier {
                 );
             }
         });
+    }
+
+    /**
+     * Executes the action on every parent of the specified typeToken.
+     *
+     * @param typeToken the type of the node to search for
+     * @param action the action to execute for each parent of the specified typeToken
+     */
+    @SuppressWarnings("unchecked")
+    private static <T extends Expression> T forEachParent(Expression condition, Class<T> typeToken, BiConsumer<T, Expression> action) {
+        if (typeToken.isInstance(condition)) {
+            return (T) condition;
+        }
+        for (Expression child : condition.children()) {
+            T foundMatchingChild = forEachParent(child, typeToken, action);
+            if (foundMatchingChild != null) {
+                action.accept(foundMatchingChild, condition);
+                return foundMatchingChild;
+            }
+        }
+        return null;
     }
 }

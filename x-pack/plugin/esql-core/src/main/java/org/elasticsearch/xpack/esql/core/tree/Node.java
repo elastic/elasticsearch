@@ -14,7 +14,6 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -93,27 +92,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                 action.accept((E) t);
             }
         });
-    }
-
-    /**
-     * Executes the action on every parent of the specified typeToken.
-     *
-     * @param typeToken the type of the node to search for
-     * @param action the action to execute for each parent of the specified typeToken
-     */
-    @SuppressWarnings("unchecked")
-    public <E extends T> E forEachParent(Class<E> typeToken, BiConsumer<E, ? super T> action) {
-        if (typeToken.isInstance(this)) {
-            return (E) this;
-        }
-        for (Node<T> child : children()) {
-            E foundMatchingChild = child.forEachParent(typeToken, action);
-            if (foundMatchingChild != null) {
-                action.accept(foundMatchingChild, (T) this);
-                return foundMatchingChild;
-            }
-        }
-        return null;
     }
 
     public <E> void forEachPropertyOnly(Class<E> typeToken, Consumer<? super E> rule) {

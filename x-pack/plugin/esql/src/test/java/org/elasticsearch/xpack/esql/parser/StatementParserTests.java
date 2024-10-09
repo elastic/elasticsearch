@@ -921,7 +921,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMetadataFieldOnOtherSources() {
         expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
-        expectError("meta functions metadata _index", "line 1:16: token recognition error at: 'm'");
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         expectError(
             "explain [from foo] metadata _index",

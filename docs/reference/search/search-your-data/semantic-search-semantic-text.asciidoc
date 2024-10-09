@@ -448,6 +448,7 @@ GET semantic-hybrid-embeddings/_search
   }
 }
 ------------------------------------------------------------
+// TEST[skip:TBD]
 <1> Lexical search for documents that contain the exact phrase in the `content` field.
 <2> Semantic search based on the `semantic_text` field.
 

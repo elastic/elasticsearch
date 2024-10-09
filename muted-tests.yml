@@ -375,6 +375,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114385
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/60_synonym_rule_get/Synonym set not found}
+  issue: https://github.com/elastic/elasticsearch/issues/114432
 
 # Examples:
 #

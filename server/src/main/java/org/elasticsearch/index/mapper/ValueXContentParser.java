@@ -7,12 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xcontent.support;
+package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.math.BigDecimal;

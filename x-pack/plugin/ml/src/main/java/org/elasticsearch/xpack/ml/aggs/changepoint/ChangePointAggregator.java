@@ -7,16 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
-import org.apache.commons.math3.exception.NotStrictlyPositiveException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
-import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType.Indeterminable;
 
 import java.util.Map;
 import java.util.Optional;
@@ -25,11 +21,6 @@ import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractBucket;
 import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
 
 public class ChangePointAggregator extends SiblingPipelineAggregator {
-
-    private static final Logger logger = LogManager.getLogger(ChangePointAggregator.class);
-
-    static final double P_VALUE_THRESHOLD = 0.01;
-    static final int MINIMUM_BUCKETS = 10;
 
     public ChangePointAggregator(String name, String bucketsPath, Map<String, Object> metadata) {
         super(name, new String[] { bucketsPath }, metadata);
@@ -53,7 +44,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
         MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketValues.get();
 
-        ChangeType change = getChangeType(bucketValues);
+        ChangeType change = ChangePointDetector.getChangeType(bucketValues);
 
         ChangePointBucket changePointBucket = null;
         if (change.changePoint() >= 0) {
@@ -63,35 +54,5 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
 
         return new InternalChangePointAggregation(name(), metadata(), changePointBucket, change);
-    }
-
-    static ChangeType getChangeType(MlAggsHelper.DoubleBucketValues bucketValues) {
-        if (bucketValues.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
-            return new ChangeType.Indeterminable(
-                "not enough buckets to calculate change_point. Requires at least ["
-                    + ((2 * MINIMUM_BUCKETS) + 2)
-                    + "]; found ["
-                    + bucketValues.getValues().length
-                    + "]"
-            );
-        }
-
-        ChangeType spikeOrDip;
-        try {
-            SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues);
-            spikeOrDip = detect.detect(P_VALUE_THRESHOLD);
-            logger.trace("spike or dip p-value: [{}]", spikeOrDip.pValue());
-        } catch (NotStrictlyPositiveException nspe) {
-            logger.debug("failure testing for dips and spikes", nspe);
-            spikeOrDip = new Indeterminable("failure testing for dips and spikes");
-        }
-
-        ChangeType change = new ChangeDetector(bucketValues).detect(P_VALUE_THRESHOLD);
-        logger.trace("change p-value: [{}]", change.pValue());
-
-        if (spikeOrDip.pValue() < change.pValue()) {
-            change = spikeOrDip;
-        }
-        return change;
     }
 }

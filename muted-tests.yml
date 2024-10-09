@@ -374,6 +374,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testProfileOrdinalsGroupingOperator {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/114380
+- class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
+  method: testInfer_StreamRequest
+  issue: https://github.com/elastic/elasticsearch/issues/114385
 
 # Examples:
 #

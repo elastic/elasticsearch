@@ -64,7 +64,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;
 
-    // whether the user has asked for CCS metadata to be the JSON response (the overall took will always be present)
+    // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
     private final boolean includeCCSMetadata;
 
     public EsqlExecutionInfo(boolean includeCCSMetadata) {

@@ -1197,10 +1197,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringWithDisjunctionsThatCannotBePushedDown() {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
         checkWithDisjunctionsThatCannotBePushedDown("QSTR", "qstr(\"first_name: Anna\")");
     }
 
     public void testMatchWithDisjunctionsThatCannotBePushedDown() {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
         checkWithDisjunctionsThatCannotBePushedDown("MATCH", "match(first_name, \"Anna\")");
     }
 
@@ -1232,10 +1236,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
     }
 
     public void testMatchFunctionWithNonBooleanFunctions() {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
         checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
     }
 

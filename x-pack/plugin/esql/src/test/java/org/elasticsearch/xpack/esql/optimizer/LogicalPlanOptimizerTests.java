@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -5567,8 +5568,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     // These should pass eventually once we lift some restrictions on match function
     public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
-        final String header = "Found 1 problem\nline ";
+        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
+        final String header = "Found 1 problem\nline ";
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test | eval initial = substring(first_name, 1) | where match(initial, "A")"""));
         assertTrue(e.getMessage().startsWith("Found "));

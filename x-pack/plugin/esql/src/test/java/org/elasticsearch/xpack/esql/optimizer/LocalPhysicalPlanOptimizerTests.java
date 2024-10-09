@@ -616,7 +616,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "source":"emp_no > 10010@2:39"}}],"boost":1.0}}][_doc{f}#14], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testMatchFunctionConjunctionWhereOperands() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where match(last_name, "Smith") and emp_no > 10010

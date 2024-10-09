@@ -509,6 +509,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
+    public final void testDeprecatedBoostWarning() throws IOException {
+        try {
+            createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
+                minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);
+                b.field("boost", 2.0);
+            }));
+            String[] warnings = Strings.concatStringArrays(
+                getParseMinimalWarnings(DEPRECATED_BOOST_INDEX_VERSION),
+                new String[] { "Parameter [boost] on field [field] is deprecated and has no effect" }
+            );
+            assertWarnings(warnings);
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), anyOf(containsString("Unknown parameter [boost]"), containsString("[boost : 2.0]")));
+        }
+    }
+
     public void testBoostNotAllowed() throws IOException {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
@@ -1582,7 +1598,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         String expected = Strings.toString(builder);
         String actual = syntheticSource(mapperAll, buildInput);
         // Check for single-element array, the array source is not stored in this case.
-        if (expected.contains("[") == false) {
+        if (expected.contains("[") && expected.replace("[", "").replace("]", "").equals(actual) == false) {
             assertThat(actual, equalTo(expected));
         }
     }

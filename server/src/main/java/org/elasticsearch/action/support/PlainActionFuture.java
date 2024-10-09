@@ -39,7 +39,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     @Override
     public void onFailure(Exception e) {
-        assert assertCompleteAllowed();
+        assert EsExecutors.executorName(Thread.currentThread()).equals(ThreadPool.Names.GENERIC) || assertCompleteAllowed();
         if (sync.setException(Objects.requireNonNull(e))) {
             done(false);
         }

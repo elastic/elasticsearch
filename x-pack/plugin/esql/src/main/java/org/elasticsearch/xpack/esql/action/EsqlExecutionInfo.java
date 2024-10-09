@@ -64,27 +64,29 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;
 
-    // whether the user has asked for this metadata to be the JSON response
-    private boolean optIn = false;
+    // whether the user has asked for CCS metadata to be the JSON response (the overall took will always be present)
+    private final boolean includeCCSMetadata;
 
-    public EsqlExecutionInfo() {
-        this(Predicates.always());  // default all clusters to skip_unavailable=true
+    public EsqlExecutionInfo(boolean includeCCSMetadata) {
+        this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
     }
 
     /**
      * @param skipUnavailablePredicate provide lookup for whether a given cluster has skip_unavailable set to true or false
      */
-    public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate) {
+    public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate, boolean includeCCSMetadata) {
         this.clusterInfo = ConcurrentCollections.newConcurrentMap();
         this.skipUnavailablePredicate = skipUnavailablePredicate;
+        this.includeCCSMetadata = includeCCSMetadata;
     }
 
     /**
      * For testing use with fromXContent parsing only
      * @param clusterInfo
      */
-    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo) {
+    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
         this.clusterInfo = clusterInfo;
+        this.includeCCSMetadata = includeCCSMetadata;
         this.skipUnavailablePredicate = Predicates.always();
     }
 
@@ -99,9 +101,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.clusterInfo = m;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
-            this.optIn = in.readBoolean();
+            this.includeCCSMetadata = in.readBoolean();
         } else {
-            this.optIn = false;
+            this.includeCCSMetadata = false;
         }
         this.skipUnavailablePredicate = Predicates.always();
     }
@@ -115,16 +117,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeCollection(Collections.emptyList());
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
-            out.writeBoolean(optIn);
+            out.writeBoolean(includeCCSMetadata);
         }
     }
 
-    public void optIn(boolean optIn) {
-        this.optIn = optIn;
-    }
-
-    public boolean optIn() {
-        return optIn;
+    public boolean includeCCSMetadata() {
+        return includeCCSMetadata;
     }
 
     public void overallTook(TimeValue took) {

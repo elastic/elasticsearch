@@ -13,7 +13,8 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<tasks,task management API>>.
 ====
 
-Returns information about tasks currently executing on <<modules-node,nodes>> in the <<modules-cluster,cluster>>.
+Returns information about tasks currently executing in the cluster,
+similar to the <<tasks,task management>> API.
 
 
 [[cat-tasks-api-request]]

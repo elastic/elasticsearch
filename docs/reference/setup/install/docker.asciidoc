@@ -87,7 +87,7 @@ TIP: Use the `-m` flag to set a memory limit for the container. This removes the
 need to <<docker-set-heap-size,manually set the JVM size>>.
 +
 
-Machine learning features such as <<semantic-search-elser, semantic search with ELSER>>
+{ml-cap} features such as <<semantic-search-elser, semantic search with ELSER>>
 require a larger container with more than 1GB of memory.
 If you intend to use the machine learning capabilities, then start the container with this command:
 +

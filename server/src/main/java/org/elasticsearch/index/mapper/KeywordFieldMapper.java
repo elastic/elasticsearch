@@ -967,11 +967,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
             } else if (context.parser().currentToken().isValue() || context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                String value = context.parser().textOrNull();
-                if (value == null) {
-                    value = fieldType().nullValue;
-                }
-                indexValue(context, value);
+                final String value = context.parser().textOrNull();
+                indexValue(context, value == null ? fieldType().nullValue : value);
                 if (builderParams.multiFields().iterator().hasNext()) {
                     doParseMultiFields(context);
                 }
@@ -984,11 +981,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value = context.parser().textOrNull();
-        if (value == null) {
-            value = fieldType().nullValue;
-        }
-        indexValue(context, value);
+        final String value = context.parser().textOrNull();
+        indexValue(context, value == null ? fieldType().nullValue : value);
     }
 
     private void processOffsets(DocumentParserContext context, SortedMap<String, List<Integer>> arrayOffsets, int numberOfOffsets)

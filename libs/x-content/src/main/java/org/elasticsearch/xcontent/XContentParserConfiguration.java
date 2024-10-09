@@ -59,7 +59,7 @@ public interface XContentParserConfiguration {
     /**
      * Replace the configured filtering.
      *
-     * @param prefixPath                    The prefix path to be appended to each sub-path before applying the include/exclude rules.
+     * @param prefixPath                    The path to be prepended to each sub-path before applying the include/exclude rules.
      *                                      Specify {@code null} if parsing starts from the root.
      * @param includeStrings                A set of strings representing paths to include during filtering.
      *                                      If specified, only these paths will be included in parsing.

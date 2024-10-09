@@ -377,6 +377,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114385
+- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
+  method: testSyntheticSourceKeepArrays
+  issue: https://github.com/elastic/elasticsearch/issues/114406
 
 # Examples:
 #

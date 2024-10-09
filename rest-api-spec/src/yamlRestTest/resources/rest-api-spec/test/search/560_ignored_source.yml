@@ -32,6 +32,8 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
@@ -47,6 +49,8 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
@@ -62,13 +66,15 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
           stored_fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "fetch fields by name":
@@ -77,13 +83,15 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "fields and stored fields combination":
@@ -92,6 +100,8 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
@@ -102,7 +112,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields.object: null }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "wildcard fields and stored fields combination":
@@ -127,6 +137,8 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
@@ -134,7 +146,7 @@ setup:
           fields: [ object ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
   - match: { hits.hits.0.fields: null }
 
 ---
@@ -144,6 +156,8 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
@@ -151,7 +165,7 @@ setup:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "ignored source via fields and wildcard stored fields":
@@ -160,6 +174,8 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
@@ -167,7 +183,7 @@ setup:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "wildcard fields and ignored source via stored fields":
@@ -176,6 +192,8 @@ setup:
       reason: _ignored_source is not returned by default anymore
 
   - do:
+      headers:
+        Content-Type: application/yaml
       search:
         index: test
         body:
@@ -183,4 +201,4 @@ setup:
           fields: [ "*" ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source: "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }

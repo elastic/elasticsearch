@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.cache.action;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 
-public class ClearBlobCacheNodesRequest extends BaseNodesRequest<ClearBlobCacheNodesRequest> {
+public class ClearBlobCacheNodesRequest extends BaseNodesRequest {
     public ClearBlobCacheNodesRequest() {
         super((String[]) null);
     }

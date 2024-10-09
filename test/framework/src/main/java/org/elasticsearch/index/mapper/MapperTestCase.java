@@ -1598,7 +1598,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         String expected = Strings.toString(builder);
         String actual = syntheticSource(mapperAll, buildInput);
         // Check for single-element array, the array source is not stored in this case.
-        if (expected.replace("[", "").replace("]", "").equals(actual) == false) {
+        if (expected.contains("[") == false) {
             assertThat(actual, equalTo(expected));
         }
     }

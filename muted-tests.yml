@@ -307,8 +307,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/112980
-- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/113753
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
   method: testNonGzippedDatabase
   issue: https://github.com/elastic/elasticsearch/issues/113821
@@ -377,6 +375,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114385
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/60_synonym_rule_get/Synonym set not found}
+  issue: https://github.com/elastic/elasticsearch/issues/114432
 
 # Examples:
 #

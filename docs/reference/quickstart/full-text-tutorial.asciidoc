@@ -24,7 +24,7 @@ PUT /cooking_blog
         "analyzer": "standard" <1>
       },
       "description": {
-        "type": "text",
+        "type": "text"
       },
       "author": {
         "type": "text",

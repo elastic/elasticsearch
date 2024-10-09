@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,6 +64,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;
 
+    // whether the user has asked for this metadata to be the JSON response
     private boolean optIn = false;
 
     public EsqlExecutionInfo() {
@@ -96,8 +98,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
             this.clusterInfo = m;
         }
-        this.optIn = in.readBoolean();
-        System.err.println(" 9999999 : read: optIn: " + optIn);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+            this.optIn = in.readBoolean();
+        } else {
+            this.optIn = false;
+        }
         this.skipUnavailablePredicate = Predicates.always();
     }
 
@@ -109,8 +114,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeCollection(Collections.emptyList());
         }
-        System.err.println(" 9999999 : writeTo: optIn: " + optIn);
-        out.writeBoolean(optIn);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+            out.writeBoolean(optIn);
+        }
     }
 
     public void optIn(boolean optIn) {

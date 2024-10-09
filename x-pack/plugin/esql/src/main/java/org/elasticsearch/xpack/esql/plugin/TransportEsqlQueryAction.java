@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -153,10 +152,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        boolean ccsMeta = ThreadLocalRandom.current().nextBoolean();
-        request.includeCCSMetadata(ccsMeta);
-        System.err.println("XXX >>> XXx ccsMeta setting: " + ccsMeta);
-        System.err.println("request.includeCCSExecutionInfo(): " + request.includeCCSMetadata());
         Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -174,7 +169,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         String sessionId = sessionID(task);
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias));
         executionInfo.optIn(request.includeCCSMetadata());
-        System.err.println("YYY Setting optin on Exec Info to: " + executionInfo.optIn());
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,

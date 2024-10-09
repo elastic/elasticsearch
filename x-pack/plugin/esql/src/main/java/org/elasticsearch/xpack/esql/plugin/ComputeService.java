@@ -80,7 +80,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -831,12 +830,6 @@ public class ComputeService {
             EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
             execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
             CancellableTask cancellable = (CancellableTask) task;
-            long rand = ThreadLocalRandom.current().nextLong(2000, 9000);
-            System.err.println(">>> HHH SLEEPING ON REMOTE FOR : " + rand);
-            try {
-                Thread.sleep(rand);
-            } catch (InterruptedException e) {
-            }
             long start = request.configuration().getQueryStartTimeNanos();
             try (var computeListener = ComputeListener.create(clusterAlias, transportService, cancellable, execInfo, start, listener)) {
                 runComputeOnRemoteCluster(

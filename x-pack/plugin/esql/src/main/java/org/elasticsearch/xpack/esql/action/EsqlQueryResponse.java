@@ -189,6 +189,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return ChunkedToXContent.builder(params).object(b -> {
             boolean dropNullColumns = b.params().paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
             boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+
             if (isAsync) {
                 if (asyncExecutionId != null) {
                     b.field("id", asyncExecutionId);

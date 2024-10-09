@@ -2,6 +2,7 @@ steps:
   - command: .buildkite/scripts/dra-workflow.sh
     env:
       USE_DRA_CREDENTIALS: "true"
+      USE_PROD_DOCKER_CREDENTIALS: "true"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2204
@@ -18,4 +19,5 @@ steps:
       branch: "${BUILDKITE_BRANCH}"
       env:
         DRA_WORKFLOW: staging
+        USE_PROD_DOCKER_CREDENTIALS: "true"
     if: build.env('DRA_WORKFLOW') == 'staging'

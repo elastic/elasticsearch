@@ -362,20 +362,15 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114232
-- class: org.elasticsearch.ingest.geoip.IpinfoIpDataLookupsTests
-  issue: https://github.com/elastic/elasticsearch/issues/114266
-- class: org.elasticsearch.index.SearchSlowLogTests
-  method: testLevelPrecedence
-  issue: https://github.com/elastic/elasticsearch/issues/114300
-- class: org.elasticsearch.index.SearchSlowLogTests
-  method: testTwoLoggersDifferentLevel
-  issue: https://github.com/elastic/elasticsearch/issues/114301
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/114327
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
   issue: https://github.com/elastic/elasticsearch/issues/114331
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
+  issue: https://github.com/elastic/elasticsearch/issues/114371
 
 # Examples:
 #

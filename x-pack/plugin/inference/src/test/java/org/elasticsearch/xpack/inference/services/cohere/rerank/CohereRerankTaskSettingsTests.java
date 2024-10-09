@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-
-import org.elasticsearch.common.ValidationException;
 
 import java.io.IOException;
 import java.util.HashMap;

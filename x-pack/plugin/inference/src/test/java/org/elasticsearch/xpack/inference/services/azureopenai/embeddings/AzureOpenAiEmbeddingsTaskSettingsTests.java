@@ -12,9 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields;
-import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;

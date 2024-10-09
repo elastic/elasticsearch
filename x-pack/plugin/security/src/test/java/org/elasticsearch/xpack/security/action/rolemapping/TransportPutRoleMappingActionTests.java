@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,12 +98,18 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> put("anarchy (read only)", expression, "superuser", Collections.singletonMap("dumb", true))
+            () -> put("anarchy" + RESERVED_ROLE_MAPPING_SUFFIX, expression, "superuser", Collections.singletonMap("dumb", true))
         );
 
         assertThat(
             illegalArgumentException.getMessage(),
-            equalTo("Invalid mapping name [anarchy (read only)]. [(read only)] is not an allowed suffix")
+            equalTo(
+                "Invalid mapping name [anarchy"
+                    + RESERVED_ROLE_MAPPING_SUFFIX
+                    + "]. ["
+                    + RESERVED_ROLE_MAPPING_SUFFIX
+                    + "] is not an allowed suffix"
+            )
         );
     }
 

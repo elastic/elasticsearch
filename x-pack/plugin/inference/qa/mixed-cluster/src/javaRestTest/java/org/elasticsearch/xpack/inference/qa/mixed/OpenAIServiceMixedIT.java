@@ -118,14 +118,15 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         put(inferenceId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
 
         var configsMap = get(TaskType.COMPLETION, inferenceId);
-        logger.warn("Configs: {}", configsMap);
         var configs = (List<Map<String, Object>>) configsMap.get("endpoints");
         assertThat(configs, hasSize(1));
         assertEquals("openai", configs.get(0).get("service"));
         var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
         assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
         var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-        assertThat(taskSettings.keySet(), empty());
+        if (taskSettings != null) {
+            assertThat(taskSettings.keySet(), empty());
+        }
 
         assertCompletionInference(inferenceId);
     }

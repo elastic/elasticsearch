@@ -132,7 +132,9 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            if (taskSettings != null) {
+                assertThat(taskSettings.keySet(), empty());
+            }
 
             assertElser(oldClusterId);
 

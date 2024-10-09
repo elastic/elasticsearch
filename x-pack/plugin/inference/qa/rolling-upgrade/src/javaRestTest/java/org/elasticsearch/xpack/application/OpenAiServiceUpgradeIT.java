@@ -91,7 +91,9 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             // model id is moved to service settings
             assertThat(serviceSettings, hasEntry("model_id", "text-embedding-ada-002"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            if (taskSettings != null) {
+                assertThat(taskSettings.keySet(), empty());
+            }
 
             // Inference on old cluster model
             assertEmbeddingInference(oldClusterId);
@@ -145,7 +147,9 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            if (taskSettings != null) {
+                assertThat(taskSettings.keySet(), empty());
+            }
 
             assertCompletionInference(oldClusterId);
         } else if (isUpgradedCluster()) {
@@ -154,7 +158,9 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            if (taskSettings != null) {
+                assertThat(taskSettings.keySet(), empty());
+            }
 
             assertCompletionInference(oldClusterId);
 

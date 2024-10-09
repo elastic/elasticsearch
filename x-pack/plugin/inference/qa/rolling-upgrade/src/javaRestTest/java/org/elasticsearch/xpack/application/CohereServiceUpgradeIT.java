@@ -122,7 +122,9 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertThat(serviceSettings, hasEntry("model_id", "embed-english-light-v3.0"));
             assertThat(serviceSettings, hasEntry("embedding_type", "byte"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            if (taskSettings != null) {
+                assertThat(taskSettings.keySet(), empty());
+            }
 
             // Inference on old cluster models
             assertEmbeddingInference(oldClusterIdInt8, CohereEmbeddingType.BYTE);

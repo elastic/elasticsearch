@@ -5588,6 +5588,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testMatchFunctionIsNotNullable() {
+        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        String queryText = """
+            row n = null | eval text = n + 5 | where match(text::keyword, "Anna")
+            """;
+
+        VerificationException ve = expectThrows(VerificationException.class, () -> plan(queryText));
+        assertThat(
+            ve.getMessage(),
+            containsString("[MATCH] cannot operate on [text::keyword], which is not a field from an index mapping")
+        );
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

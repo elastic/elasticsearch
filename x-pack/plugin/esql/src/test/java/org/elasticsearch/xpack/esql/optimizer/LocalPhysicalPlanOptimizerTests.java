@@ -25,7 +25,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -77,7 +76,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -671,20 +669,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var queryString = QueryBuilders.matchQuery("last_name", "Smith");
         var expected = QueryBuilders.boolQuery().must(queryString).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
-    }
-
-    public void testMatchFunctionIsNotNullable() {
-        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
-        String queryText = """
-            row n = null | eval text = n + 5 | where match(text::keyword, "Anna")
-            """;
-
-        VerificationException ve = expectThrows(VerificationException.class, () -> plannerOptimizer.plan(queryText, IS_SV_STATS));
-        assertThat(
-            ve.getMessage(),
-            containsString("[MATCH] cannot operate on [text::keyword], which is not a field from an index mapping")
-        );
     }
 
     /**

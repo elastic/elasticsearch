@@ -59,6 +59,11 @@ public abstract class ElasticsearchInternalModel extends Model {
     );
 
     @Override
+    public ElasticsearchInternalServiceSettings getServiceSettings() {
+        return (ElasticsearchInternalServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
     public String toString() {
         return Strings.toString(this.getConfigurations());
     }

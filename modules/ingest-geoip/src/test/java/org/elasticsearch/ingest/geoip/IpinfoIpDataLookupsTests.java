@@ -304,6 +304,55 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         }
     }
 
+    public void testPrivacyDetection() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
+        copyDatabase("ipinfo/privacy_detection_sample.mmdb", configDir.resolve("privacy_detection_sample.mmdb"));
+
+        GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
+        ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
+        configDatabases.initialize(resourceWatcherService);
+
+        // testing the first row in the sample database
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("privacy_detection_sample.mmdb")) {
+            IpDataLookup lookup = new IpinfoIpDataLookups.PrivacyDetection(Database.PrivacyDetection.properties());
+            Map<String, Object> data = lookup.getData(loader, "1.53.59.33");
+            assertThat(
+                data,
+                equalTo(
+                    Map.ofEntries(
+                        entry("ip", "1.53.59.33"),
+                        entry("hosting", false),
+                        entry("proxy", false),
+                        entry("relay", false),
+                        entry("tor", false),
+                        entry("vpn", true)
+                    )
+                )
+            );
+        }
+
+        // testing a row with a non-empty service in the sample database
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("privacy_detection_sample.mmdb")) {
+            IpDataLookup lookup = new IpinfoIpDataLookups.PrivacyDetection(Database.PrivacyDetection.properties());
+            Map<String, Object> data = lookup.getData(loader, "216.131.74.65");
+            assertThat(
+                data,
+                equalTo(
+                    Map.ofEntries(
+                        entry("ip", "216.131.74.65"),
+                        entry("hosting", true),
+                        entry("proxy", false),
+                        entry("service", "FastVPN"),
+                        entry("relay", false),
+                        entry("tor", false),
+                        entry("vpn", true)
+                    )
+                )
+            );
+        }
+    }
+
     public void testPrivacyDetectionInvariants() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         Path configDir = tmpDir;

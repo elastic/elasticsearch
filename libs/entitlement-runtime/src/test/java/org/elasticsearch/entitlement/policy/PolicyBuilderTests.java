@@ -14,6 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 public class PolicyBuilderTests extends ESTestCase {
 
     public void testPolicyBuilder() {
-        PolicyBuilder.parsePolicy("test-policy.yaml", PolicyBuilderTests.class.getResourceAsStream("test-policy.yaml"));
+        new PolicyBuilder("test-policy.yaml", PolicyBuilderTests.class.getResourceAsStream("test-policy.yaml")).buildPolicy();
     }
 }

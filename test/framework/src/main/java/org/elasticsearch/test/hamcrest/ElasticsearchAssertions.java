@@ -14,7 +14,9 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -871,6 +873,74 @@ public class ElasticsearchAssertions {
         String message = String.format(Locale.ROOT, "expected latch to be counted down after %s, but was not", timeValue);
         boolean isCountedDown = latch.await(timeout, unit);
         assertThat(message, isCountedDown, is(true));
+    }
+
+    /**
+     * Check the response of a client request to ensure it has a warning header that contains the provided string
+     *
+     * Currently, this allows a fixed 10 seconds for response to be received
+     * @param client Client making the request - Required to access the response headers
+     * @param requestBuilder Request to be made
+     * @param toMatch String to match in the warning headers
+     * @param <T> Type of the response
+     * @throws InterruptedException If the request times out
+     */
+    public static <T extends ActionResponse> void assertWarningHeaderOnResponse(
+        Client client,
+        ActionRequestBuilder<?, T> requestBuilder,
+        String toMatch
+    ) throws InterruptedException {
+        assertWarningHeaderMatchOnResponse(client, requestBuilder, hasItem(containsString(toMatch)));
+    }
+
+    /**
+     * Check the response of a client request to ensure it does not have a warning header that contains the provided string
+     *
+     * Currently, this allows a fixed 10 seconds for response to be received
+     * @param client Client making the request - Required to access the response headers
+     * @param requestBuilder Request to be made
+     * @param toMatch String to not match in the warning headers
+     * @param <T> Type of the response
+     * @throws InterruptedException If the request times out
+     */
+    public static <T extends ActionResponse> void assertNoWarningHeaderOnResponse(
+        Client client,
+        ActionRequestBuilder<?, T> requestBuilder,
+        String toMatch
+    ) throws InterruptedException {
+        assertWarningHeaderMatchOnResponse(client, requestBuilder, not(hasItem(containsString(toMatch))));
+    }
+
+    private static <T extends ActionResponse> void assertWarningHeaderMatchOnResponse(
+        Client client,
+        ActionRequestBuilder<?, T> requestBuilder,
+        Matcher<? super List<String>> matcher
+    ) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(2);
+        requestBuilder.execute(new ActionListener<>() {
+            @Override
+            public void onResponse(T response) {
+                try {
+                    final var warningHeaders = client.threadPool().getThreadContext().getResponseHeaders().get("Warning");
+                    assertThat(warningHeaders, matcher);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    throw new AssertionError("Failed to execute request", e);
+                } finally {
+                    latch.countDown();
+                }
+            }
+        });
+        latch.countDown();
+        if (latch.await(10, TimeUnit.SECONDS) == false) {
+            fail("Did not receive request response before timeout");
+        }
     }
 
     /**

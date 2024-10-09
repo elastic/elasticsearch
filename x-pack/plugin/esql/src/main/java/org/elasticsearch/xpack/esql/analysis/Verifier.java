@@ -718,7 +718,7 @@ public class Verifier {
     }
 
     private static void checkFullTextFunctionsParents(Expression condition, Set<Failure> failures) {
-        forEachParent(condition, FullTextFunction.class, (ftf, parent) -> {
+        forEachFullTextFunctionParent(condition, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)
                 && (parent instanceof Not == false)) {
@@ -736,18 +736,16 @@ public class Verifier {
     }
 
     /**
-     * Executes the action on every parent of the specified typeToken.
+     * Executes the action on every parent of a FullTextFunction in the condition if it is found
      *
-     * @param typeToken the type of the node to search for
-     * @param action the action to execute for each parent of the specified typeToken
+     * @param action the action to execute for each parent of a FullTextFunction
      */
-    @SuppressWarnings("unchecked")
-    private static <T extends Expression> T forEachParent(Expression condition, Class<T> typeToken, BiConsumer<T, Expression> action) {
-        if (typeToken.isInstance(condition)) {
-            return (T) condition;
+    private static FullTextFunction forEachFullTextFunctionParent(Expression condition, BiConsumer<FullTextFunction, Expression> action) {
+        if (condition instanceof FullTextFunction ftf) {
+            return ftf;
         }
         for (Expression child : condition.children()) {
-            T foundMatchingChild = forEachParent(child, typeToken, action);
+            FullTextFunction foundMatchingChild = forEachFullTextFunctionParent(child, action);
             if (foundMatchingChild != null) {
                 action.accept(foundMatchingChild, condition);
                 return foundMatchingChild;

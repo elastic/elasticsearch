@@ -40,6 +40,7 @@ import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseAsn;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseBoolean;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseLocationDouble;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -298,6 +299,27 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                     Double parsed = parseLocationDouble(longitude);
                     assertThat(parsed, notNullValue());
                     assertThat(longitude, equalTo(Double.toString(parsed))); // reverse it
+                }
+            });
+        }
+    }
+
+    public void testPrivacyDetectionInvariants() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
+        copyDatabase("ipinfo/privacy_detection_sample.mmdb", configDir.resolve("privacy_detection_sample.mmdb"));
+
+        {
+            final Set<String> expectedColumns = Set.of("network", "service", "hosting", "proxy", "relay", "tor", "vpn");
+
+            Path databasePath = configDir.resolve("privacy_detection_sample.mmdb");
+            assertDatabaseInvariants(databasePath, (ip, row) -> {
+                assertThat(row.keySet(), equalTo(expectedColumns));
+
+                for (String booleanColumn : Set.of("hosting", "proxy", "relay", "tor", "vpn")) {
+                    String bool = (String) row.get(booleanColumn);
+                    assertThat(bool, anyOf(equalTo("true"), equalTo(""), equalTo("false")));
+                    assertThat(parseBoolean(bool), notNullValue());
                 }
             });
         }

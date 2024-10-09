@@ -454,7 +454,7 @@ public final class BulkRequestParser {
         return isIncremental ? consumed : from;
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
     // Warnings will need to be replaced with XContentEOFException from 9.x
     private static void warnBulkActionNotProperlyClosed(String message) {
         deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);

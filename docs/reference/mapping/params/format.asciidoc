@@ -31,8 +31,13 @@ down to the nearest day.
 [[custom-date-formats]]
 ==== Custom date formats
 
-Completely customizable date formats are supported. The syntax for these is explained
-https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
+Completely customizable date formats are supported. The syntax for these is explained in
+https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
+
+Note that whilst the built-in formats for week dates use the ISO definition of weekyears,
+custom formatters using the `Y`, `W`, or `w` field specifiers use the JDK locale definition
+of weekyears. This can result in different values between the built-in formats and custom formats
+for week dates.
 
 [[built-in-date-formats]]
 ==== Built In Formats
@@ -256,31 +261,37 @@ The following tables lists all the defaults ISO formats supported:
 `week_date` or `strict_week_date`::
 
     A formatter for a full date as four digit weekyear, two digit week of
-    weekyear, and one digit day of week: `xxxx-'W'ww-e`.
+    weekyear, and one digit day of week: `YYYY-'W'ww-e`.
+    This uses the ISO week-date definition.
 
 `week_date_time` or `strict_week_date_time`::
 
     A formatter that combines a full weekyear date and time, separated by a
-    'T': `xxxx-'W'ww-e'T'HH:mm:ss.SSSZ`.
+    'T': `YYYY-'W'ww-e'T'HH:mm:ss.SSSZ`.
+    This uses the ISO week-date definition.
 
 `week_date_time_no_millis` or `strict_week_date_time_no_millis`::
 
     A formatter that combines a full weekyear date and time without millis,
-    separated by a 'T': `xxxx-'W'ww-e'T'HH:mm:ssZ`.
+    separated by a 'T': `YYYY-'W'ww-e'T'HH:mm:ssZ`.
+    This uses the ISO week-date definition.
 
 `weekyear` or `strict_weekyear`::
 
-    A formatter for a four digit weekyear: `xxxx`.
+    A formatter for a four digit weekyear: `YYYY`.
+    This uses the ISO week-date definition.
 
 `weekyear_week` or `strict_weekyear_week`::
 
     A formatter for a four digit weekyear and two digit week of weekyear:
-    `xxxx-'W'ww`.
+    `YYYY-'W'ww`.
+    This uses the ISO week-date definition.
 
 `weekyear_week_day` or `strict_weekyear_week_day`::
 
     A formatter for a four digit weekyear, two digit week of weekyear, and one
-    digit day of week: `xxxx-'W'ww-e`.
+    digit day of week: `YYYY-'W'ww-e`.
+    This uses the ISO week-date definition.
 
 `year` or `strict_year`::
 

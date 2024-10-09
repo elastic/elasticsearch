@@ -9,15 +9,9 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.model.AnonymousIpResponse;
-import com.maxmind.geoip2.model.AsnResponse;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.model.ConnectionTypeResponse;
-import com.maxmind.geoip2.model.CountryResponse;
-import com.maxmind.geoip2.model.DomainResponse;
-import com.maxmind.geoip2.model.EnterpriseResponse;
-import com.maxmind.geoip2.model.IspResponse;
+import com.maxmind.db.Reader;
 
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -34,44 +28,15 @@ public interface IpDatabase extends AutoCloseable {
     String getDatabaseType() throws IOException;
 
     /**
-     * @param ipAddress the IP address to look up
-     * @return a response containing the city data for the given address if it exists, or <code>null</code> if it could not be found
-     * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving city data
+     * Returns a response from this database's reader for the given IP address.
+     *
+     * @param ipAddress the address to lookup
+     * @param responseProvider a method for extracting a response from a {@link Reader}, usually this will be a method reference
+     * @return a possibly-null response
+     * @param <RESPONSE> the type of response that will be returned
      */
     @Nullable
-    CityResponse getCity(String ipAddress);
-
-    /**
-     * @param ipAddress the IP address to look up
-     * @return a response containing the country data for the given address if it exists, or <code>null</code> if it could not be found
-     * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving country data
-     */
-    @Nullable
-    CountryResponse getCountry(String ipAddress);
-
-    /**
-     * @param ipAddress the IP address to look up
-     * @return a response containing the Autonomous System Number for the given address if it exists, or <code>null</code> if it could not
-     *         be found
-     * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving ASN data
-     */
-    @Nullable
-    AsnResponse getAsn(String ipAddress);
-
-    @Nullable
-    AnonymousIpResponse getAnonymousIp(String ipAddress);
-
-    @Nullable
-    ConnectionTypeResponse getConnectionType(String ipAddress);
-
-    @Nullable
-    DomainResponse getDomain(String ipAddress);
-
-    @Nullable
-    EnterpriseResponse getEnterprise(String ipAddress);
-
-    @Nullable
-    IspResponse getIsp(String ipAddress);
+    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider);
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a

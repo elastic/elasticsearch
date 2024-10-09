@@ -1196,24 +1196,23 @@ public class VerifierTests extends ESTestCase {
         // Other value types are tested in QueryStringFunctionTests
     }
 
-    public void testQueryStringWithDisjunctionsThatCannotBePushedDown() {
+    public void testQueryStringWithDisjunctions() {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
-        checkWithDisjunctionsThatCannotBePushedDown("QSTR", "qstr(\"first_name: Anna\")");
+        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
     }
 
-    public void testMatchWithDisjunctionsThatCannotBePushedDown() {
+    public void testMatchWithDisjunctions() {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        checkWithDisjunctionsThatCannotBePushedDown("MATCH", "match(first_name, \"Anna\")");
+        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
     }
 
-    private void checkWithDisjunctionsThatCannotBePushedDown(String functionName, String functionInvocation) {
+    private void checkWithDisjunctions(String functionName, String functionInvocation) {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. "
-                    + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12]",
+                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "Function {} can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1223,7 +1222,7 @@ public class VerifierTests extends ESTestCase {
             LoggerMessageFormat.format(
                 null,
                 "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
-                    + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12 and first_name is null]",
+                    + "Function {} can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1232,6 +1231,16 @@ public class VerifierTests extends ESTestCase {
                     + functionInvocation
                     + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
             )
+        );
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
+                    + "Function {} can't be used as part of an or condition",
+                functionInvocation,
+                functionName
+            ),
+            error("from test | where (" + functionInvocation + " and first_name is not null) or first_name is null")
         );
     }
 

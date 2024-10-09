@@ -698,26 +698,21 @@ public class Verifier {
 
     private static void checkFullTextFunctionsConditions(Expression condition, Set<Failure> failures) {
         condition.forEachUp(Or.class, or -> {
-            Expression left = or.left();
-            Expression right = or.right();
-            checkDisjunction(failures, or, left, right);
-            checkDisjunction(failures, or, right, left);
+            checkFullTextFunctionInDisjunction(failures, or, or.left());
+            checkFullTextFunctionInDisjunction(failures, or, or.right());
         });
     }
 
-    private static void checkDisjunction(Set<Failure> failures, Or or, Expression left, Expression right) {
+    private static void checkFullTextFunctionInDisjunction(Set<Failure> failures, Or or, Expression left) {
         left.forEachDown(FullTextFunction.class, ftf -> {
-            if (canPushToSource(right, x -> false) == false) {
-                failures.add(
-                    fail(
-                        or,
-                        "Invalid condition [{}]. Function {} can't be used as part of an or condition that includes [{}]",
-                        or.sourceText(),
-                        ftf.functionName(),
-                        right.sourceText()
-                    )
-                );
-            }
+            failures.add(
+                fail(
+                    or,
+                    "Invalid condition [{}]. Function {} can't be used as part of an or condition",
+                    or.sourceText(),
+                    ftf.functionName()
+                )
+            );
         });
     }
 

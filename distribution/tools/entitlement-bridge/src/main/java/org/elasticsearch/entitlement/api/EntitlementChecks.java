@@ -7,13 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+package org.elasticsearch.entitlement.api;
 
-module org.elasticsearch.entitlement.agent {
-    requires java.instrument;
-    requires org.elasticsearch.base; // for @SuppressForbidden
-
-    exports org.elasticsearch.entitlement.instrumentation to org.elasticsearch.entitlement.agent.impl;
-
-    uses InstrumentationService;
+public interface EntitlementChecks {
+    void checkSystemExit(Class<?> callerClass, int status);
 }

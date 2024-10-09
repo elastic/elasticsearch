@@ -7,13 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+package org.elasticsearch.entitlement.runtime.api;
 
-module org.elasticsearch.entitlement.agent {
-    requires java.instrument;
-    requires org.elasticsearch.base; // for @SuppressForbidden
+public class NotEntitledException extends RuntimeException {
+    public NotEntitledException(String message) {
+        super(message);
+    }
 
-    exports org.elasticsearch.entitlement.instrumentation to org.elasticsearch.entitlement.agent.impl;
-
-    uses InstrumentationService;
+    public NotEntitledException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

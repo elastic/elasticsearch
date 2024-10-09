@@ -7,16 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.api;
+package org.elasticsearch.entitlement.instrumentation;
 
-public class EntitlementChecks {
-    static boolean isAgentBooted = false;
+import java.util.List;
 
-    public static void setAgentBooted() {
-        isAgentBooted = true;
-    }
-
-    public static boolean isAgentBooted() {
-        return isAgentBooted;
-    }
-}
+/**
+ *
+ * @param className the "internal name" of the class: includes the package info, but with periods replaced by slashes
+ */
+public record MethodKey(String className, String methodName, List<String> parameterTypes, boolean isStatic) {}

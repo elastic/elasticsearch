@@ -1421,44 +1421,24 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template into a collected {@link Settings} object
      */
     public static Settings resolveSettings(final Metadata metadata, final String templateName) {
-        return resolveSettings(metadata, templateName, Map.of());
-    }
-
-    public static Settings resolveSettings(
-        final Metadata metadata,
-        final String templateName,
-        Map<String, ComponentTemplate> templateSubstitutions
-    ) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return Settings.EMPTY;
         }
-        return resolveSettings(template, metadata.componentTemplates(), templateSubstitutions);
+        return resolveSettings(template, metadata.componentTemplates());
     }
 
     /**
      * Resolve the provided v2 template and component templates into a collected {@link Settings} object
      */
     public static Settings resolveSettings(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
-        return resolveSettings(template, componentTemplates, Map.of());
-    }
-
-    public static Settings resolveSettings(
-        ComposableIndexTemplate template,
-        Map<String, ComponentTemplate> componentTemplates,
-        Map<String, ComponentTemplate> templateSubstitutions
-    ) {
         Objects.requireNonNull(template, "attempted to resolve settings for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve settings with null component templates");
-        Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
-        combinedComponentTemplates.putAll(componentTemplates);
-        // We want any substitutions to take precedence:
-        combinedComponentTemplates.putAll(templateSubstitutions);
         List<Settings> componentSettings = template.composedOf()
             .stream()
-            .map(combinedComponentTemplates::get)
+            .map(componentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::settings)

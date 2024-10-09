@@ -121,9 +121,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testConcurrentQueries
   issue: https://github.com/elastic/elasticsearch/issues/112424
-- class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
-  method: testLoopOneAtATime
-  issue: https://github.com/elastic/elasticsearch/issues/112471
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111497
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT

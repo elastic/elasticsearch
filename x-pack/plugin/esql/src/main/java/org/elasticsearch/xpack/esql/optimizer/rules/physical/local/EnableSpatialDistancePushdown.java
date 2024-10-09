@@ -159,11 +159,13 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             List<Alias> referencedAliases = new ArrayList<>();
             filterExec.condition().forEachDown(ReferenceAttribute.class, r -> {
                 if (others.containsKey(r.id())) {
-                    referencedAliases.add(others.remove(r.id()));
+                    referencedAliases.add(others.get(r.id()));
                 }
             });
             // If there are remaining aliases, we need to keep them after the filter
-            List<Alias> remainingAliases = new ArrayList<>(others.values());
+            List<Alias> remainingAliases = new ArrayList<>(
+                others.values().stream().filter(alias -> referencedAliases.contains(alias) == false).toList()
+            );
             // Add back the distance functions, since they might be used in later clauses
             // TODO: Remove this if we can guarantee that the distance functions are only used in the filter
             for (Alias alias : evalExec.fields()) {

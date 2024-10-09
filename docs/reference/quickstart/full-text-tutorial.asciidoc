@@ -314,20 +314,25 @@ GET /cooking_blog/_search
 [[full-text-tutorial-prefix-query]]
 === Search by prefixes
 
-A <<query-dsl-prefix-query,`prefix`>> query finds documents that contain a specific prefix in a given field.
+A <<query-dsl-prefix-query,`prefix`>> query enables you to quickly narrow down results to documents that begin with a specified prefix.
+Note that prefix queries don't perform text analysis on search terms!
 
 [source,console]
 ----
 GET /cooking_blog/_search
 {
   "query": {
-    "prefix" : { "title" : "spicy" }, <1>
-    "case_insensitive" : "true"
+    "prefix": { 
+      "title": {
+        "value": "Spicy",
+        "case_insensitive": true <1>
+      }
+    }
   }
 }
 ----
 // TEST[continued]
-<1> Prefix queries don't perform text analysis on search terms. Because the `title` field has been analyzed at index time, it has been processed by the `lowercase` filter. The prefix query would return zero hits if you passed "Spicy" here!
+<1> Because the `title` field is analyzed at index time, it's been processed by the `lowercase` filter. The prefix query isn't analyzed and would return zero hits if you passed "Spicy" here, without setting `case_insensitive` to `true`.
 
 [discrete]
 [[full-text-tutorial-query-string]]

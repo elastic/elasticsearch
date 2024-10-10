@@ -27,9 +27,9 @@ public class AmazonBedrockMistralCompletionRequestEntityTests extends ESTestCase
     public void testRequestEntity_CreatesProperRequest() {
         var request = new AmazonBedrockMistralCompletionRequestEntity(List.of("test message"), null, null, null, null);
         var builtRequest = getConverseRequest("testmodel", request);
-        assertThat(builtRequest.getModelId(), is("testmodel"));
+        assertThat(builtRequest.modelId(), is("testmodel"));
         assertThat(doesConverseRequestHasMessage(builtRequest, "test message"), is(true));
-        assertThat(builtRequest.getModelId(), is("testmodel"));
+        assertThat(builtRequest.modelId(), is("testmodel"));
         assertFalse(doesConverseRequestHaveAnyTemperatureInput(builtRequest));
         assertFalse(doesConverseRequestHaveAnyTopPInput(builtRequest));
         assertFalse(doesConverseRequestHaveAnyTopKInput(builtRequest));
@@ -39,7 +39,7 @@ public class AmazonBedrockMistralCompletionRequestEntityTests extends ESTestCase
     public void testRequestEntity_CreatesProperRequest_WithTemperature() {
         var request = new AmazonBedrockMistralCompletionRequestEntity(List.of("test message"), 1.0, null, null, null);
         var builtRequest = getConverseRequest("testmodel", request);
-        assertThat(builtRequest.getModelId(), is("testmodel"));
+        assertThat(builtRequest.modelId(), is("testmodel"));
         assertThat(doesConverseRequestHasMessage(builtRequest, "test message"), is(true));
         assertTrue(doesConverseRequestHaveTemperatureInput(builtRequest, 1.0));
         assertFalse(doesConverseRequestHaveAnyTopPInput(builtRequest));
@@ -50,7 +50,7 @@ public class AmazonBedrockMistralCompletionRequestEntityTests extends ESTestCase
     public void testRequestEntity_CreatesProperRequest_WithTopP() {
         var request = new AmazonBedrockMistralCompletionRequestEntity(List.of("test message"), null, 1.0, null, null);
         var builtRequest = getConverseRequest("testmodel", request);
-        assertThat(builtRequest.getModelId(), is("testmodel"));
+        assertThat(builtRequest.modelId(), is("testmodel"));
         assertThat(doesConverseRequestHasMessage(builtRequest, "test message"), is(true));
         assertFalse(doesConverseRequestHaveAnyTemperatureInput(builtRequest));
         assertTrue(doesConverseRequestHaveTopPInput(builtRequest, 1.0));
@@ -61,7 +61,7 @@ public class AmazonBedrockMistralCompletionRequestEntityTests extends ESTestCase
     public void testRequestEntity_CreatesProperRequest_WithMaxTokens() {
         var request = new AmazonBedrockMistralCompletionRequestEntity(List.of("test message"), null, null, null, 128);
         var builtRequest = getConverseRequest("testmodel", request);
-        assertThat(builtRequest.getModelId(), is("testmodel"));
+        assertThat(builtRequest.modelId(), is("testmodel"));
         assertThat(doesConverseRequestHasMessage(builtRequest, "test message"), is(true));
         assertFalse(doesConverseRequestHaveAnyTemperatureInput(builtRequest));
         assertFalse(doesConverseRequestHaveAnyTopPInput(builtRequest));
@@ -72,7 +72,7 @@ public class AmazonBedrockMistralCompletionRequestEntityTests extends ESTestCase
     public void testRequestEntity_CreatesProperRequest_WithTopK() {
         var request = new AmazonBedrockMistralCompletionRequestEntity(List.of("test message"), null, null, 1.0, null);
         var builtRequest = getConverseRequest("testmodel", request);
-        assertThat(builtRequest.getModelId(), is("testmodel"));
+        assertThat(builtRequest.modelId(), is("testmodel"));
         assertThat(doesConverseRequestHasMessage(builtRequest, "test message"), is(true));
         assertFalse(doesConverseRequestHaveAnyTemperatureInput(builtRequest));
         assertFalse(doesConverseRequestHaveAnyTopPInput(builtRequest));

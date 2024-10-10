@@ -7,23 +7,19 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion;
 
-import com.amazonaws.services.bedrockruntime.model.ContentBlock;
-import com.amazonaws.services.bedrockruntime.model.Message;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.Message;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionRequest.USER_ROLE;
 
 public final class AmazonBedrockConverseUtils {
 
-    public static List<Message> getConverseMessageList(List<String> messages) {
-        List<Message> messageList = new ArrayList<>();
-        for (String message : messages) {
-            var messageContent = new ContentBlock().withText(message);
-            var returnMessage = (new Message()).withRole(USER_ROLE).withContent(messageContent);
-            messageList.add(returnMessage);
-        }
-        return messageList;
+    public static List<Message> getConverseMessageList(List<String> texts) {
+        return texts.stream()
+            .map(text -> ContentBlock.builder().text(text).build())
+            .map(content -> Message.builder().role(USER_ROLE).content(content).build())
+            .toList();
     }
 }

@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 
 public interface AmazonBedrockConverseRequestEntity {
-    ConverseRequest addMessages(ConverseRequest request);
+    ConverseRequest.Builder addMessages(ConverseRequest.Builder request);
 
-    ConverseRequest addInferenceConfig(ConverseRequest request);
+    ConverseRequest.Builder addInferenceConfig(ConverseRequest.Builder request);
 
-    ConverseRequest addAdditionalModelFields(ConverseRequest request);
+    ConverseRequest.Builder addAdditionalModelFields(ConverseRequest.Builder request);
 }

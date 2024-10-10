@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.services.bedrockruntime.model.ContentBlock;
-import com.amazonaws.services.bedrockruntime.model.ConverseOutput;
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
-import com.amazonaws.services.bedrockruntime.model.Message;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseOutput;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.Message;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,9 +29,8 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockPro
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModelTests;
 
-import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.common.TruncatorTests.createTruncator;
@@ -139,18 +139,19 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         assertThat(exceptionThrown.getCause().getMessage(), containsString("test exception"));
     }
 
-    public static ConverseResult getTestConverseResult(String resultText) {
-        var message = new Message().withContent(new ContentBlock().withText(resultText));
-        var converseOutput = new ConverseOutput().withMessage(message);
-        return new ConverseResult().withOutput(converseOutput);
+    public static ConverseResponse getTestConverseResult(String resultText) {
+        return ConverseResponse.builder()
+            .output(
+                ConverseOutput.builder().message(Message.builder().content(ContentBlock.builder().text(resultText).build()).build()).build()
+            )
+            .build();
     }
 
-    public static InvokeModelResult getTestInvokeResult(String resultJson) throws CharacterCodingException {
-        var result = new InvokeModelResult();
-        result.setContentType("application/json");
-        var encoder = Charset.forName("UTF-8").newEncoder();
-        result.setBody(encoder.encode(CharBuffer.wrap(resultJson)));
-        return result;
+    public static InvokeModelResponse getTestInvokeResult(String resultJson) {
+        return InvokeModelResponse.builder()
+            .contentType("application/json")
+            .body(SdkBytes.fromString(resultJson, StandardCharsets.UTF_8))
+            .build();
     }
 
     public static final String TEST_AMAZON_TITAN_EMBEDDINGS_RESULT = """

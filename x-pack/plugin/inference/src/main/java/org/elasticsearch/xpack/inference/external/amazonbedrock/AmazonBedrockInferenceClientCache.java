@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.http.IdleConnectionReaper;
-
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
@@ -114,10 +112,6 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         } finally {
             cacheLock.writeLock().unlock();
         }
-
-        // shutdown IdleConnectionReaper background thread
-        // it will be restarted on new client usage
-        IdleConnectionReaper.shutdown();
     }
 
     // used for testing

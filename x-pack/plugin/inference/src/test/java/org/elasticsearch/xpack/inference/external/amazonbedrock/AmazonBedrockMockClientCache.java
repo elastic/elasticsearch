@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
@@ -18,27 +18,27 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 import java.io.IOException;
 
 public class AmazonBedrockMockClientCache implements AmazonBedrockClientCache {
-    private ConverseResult converseResult = null;
-    private InvokeModelResult invokeModelResult = null;
+    private ConverseResponse converseResponse = null;
+    private InvokeModelResponse invokeModelResponse = null;
     private ElasticsearchException exceptionToThrow = null;
 
     public AmazonBedrockMockClientCache() {}
 
     public AmazonBedrockMockClientCache(
-        @Nullable ConverseResult converseResult,
-        @Nullable InvokeModelResult invokeModelResult,
+        @Nullable ConverseResponse converseResponse,
+        @Nullable InvokeModelResponse invokeModelResponse,
         @Nullable ElasticsearchException exceptionToThrow
     ) {
-        this.converseResult = converseResult;
-        this.invokeModelResult = invokeModelResult;
+        this.converseResponse = converseResponse;
+        this.invokeModelResponse = invokeModelResponse;
         this.exceptionToThrow = exceptionToThrow;
     }
 
     @Override
     public AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, TimeValue timeout) {
-        var client = (AmazonBedrockMockInferenceClient) AmazonBedrockMockInferenceClient.create(model, timeout);
-        client.setConverseResult(converseResult);
-        client.setInvokeModelResult(invokeModelResult);
+        var client = AmazonBedrockMockInferenceClient.create(model, timeout);
+        client.setConverseResponse(converseResponse);
+        client.setInvokeModelResponse(invokeModelResponse);
         client.setExceptionToThrow(exceptionToThrow);
         return client;
     }
@@ -48,12 +48,12 @@ public class AmazonBedrockMockClientCache implements AmazonBedrockClientCache {
         // nothing to do
     }
 
-    public void setConverseResult(ConverseResult converseResult) {
-        this.converseResult = converseResult;
+    public void setConverseResponse(ConverseResponse converseResponse) {
+        this.converseResponse = converseResponse;
     }
 
-    public void setInvokeModelResult(InvokeModelResult invokeModelResult) {
-        this.invokeModelResult = invokeModelResult;
+    public void setInvokeModelResponse(InvokeModelResponse invokeModelResponse) {
+        this.invokeModelResponse = invokeModelResponse;
     }
 
     public void setExceptionToThrow(ElasticsearchException exceptionToThrow) {

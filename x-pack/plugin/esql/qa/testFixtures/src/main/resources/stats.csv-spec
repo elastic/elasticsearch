@@ -2290,3 +2290,186 @@ from employees
 m:integer |a:double |x:integer
 74999     |48249.0  |0
 ;
+
+
+statsWithFiltering
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000, max_a = max(salary) where salary > 100,
+        min = min(salary), min_f = min(salary) where salary > 50000, min_a = min(salary) where salary > 100  
+;
+
+max:integer |max_f:integer |max_a:integer | min:integer | min_f:integer | min_a:integer
+74999       |49818         |74999         | 25324       | 50064         | 25324
+;
+
+statsWithEverythingFiltered
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_a = max(salary) where salary < 100,
+        min = min(salary), min_a = min(salary) where salary > 99999  
+;
+
+max:integer |max_a:integer|min:integer | min_a:integer
+74999       |null         |25324       | null        
+;
+
+statsWithNullFilter
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_a = max(salary) where null,
+        min = min(salary), min_a = min(salary) where to_string(null) == "abc"  
+;
+
+max:integer |max_a:integer|min:integer | min_a:integer
+74999       |null         |25324       | null        
+;
+
+statsWithBasicExpressionFiltered
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000,
+        min = min(salary), min_f = min(salary) where salary > 50000,
+        exp_p = max(salary) + 10000 where salary < 50000,
+        exp_m = min(salary) % 10000 where salary > 50000  
+;
+
+max:integer |max_f:integer|min:integer | min_f:integer|exp_p:integer | exp_m:integer
+74999       |49818        |25324       | 50064        |59818         | 64
+;
+
+statsWithExpressionOverFilters
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000,
+        min = min(salary), min_f = min(salary) where salary > 50000,
+        exp_gt = max(salary) - min(salary) where salary > 50000,
+        exp_lt = max(salary) - min(salary) where salary < 50000
+          
+;
+
+max:integer |max_f:integer | min:integer | min_f:integer |exp_gt:integer | exp_lt:integer
+74999       |49818         | 25324       | 50064         |24935          | 24494        
+;
+
+
+statsWithExpressionOfExpressionsOverFilters
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary + 1), max_f = max(salary + 2) where salary < 50000,
+        min = min(salary - 1), min_f = min(salary - 2) where salary > 50000,
+        exp_gt = max(salary + 3) - min(salary - 3) where salary > 50000,
+        exp_lt = max(salary + 4) - min(salary - 4) where salary < 50000
+          
+;
+
+max:integer |max_f:integer | min:integer | min_f:integer |exp_gt:integer | exp_lt:integer
+75000       |49820         | 25323       | 50062         |24941          | 24502        
+;
+
+statsWithSubstitutedExpressionOverFilters
+required_capability: per_agg_filtering
+from employees
+| stats sum = sum(salary), s_l = sum(salary) where salary < 50000, s_u = sum(salary) where salary > 50000,
+        count = count(salary), c_l = count(salary) where salary < 50000, c_u = count(salary) where salary > 50000, 
+        avg = round(avg(salary), 2), a_l = round(avg(salary), 2) where salary < 50000, a_u = round(avg(salary),2) where salary > 50000
+;
+
+sum:l   |s_l:l   | s_u:l   | count:l |c_l:l |c_u:l |avg:double |a_l:double | a_u:double
+4824855 |2220951 | 2603904 | 100     |58    |42    |48248.55   |38292.26   | 61997.71
+;
+
+
+statsWithFilterAndGroupBy
+required_capability: per_agg_filtering
+from employees
+| stats m = max(height),
+        m_f = max(height + 1) where gender == "M" OR is_rehired is null
+        BY gender, is_rehired
+| sort gender, is_rehired
+;
+
+m:d |m_f:d |gender:s|is_rehired:bool
+2.1 |null  |F       |false    
+2.1 |null  |F       |true     
+1.85|2.85  |F       |null     
+2.1 |3.1   |M       |false    
+2.1 |3.1   |M       |true     
+2.01|3.01  |M       |null     
+2.06|null  |null    |false    
+1.97|null  |null    |true     
+1.99|2.99  |null    |null     
+;
+
+statsWithFilterOnGroupBy
+required_capability: per_agg_filtering
+from employees
+| stats m_f = max(height) where gender == "M" BY gender
+| sort gender
+;
+
+m_f:d   |gender:s
+null    |F
+2.1     |M
+null    |null
+;
+
+statsWithGroupByLiteral
+required_capability: per_agg_filtering
+from employees
+| stats m = max(languages) by salary = 2
+;
+
+m:i |salary:i
+5   |2
+;
+
+
+statsWithFilterOnSameColumn
+required_capability: per_agg_filtering
+from employees
+| stats m = max(languages), m_f = max(languages) where salary > 50000 by salary = 2
+| sort salary
+;
+
+m:i |m_f:i |salary:i
+5   |null  |2
+;
+
+# the query is reused below in a multi-stats
+statsWithFilteringAndGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c = count(), c_f = count(languages) where l > 1, 
+        m_f = max(height) where salary > 50000 
+        by l = languages
+| sort c
+;
+
+c:l |c_f:l |m_f:d |l:i
+10  |0     |2.08  |null        
+15  |0     |2.06  |1           
+17  |17    |2.1   |3           
+18  |18    |1.83  |4           
+19  |19    |2.03  |2           
+21  |21    |2.1   |5           
+;
+ 
+multiStatsWithFiltering
+required_capability: per_agg_filtering
+from employees
+| stats c = count(), c_f = count(languages) where l > 1, 
+        m_f = max(height) where salary > 50000 
+        by l = languages
+| stats c2 = count(), c2_f = count() where m_f > 2.06 , m2 = max(l), m2_f = max(l) where l > 1 by c
+| sort c
+;
+
+c2:l |c2_f:l |m2:i |m2_f:i |c:l
+1    |1      |null |null   |10
+1    |0      |1    |null   |15
+1    |1      |3    |3      |17
+1    |0      |4    |4      |18
+1    |0      |2    |2      |19
+1    |1      |5    |5      |21
+;

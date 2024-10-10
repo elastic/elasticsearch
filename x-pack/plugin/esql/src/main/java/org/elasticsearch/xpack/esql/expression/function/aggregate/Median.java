@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedi
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
@@ -58,6 +59,10 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         super(source, field);
     }
 
+    private Median(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
+    }
+
     @Override
     protected Expression.TypeResolution resolveType() {
         return isType(
@@ -85,12 +90,17 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
     @Override
     protected NodeInfo<Median> info() {
-        return NodeInfo.create(this, Median::new, field());
+        return NodeInfo.create(this, Median::new, field(), filter());
     }
 
     @Override
     public Median replaceChildren(List<Expression> newChildren) {
-        return new Median(source(), newChildren.get(0));
+        return new Median(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public AggregateFunction withFilter(Expression filter) {
+        return new Median(source(), field(), filter);
     }
 
     @Override

@@ -117,8 +117,7 @@ fields
     ;
 
 field
-    : booleanExpression
-    | qualifiedName ASSIGN booleanExpression
+    : (qualifiedName ASSIGN)? booleanExpression
     ;
 
 fromCommand
@@ -126,8 +125,7 @@ fromCommand
     ;
 
 indexPattern
-    : clusterString COLON indexString
-    | indexString
+    : (clusterString COLON)? indexString
     ;
 
 clusterString
@@ -153,7 +151,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : DEV_METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
+    : DEV_METRICS indexPattern (COMMA indexPattern)* aggregates=aggFields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -161,7 +159,15 @@ evalCommand
     ;
 
 statsCommand
-    : STATS stats=fields? (BY grouping=fields)?
+    : STATS stats=aggFields? (BY grouping=fields)?
+    ;
+
+aggFields
+    : aggField (COMMA aggField)*
+    ;
+
+aggField
+    : field {this.isDevVersion()}? (WHERE booleanExpression)?
     ;
 
 qualifiedName
@@ -304,5 +310,5 @@ lookupCommand
     ;
 
 inlinestatsCommand
-    : DEV_INLINESTATS stats=fields (BY grouping=fields)?
+    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
     ;

@@ -30,10 +30,11 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator, SurrogateExpression {
+public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
 
     @FunctionInfo(
@@ -86,6 +87,10 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
         super(source, field);
     }
 
+    protected Count(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
+    }
+
     private Count(StreamInput in) throws IOException {
         super(in);
     }
@@ -97,17 +102,17 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     protected NodeInfo<Count> info() {
-        return NodeInfo.create(this, Count::new, field());
+        return NodeInfo.create(this, Count::new, field(), filter());
+    }
+
+    @Override
+    public AggregateFunction withFilter(Expression filter) {
+        return new Count(source(), field(), filter);
     }
 
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
-        return new Count(source(), newChildren.get(0));
-    }
-
-    @Override
-    public String innerName() {
-        return "count";
+        return new Count(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override

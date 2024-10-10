@@ -537,6 +537,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
     }
 
+    /**
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[STANDARD,[],[SUM(salary{f}#12,true[BOOLEAN]) AS sum(salary), SUM(salary{f}#12,last_name{f}#11 == [44 6f 65][KEYW
+     * ORD]) AS sum(salary) WheRe last_name ==   "Doe"]]
+     *   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testStatsWithFilteringDefaultAliasing() {
+        var plan = plan("""
+            from test
+            | stats sum(salary), sum(salary) WheRe last_name ==   "Doe"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates(), hasSize(2));
+        assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "sum(salary) WheRe last_name ==   \"Doe\""));
+    }
+
     public void testQlComparisonOptimizationsApply() {
         var plan = plan("""
             from test

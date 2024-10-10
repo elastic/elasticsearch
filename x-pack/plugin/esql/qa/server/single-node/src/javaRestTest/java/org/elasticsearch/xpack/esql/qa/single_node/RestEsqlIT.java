@@ -423,10 +423,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     .item("ProjectOperator")
                     .item("OutputOperator"),
                 // Second pass read and join via eval
-                matchesList().item("LuceneSourceOperator")
+                matchesList().item("LuceneTopNSourceOperator")
                     .item("EvalOperator")
-                    .item("ValuesSourceReaderOperator")
-                    .item("TopNOperator")
                     .item("ValuesSourceReaderOperator")
                     .item("ProjectOperator")
                     .item("ExchangeSinkOperator"),
@@ -591,6 +589,16 @@ public class RestEsqlIT extends RestEsqlTestCase {
             case "TopNOperator" -> matchesMap().entry("occupied_rows", 0)
                 .entry("ram_used", instanceOf(String.class))
                 .entry("ram_bytes_used", greaterThan(0));
+            case "LuceneTopNSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0))
+                .entry("current", greaterThan(0))
+                .entry("processed_slices", greaterThan(0))
+                .entry("processed_shards", List.of("rest-esql-test:0"))
+                .entry("total_slices", greaterThan(0))
+                .entry("slice_max", 0)
+                .entry("slice_min", 0)
+                .entry("processing_nanos", greaterThan(0))
+                .entry("processed_queries", List.of("*:*"))
+                .entry("slice_index", 0);
             default -> throw new AssertionError("unexpected status: " + o);
         };
         MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));

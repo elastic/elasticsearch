@@ -166,6 +166,11 @@ public class EsqlCapabilities {
         SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
 
         /**
+         * Support a number of fixes and enhancements to spatial distance pushdown. Done in #112938.
+         */
+        SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */

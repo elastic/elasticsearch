@@ -552,10 +552,9 @@ public class Verifier {
      */
     private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof OrderBy ob) {
-            ob.forEachExpression(Attribute.class, attr -> {
-                DataType dataType = attr.dataType();
-                if (DataType.isSpatial(dataType)) {
-                    localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
+            ob.order().forEach(order -> {
+                if (DataType.isSpatial(order.dataType())) {
+                    localFailures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
                 }
             });
         }

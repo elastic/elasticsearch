@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -78,6 +79,29 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         out.writeNamedWriteable(right());
         // The doc-values fields are only used on data nodes local planning, and therefor never serialized
         // The CRS type is re-resolved from the combination of left and right fields, and also not necessary to serialize
+    }
+
+    /**
+     * Mark the function as expecting the specified fields to arrive as doc-values.
+     */
+    public abstract BinarySpatialFunction withDocValues(boolean foundLeft, boolean foundRight);
+
+    @Override
+    public int hashCode() {
+        // NB: the hashcode is currently used for key generation so
+        // to avoid clashes between aggs with the same arguments, add the class name as variation
+        return Objects.hash(getClass(), children(), leftDocValues, rightDocValues);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj)) {
+            BinarySpatialFunction other = (BinarySpatialFunction) obj;
+            return Objects.equals(other.children(), children())
+                && Objects.equals(other.leftDocValues, leftDocValues)
+                && Objects.equals(other.rightDocValues, rightDocValues);
+        }
+        return false;
     }
 
     @Override

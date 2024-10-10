@@ -306,8 +306,8 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)),
             expected -> assertNoFailuresAndResponse(prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()), all -> {
-                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
-                logger.info("total: {}", expected.getHits().getTotalHits().value);
+                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value(), all.getHits().getTotalHits().value());
+                logger.info("total: {}", expected.getHits().getTotalHits().value());
             })
         );
     }

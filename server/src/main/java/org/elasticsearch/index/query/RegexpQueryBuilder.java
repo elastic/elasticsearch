@@ -280,7 +280,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         int matchFlagsValue = caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0;
         Query query = null;
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
-        int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp.ALL;
+        // We need to preserve the DEPRECATED_COMPLEMENT for now though
+        int deprecatedComplementFlag = syntaxFlagsValue & RegExp.DEPRECATED_COMPLEMENT;
+        int sanitisedSyntaxFlag = syntaxFlagsValue & (RegExp.ALL | deprecatedComplementFlag);
 
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {

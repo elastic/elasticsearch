@@ -20,12 +20,12 @@ public class CaseInsensitivePrefixQuery extends AutomatonQuery {
         super(term, caseInsensitivePrefix(term.text()));
     }
 
-    public CaseInsensitivePrefixQuery(Term term, int determinizeWorkLimit, boolean isBinary) {
-        super(term, caseInsensitivePrefix(term.text()), determinizeWorkLimit, isBinary);
+    public CaseInsensitivePrefixQuery(Term term, boolean isBinary) {
+        super(term, caseInsensitivePrefix(term.text()), isBinary);
     }
 
-    public CaseInsensitivePrefixQuery(Term term, int determinizeWorkLimit, boolean isBinary, MultiTermQuery.RewriteMethod rewriteMethod) {
-        super(term, caseInsensitivePrefix(term.text()), determinizeWorkLimit, isBinary, rewriteMethod);
+    public CaseInsensitivePrefixQuery(Term term, boolean isBinary, MultiTermQuery.RewriteMethod rewriteMethod) {
+        super(term, caseInsensitivePrefix(term.text()), isBinary, rewriteMethod);
     }
 
     @Override

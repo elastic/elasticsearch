@@ -39,7 +39,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
 class CountedTermsAggregator extends TermsAggregator {
@@ -77,7 +76,8 @@ class CountedTermsAggregator extends TermsAggregator {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (ords.advanceExact(doc)) {
-                    for (long ord = ords.nextOrd(); ord != NO_MORE_ORDS; ord = ords.nextOrd()) {
+                    for (int i = 0; i < ords.docValueCount(); i++) {
+                        long ord = ords.nextOrd();
                         collectOrdinal(bucketOrds.add(owningBucketOrd, ords.lookupOrd(ord)), doc, sub);
                     }
                 }

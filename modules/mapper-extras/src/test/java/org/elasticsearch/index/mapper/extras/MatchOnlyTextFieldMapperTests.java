@@ -89,8 +89,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
                 MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "brown fox");
                 TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
-                assertThat(docs.totalHits.value, equalTo(1L));
-                assertThat(docs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
                 assertThat(docs.scoreDocs[0].doc, equalTo(0));
             }
         }

@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.predicate;
@@ -115,12 +114,12 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     private void assertMatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
         assertTrue(runAutomaton.run(text));
     }
 
     private void assertMismatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
         assertFalse(runAutomaton.run(text));
     }
 

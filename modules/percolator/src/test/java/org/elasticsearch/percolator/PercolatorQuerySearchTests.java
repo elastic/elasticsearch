@@ -409,7 +409,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
 
         QueryBuilder query = new PercolateQueryBuilder("my_query", List.of(house1_doc, house2_doc), XContentType.JSON);
         assertResponse(client().prepareSearch("houses").setQuery(query), response -> {
-            assertEquals(2, response.getHits().getTotalHits().value);
+            assertEquals(2, response.getHits().getTotalHits().value());
 
             SearchHit[] hits = response.getHits().getHits();
             assertThat(hits[0].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));

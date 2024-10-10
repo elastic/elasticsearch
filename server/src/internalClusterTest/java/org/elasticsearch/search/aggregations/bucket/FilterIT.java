@@ -159,7 +159,7 @@ public class FilterIT extends ESIntegTestCase {
                     histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(filter("filter", matchAllQuery()))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);

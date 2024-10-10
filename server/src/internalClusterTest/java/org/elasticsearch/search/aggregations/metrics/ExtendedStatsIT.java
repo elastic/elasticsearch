@@ -97,7 +97,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                     histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(extendedStats("stats").field("value"))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -130,7 +130,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertResponse(
             prepareSearch("idx_unmapped").setQuery(matchAllQuery()).addAggregation(extendedStats("stats").field("value")),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
 
                 ExtendedStats stats = response.getAggregations().get("stats");
                 assertThat(stats, notNullValue());

@@ -291,7 +291,6 @@ final class DefaultSearchContext extends SearchContext {
         ToLongFunction<String> fieldCardinality
     ) {
         return executor instanceof ThreadPoolExecutor tpe
-            && tpe.getQueue().isEmpty()
             && isParallelCollectionSupportedForResults(resultsType, request.source(), fieldCardinality, enableQueryPhaseParallelCollection)
                 ? tpe.getMaximumPoolSize()
                 : 1;

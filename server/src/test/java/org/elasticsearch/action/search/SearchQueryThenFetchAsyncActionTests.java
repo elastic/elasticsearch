@@ -245,11 +245,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
             if (withScroll) {
-                assertThat(phase.totalHits().value, equalTo((long) numShards));
-                assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+                assertThat(phase.totalHits().value(), equalTo((long) numShards));
+                assertThat(phase.totalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             } else {
-                assertThat(phase.totalHits().value, equalTo(2L));
-                assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+                assertThat(phase.totalHits().value(), equalTo(2L));
+                assertThat(phase.totalHits().relation(), equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
             }
             assertThat(phase.sortedTopDocs().scoreDocs().length, equalTo(1));
             assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
@@ -539,14 +539,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     };
                 }
             };
-
             action.start();
             latch.await();
             assertThat(successfulOps.get(), equalTo(2));
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-            assertThat(phase.totalHits().value, equalTo(2L));
-            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            assertThat(phase.totalHits().value(), equalTo(2L));
+            assertThat(phase.totalHits().relation(), equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
         }
     }
 
@@ -719,8 +718,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(successfulOps.get(), equalTo(2));
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-            assertThat(phase.totalHits().value, equalTo(2L));
-            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            assertThat(phase.totalHits().value(), equalTo(2L));
+            assertThat(phase.totalHits().relation(), equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
             SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
             SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {

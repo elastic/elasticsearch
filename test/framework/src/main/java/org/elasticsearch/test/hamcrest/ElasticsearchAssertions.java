@@ -312,7 +312,7 @@ public class ElasticsearchAssertions {
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
-        if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {
+        if (totalHits.relation() != TotalHits.Relation.EQUAL_TO || totalHits.value() != expectedHitCount) {
             fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
     }
@@ -344,7 +344,7 @@ public class ElasticsearchAssertions {
 
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) number));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo((long) number));
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
     }
 
@@ -407,13 +407,13 @@ public class ElasticsearchAssertions {
         responses.add(scrollResponse);
         int retrievedDocsCount = 0;
         try {
-            assertThat(scrollResponse.getHits().getTotalHits().value, equalTo((long) expectedTotalHitCount));
+            assertThat(scrollResponse.getHits().getTotalHits().value(), equalTo((long) expectedTotalHitCount));
             retrievedDocsCount += scrollResponse.getHits().getHits().length;
             responseConsumer.accept(responses.size(), scrollResponse);
             while (scrollResponse.getHits().getHits().length > 0) {
                 scrollResponse = client.prepareSearchScroll(scrollResponse.getScrollId()).setScroll(keepAlive).get();
                 responses.add(scrollResponse);
-                assertThat(scrollResponse.getHits().getTotalHits().value, equalTo((long) expectedTotalHitCount));
+                assertThat(scrollResponse.getHits().getTotalHits().value(), equalTo((long) expectedTotalHitCount));
                 retrievedDocsCount += scrollResponse.getHits().getHits().length;
                 responseConsumer.accept(responses.size(), scrollResponse);
             }
@@ -702,8 +702,8 @@ public class ElasticsearchAssertions {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery q = (BooleanQuery) query;
         assertThat(q.clauses(), hasSize(greaterThan(i)));
-        assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
-        return subqueryType.cast(q.clauses().get(i).getQuery());
+        assertThat(q.clauses().get(i).query(), instanceOf(subqueryType));
+        return subqueryType.cast(q.clauses().get(i).query());
     }
 
     /**

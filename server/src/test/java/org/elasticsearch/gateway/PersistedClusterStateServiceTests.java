@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -1776,9 +1777,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
                     final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
                     final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                    StoredFields storedFields = leafReaderContext.reader().storedFields();
                     while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         if (isLiveDoc.test(docIdSetIterator.docID())) {
-                            final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                            final Document document = storedFields.document(docIdSetIterator.docID());
                             document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
                             consumer.accept(document);
                         }

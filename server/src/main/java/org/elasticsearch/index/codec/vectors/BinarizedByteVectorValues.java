@@ -19,22 +19,49 @@
  */
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.search.VectorScorer;
+import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
-public abstract class BinarizedByteVectorValues extends DocIdSetIterator {
+public abstract class BinarizedByteVectorValues extends ByteVectorValues {
 
-    public abstract float[] getCorrectiveTerms();
-
-    public abstract byte[] vectorValue() throws IOException;
+    public abstract float[] getCorrectiveTerms(int vectorOrd) throws IOException;
 
     /** Return the dimension of the vectors */
     public abstract int dimension();
+
+    /** Returns the centroid distance for the vector */
+    public abstract float getCentroidDistance(int vectorOrd) throws IOException;
+
+    /** Returns the vector magnitude for the vector */
+    public abstract float getVectorMagnitude(int vectorOrd) throws IOException;
+
+    /** Returns OOQ corrective factor for the given vector ordinal */
+    public abstract float getOOQ(int targetOrd) throws IOException;
+
+    /**
+     * Returns the norm of the target vector w the centroid corrective factor for the given vector
+     * ordinal
+     */
+    public abstract float getNormOC(int targetOrd) throws IOException;
+
+    /**
+     * Returns the target vector dot product the centroid corrective factor for the given vector
+     * ordinal
+     */
+    public abstract float getODotC(int targetOrd) throws IOException;
+
+    /**
+     * @return the quantizer used to quantize the vectors
+     */
+    public abstract BinaryQuantizer getQuantizer();
+
+    public abstract float[] getCentroid() throws IOException;
 
     /**
      * Return the number of vectors for this field.
@@ -43,11 +70,6 @@ public abstract class BinarizedByteVectorValues extends DocIdSetIterator {
      */
     public abstract int size();
 
-    @Override
-    public final long cost() {
-        return size();
-    }
-
     /**
      * Return a {@link VectorScorer} for the given query vector.
      *
@@ -55,4 +77,13 @@ public abstract class BinarizedByteVectorValues extends DocIdSetIterator {
      * @return a {@link VectorScorer} instance or null
      */
     public abstract VectorScorer scorer(float[] query) throws IOException;
+
+    @Override
+    public abstract BinarizedByteVectorValues copy() throws IOException;
+
+    float getCentroidDP() throws IOException {
+        // this only gets executed on-merge
+        float[] centroid = getCentroid();
+        return VectorUtil.dotProduct(centroid, centroid);
+    }
 }

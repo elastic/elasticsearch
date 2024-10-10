@@ -373,6 +373,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultElserIT
   method: testInferCreatesDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114503
+- class: org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilderTests
+  method: testRankDocsQueryEarlyTerminate
+  issue: https://github.com/elastic/elasticsearch/issues/114097
 
 # Examples:
 #

@@ -416,7 +416,7 @@ public class SearchApplicationIndexService {
         final List<SearchApplicationListItem> apps = Arrays.stream(response.getHits().getHits())
             .map(SearchApplicationIndexService::hitToSearchApplicationListItem)
             .toList();
-        return new SearchApplicationResult(apps, (int) response.getHits().getTotalHits().value);
+        return new SearchApplicationResult(apps, (int) response.getHits().getTotalHits().value());
     }
 
     private static SearchApplicationListItem hitToSearchApplicationListItem(SearchHit searchHit) {

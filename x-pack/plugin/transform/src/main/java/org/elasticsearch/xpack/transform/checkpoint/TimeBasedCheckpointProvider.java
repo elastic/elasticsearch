@@ -84,7 +84,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             client,
             TransportSearchAction.TYPE,
             searchRequest,
-            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value > 0L), listener::onFailure)
+            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value() > 0L), listener::onFailure)
         );
     }
 

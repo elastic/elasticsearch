@@ -305,7 +305,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             for (IndexShard shard : shards) {
                 try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                     TopDocs search = searcher.search(new TermQuery(new Term("f", "2")), 10);
-                    assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits.value);
+                    assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits.value());
                 }
             }
         }

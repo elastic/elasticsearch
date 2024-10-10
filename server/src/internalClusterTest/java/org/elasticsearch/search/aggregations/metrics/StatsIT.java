@@ -56,7 +56,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 ),
             response -> {
                 assertShardExecutionState(response, 0);
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);

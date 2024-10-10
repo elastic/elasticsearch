@@ -81,7 +81,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testTermsQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        Query expected = new TermInSetQuery(ft.name(), new BytesRef("key\0value1"), new BytesRef("key\0value2"));
+        Query expected = new TermInSetQuery(ft.name(), List.of(new BytesRef("key\0value1"), new BytesRef("key\0value2")));
 
         List<String> terms = new ArrayList<>();
         terms.add("value1");

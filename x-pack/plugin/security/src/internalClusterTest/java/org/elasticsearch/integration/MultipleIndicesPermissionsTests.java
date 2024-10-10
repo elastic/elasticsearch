@@ -312,7 +312,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
         assertResponse(
             userAClient.prepareSearch("alias1").setSize(0),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L))
         );
 
         final ElasticsearchSecurityException e1 = expectThrows(

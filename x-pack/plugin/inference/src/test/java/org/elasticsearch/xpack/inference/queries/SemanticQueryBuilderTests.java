@@ -199,9 +199,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
         innerBooleanQuery.forEach(c -> {
-            assertThat(c.getOccur(), equalTo(SHOULD));
-            assertThat(c.getQuery(), instanceOf(BoostQuery.class));
-            assertThat(((BoostQuery) c.getQuery()).getBoost(), equalTo(TOKEN_WEIGHT));
+            assertThat(c.occur(), equalTo(SHOULD));
+            assertThat(c.query(), instanceOf(BoostQuery.class));
+            assertThat(((BoostQuery) c.query()).getBoost(), equalTo(TOKEN_WEIGHT));
         });
     }
 
@@ -223,7 +223,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         List<BooleanClause> outerMustClauses = new ArrayList<>();
         List<BooleanClause> outerFilterClauses = new ArrayList<>();
         for (BooleanClause clause : outerBooleanQuery.clauses()) {
-            BooleanClause.Occur occur = clause.getOccur();
+            BooleanClause.Occur occur = clause.occur();
             if (occur == MUST) {
                 outerMustClauses.add(clause);
             } else if (occur == FILTER) {
@@ -236,7 +236,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(outerMustClauses.size(), equalTo(1));
         assertThat(outerFilterClauses.size(), equalTo(1));
 
-        return outerMustClauses.get(0).getQuery();
+        return outerMustClauses.get(0).query();
     }
 
     @Override

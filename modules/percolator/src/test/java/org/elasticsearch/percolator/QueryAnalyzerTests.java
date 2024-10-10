@@ -82,7 +82,7 @@ public class QueryAnalyzerTests extends ESTestCase {
     }
 
     public void testExtractQueryMetadata_termsQuery() {
-        TermInSetQuery termsQuery = new TermInSetQuery("_field", new BytesRef("_term1"), new BytesRef("_term2"));
+        TermInSetQuery termsQuery = new TermInSetQuery("_field", List.of(new BytesRef("_term1"), new BytesRef("_term2")));
         Result result = analyze(termsQuery);
         assertThat(result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(1));

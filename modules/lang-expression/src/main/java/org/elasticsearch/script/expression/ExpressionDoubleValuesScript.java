@@ -17,6 +17,8 @@ import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.script.DoubleValuesScript;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.function.Function;
 
 /**
@@ -37,12 +39,20 @@ public class ExpressionDoubleValuesScript implements DoubleValuesScript.Factory 
         return new DoubleValuesScript() {
             @Override
             public double execute() {
-                return exprScript.evaluate(new DoubleValues[0]);
+                try {
+                    return exprScript.evaluate(new DoubleValues[0]);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
 
             @Override
             public double evaluate(DoubleValues[] functionValues) {
-                return exprScript.evaluate(functionValues);
+                try {
+                    return exprScript.evaluate(functionValues);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
 
             @Override

@@ -879,7 +879,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             IndexSearcher searcher = newSearcher(ir);
             MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
             TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
-            assertEquals(1, td.totalHits.value);
+            assertEquals(1, td.totalHits.value());
         });
 
         Exception e = expectThrows(

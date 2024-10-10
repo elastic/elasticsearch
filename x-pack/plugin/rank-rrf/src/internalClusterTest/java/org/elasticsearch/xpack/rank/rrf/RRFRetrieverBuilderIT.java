@@ -195,8 +195,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 ElasticsearchAssertions.assertResponse(req, resp -> {
                     assertNull(resp.pointInTimeId());
                     assertNotNull(resp.getHits().getTotalHits());
-                    assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
-                    assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+                    assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+                    assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
                     assertThat(resp.getHits().getHits().length, lessThanOrEqualTo(size));
                     for (int k = 0; k < Math.min(size, resp.getHits().getHits().length); k++) {
                         assertThat(resp.getHits().getAt(k).getId(), equalTo(expectedDocIds.get(k + fDocs_to_fetch)));
@@ -243,8 +243,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(1));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
 
@@ -299,8 +299,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(4));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
@@ -354,8 +354,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(4));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
@@ -426,8 +426,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_7"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_6"));
@@ -475,8 +475,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(1));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(0).getExplanation().isMatch(), equalTo(true));
@@ -543,8 +543,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(1));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_6"));
             assertThat(resp.getHits().getAt(0).getExplanation().isMatch(), equalTo(true));
@@ -703,14 +703,14 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         assertResponse(
             client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(rrf)),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(2));
 
         // check that we use the rewritten vector to build the explain query
         assertResponse(
             client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(rrf).explain(true)),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
     }

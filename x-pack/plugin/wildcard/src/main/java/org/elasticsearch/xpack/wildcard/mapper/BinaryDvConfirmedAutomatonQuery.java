@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
@@ -69,44 +70,56 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
         return new ConstantScoreWeight(this, boost) {
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 ByteArrayStreamInput bytes = new ByteArrayStreamInput();
                 final BinaryDocValues values = DocValues.getBinary(context.reader(), field);
-                Scorer approxScorer = approxWeight.scorer(context);
-                if (approxScorer == null) {
+                ScorerSupplier approxScorerSupplier = approxWeight.scorerSupplier(context);
+                if (approxScorerSupplier == null) {
                     // No matches to be had
                     return null;
                 }
-                DocIdSetIterator approxDisi = approxScorer.iterator();
-                TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
-                    @Override
-                    public boolean matches() throws IOException {
-                        if (values.advanceExact(approxDisi.docID()) == false) {
-                            // Can happen when approxQuery resolves to some form of MatchAllDocs expression
-                            return false;
-                        }
-                        BytesRef arrayOfValues = values.binaryValue();
-                        bytes.reset(arrayOfValues.bytes);
-                        bytes.setPosition(arrayOfValues.offset);
 
-                        int size = bytes.readVInt();
-                        for (int i = 0; i < size; i++) {
-                            int valLength = bytes.readVInt();
-                            if (bytesMatcher.run(arrayOfValues.bytes, bytes.getPosition(), valLength)) {
-                                return true;
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        Scorer approxScorer = approxScorerSupplier.get(leadCost);
+                        DocIdSetIterator approxDisi = approxScorer.iterator();
+                        TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
+                            @Override
+                            public boolean matches() throws IOException {
+                                if (values.advanceExact(approxDisi.docID()) == false) {
+                                    // Can happen when approxQuery resolves to some form of MatchAllDocs expression
+                                    return false;
+                                }
+                                BytesRef arrayOfValues = values.binaryValue();
+                                bytes.reset(arrayOfValues.bytes);
+                                bytes.setPosition(arrayOfValues.offset);
+
+                                int size = bytes.readVInt();
+                                for (int i = 0; i < size; i++) {
+                                    int valLength = bytes.readVInt();
+                                    if (bytesMatcher.run(arrayOfValues.bytes, bytes.getPosition(), valLength)) {
+                                        return true;
+                                    }
+                                    bytes.skipBytes(valLength);
+                                }
+                                return false;
                             }
-                            bytes.skipBytes(valLength);
-                        }
-                        return false;
+
+                            @Override
+                            public float matchCost() {
+                                // TODO: how can we compute this?
+                                return 1000f;
+                            }
+                        };
+                        return new ConstantScoreScorer(score(), scoreMode, twoPhase);
                     }
 
                     @Override
-                    public float matchCost() {
-                        // TODO: how can we compute this?
-                        return 1000f;
+                    public long cost() {
+                        return approxScorerSupplier.cost();
                     }
                 };
-                return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
             }
 
             @Override

@@ -11,6 +11,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -400,14 +401,14 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.Searcher searcher = restoredShard.acquireSearcher("test")) {
             assertEquals(searcher.getIndexReader().maxDoc(), seqNoStats.getLocalCheckpoint());
             TopDocs search = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
-            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value);
+            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             search = searcher.search(
                 new MatchAllDocsQuery(),
                 Integer.MAX_VALUE,
                 new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG)),
                 false
             );
-            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value);
+            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             long previous = -1;
             for (ScoreDoc doc : search.scoreDocs) {
                 FieldDoc fieldDoc = (FieldDoc) doc;
@@ -430,8 +431,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(original.exists(), restored.exists());
 
             if (original.exists()) {
-                Document document = original.docIdAndVersion().reader.document(original.docIdAndVersion().docId);
-                Document restoredDocument = restored.docIdAndVersion().reader.document(restored.docIdAndVersion().docId);
+                StoredFields storedFields = original.docIdAndVersion().reader.storedFields();
+                Document document = storedFields.document(original.docIdAndVersion().docId);
+                Document restoredDocument = storedFields.document(restored.docIdAndVersion().docId);
                 for (IndexableField field : document) {
                     assertEquals(document.get(field.name()), restoredDocument.get(field.name()));
                 }
@@ -470,7 +472,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 for (int i = 0; i < leafReader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
                         rootFieldsVisitor.reset();
-                        leafReader.document(i, rootFieldsVisitor);
+                        leafReader.storedFields().document(i, rootFieldsVisitor);
                         rootFieldsVisitor.postProcess(targetShard.mapperService()::fieldType);
                         String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();

@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -336,10 +337,11 @@ public class ScriptTermStatsTests extends ESTestCase {
         withIndexSearcher(searcher -> {
             for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
                 IndexReader reader = leafReaderContext.reader();
+                StoredFields storedFields = reader.storedFields();
                 DocIdSetIterator docIdSetIterator = DocIdSetIterator.all(reader.maxDoc());
                 ScriptTermStats termStats = new ScriptTermStats(searcher, leafReaderContext, docIdSetIterator::docID, terms);
                 while (docIdSetIterator.nextDoc() <= reader.maxDoc()) {
-                    String docId = reader.document(docIdSetIterator.docID()).get("id");
+                    String docId = storedFields.document(docIdSetIterator.docID()).get("id");
                     if (expectedValues.containsKey(docId)) {
                         assertThat(function.apply(termStats), expectedValues.get(docId));
                     }

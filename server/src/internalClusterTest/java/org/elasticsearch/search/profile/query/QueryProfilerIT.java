@@ -147,10 +147,10 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 );
             }
 
-            if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
+            if (vanillaResponse.getHits().getTotalHits().value() != profileResponse.getHits().getTotalHits().value()) {
                 Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
                 Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
-                if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
+                if (vanillaResponse.getHits().getTotalHits().value() > profileResponse.getHits().getTotalHits().value()) {
                     vanillaSet.removeAll(profileSet);
                     fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: " + vanillaSet.toString());
                 } else {

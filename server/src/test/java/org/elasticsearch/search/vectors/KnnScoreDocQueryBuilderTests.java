@@ -282,8 +282,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
 
                 TopDocs topDocs = searcher.search(query, 100);
-                assertEquals(scoreDocs.length, topDocs.totalHits.value);
-                assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation);
+                assertEquals(scoreDocs.length, topDocs.totalHits.value());
+                assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation());
 
                 Arrays.sort(topDocs.scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
                 assertEquals(scoreDocs.length, topDocs.scoreDocs.length);

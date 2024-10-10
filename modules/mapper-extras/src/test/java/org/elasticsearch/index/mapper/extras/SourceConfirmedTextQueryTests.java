@@ -61,7 +61,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
     private static final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER =
         context -> docID -> {
             sourceFetchCount.incrementAndGet();
-            return Collections.<Object>singletonList(context.reader().document(docID).get("body"));
+            return Collections.<Object>singletonList(context.reader().storedFields().document(docID).get("body"));
         };
 
     public void testTerm() throws Exception {

@@ -218,7 +218,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 .addFetchField("text0")
                 .setSize(19),
             response -> {
-                assertEquals(51, response.getHits().getTotalHits().value);
+                assertEquals(51, response.getHits().getTotalHits().value());
                 assertEquals(19, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -355,7 +355,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 .setSize(11)
                 .addAggregation(AggregationBuilders.terms("sums").field("int")),
             response -> {
-                assertEquals(101, response.getHits().getTotalHits().value);
+                assertEquals(101, response.getHits().getTotalHits().value());
                 assertEquals(11, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -483,7 +483,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 .addAggregation(AggregationBuilders.terms("sums").field("int"))
                 .setStats("search"),
             response -> {
-                assertEquals(51, response.getHits().getTotalHits().value);
+                assertEquals(51, response.getHits().getTotalHits().value());
                 assertEquals(19, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);

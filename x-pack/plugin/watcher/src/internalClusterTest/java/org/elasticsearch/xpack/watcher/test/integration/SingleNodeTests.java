@@ -69,7 +69,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
             assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
             assertResponse(
                 prepareSearch(".watcher-history*").setSize(0),
-                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)))
+                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(greaterThanOrEqualTo(1L)))
             );
         }, 30, TimeUnit.SECONDS);
     }

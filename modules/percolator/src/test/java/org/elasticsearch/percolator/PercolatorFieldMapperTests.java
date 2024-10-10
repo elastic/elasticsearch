@@ -23,6 +23,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -417,10 +418,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateCandidateQuery() throws Exception {
-        int origMaxClauseCount = BooleanQuery.getMaxClauseCount();
+        int origMaxClauseCount = IndexSearcher.getMaxClauseCount();
         try {
             final int maxClauseCount = 100;
-            BooleanQuery.setMaxClauseCount(maxClauseCount);
+            IndexSearcher.setMaxClauseCount(maxClauseCount);
             addQueryFieldMappings();
 
             MemoryIndex memoryIndex = new MemoryIndex(false);
@@ -435,8 +436,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader);
             assertTrue(t.v2());
             assertEquals(2, t.v1().clauses().size());
-            assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
-            assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
+            assertThat(t.v1().clauses().get(0).query(), instanceOf(CoveringQuery.class));
+            assertThat(t.v1().clauses().get(1).query(), instanceOf(TermQuery.class));
 
             // Now push it over the edge, so that it falls back using TermInSetQuery
             memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
@@ -444,12 +445,12 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             t = fieldType.createCandidateQuery(indexReader);
             assertFalse(t.v2());
             assertEquals(3, t.v1().clauses().size());
-            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).getQuery();
-            assertEquals(maxClauseCount - 1, terms.getTermData().size());
-            assertThat(t.v1().clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
-            assertThat(t.v1().clauses().get(2).getQuery().toString(), containsString(fieldName + ".extraction_result:failed"));
+            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).query();
+            assertEquals(maxClauseCount - 1, terms.getTermsCount());
+            assertThat(t.v1().clauses().get(1).query().toString(), containsString(fieldName + ".range_field:<ranges:"));
+            assertThat(t.v1().clauses().get(2).query().toString(), containsString(fieldName + ".extraction_result:failed"));
         } finally {
-            BooleanQuery.setMaxClauseCount(origMaxClauseCount);
+            IndexSearcher.setMaxClauseCount(origMaxClauseCount);
         }
     }
 

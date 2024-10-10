@@ -105,7 +105,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .subAggregation(randomCompression(percentileRanks("percentile_ranks", new double[] { 10, 15 }).field("value")))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -146,7 +146,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
             prepareSearch("idx_unmapped").setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentileRanks("percentile_ranks", new double[] { 0, 10, 15, 100 })).field("value")),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
 
                 PercentileRanks reversePercentiles = response.getAggregations().get("percentile_ranks");
                 assertThat(reversePercentiles, notNullValue());

@@ -112,7 +112,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         )
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -138,7 +138,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         .field("value")
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
 
                 PercentileRanks reversePercentiles = response.getAggregations().get("percentile_ranks");
                 assertThat(reversePercentiles, notNullValue());

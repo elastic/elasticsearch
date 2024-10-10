@@ -377,7 +377,7 @@ public class DataFrameDataExtractor {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         try {
-            long rows = searchResponse.getHits().getTotalHits().value;
+            long rows = searchResponse.getHits().getTotalHits().value();
             LOGGER.debug(() -> format("[%s] Data summary rows [%s]", context.jobId, rows));
             return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
         } finally {
@@ -396,7 +396,7 @@ public class DataFrameDataExtractor {
             TransportSearchAction.TYPE,
             searchRequestBuilder.request(),
             dataSummaryActionListener.delegateFailureAndWrap(
-                (l, searchResponse) -> l.onResponse(new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields))
+                (l, searchResponse) -> l.onResponse(new DataSummary(searchResponse.getHits().getTotalHits().value(), numberOfFields))
             )
         );
     }

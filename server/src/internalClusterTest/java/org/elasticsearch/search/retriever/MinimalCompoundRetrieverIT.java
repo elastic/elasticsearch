@@ -75,7 +75,7 @@ public class MinimalCompoundRetrieverIT extends AbstractMultiClustersTestCase {
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
-            assertThat(response.getHits().getTotalHits().value, equalTo(testClusterInfo.get("total_docs")));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(testClusterInfo.get("total_docs")));
         });
     }
 

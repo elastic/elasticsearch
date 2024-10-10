@@ -28,10 +28,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -394,7 +394,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
             assert a.isDeterministic();
-            a = MinimizationOperations.minimize(a, 0);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
             if (searchAfter != null) {
@@ -480,6 +479,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public AttributeSource attributes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IOBooleanSupplier prepareSeekExact(BytesRef bytesRef) throws IOException {
             throw new UnsupportedOperationException();
         }
 

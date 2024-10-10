@@ -64,12 +64,12 @@ public class MetadataFetchingIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), nullValue());
                 assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
-                assertThat(hits.getTotalHits().value, equalTo(1L));
+                assertThat(hits.getTotalHits().value(), equalTo(1L));
                 assertThat(hits.getAt(0).getId(), nullValue());
                 assertThat(hits.getAt(0).getSourceAsString(), nullValue());
             }

@@ -81,7 +81,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         );
         indicesAdmin().refresh(new RefreshRequest(indexName)).actionGet();
         SearchResponse searchResponse = client().search(new SearchRequest(indexName)).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         searchResponse.decRef();
         ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().index(indexName).mapping().sourceAsMap();
@@ -138,7 +138,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         // Now make sure nothing was actually changed:
         indicesAdmin().refresh(new RefreshRequest(indexName)).actionGet();
         SearchResponse searchResponse = client().search(new SearchRequest(indexName)).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         searchResponse.decRef();
         ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().index(indexName).mapping().sourceAsMap();

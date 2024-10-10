@@ -179,7 +179,7 @@ public class InMemoryNoOpCommitDirectoryTests extends ESTestCase {
             final TopDocs topDocs = newSearcher(directoryReader).search(new MatchAllDocsQuery(), 1);
             assertThat(topDocs.totalHits, equalTo(new TotalHits(1L, TotalHits.Relation.EQUAL_TO)));
             assertThat(topDocs.scoreDocs.length, equalTo(1));
-            assertThat(directoryReader.document(topDocs.scoreDocs[0].doc).getField("foo").stringValue(), equalTo("bar"));
+            assertThat(directoryReader.storedFields().document(topDocs.scoreDocs[0].doc).getField("foo").stringValue(), equalTo("bar"));
         }
 
         try (IndexWriter indexWriter = new IndexWriter(inMemoryNoOpCommitDirectory, new IndexWriterConfig())) {
@@ -226,7 +226,7 @@ public class InMemoryNoOpCommitDirectoryTests extends ESTestCase {
             final TopDocs topDocs = newSearcher(directoryReader).search(new MatchAllDocsQuery(), 1);
             assertThat(topDocs.totalHits, equalTo(new TotalHits(1L, TotalHits.Relation.EQUAL_TO)));
             assertThat(topDocs.scoreDocs.length, equalTo(1));
-            assertThat(directoryReader.document(topDocs.scoreDocs[0].doc).getField("foo").stringValue(), equalTo("bar"));
+            assertThat(directoryReader.storedFields().document(topDocs.scoreDocs[0].doc).getField("foo").stringValue(), equalTo("bar"));
         }
 
         assertEquals(1, DirectoryReader.listCommits(inMemoryNoOpCommitDirectory).size());

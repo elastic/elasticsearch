@@ -2254,7 +2254,7 @@ public class ApiKeyService implements Closeable {
                     TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
-                        long total = searchResponse.getHits().getTotalHits().value;
+                        long total = searchResponse.getHits().getTotalHits().value();
                         if (total == 0) {
                             logger.debug("No api keys found for query [{}]", searchRequest.source().query());
                             listener.onResponse(QueryApiKeysResult.EMPTY);

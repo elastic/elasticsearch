@@ -169,7 +169,7 @@ public class InferenceRunner {
         );
         try {
             Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
-            long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
+            long processedTestDocCount = searchResponse.getHits().getTotalHits().value();
             Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
             if (lastIncrementalId != null) {
                 LOGGER.debug(

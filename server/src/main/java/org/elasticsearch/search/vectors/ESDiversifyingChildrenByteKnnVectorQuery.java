@@ -34,7 +34,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
-        vectorOpsCount = topK.totalHits.value;
+        vectorOpsCount = topK.totalHits.value();
         return topK;
     }
 

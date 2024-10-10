@@ -224,7 +224,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
             assertOK(response);
             SearchResponse searchResponse = SearchResponseUtils.responseAsSearchResponse(response);
             try {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
             } finally {
                 searchResponse.decRef();
             }

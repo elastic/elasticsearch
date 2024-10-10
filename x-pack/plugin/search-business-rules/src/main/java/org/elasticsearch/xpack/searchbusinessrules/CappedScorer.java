@@ -9,15 +9,14 @@ package org.elasticsearch.xpack.searchbusinessrules;
 
 import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 
 public class CappedScorer extends FilterScorer {
     private final float maxScore;
 
-    public CappedScorer(Weight weight, Scorer delegate, float maxScore) {
-        super(delegate, weight);
+    public CappedScorer(Scorer delegate, float maxScore) {
+        super(delegate);
         this.maxScore = maxScore;
     }
 

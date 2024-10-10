@@ -58,7 +58,7 @@ public final class LinearInterpolatingScorer extends WordScorer {
         if (count < 1) {
             return unigramLambda * scoreUnigram(word);
         }
-        return bigramLambda * (count / (0.5d + w_1.termStats.totalTermFreq)) + unigramLambda * scoreUnigram(word);
+        return bigramLambda * (count / (0.5d + w_1.termStats.totalTermFreq())) + unigramLambda * scoreUnigram(word);
     }
 
     @Override

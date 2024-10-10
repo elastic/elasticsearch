@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -258,7 +259,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
     }
 
     private static IndexReader mockIndexReader(int maxDoc, int numDocs) {
-        IndexReader reader = mock(IndexReader.class);
+        IndexReader reader = mock(LeafReader.class);
         when(reader.hasDeletions()).thenReturn(maxDoc - numDocs > 0);
         when(reader.maxDoc()).thenReturn(maxDoc);
         when(reader.numDocs()).thenReturn(numDocs);

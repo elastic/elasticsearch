@@ -189,7 +189,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
-                long totalHits = searchResponse.getHits().getTotalHits().value;
+                long totalHits = searchResponse.getHits().getTotalHits().value();
                 if (totalHits > 0) {
                     InternalAggregations aggregations = searchResponse.getAggregations();
                     Min min = aggregations.get(EARLIEST_TIME);

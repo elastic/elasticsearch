@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.graph.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
@@ -564,7 +564,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
                 numClauses += entry.getValue().size();
             }
-            if (numClauses < BooleanQuery.getMaxClauseCount()) {
+            if (numClauses < IndexSearcher.getMaxClauseCount()) {
                 // We can afford to build a Boolean OR query with individual
                 // boosts for interesting terms
                 for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
@@ -755,7 +755,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         private static void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
             TermBoost[] termBoosts = vr.includeValues();
 
-            if ((includesContainer.should().size() + termBoosts.length) > BooleanQuery.getMaxClauseCount()) {
+            if ((includesContainer.should().size() + termBoosts.length) > IndexSearcher.getMaxClauseCount()) {
                 // Too many terms - we need a cheaper form of query to execute this
                 List<String> termValues = new ArrayList<>();
                 for (TermBoost tb : termBoosts) {

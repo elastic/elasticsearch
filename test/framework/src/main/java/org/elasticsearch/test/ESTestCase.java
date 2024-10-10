@@ -33,6 +33,8 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
@@ -208,6 +210,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.anyOf;
@@ -2636,5 +2639,44 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (Exception e) {
             throw new AssertionError("Failed to verify search contexts", e);
         }
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r) {
+        return newSearcher(r, true);
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap) {
+        return newSearcher(r, maybeWrap, true);
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap, boolean wrapWithAssertions) {
+        return newSearcher(r, maybeWrap, wrapWithAssertions, randomBoolean());
+    }
+
+    /**
+     * Create a new searcher over the reader.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean, boolean, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap, boolean wrapWithAssertions, boolean useThreads) {
+        if (useThreads) {
+            return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
+        }
+        return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
     }
 }

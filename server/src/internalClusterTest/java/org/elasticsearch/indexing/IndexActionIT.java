@@ -57,9 +57,9 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with all types");
                     assertResponse(prepareSearch("test"), response -> {
-                        if (response.getHits().getTotalHits().value != numOfDocs) {
+                        if (response.getHits().getTotalHits().value() != numOfDocs) {
                             final String message = "Count is "
-                                + response.getHits().getTotalHits().value
+                                + response.getHits().getTotalHits().value()
                                 + " but "
                                 + numOfDocs
                                 + " was expected. "
@@ -77,9 +77,9 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with a specific type");
                     assertResponse(prepareSearch("test"), response -> {
-                        if (response.getHits().getTotalHits().value != numOfDocs) {
+                        if (response.getHits().getTotalHits().value() != numOfDocs) {
                             final String message = "Count is "
-                                + response.getHits().getTotalHits().value
+                                + response.getHits().getTotalHits().value()
                                 + " but "
                                 + numOfDocs
                                 + " was expected. "

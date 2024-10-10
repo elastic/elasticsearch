@@ -90,7 +90,8 @@ public class PersistentTaskCreationFailureIT extends ESIntegTestCase {
                                 PersistentTasksCustomMetadata.builder(
                                     PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState)
                                 )
-                                    // create and remove a fake task just to force a change in lastAllocationId
+                                    // create and remove a fake task just to force a change in lastAllocationId so that
+                                    // PersistentTasksNodeService checks for changes and potentially retries
                                     .addTask("test", "test", null, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT)
                                     .removeTask("test")
                                     .build()

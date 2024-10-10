@@ -71,7 +71,7 @@ class Context {
     }
 
     public DataSourceResponse.FieldTypeGenerator fieldTypeGenerator(DynamicMapping dynamicMapping) {
-        return specification.dataSource().get(new DataSourceRequest.FieldTypeGenerator(dynamicMapping));
+        return specification.dataSource().get(new DataSourceRequest.FieldTypeGenerator());
     }
 
     public Context subObject(String name, DynamicMapping dynamicMapping, ObjectMapper.Subobjects subobjects) {

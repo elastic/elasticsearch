@@ -17,7 +17,7 @@ public class MappingGeneratorTests extends ESTestCase {
     public void testSanity() {
         var specification = DataGeneratorSpecification.buildDefault();
 
-        var templateGenerator = new MappingTemplateGenerator(specification);
+        var templateGenerator = new TemplateGenerator(specification);
         var template = templateGenerator.generate();
 
         var generator = new MappingGenerator(specification);

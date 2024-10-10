@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 
 public class DocumentGenerator {
     private final DataGeneratorSpecification specification;
@@ -30,26 +31,22 @@ public class DocumentGenerator {
         this.objectArrayGenerator = specification.dataSource().get(new DataSourceRequest.ObjectArrayGenerator());
     }
 
-    public Map<String, Object> generate(MappingTemplate template, Mapping mapping) {
-        var documentMap = new HashMap<String, Object>();
+    public Map<String, Object> generate(Template template, Mapping mapping) {
+        var documentMap = new TreeMap<String, Object>();
         for (var predefinedField : specification.predefinedFields()) {
             documentMap.put(predefinedField.name(), predefinedField.generator(specification.dataSource()).generateValue());
         }
 
-        generateDocument(documentMap, template.mapping(), new Context("", mapping.lookup()));
+        generateDocument(documentMap, template.template(), new Context("", mapping.lookup()));
         return documentMap;
     }
 
-    private void generateDocument(Map<String, Object> document, Map<String, MappingTemplate.Entry> template, Context context) {
+    private void generateDocument(Map<String, Object> document, Map<String, Template.Entry> template, Context context) {
         for (var entry : template.entrySet()) {
             String fieldName = entry.getKey();
-            MappingTemplate.Entry templateEntry = entry.getValue();
+            Template.Entry templateEntry = entry.getValue();
 
-            if (templateEntry instanceof MappingTemplate.Entry.Leaf leaf) {
-                // TODO remove this
-                var mappingParametersGenerator = specification.dataSource()
-                    .get(new DataSourceRequest.LeafMappingParametersGenerator(fieldName, leaf.type(), Set.of(), DynamicMapping.FORBIDDEN));
-
+            if (templateEntry instanceof Template.Leaf leaf) {
                 // Unsigned long does not play well when dynamically mapped because
                 // it gets mapped as just long and large values fail to index.
                 // Just skip it.
@@ -57,10 +54,10 @@ public class DocumentGenerator {
                     continue;
                 }
 
-                var generator = leaf.type().generator(fieldName, specification.dataSource(), mappingParametersGenerator);
+                var generator = leaf.type().generator(fieldName, specification.dataSource());
 
                 document.put(fieldName, generator.generateValue());
-            } else if (templateEntry instanceof MappingTemplate.Entry.Object object) {
+            } else if (templateEntry instanceof Template.Object object) {
                 Optional<Integer> arrayLength = objectArrayGenerator.lengthGenerator().get();
 
                 if (arrayLength.isPresent()) {
@@ -77,8 +74,8 @@ public class DocumentGenerator {
         }
     }
 
-    private Map<String, Object> generateObject(MappingTemplate.Entry.Object object, Context context) {
-        var children = new HashMap<String, Object>();
+    private Map<String, Object> generateObject(Template.Object object, Context context) {
+        var children = new TreeMap<String, Object>();
         generateDocument(children, object.children(), context.stepIntoObject(object.name()));
         return children;
     }

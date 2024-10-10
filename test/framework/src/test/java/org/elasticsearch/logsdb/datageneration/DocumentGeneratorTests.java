@@ -20,7 +20,7 @@ public class DocumentGeneratorTests extends ESTestCase {
     public void testSanity() throws IOException {
         var specification = DataGeneratorSpecification.buildDefault();
 
-        var templateGenerator = new MappingTemplateGenerator(specification);
+        var templateGenerator = new TemplateGenerator(specification);
         var template = templateGenerator.generate();
 
         var mappingGenerator = new MappingGenerator(specification);

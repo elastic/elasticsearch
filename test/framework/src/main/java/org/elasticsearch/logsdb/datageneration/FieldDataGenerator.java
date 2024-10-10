@@ -15,17 +15,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Entity responsible for generating a valid randomized mapping for a field
- * and a generator of field values valid for this mapping.
+ * Entity responsible for generating a valid value for a field.
  *
- * Generator is expected to produce the same mapping per instance of generator.
- * Function returned by {@link FieldDataGenerator#fieldValueGenerator() } is expected
- * to produce a randomized value each time.
+ * Generator is expected to produce a different value on every call.
  */
 public interface FieldDataGenerator {
-    CheckedConsumer<XContentBuilder, IOException> mappingWriter();
-
-    CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator();
-
     Object generateValue();
 }

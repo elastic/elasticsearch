@@ -13,26 +13,26 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
-public class MappingTemplateGeneratorTests extends ESTestCase {
+public class TemplateGeneratorTests extends ESTestCase {
     public void testSanity() {
         var specification = DataGeneratorSpecification.buildDefault();
-        var generator = new MappingTemplateGenerator(specification);
+        var generator = new TemplateGenerator(specification);
 
         var template = generator.generate();
-        validateMappingTemplate(template.mapping());
+        validateMappingTemplate(template.template());
     }
 
-    private void validateMappingTemplate(Map<String, MappingTemplate.Entry> template) {
+    private void validateMappingTemplate(Map<String, Template.Entry> template) {
         // Just a high level sanity check, can be more involved
         for (var entry : template.entrySet()) {
             assertNotNull(entry.getKey());
             assertFalse(entry.getKey().isEmpty());
             switch (entry.getValue()) {
-                case MappingTemplate.Entry.Leaf leaf -> {
+                case Template.Leaf leaf -> {
                     assertEquals(entry.getKey(), leaf.name());
                     assertNotNull(leaf.type());
                 }
-                case MappingTemplate.Entry.Object object -> {
+                case Template.Object object -> {
                     assertEquals(entry.getKey(), object.name());
                     assertNotNull(object.children());
                     validateMappingTemplate(object.children());

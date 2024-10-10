@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
@@ -61,21 +60,10 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-        Supplier<DataSourceResponse.FieldTypeGenerator.FieldTypeInfo> generator = switch (request.dynamicMapping()) {
-            case FORBIDDEN -> () -> generateFieldTypeInfo(false);
-            case FORCED -> () -> generateFieldTypeInfo(true);
-            case SUPPORTED -> () -> generateFieldTypeInfo(ESTestCase.randomBoolean());
-        };
 
-        return new DataSourceResponse.FieldTypeGenerator(generator);
-    }
-
-    private static DataSourceResponse.FieldTypeGenerator.FieldTypeInfo generateFieldTypeInfo(boolean isDynamic) {
-        var excluded = isDynamic ? EXCLUDED_FROM_DYNAMIC_MAPPING : Set.of();
-
-        var fieldType = ESTestCase.randomValueOtherThanMany(excluded::contains, () -> ESTestCase.randomFrom(FieldType.values()));
-
-        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, isDynamic);
+        return new DataSourceResponse.FieldTypeGenerator(
+            () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(FieldType.values()))
+        );
     }
 
     @Override

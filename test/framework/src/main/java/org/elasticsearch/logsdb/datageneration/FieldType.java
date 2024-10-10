@@ -45,20 +45,19 @@ public enum FieldType {
 
     public FieldDataGenerator generator(
         String fieldName,
-        DataSource dataSource,
-        DataSourceResponse.LeafMappingParametersGenerator mappingParametersGenerator
+        DataSource dataSource
     ) {
         return switch (this) {
-            case KEYWORD -> new KeywordFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case LONG -> new LongFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case UNSIGNED_LONG -> new UnsignedLongFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case INTEGER -> new IntegerFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case SHORT -> new ShortFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case BYTE -> new ByteFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case DOUBLE -> new DoubleFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case FLOAT -> new FloatFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case HALF_FLOAT -> new HalfFloatFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
-            case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
+            case KEYWORD -> new KeywordFieldDataGenerator(fieldName, dataSource);
+            case LONG -> new LongFieldDataGenerator(fieldName, dataSource);
+            case UNSIGNED_LONG -> new UnsignedLongFieldDataGenerator(fieldName, dataSource);
+            case INTEGER -> new IntegerFieldDataGenerator(fieldName, dataSource);
+            case SHORT -> new ShortFieldDataGenerator(fieldName, dataSource);
+            case BYTE -> new ByteFieldDataGenerator(fieldName, dataSource);
+            case DOUBLE -> new DoubleFieldDataGenerator(fieldName, dataSource);
+            case FLOAT -> new FloatFieldDataGenerator(fieldName, dataSource);
+            case HALF_FLOAT -> new HalfFloatFieldDataGenerator(fieldName, dataSource);
+            case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(fieldName, dataSource);
         };
     }
 

@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 public class MappingGenerator {
     private final DataGeneratorSpecification specification;
@@ -30,42 +31,44 @@ public class MappingGenerator {
         this.dynamicMappingGenerator = specification.dataSource().get(new DataSourceRequest.DynamicMappingGenerator());
     }
 
-    public Mapping generate(MappingTemplate template, Object someKindOfConfig) {
-        var lookup = new HashMap<String, Map<String, Object>>();
+    public Mapping generate(Template template, Object someKindOfConfig) {
+        var lookup = new TreeMap<String, Map<String, Object>>();
 
         // Top level mapping parameters
         var mappingParametersGenerator = specification.dataSource()
             .get(new DataSourceRequest.ObjectMappingParametersGenerator(true, false, ObjectMapper.Subobjects.ENABLED))
             .mappingGenerator();
 
-        var mappingParameters = mappingParametersGenerator.get();
+        var topLevelMappingParameters = mappingParametersGenerator.get();
         // Top-level object can't be disabled because @timestamp is a required field in data streams.
-        mappingParameters.remove("enabled");
+        topLevelMappingParameters.remove("enabled");
 
-        var rawMapping = new HashMap<>(mappingParameters);
+        var rawMapping = new TreeMap<String, Object>();
 
-        var childrenMapping = new HashMap<String, Object>();
+        var childrenMapping = new TreeMap<String, Object>();
         for (var predefinedField : specification.predefinedFields()) {
             if (predefinedField.mapping() != null) {
                 childrenMapping.put(predefinedField.name(), predefinedField.mapping());
                 lookup.put(predefinedField.name(), predefinedField.mapping());
             }
         }
-        rawMapping.put("properties", childrenMapping);
+        topLevelMappingParameters.put("properties", childrenMapping);
+
+        rawMapping.put("_doc", topLevelMappingParameters);
 
         if (specification.fullyDynamicMapping()) {
             // Has to be "true" for fully dynamic mapping
-            rawMapping.remove("dynamic");
+            topLevelMappingParameters.remove("dynamic");
 
             return new Mapping(rawMapping, lookup);
         }
 
-        var dynamicMapping = mappingParameters.getOrDefault("dynamic", "true").equals("strict")
+        var dynamicMapping = topLevelMappingParameters.getOrDefault("dynamic", "true").equals("strict")
             ? DynamicMapping.FORBIDDEN
             : DynamicMapping.SUPPORTED;
-        var subobjects = ObjectMapper.Subobjects.from(mappingParameters.getOrDefault("subobjects", "true"));
+        var subobjects = ObjectMapper.Subobjects.from(topLevelMappingParameters.getOrDefault("subobjects", "true"));
 
-        generateMapping(childrenMapping, lookup, template.mapping(), new Context(new HashSet<>(), "", subobjects, dynamicMapping));
+        generateMapping(childrenMapping, lookup, template.template(), new Context(new HashSet<>(), "", subobjects, dynamicMapping));
 
         return new Mapping(rawMapping, lookup);
     }
@@ -73,16 +76,16 @@ public class MappingGenerator {
     private void generateMapping(
         Map<String, Object> mapping,
         Map<String, Map<String, Object>> lookup,
-        Map<String, MappingTemplate.Entry> mappingTemplate,
+        Map<String, Template.Entry> template,
         Context context
     ) {
-        for (var entry : mappingTemplate.entrySet()) {
+        for (var entry : template.entrySet()) {
             String fieldName = entry.getKey();
-            MappingTemplate.Entry templateEntry = entry.getValue();
+            Template.Entry templateEntry = entry.getValue();
 
-            var mappingParameters = new HashMap<String, Object>();
+            var mappingParameters = new TreeMap<String, Object>();
 
-            if (templateEntry instanceof MappingTemplate.Entry.Leaf leaf) {
+            if (templateEntry instanceof Template.Leaf leaf) {
                 // For simplicity we only copy to keyword fields, synthetic source logic to handle copy_to is generic.
                 if (leaf.type() == FieldType.KEYWORD) {
                     context.addCopyToCandidate(fieldName);
@@ -110,7 +113,7 @@ public class MappingGenerator {
                 mappingParameters.put("type", leaf.type().toString());
                 mappingParameters.putAll(mappingParametersGenerator.get());
 
-            } else if (templateEntry instanceof MappingTemplate.Entry.Object object) {
+            } else if (templateEntry instanceof Template.Object object) {
                 boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN
                     && dynamicMappingGenerator.generator().apply(true);
                 // Simply skip this field if it is dynamic.
@@ -126,7 +129,7 @@ public class MappingGenerator {
                 mappingParameters.put("type", object.nested() ? "nested" : "object");
                 mappingParameters.putAll(mappingParametersGenerator.get());
 
-                var childrenMapping = new HashMap<String, Object>();
+                var childrenMapping = new TreeMap<String, Object>();
                 mappingParameters.put("properties", childrenMapping);
                 generateMapping(
                     childrenMapping,

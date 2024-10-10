@@ -93,7 +93,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record FieldTypeGenerator(DynamicMapping dynamicMapping) implements DataSourceRequest<DataSourceResponse.FieldTypeGenerator> {
+    record FieldTypeGenerator() implements DataSourceRequest<DataSourceResponse.FieldTypeGenerator> {
         public DataSourceResponse.FieldTypeGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
         }

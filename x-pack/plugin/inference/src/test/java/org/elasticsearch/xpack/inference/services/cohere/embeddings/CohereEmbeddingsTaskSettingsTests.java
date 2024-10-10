@@ -42,7 +42,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var randomSettings = createRandom();
         var stringRep = Strings.toString(randomSettings);
         assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
-	}
+    }
 
     public void testUpdatedTaskSettings() {
         var initialSettings = createRandom();

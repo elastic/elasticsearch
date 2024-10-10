@@ -190,7 +190,7 @@ class BulkPrimaryExecutionContext {
     }
 
     public void resetForMappingUpdateRetry() {
-        assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
+        assert assertInvariants(ItemProcessingState.EXECUTED, ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         resetForExecutionRetry();
     }
 

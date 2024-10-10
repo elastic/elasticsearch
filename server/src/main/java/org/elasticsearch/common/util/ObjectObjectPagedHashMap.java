@@ -191,6 +191,8 @@ public final class ObjectObjectPagedHashMap<K, V> extends AbstractPagedHashMap i
     }
 
     private void reset(K key, V value) {
+        final ObjectArray<V> values = this.values;
+        final long mask = this.mask;
         final long slot = slot(key.hashCode(), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final V previous = values.get(index);

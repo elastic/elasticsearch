@@ -183,6 +183,8 @@ public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implem
     }
 
     private void reset(long key, T value) {
+        final ObjectArray<T> values = this.values;
+        final long mask = this.mask;
         for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
             final T previous = values.get(i);
             if (previous == null) {

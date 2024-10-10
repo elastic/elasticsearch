@@ -117,7 +117,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             setLoggingLevel("INFO");
             RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_NOT_LOG_ME = 1");
             Map<String, Object> result = runEsql(builder);
-            assertEquals(2, result.size());
+            assertEquals(3, result.size());
+            assertThat(((Integer) result.get("took")).intValue(), greaterThanOrEqualTo(0));
             Map<String, String> colA = Map.of("name", "DO_NOT_LOG_ME", "type", "integer");
             assertEquals(List.of(colA), result.get("columns"));
             assertEquals(List.of(List.of(1)), result.get("values"));
@@ -136,7 +137,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             setLoggingLevel("DEBUG");
             RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_LOG_ME = 1");
             Map<String, Object> result = runEsql(builder);
-            assertEquals(2, result.size());
+            assertEquals(3, result.size());
+            assertThat(((Integer) result.get("took")).intValue(), greaterThanOrEqualTo(0));
             Map<String, String> colA = Map.of("name", "DO_LOG_ME", "type", "integer");
             assertEquals(List.of(colA), result.get("columns"));
             assertEquals(List.of(List.of(1)), result.get("values"));

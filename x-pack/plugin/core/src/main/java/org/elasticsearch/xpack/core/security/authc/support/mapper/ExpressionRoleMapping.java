@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -68,6 +69,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         PARSER.declareField(Builder::rules, ExpressionParser::parseObject, Fields.RULES, ValueType.OBJECT);
         PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ValueType.OBJECT);
         PARSER.declareBoolean(Builder::enabled, Fields.ENABLED);
+        PARSER.declareString(Builder::name, Fields.NAME);
         BiConsumer<Builder, String> ignored = (b, v) -> {};
         // skip the doc_type and type fields in case we're parsing directly from the index
         PARSER.declareString(ignored, new ParseField(NativeRoleMappingStoreField.DOC_TYPE_FIELD));
@@ -247,7 +249,11 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public static ExpressionRoleMapping parse(String name, XContentParser parser) throws IOException {
         try {
             final Builder builder = PARSER.parse(parser, name);
-            return builder.build(name);
+            if (builder.name == null) {
+                return builder.build("name_not_available_after_deserialization");
+            } else {
+                return builder.build();
+            }
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
@@ -264,6 +270,14 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean indexFormat) throws IOException {
         builder.startObject();
+        return toXContent(builder, params, indexFormat, null).endObject();
+    }
+
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean indexFormat, @Nullable String name)
+        throws IOException {
+        if (name != null) {
+            builder.field(Fields.NAME.getPreferredName(), name);
+        }
         builder.field(Fields.ENABLED.getPreferredName(), enabled);
         if (roles.isEmpty() == false) {
             builder.startArray(Fields.ROLES.getPreferredName());
@@ -287,7 +301,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         if (indexFormat) {
             builder.field(NativeRoleMappingStoreField.DOC_TYPE_FIELD, NativeRoleMappingStoreField.DOC_TYPE_ROLE_MAPPING);
         }
-        return builder.endObject();
+        return builder;
     }
 
     public Set<String> getRoleNames(ScriptService scriptService, ExpressionModel model) {
@@ -299,11 +313,17 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * Used to facilitate the use of {@link ObjectParser} (via {@link #PARSER}).
      */
     private static class Builder {
+        private String name;
         private RoleMapperExpression rules;
         private List<String> roles;
         private List<TemplateRoleName> roleTemplates;
         private Map<String, Object> metadata = Collections.emptyMap();
         private Boolean enabled;
+
+        Builder name(String name) {
+            this.name = name;
+            return this;
+        }
 
         Builder rules(RoleMapperExpression expression) {
             this.rules = expression;
@@ -330,6 +350,10 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return this;
         }
 
+        private ExpressionRoleMapping build() {
+            return build(name);
+        }
+
         private ExpressionRoleMapping build(String name) {
             if (roles == null && roleTemplates == null) {
                 throw missingField(name, Fields.ROLES);
@@ -349,6 +373,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     }
 
     public interface Fields {
+        ParseField NAME = new ParseField("name");
         ParseField ROLES = new ParseField("roles");
         ParseField ROLE_TEMPLATES = new ParseField("role_templates");
         ParseField ENABLED = new ParseField("enabled");

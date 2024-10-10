@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.reservedstate;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,6 +22,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests that the ReservedRoleMappingAction does validation, can add and remove role mappings
@@ -37,7 +39,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     public void testValidation() {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedRoleMappingAction action = new ReservedRoleMappingAction();
+        ReservedRoleMappingAction action = new ReservedRoleMappingAction(mock(FeatureService.class));
         String badPolicyJSON = """
             {
                "everyone_kibana": {
@@ -66,7 +68,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     public void testAddRemoveRoleMapping() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedRoleMappingAction action = new ReservedRoleMappingAction();
+        ReservedRoleMappingAction action = new ReservedRoleMappingAction(mock(FeatureService.class));
         String emptyJSON = "";
 
         TransformState updatedState = processJSON(action, prevState, emptyJSON);

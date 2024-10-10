@@ -46,12 +46,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     );
 
     static {
-        PARSER.declareObjectArray(
-            constructorArg(),
-            // role mapping names are lost when the role mapping metadata is serialized
-            (p, c) -> ExpressionRoleMapping.parse("name_not_available_after_deserialization", p),
-            new ParseField(TYPE)
-        );
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> ExpressionRoleMapping.parse(null, p), new ParseField(TYPE));
     }
 
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
@@ -61,13 +56,20 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     }
 
     private final Set<ExpressionRoleMapping> roleMappings;
+    private final boolean xContentNameSupported;
 
     public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings) {
+        this(roleMappings, true);
+    }
+
+    public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings, boolean xContentNameSupported) {
         this.roleMappings = roleMappings;
+        this.xContentNameSupported = xContentNameSupported;
     }
 
     public RoleMappingMetadata(StreamInput input) throws IOException {
         this.roleMappings = input.readCollectionAsSet(ExpressionRoleMapping::new);
+        this.xContentNameSupported = input.readBoolean();
     }
 
     public Set<ExpressionRoleMapping> getRoleMappings() {
@@ -94,7 +96,20 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // role mappings are serialized without their names
-        return Iterators.concat(ChunkedToXContentHelper.startArray(TYPE), roleMappings.iterator(), ChunkedToXContentHelper.endArray());
+        return Iterators.concat(ChunkedToXContentHelper.startArray(TYPE), innerToXContent(), ChunkedToXContentHelper.endArray());
+    }
+
+    private Iterator<? extends ToXContent> innerToXContent() {
+        return roleMappings.stream()
+            .map(
+                roleMapping -> (ToXContent) (builder, params) -> roleMapping.toXContent(
+                    builder,
+                    params,
+                    false,
+                    xContentNameSupported ? roleMapping.getName() : null
+                )
+            )
+            .iterator();
     }
 
     public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {
@@ -114,6 +129,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(roleMappings);
+        out.writeBoolean(xContentNameSupported);
     }
 
     @Override

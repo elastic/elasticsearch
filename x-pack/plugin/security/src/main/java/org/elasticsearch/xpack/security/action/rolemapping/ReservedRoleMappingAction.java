@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.action.rolemapping;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLE_MAPPING_NAME_FIELD;
 
 /**
  * This Action is the reserved state save version of RestPutRoleMappingAction/RestDeleteRoleMappingAction
@@ -34,6 +36,11 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  */
 public class ReservedRoleMappingAction implements ReservedClusterStateHandler<List<PutRoleMappingRequest>> {
     public static final String NAME = "role_mappings";
+    private final FeatureService featureService;
+
+    public ReservedRoleMappingAction(FeatureService featureService) {
+        this.featureService = featureService;
+    }
 
     @Override
     public String name() {
@@ -44,7 +51,12 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     public TransformState transform(Object source, TransformState prevState) throws Exception {
         @SuppressWarnings("unchecked")
         Set<ExpressionRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
-        RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings);
+        // RoleMappingMetadata is written to cluster state, so make sure all nodes can parse the new format (with name), if they
+        // can't, write the old format (exclude name)
+        RoleMappingMetadata newRoleMappingMetadata = featureService.clusterHasFeature(prevState.state(), SECURITY_ROLE_MAPPING_NAME_FIELD)
+            ? new RoleMappingMetadata(roleMappings)
+            : new RoleMappingMetadata(roleMappings, false);
+
         if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromClusterState(prevState.state()))) {
             return prevState;
         } else {

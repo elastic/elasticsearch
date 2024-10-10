@@ -67,10 +67,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                 return r;
             });
 
-            LogicalPlan optimized = maybePushDownPastUnary(filterWithResolvedRenames, eval, evalAliases::containsKey);
-            if (optimized != filterWithResolvedRenames) {
-                plan = optimized;
-            }
+            plan = maybePushDownPastUnary(filterWithResolvedRenames, eval, evalAliases::containsKey);
         } else if (child instanceof RegexExtract re) {
             // Push down filters that do not rely on attributes created by RegexExtract
             var attributes = new AttributeSet(Expressions.asAttributes(re.extractedFields()));

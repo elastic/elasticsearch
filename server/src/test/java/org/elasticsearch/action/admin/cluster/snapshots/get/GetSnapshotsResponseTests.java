@@ -37,8 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.CoreMatchers.containsString;
-
 public class GetSnapshotsResponseTests extends ESTestCase {
     // We can not subclass AbstractSerializingTestCase because it
     // can only be used for instances with equals and hashCode
@@ -60,12 +58,6 @@ public class GetSnapshotsResponseTests extends ESTestCase {
     private void assertEqualInstances(GetSnapshotsResponse expectedInstance, GetSnapshotsResponse newInstance) {
         assertEquals(expectedInstance.getSnapshots(), newInstance.getSnapshots());
         assertEquals(expectedInstance.next(), newInstance.next());
-        assertEquals(expectedInstance.getFailures().keySet(), newInstance.getFailures().keySet());
-        for (Map.Entry<String, ElasticsearchException> expectedEntry : expectedInstance.getFailures().entrySet()) {
-            ElasticsearchException expectedException = expectedEntry.getValue();
-            ElasticsearchException newException = newInstance.getFailures().get(expectedEntry.getKey());
-            assertThat(newException.getMessage(), containsString(expectedException.getMessage()));
-        }
     }
 
     private List<SnapshotInfo> createSnapshotInfos(String repoName) {

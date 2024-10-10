@@ -17,12 +17,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -34,9 +32,6 @@ import java.util.Objects;
 public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final List<SnapshotInfo> snapshots;
-
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // always empty, can be dropped
-    private final Map<String, ElasticsearchException> failures;
 
     @Nullable
     private final String next;
@@ -53,7 +48,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
         final int remaining
     ) {
         this.snapshots = List.copyOf(snapshots);
-        this.failures = failures == null ? Map.of() : Map.copyOf(failures);
         this.next = next;
         this.total = total;
         this.remaining = remaining;
@@ -61,7 +55,8 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         this.snapshots = in.readCollectionAsImmutableList(SnapshotInfo::readFrom);
-        this.failures = Collections.unmodifiableMap(in.readMap(StreamInput::readException));
+        // TODO Skip when we have V9 in TransportVersions
+        in.readMap(StreamInput::readException);
         this.next = in.readOptionalString();
         this.total = in.readVInt();
         this.remaining = in.readVInt();
@@ -76,23 +71,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
         return snapshots;
     }
 
-    /**
-     * Returns a map of repository name to {@link ElasticsearchException} for each unsuccessful response.
-     */
-    public Map<String, ElasticsearchException> getFailures() {
-        return failures;
-    }
-
     @Nullable
     public String next() {
         return next;
-    }
-
-    /**
-     * Returns true if there is at least one failed response.
-     */
-    public boolean isFailed() {
-        return failures.isEmpty() == false;
     }
 
     public int totalCount() {
@@ -106,7 +87,8 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(snapshots);
-        out.writeMap(failures, StreamOutput::writeException);
+        // TODO Skip when we have V9 in TransportVersions
+        out.writeMap(Map.of(), StreamOutput::writeException);
         out.writeOptionalString(next);
         out.writeVInt(total);
         out.writeVInt(remaining);
@@ -120,18 +102,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
             return b;
         }), Iterators.map(getSnapshots().iterator(), snapshotInfo -> snapshotInfo::toXContentExternal), Iterators.single((b, p) -> {
             b.endArray();
-            if (failures.isEmpty() == false) {
-                b.startObject("failures");
-                for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
-                    b.field(error.getKey(), (bb, pa) -> {
-                        bb.startObject();
-                        error.getValue().toXContent(bb, pa);
-                        bb.endObject();
-                        return bb;
-                    });
-                }
-                b.endObject();
-            }
             if (next != null) {
                 b.field("next", next);
             }
@@ -151,12 +121,12 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSnapshotsResponse that = (GetSnapshotsResponse) o;
-        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures) && Objects.equals(next, that.next);
+        return Objects.equals(snapshots, that.snapshots) && Objects.equals(next, that.next);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshots, failures, next);
+        return Objects.hash(snapshots, next);
     }
 
     @Override

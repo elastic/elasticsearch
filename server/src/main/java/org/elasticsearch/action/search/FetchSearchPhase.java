@@ -254,12 +254,11 @@ final class FetchSearchPhase extends SearchPhase {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        var coordinatorProfiler = context.profiler();
         var resp = SearchPhaseController.merge(
             context.getRequest().scroll() != null,
             reducedQueryPhase,
             fetchResultsArr,
-            coordinatorProfiler
+            context.profiler()
         );
         context.addReleasable(resp::decRef);
         fetchResults.close();

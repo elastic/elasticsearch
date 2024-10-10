@@ -31,7 +31,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         mockClient,
         "my-inference-id",
         "some query",
-        0.0f
+        0.0f,
+        null
     );
 
     public void testComputeScores() {

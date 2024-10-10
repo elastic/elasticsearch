@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
@@ -107,7 +108,12 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * on the coordinator based on all the individual shard results. The output of this will be a `size` ranked list of ordered results,
      * which will then be passed to fetch phase.
      */
-    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client);
+    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+        int size,
+        int from,
+        Client client,
+        SearchCoordinatorProfiler profiler
+    );
 
     @Override
     public final boolean equals(Object obj) {

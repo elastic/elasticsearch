@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileCoordinatorResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -447,12 +448,15 @@ public enum SearchResponseUtils {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
+        SearchProfileCoordinatorResult coordinatorResults = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_ARRAY) {
                 if (SearchProfileResults.SHARDS_FIELD.equals(parser.currentName())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseProfileResultsEntry(parser, profileResults);
                     }
+                } else if (SearchProfileResults.COORDINATOR_FIELD.equals(parser.currentName())) {
+                    coordinatorResults = parseCoordinatorProfileResults(parser);
                 } else {
                     parser.skipChildren();
                 }
@@ -460,7 +464,7 @@ public enum SearchResponseUtils {
                 parser.skipChildren();
             }
         }
-        return new SearchProfileResults(profileResults);
+        return new SearchProfileResults(profileResults, coordinatorResults);
     }
 
     private static void parseProfileResultsEntry(XContentParser parser, Map<String, SearchProfileShardResult> searchProfileResults)
@@ -510,6 +514,10 @@ public enum SearchResponseUtils {
         );
         result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
         searchProfileResults.put(id, result);
+    }
+
+    private static SearchProfileCoordinatorResult parseCoordinatorProfileResults(XContentParser parser) {
+        return null;
     }
 
     private static final InstantiatingObjectParser<SearchProfileDfsPhaseResult, Void> PROFILE_DFS_PHASE_RESULT_PARSER;

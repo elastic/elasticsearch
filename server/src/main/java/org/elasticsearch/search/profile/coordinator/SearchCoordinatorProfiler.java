@@ -12,7 +12,6 @@ package org.elasticsearch.search.profile.coordinator;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.SearchProfileCoordinatorResult;
 
-
 public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCoordinatorTimingType> {
 
     private final String nodeId;
@@ -24,10 +23,17 @@ public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCo
     }
 
     public void captureInnerRetrieverResult(RetrieverProfileResult profileResult) {
-        if(retriever == null){
+        if (retriever == null) {
             throw new IllegalArgumentException("parent [retriever] results have not been initialized");
         }
         retriever.addChild(profileResult);
+    }
+
+    public void captureRetrieverTookInMillis(long tookInMillis) {
+        if (retriever == null) {
+            throw new IllegalArgumentException("parent [retriever] results have not been initialized");
+        }
+        retriever.setTookInMillis(tookInMillis);
     }
 
     public void retriever(RetrieverProfileResult retriever) {
@@ -46,9 +52,6 @@ public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCo
     }
 
     public SearchProfileCoordinatorResult build() {
-        return new SearchProfileCoordinatorResult(
-            nodeId,
-            retriever
-        );
+        return new SearchProfileCoordinatorResult(nodeId, retriever);
     }
 }

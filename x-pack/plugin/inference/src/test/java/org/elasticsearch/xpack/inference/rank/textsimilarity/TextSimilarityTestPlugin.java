@@ -28,6 +28,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankShardResult;
@@ -292,7 +293,12 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+            int size,
+            int from,
+            Client client,
+            SearchCoordinatorProfiler profiler
+        ) {
             if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
                 return new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
                     size,
@@ -301,7 +307,8 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     client,
                     inferenceId,
                     inferenceText,
-                    minScore
+                    minScore,
+                    profiler
                 ) {
                     @Override
                     protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -318,7 +325,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     }
                 };
             else {
-                return super.buildRankFeaturePhaseCoordinatorContext(size, from, client);
+                return super.buildRankFeaturePhaseCoordinatorContext(size, from, client, profiler);
             }
         }
 

@@ -22,14 +22,12 @@ import java.util.Map;
 public class RetrieverProfileResult implements ToXContentObject, Writeable {
 
     private final String name;
-    private final String nodeId;
-    private final long tookInMillis;
+    private long tookInMillis;
     private final Map<String, Long> breakdownMap;
     private final List<RetrieverProfileResult> children;
 
-    public RetrieverProfileResult(String name, String nodeId, long tookInMillis, Map<String, Long> breakdownMap, List<RetrieverProfileResult> children) {
+    public RetrieverProfileResult(String name, long tookInMillis, Map<String, Long> breakdownMap, List<RetrieverProfileResult> children) {
         this.name = name;
-        this.nodeId = nodeId;
         this.tookInMillis = tookInMillis;
         this.breakdownMap = breakdownMap;
         this.children = children;
@@ -37,7 +35,6 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
 
     public RetrieverProfileResult(StreamInput in) throws IOException {
         name = in.readString();
-        nodeId = in.readString();
         tookInMillis = in.readLong();
         breakdownMap = in.readMap(StreamInput::readString, StreamInput::readLong);
         children = in.readCollectionAsList(RetrieverProfileResult::new);
@@ -46,7 +43,6 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(nodeId);
         out.writeLong(tookInMillis);
         out.writeMap(breakdownMap, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeCollection(children);
@@ -56,9 +52,6 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(name);
-        if (nodeId != null) {
-            builder.field("node_id", nodeId);
-        }
         if (tookInMillis != -1) {
             builder.field("took_in_millis", tookInMillis);
         }
@@ -84,5 +77,13 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
     public void addChild(RetrieverProfileResult profileResult) {
         assert profileResult != null;
         children.add(profileResult);
+    }
+
+    public Map<String, Long> getBreakdownMap() {
+        return breakdownMap;
+    }
+
+    public void setTookInMillis(long tookInMillis) {
+        this.tookInMillis = tookInMillis;
     }
 }

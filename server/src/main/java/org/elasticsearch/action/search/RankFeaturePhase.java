@@ -125,7 +125,7 @@ public class RankFeaturePhase extends SearchPhase {
     private RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source) {
         return source == null || source.rankBuilder() == null
             ? null
-            : source.rankBuilder().buildRankFeaturePhaseCoordinatorContext(source.size(), source.from(), client);
+            : source.rankBuilder().buildRankFeaturePhaseCoordinatorContext(source.size(), source.from(), client, context.profiler());
     }
 
     private void executeRankFeatureShardPhase(

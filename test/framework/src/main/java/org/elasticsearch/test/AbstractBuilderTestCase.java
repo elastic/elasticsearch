@@ -620,6 +620,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 scriptService,
                 createMockResolvedIndices(),
+                null,
                 null
             );
         }

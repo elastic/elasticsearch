@@ -48,7 +48,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
                 new Suggest(Collections.emptyList()),
                 false,
                 false,
-                new SearchProfileResults(Collections.emptyMap()),
+                new SearchProfileResults(Collections.emptyMap(), null),
                 1,
                 "",
                 1,

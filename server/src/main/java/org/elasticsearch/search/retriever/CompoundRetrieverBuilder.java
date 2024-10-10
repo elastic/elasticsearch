@@ -88,7 +88,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         final SearchCoordinatorProfiler profiler = ctx.profiler();
         Timer rewriteTimer = null;
         if (profiler != null) {
-            profiler.retriever(getName());
+            profiler.retriever(new RetrieverProfileResult(this.getName(), -1, null, null));
             rewriteTimer = profiler.getNewTimer(SearchCoordinatorTimingType.RETRIEVER_REWRITE);
             rewriteTimer.start();
         }
@@ -144,20 +144,23 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                                 innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
                                 topDocs.add(rankDocs);
                                 if (profiler != null) {
+                                    if (item.getResponse().getCoordinatorProfileResults() == null) {
+                                        // should we throw or just ignore? we know we asked for profiling so this is unexpected
+                                        listener.onFailure(new IllegalStateException("Coordinator profile results are missing"));
+                                    }
                                     RetrieverProfileResult profileResult = new RetrieverProfileResult(
                                         innerRetrievers.get(i).retriever().getName(),
-                                        null,
                                         item.getResponse().getTookInMillis(),
-                                        null,
-                                        item.getResponse().getCoordinatorProfileResults() == null
-                                            ? null
-                                            : item.getResponse().getCoordinatorProfileResults().getRetrieverProfileResult().getChildren()
+                                        item.getResponse().getCoordinatorProfileResults().getRetrieverProfileResult().getBreakdownMap(),
+                                        item.getResponse().getCoordinatorProfileResults().getRetrieverProfileResult().getChildren()
                                     );
                                     profiler.captureInnerRetrieverResult(profileResult);
                                 }
                             }
                         }
-                        profiler.captureTook(items.getTook().millis());
+                        if (profiler != null) {
+                            profiler.captureRetrieverTookInMillis(items.getTook().millis());
+                        }
                         if (false == failures.isEmpty()) {
                             IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
                             failures.forEach(ex::addSuppressed);
@@ -249,7 +252,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
 
         // apply the pre-filters
-        if (preFilterQueryBuilders.size() > 0) {
+        if (false == preFilterQueryBuilders.isEmpty()) {
             QueryBuilder query = sourceBuilder.query();
             BoolQueryBuilder newQuery = new BoolQueryBuilder();
             if (query != null) {

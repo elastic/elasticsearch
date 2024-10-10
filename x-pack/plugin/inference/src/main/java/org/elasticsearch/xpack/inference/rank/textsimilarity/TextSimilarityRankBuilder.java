@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -171,7 +172,12 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+        int size,
+        int from,
+        Client client,
+        SearchCoordinatorProfiler profiler
+    ) {
         return new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
             size,
             from,
@@ -179,7 +185,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             client,
             inferenceId,
             inferenceText,
-            minScore
+            minScore,
+            profiler
         );
     }
 

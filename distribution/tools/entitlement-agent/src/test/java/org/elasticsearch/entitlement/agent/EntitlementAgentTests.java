@@ -24,6 +24,10 @@ import org.junit.After;
  * to make sure it works with the entitlement granted and throws without it.
  * The only exception is {@link System#exit}, where we can't that it works without
  * terminating the JVM.
+ * <p>
+ * If you're trying to debug the instrumentation code, take a look at {@code InstrumenterTests}.
+ * That tests the bytecode portion without firing up an agent, which makes everything easier to troubleshoot.
+ * <p>
  * See {@code build.gradle} for how we set the command line arguments for this test.
  */
 @WithoutSecurityManager

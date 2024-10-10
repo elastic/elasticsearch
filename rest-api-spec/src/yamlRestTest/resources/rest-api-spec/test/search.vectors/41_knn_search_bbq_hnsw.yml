@@ -1,0 +1,160 @@
+setup:
+  - requires:
+      cluster_features: "mapper.vectors.bbq"
+      reason: 'kNN float to better-binary quantization is required'
+  - do:
+      indices.create:
+        index: bbq_hnsw
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_hnsw
+              another_vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_hnsw
+
+  - do:
+      index:
+        index: bbq_hnsw
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0, 230.0, 300.33, -34.8988, 15.555, -200.0]
+          another_vector: [115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0, 130.0, 115.0, -1.02, 15.555, -100.0]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_hnsw
+
+  - do:
+      index:
+        index: bbq_hnsw
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0, -0.5, 100.0, -13, 14.8, -156.0]
+          another_vector: [50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120, -0.5, 50.0, -1, 1, 120]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_hnsw
+
+  - do:
+      index:
+        index: bbq_hnsw
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0, 0.5, 111.3, -13.0, 14.8, -156.0]
+          another_vector: [11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0, -0.5, 11.0, 0, 12, 111.0]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_hnsw
+
+  - do:
+      indices.forcemerge:
+        index: bbq_hnsw
+        max_num_segments: 1
+---
+"Test knn search":
+  - do:
+      search:
+        index: bbq_hnsw
+        body:
+          knn:
+            field: vector
+            query_vector: [ 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0, -0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+
+  # Depending on how things are distributed, docs 2 and 3 might be swapped
+  # here we verify that are last hit is always the worst one
+  - match: { hits.hits.2._id: "1" }
+
+---
+"Test bad quantization parameters":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: bad_bbq_hnsw
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                element_type: byte
+                index: true
+                index_options:
+                  type: bbq_hnsw
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: bad_bbq_hnsw
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: false
+                index_options:
+                  type: bbq_hnsw
+---
+"Test few dimensions fail indexing":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: bad_bbq_hnsw
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 42
+                index: true
+                index_options:
+                  type: bbq_hnsw
+
+  - do:
+      indices.create:
+        index: dynamic_dim_bbq_hnsw
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_hnsw
+
+  - do:
+      catch: bad_request
+      index:
+        index: dynamic_dim_bbq_hnsw
+        body:
+          vector: [1.0, 2.0, 3.0, 4.0, 5.0]
+
+  - do:
+      index:
+        index: dynamic_dim_bbq_hnsw
+        body:
+          vector: [1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0]

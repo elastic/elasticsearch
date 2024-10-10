@@ -11,7 +11,7 @@ template:
           attributes:
             type: passthrough
             dynamic: true
-            priority: 30
+            priority: 40
             time_series_dimension: true
             properties:
               host.name:

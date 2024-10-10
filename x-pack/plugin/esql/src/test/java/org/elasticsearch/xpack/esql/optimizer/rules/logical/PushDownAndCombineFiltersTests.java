@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.ArrayList;
@@ -87,11 +88,35 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb));
     }
 
+    public void testPushDownFilterPastRenamingProject() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation(List.of(a, b));
+
+        Alias aRenamed = new Alias(EMPTY, "a_renamed", a);
+        Alias aRenamedTwice = new Alias(EMPTY, "a_renamed_twice", aRenamed.toAttribute());
+        Alias bRenamed = new Alias(EMPTY, "b_renamed", b);
+
+        Project project = new Project(EMPTY, relation, List.of(aRenamed, aRenamedTwice, bRenamed));
+
+        GreaterThan aRenamedTwiceGreaterThanOne = greaterThanOf(aRenamedTwice.toAttribute(), ONE);
+        LessThan bRenamedLessThanTwo = lessThanOf(bRenamed.toAttribute(), TWO);
+        Filter filter = new Filter(EMPTY, project, Predicates.combineAnd(List.of(aRenamedTwiceGreaterThanOne, bRenamedLessThanTwo)));
+
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter);
+
+        Project optimizedProject = as(optimized, Project.class);
+        assertEquals(optimizedProject.projections(), project.projections());
+        Filter optimizedFilter = as(optimizedProject.child(), Filter.class);
+        assertEquals(optimizedFilter.condition(), Predicates.combineAnd(List.of(greaterThanOf(a, ONE), lessThanOf(b, TWO))));
+        EsRelation optimizedRelation = as(optimizedFilter.child(), EsRelation.class);
+        assertEquals(optimizedRelation, relation);
+    }
+
     // ... | eval a_renamed = a, a_renamed_twice = a_renamed, a_squared = pow(a, 2)
     // | where a_renamed > 1 and a_renamed_twice < 2 and a_squared < 4
     // ->
     // ... | where a > 1 and a < 2 | eval a_renamed = a, a_renamed_twice = a_renamed, non_pushable = pow(a, 2) | where a_squared < 4
-    // TODO: Add cases for pushing down past RENAME (Project) while we're at it.
     public void testPushDownFilterOnAliasInEval() {
         FieldAttribute a = getFieldAttribute("a");
         FieldAttribute b = getFieldAttribute("b");

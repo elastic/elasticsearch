@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -183,7 +184,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata;
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
-        if (bulkRequest.isSimulated() && componentTemplateSubstitutions.isEmpty() == false) {
+        Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
+        if (bulkRequest.isSimulated()
+            && (componentTemplateSubstitutions.isEmpty() == false || indexTemplateSubstitutions.isEmpty() == false)) {
             /*
              * If this is a simulated request, and there are template substitutions, then we want to create and use a new metadata that has
              * those templates. That is, we want to add the new templates (which will replace any that already existed with the same name),
@@ -196,6 +199,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 updatedComponentTemplates.putAll(clusterService.state().metadata().componentTemplates());
                 updatedComponentTemplates.putAll(componentTemplateSubstitutions);
                 simulatedMetadataBuilder.componentTemplates(updatedComponentTemplates);
+            }
+            if (indexTemplateSubstitutions.isEmpty() == false) {
+                Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
+                updatedIndexTemplates.putAll(clusterService.state().metadata().templatesV2());
+                updatedIndexTemplates.putAll(indexTemplateSubstitutions);
+                simulatedMetadataBuilder.indexTemplates(updatedIndexTemplates);
             }
             /*
              * We now remove the index from the simulated metadata to force the templates to be used. Note that simulated requests are

@@ -41,7 +41,7 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
         super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
         private final String[] databaseIds;
 
         public Request(String... databaseIds) {

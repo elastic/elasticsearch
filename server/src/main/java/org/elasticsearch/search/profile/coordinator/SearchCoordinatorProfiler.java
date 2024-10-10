@@ -12,27 +12,28 @@ package org.elasticsearch.search.profile.coordinator;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.SearchProfileCoordinatorResult;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCoordinatorTimingType> {
 
     private final String nodeId;
-    private String retriever;
-    private long tookInMillis = -1;
-    List<RetrieverProfileResult> children = new ArrayList<>();
+    private RetrieverProfileResult retriever;
 
     public SearchCoordinatorProfiler(final String nodeId) {
         super(SearchCoordinatorTimingType.class);
         this.nodeId = nodeId;
     }
 
-    public void captureRetrieverResult(RetrieverProfileResult profileResult) {
-        children.add(profileResult);
+    public void captureInnerRetrieverResult(RetrieverProfileResult profileResult) {
+        if(retriever == null){
+            throw new IllegalArgumentException("parent [retriever] results have not been initialized");
+        }
+        retriever.addChild(profileResult);
     }
 
-    public void retriever(String retriever) {
+    public void retriever(RetrieverProfileResult retriever) {
+        if (this.retriever != null) {
+            throw new IllegalArgumentException("[retriever] results have already been set");
+        }
         this.retriever = retriever;
     }
 
@@ -40,29 +41,14 @@ public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCo
         return nodeId;
     }
 
-    public String getRetriever() {
+    public RetrieverProfileResult getRetriever() {
         return this.retriever;
     }
 
-    public List<RetrieverProfileResult> getRetrieverChildren() {
-        return children;
-    }
-
     public SearchProfileCoordinatorResult build() {
-        Map<String, Long> breakdownMap = toBreakdownMap();
         return new SearchProfileCoordinatorResult(
             nodeId,
-            new RetrieverProfileResult(
-                retriever,
-                nodeId,
-                tookInMillis,
-                breakdownMap.getOrDefault(SearchCoordinatorTimingType.RETRIEVER_REWRITE.toString(), -1L),
-                children.toArray(new RetrieverProfileResult[0])
-            )
+            retriever
         );
-    }
-
-    public void captureTook(long millis) {
-        tookInMillis = millis;
     }
 }

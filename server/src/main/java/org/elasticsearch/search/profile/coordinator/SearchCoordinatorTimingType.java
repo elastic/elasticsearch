@@ -11,5 +11,5 @@ package org.elasticsearch.search.profile.coordinator;
 
 public enum SearchCoordinatorTimingType {
     RETRIEVER_REWRITE,
-    RETRIEVER_SEARCH_TOOK_IN_MILLIS
+    INFERENCE_RERANK_TIME
 }

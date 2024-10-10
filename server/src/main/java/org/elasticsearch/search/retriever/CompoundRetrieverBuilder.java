@@ -148,12 +148,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                                         innerRetrievers.get(i).retriever().getName(),
                                         null,
                                         item.getResponse().getTookInMillis(),
-                                        -1,
+                                        null,
                                         item.getResponse().getCoordinatorProfileResults() == null
                                             ? null
                                             : item.getResponse().getCoordinatorProfileResults().getRetrieverProfileResult().getChildren()
                                     );
-                                    profiler.captureRetrieverResult(profileResult);
+                                    profiler.captureInnerRetrieverResult(profileResult);
                                 }
                             }
                         }

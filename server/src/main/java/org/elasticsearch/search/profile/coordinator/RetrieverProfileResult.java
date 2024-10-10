@@ -1,3 +1,12 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
 package org.elasticsearch.search.profile.coordinator;
 
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -7,20 +16,22 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class RetrieverProfileResult implements ToXContentObject, Writeable {
 
     private final String name;
     private final String nodeId;
     private final long tookInMillis;
-    private final long rewriteTime;
-    private final RetrieverProfileResult[] children;
+    private final Map<String, Long> breakdownMap;
+    private final List<RetrieverProfileResult> children;
 
-    public RetrieverProfileResult(String name, String nodeId, long tookInMillis, long rewriteTime, RetrieverProfileResult[] children) {
+    public RetrieverProfileResult(String name, String nodeId, long tookInMillis, Map<String, Long> breakdownMap, List<RetrieverProfileResult> children) {
         this.name = name;
         this.nodeId = nodeId;
         this.tookInMillis = tookInMillis;
-        this.rewriteTime = rewriteTime;
+        this.breakdownMap = breakdownMap;
         this.children = children;
     }
 
@@ -28,8 +39,8 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         name = in.readString();
         nodeId = in.readString();
         tookInMillis = in.readLong();
-        rewriteTime = in.readLong();
-        children = in.readArray(RetrieverProfileResult::new, RetrieverProfileResult[]::new);
+        breakdownMap = in.readMap(StreamInput::readString, StreamInput::readLong);
+        children = in.readCollectionAsList(RetrieverProfileResult::new);
     }
 
     @Override
@@ -37,8 +48,8 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         out.writeString(name);
         out.writeString(nodeId);
         out.writeLong(tookInMillis);
-        out.writeLong(rewriteTime);
-        out.writeArray(children);
+        out.writeMap(breakdownMap, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeCollection(children);
     }
 
     @Override
@@ -51,8 +62,8 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         if (tookInMillis != -1) {
             builder.field("took_in_millis", tookInMillis);
         }
-        if (rewriteTime != -1) {
-            builder.field("rewrite_time", rewriteTime);
+        if (breakdownMap != null) {
+            builder.field("breakdown", breakdownMap);
         }
         if (children != null) {
             builder.startArray("children");
@@ -66,7 +77,12 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         return builder;
     }
 
-    public RetrieverProfileResult[] getChildren() {
+    public List<RetrieverProfileResult> getChildren() {
         return children;
+    }
+
+    public void addChild(RetrieverProfileResult profileResult) {
+        assert profileResult != null;
+        children.add(profileResult);
     }
 }

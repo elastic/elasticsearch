@@ -5049,7 +5049,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * This test further shows that with a non-aliasing function, less gets pushed down.
+     * This test further shows that with a non-aliasing function, with the same name, less gets pushed down.
      * <code>
      * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10]]
      * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scale{r}#10,ASC,LAST]],5[INTEGER],0]
@@ -5078,11 +5078,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(physicalPlan("""
             FROM airports
             | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")),
-                   position = location::keyword, scale = 10 - scalerank
-            | WHERE distance < 500000 AND SUBSTRING(position, 1, 5) == "POINT" AND distance > 10000 AND scale > 3
-            | SORT distance ASC, scale ASC
+                   position = location::keyword, scalerank = 10 - scalerank
+            | WHERE distance < 500000 AND SUBSTRING(position, 1, 5) == "POINT" AND distance > 10000 AND scalerank > 3
+            | SORT distance ASC, scalerank ASC
             | LIMIT 5
-            | KEEP abbrev, name, location, country, city, scale
+            | KEEP abbrev, name, location, country, city, scalerank
             """, airports));
         System.out.println(optimized);
         var project = as(optimized, ProjectExec.class);
@@ -5090,7 +5090,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scale", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
         var topNChild = as(extract.child(), TopNExec.class);
@@ -5108,7 +5108,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aliasPosition = as(evalExec.fields().get(1), Alias.class);
         assertThat(aliasPosition.name(), is("position"));
         var aliasScale = as(evalExec.fields().get(2), Alias.class);
-        assertThat(aliasScale.name(), is("scale"));
+        assertThat(aliasScale.name(), is("scalerank"));
         extract = as(evalExec.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("location", "scalerank"));
         var source = source(extract.child());

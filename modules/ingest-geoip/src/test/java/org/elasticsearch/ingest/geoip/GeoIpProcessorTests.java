@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -85,6 +86,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCity() throws Exception {
         String ip = "8.8.8.8";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -119,6 +121,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNullValueWithIgnoreMissing() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -141,6 +144,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNonExistentWithIgnoreMissing() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -160,6 +164,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNullWithoutIgnoreMissing() {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -182,6 +187,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNonExistentWithoutIgnoreMissing() {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -202,6 +208,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCity_withIpV6() throws Exception {
         String ip = "2602:306:33d3:8000::3257:9652";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -242,6 +249,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCityWithMissingLocation() throws Exception {
         String ip = "80.231.5.0";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -270,6 +278,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCountry() throws Exception {
         String ip = "82.170.213.79";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -303,6 +312,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCountryWithMissingLocation() throws Exception {
         String ip = "80.231.5.0";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -331,6 +341,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testAsn() throws Exception {
         String ip = "82.171.64.0";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -362,6 +373,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testAnonymmousIp() throws Exception {
         String ip = "81.2.69.1";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -396,6 +408,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testConnectionType() throws Exception {
         String ip = "214.78.120.5";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -425,6 +438,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testDomain() throws Exception {
         String ip = "69.219.64.2";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -454,6 +468,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testEnterprise() throws Exception {
         String ip = "74.209.24.4";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -511,6 +526,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testIsp() throws Exception {
         String ip = "149.101.100.1";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -545,6 +561,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testAddressIsNotInTheDatabase() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -569,6 +586,7 @@ public class GeoIpProcessorTests extends ESTestCase {
      */
     public void testInvalid() {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -590,6 +608,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListAllValid() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -617,6 +636,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListPartiallyValid() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -644,6 +664,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListNoMatches() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -667,7 +688,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testListDatabaseReferenceCounting() throws Exception {
         AtomicBoolean closeCheck = new AtomicBoolean(false);
         var loader = loader("GeoLite2-City.mmdb", closeCheck);
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field", () -> {
+        GeoIpProcessor processor = new GeoIpProcessor(GEOIP_TYPE, randomAlphaOfLength(10), null, "source_field", () -> {
             loader.preLookup();
             return loader;
         }, () -> true, "target_field", ipDataLookupAll(Database.City), false, false, "filename");
@@ -692,6 +713,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListFirstOnly() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -717,6 +739,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListFirstOnlyNoMatches() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -739,6 +762,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testInvalidDatabase() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -762,6 +786,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNoDatabase() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -785,6 +810,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNoDatabase_ignoreMissing() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",

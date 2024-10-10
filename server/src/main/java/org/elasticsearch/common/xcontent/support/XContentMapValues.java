@@ -204,15 +204,55 @@ public class XContentMapValues {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * <p>
+     * For the provided path, return its current value in the xContent map and replace the first instance of the path with the provided
+     * new value. All subsequent instances of the path will be removed from the xContent map. The map will be modified in-place.
+     * If the path does not exist in the map, it will be added as a flat top-level entry with the provided new value.
+     * </p>
+     * <p>
+     * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
+     * can be returned.
+     * </p>
+     *
+     * @param path the value's path in the map.
+     * @param map the map to search and modify.
+     * @param newValue the new value to assign to the path.
+     *
+     * @return the value associated with the path in the map prior to replacement or 'null' if the path did not exist.
+     */
     public static Object insertValue(String path, Map<?, ?> map, Object newValue) {
+        return insertValue(path, map, newValue, null);
+    }
+
+    /**
+     * <p>
+     * For the provided path, return its current value in the xContent map and replace the first instance of the path with the provided
+     * new value. All subsequent instances of the path will be removed from the xContent map. The map will be modified in-place.
+     * If the path does not exist in the map, it will be added as a flat top-level entry with the provided new value.
+     * </p>
+     * <p>
+     * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
+     * can be returned.
+     * </p>
+     *
+     * @param path the value's path in the map.
+     * @param map the map to search and modify.
+     * @param newValue the new value to assign to the path.
+     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
+     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
+     *
+     * @return the value associated with the path in the map prior to replacement or 'null' if the path did not exist.
+     */
+    @SuppressWarnings("unchecked")
+    public static Object insertValue(String path, Map<?, ?> map, Object newValue, Object nullValue) {
         String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
             return null;
         }
 
         List<Object> extractedValues = new ArrayList<>();
-        extractAndInsertValue(pathElements, 0, map, null, true, newValue, extractedValues);
+        extractAndInsertValue(pathElements, 0, map, nullValue, true, newValue, extractedValues);
 
         if (extractedValues.isEmpty()) {
             // No values were extracted, meaning no value was replaced. Add the new value using a flat path to handle if subobjects: false

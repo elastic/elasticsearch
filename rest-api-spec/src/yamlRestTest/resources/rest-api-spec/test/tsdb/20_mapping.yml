@@ -493,12 +493,13 @@ stored source is supported:
   - match: { tsdb_index.mappings._source.mode: "stored" }
 
 ---
-disabled source is supported:
+disabled source is not supported:
   - requires:
       cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
-      reason: requires new validation logic
+      reason: requires new error message
 
   - do:
+      catch: bad_request
       indices.create:
         index: tsdb_index
         body:
@@ -523,11 +524,9 @@ disabled source is supported:
                         type: keyword
                         time_series_dimension: true
 
-  - do:
-      indices.get:
-        index: tsdb_index
-
-  - match: { tsdb_index.mappings._source.mode: "disabled" }
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
 
 ---
 source include/exclude:

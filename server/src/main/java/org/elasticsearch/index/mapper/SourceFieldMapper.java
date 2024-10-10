@@ -279,6 +279,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 indexMode,
                 enableRecoverySource
             );
+            if (indexMode != null) {
+                indexMode.validateSourceFieldMapper(sourceFieldMapper);
+            }
             return sourceFieldMapper;
         }
 

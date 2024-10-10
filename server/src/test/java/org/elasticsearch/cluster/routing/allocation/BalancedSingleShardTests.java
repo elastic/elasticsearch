@@ -258,7 +258,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         clusterState = ClusterStateCreationUtils.state(1, new String[] { "idx" }, randomIntBetween(2, 10));
         shardToRebalance = clusterState.routingTable().index("idx").shardsWithState(ShardRoutingState.STARTED).get(0);
         clusterState = addNodesToClusterState(clusterState, randomIntBetween(1, 10));
-        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 0.01f);
+        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 1.0f);
         for (NodeAllocationResult result : decision.getNodeDecisions()) {
             assertThat(result.getWeightRanking(), lessThan(decision.getCurrentNodeRanking()));
         }
@@ -285,7 +285,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             }
         }
         clusterState = addNodesToClusterState(clusterState, 1);
-        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 0.01f);
+        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 1.0f);
         for (NodeAllocationResult result : decision.getNodeDecisions()) {
             if (result.getWeightRanking() < decision.getCurrentNodeRanking()) {
                 // highest ranked node should not be any of the initial nodes
@@ -298,10 +298,6 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
                 assertTrue(nodesWithTwoShards.contains(result.getNode().getId()));
             }
         }
-
-        assertCriticalWarnings("""
-            ignoring value [0.01] for [cluster.routing.allocation.balance.threshold] since it is smaller than 1.0; setting \
-            [cluster.routing.allocation.balance.threshold] to a value smaller than 1.0 will be forbidden in a future release""");
     }
 
     private MoveDecision executeRebalanceFor(

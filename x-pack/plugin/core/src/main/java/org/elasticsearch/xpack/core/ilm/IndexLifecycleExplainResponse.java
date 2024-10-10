@@ -489,7 +489,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (managedByILM) {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
             if (indexCreationDate != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
                     INDEX_CREATION_DATE_FIELD.getPreferredName(),
                     indexCreationDate
@@ -500,26 +500,42 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 );
             }
             if (lifecycleDate != null) {
-                builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(),
+                    LIFECYCLE_DATE_FIELD.getPreferredName(),
+                    lifecycleDate
+                );
                 builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);
             }
             if (phaseTime != null) {
-                builder.timeField(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    PHASE_TIME_MILLIS_FIELD.getPreferredName(),
+                    PHASE_TIME_FIELD.getPreferredName(),
+                    phaseTime
+                );
             }
             if (action != null) {
                 builder.field(ACTION_FIELD.getPreferredName(), action);
             }
             if (actionTime != null) {
-                builder.timeField(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    ACTION_TIME_MILLIS_FIELD.getPreferredName(),
+                    ACTION_TIME_FIELD.getPreferredName(),
+                    actionTime
+                );
             }
             if (step != null) {
                 builder.field(STEP_FIELD.getPreferredName(), step);
             }
             if (stepTime != null) {
-                builder.timeField(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    STEP_TIME_MILLIS_FIELD.getPreferredName(),
+                    STEP_TIME_FIELD.getPreferredName(),
+                    stepTime
+                );
             }
             if (Strings.hasLength(failedStep)) {
                 builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);

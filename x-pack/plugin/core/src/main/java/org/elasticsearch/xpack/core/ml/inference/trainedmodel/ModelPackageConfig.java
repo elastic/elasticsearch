@@ -260,7 +260,11 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             builder.field(MINIMUM_VERSION.getPreferredName(), minimumVersion);
         }
         if (createTime != null) {
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+            builder.timestampFieldsFromUnixEpochMillis(
+                CREATE_TIME.getPreferredName(),
+                CREATE_TIME.getPreferredName() + "_string",
+                createTime.toEpochMilli()
+            );
         }
         if (size > 0) {
             builder.field(SIZE.getPreferredName(), size);

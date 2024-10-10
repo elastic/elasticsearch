@@ -180,7 +180,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                         builder.value(snapshot.getName());
                     }
                     builder.endArray();
-                    builder.timeField("start_time_millis", "start_time", entry.startTime);
+                    builder.timestampFieldsFromUnixEpochMillis("start_time_millis", "start_time", entry.startTime);
                     builder.field("repository_state_id", entry.repositoryStateId);
                     builder.field("state", entry.state);
                 }

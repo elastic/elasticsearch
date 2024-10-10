@@ -129,6 +129,11 @@ public class HeapAttackIT extends ESRestTestCase {
                 try {
                     resp = client().performRequest(fetch);
                 } catch (ResponseException e) {
+                    if (e.getResponse().getStatusLine().getStatusCode() == 403) {
+                        // This can happen because the security system hasn't yet booted. Give it some time.
+                        logger.error("polled for results got 403");
+                        continue;
+                    }
                     if (e.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.error("polled for results got 404");
                         continue;

@@ -526,3 +526,39 @@ create an index with logsdb index mode and disabled source:
 
   # NOTE: the `index.mapping.source.mode` is ignored since logsdb indices only supports synthetic source
   - match: { test_logsdb_index_mode.mappings._source.mode: synthetic }
+
+---
+modify final setting after index creation:
+  - do:
+      indices.create:
+        index: test_modify_setting
+        body:
+          settings:
+            index.mapping.source.mode: stored
+
+  - do:
+      catch: /.*Can't update non dynamic setting.*/
+      indices.put_settings:
+        index: test_modify_setting
+        body:
+          index.mapping.source.mode: synthetic
+
+---
+modify source mapping after index creation:
+  - do:
+      indices.create:
+        index: test_modify_source_mode
+        body:
+          settings:
+            index.mapping.source.mode: stored
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_modify_source_mode
+        body:
+          mappings:
+            _source: synthetic
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: Root mapping definition has unsupported parameters:  [mappings : {_source=synthetic}]" }

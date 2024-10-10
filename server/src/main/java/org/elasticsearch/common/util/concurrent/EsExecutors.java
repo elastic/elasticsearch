@@ -16,11 +16,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
@@ -41,6 +43,13 @@ public class EsExecutors {
 
     // although the available processors may technically change, for node sizing we use the number available at launch
     private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
+
+    private static final Set<String> SYSTEM_THREAD_PREFIXES = Set.of(
+        ThreadPool.Names.SYSTEM_READ,
+        ThreadPool.Names.SYSTEM_WRITE,
+        ThreadPool.Names.SYSTEM_CRITICAL_READ,
+        ThreadPool.Names.SYSTEM_CRITICAL_WRITE
+    );
 
     /**
      * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
@@ -325,17 +334,22 @@ public class EsExecutors {
         return executorName(thread.getName());
     }
 
-    public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
-        return daemonThreadFactory(threadName(settings, namePrefix));
+    public static ThreadFactory daemonThreadFactory(Settings settings, String executorName) {
+        return createDaemonThreadFactory(threadName(settings, executorName), executorName);
     }
 
-    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
+    public static ThreadFactory daemonThreadFactory(String nodeName, String executorName) {
         assert nodeName != null && false == nodeName.isEmpty();
-        return daemonThreadFactory(threadName(nodeName, namePrefix));
+        return createDaemonThreadFactory(threadName(nodeName, executorName), executorName);
     }
 
-    public static ThreadFactory daemonThreadFactory(String namePrefix) {
-        return new EsThreadFactory(namePrefix);
+    public static ThreadFactory daemonThreadFactory(String name) {
+        assert name != null && name.isEmpty() == false;
+        return createDaemonThreadFactory(name, null);
+    }
+
+    private static ThreadFactory createDaemonThreadFactory(String namePrefix, String executorName) {
+        return new EsThreadFactory(namePrefix, executorName);
     }
 
     static class EsThreadFactory implements ThreadFactory {
@@ -343,22 +357,36 @@ public class EsExecutors {
         final ThreadGroup group;
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
+        final boolean isSystem;
 
-        EsThreadFactory(String namePrefix) {
+        EsThreadFactory(String namePrefix, String executorName) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+            isSystem = executorName != null && SYSTEM_THREAD_PREFIXES.contains(executorName);
         }
 
         @Override
         public Thread newThread(Runnable r) {
             return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
-                Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
+                Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
                 t.setDaemon(true);
                 return t;
             });
         }
+    }
 
+    public static class EsThread extends Thread {
+        private final boolean isSystem;
+
+        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, boolean isSystem) {
+            super(group, target, name, stackSize);
+            this.isSystem = isSystem;
+        }
+
+        public boolean isSystem() {
+            return isSystem;
+        }
     }
 
     /**

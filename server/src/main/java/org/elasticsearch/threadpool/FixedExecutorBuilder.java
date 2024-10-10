@@ -102,7 +102,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
     ThreadPool.ExecutorHolder build(final FixedExecutorSettings settings, final ThreadContext threadContext) {
         int size = settings.size;
         int queueSize = settings.queueSize;
-        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name());
         final ExecutorService executor = EsExecutors.newFixed(
             settings.nodeName + "/" + name(),
             size,

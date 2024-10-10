@@ -332,6 +332,11 @@ public class EsqlCapabilities {
         CATEGORIZE(true),
 
         /**
+         * Support the "METADATA _score" directive to enable _score column
+         */
+        METADATA_SCORE(true),
+
+        /**
          * QSTR function
          */
         QSTR_FUNCTION(true),

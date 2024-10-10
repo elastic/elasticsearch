@@ -108,7 +108,14 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (currentToken().isValue() == false) {
             throwOnNoText();
         }
-        return parser.getText();
+        String text = "";
+        try{
+            text = parser.getText();
+        }
+        catch(JsonParseException e){
+            throw newXContentParseException(e);
+        }
+        return text;
     }
 
     private void throwOnNoText() {

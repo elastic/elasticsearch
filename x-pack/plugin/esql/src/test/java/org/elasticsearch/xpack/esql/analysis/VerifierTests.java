@@ -1089,8 +1089,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
@@ -1193,8 +1191,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchWithDisjunctions() {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
     }
 
@@ -1239,8 +1235,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionWithNonBooleanFunctions() {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
     }
 
@@ -1264,8 +1258,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionArgNotConstant() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
             error("from test | where match(first_name, first_name)")
@@ -1279,8 +1271,6 @@ public class VerifierTests extends ESTestCase {
 
     // These should pass eventually once we lift some restrictions on match function
     public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:68: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
@@ -1288,8 +1278,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionNullArgs() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
             error("from test | where match(null, \"query\")")
@@ -1301,8 +1289,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionTargetsExistingField() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
     }
 

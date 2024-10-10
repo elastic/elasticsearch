@@ -202,7 +202,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             }
             if (indexTemplateSubstitutions.isEmpty() == false) {
                 Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
-                updatedIndexTemplates.putAll(clusterService.state().metadata().templatesV2());
+                updatedIndexTemplates.putAll(clusterService.state().metadata().getProject().templatesV2());
                 updatedIndexTemplates.putAll(indexTemplateSubstitutions);
                 simulatedMetadataBuilder.indexTemplates(updatedIndexTemplates);
             }

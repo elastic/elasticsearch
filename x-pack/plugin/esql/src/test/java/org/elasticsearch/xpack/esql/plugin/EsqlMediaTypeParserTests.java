@@ -86,7 +86,10 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> getResponseMediaType(reqWithAccept(accept), createTestInstance(false, true))
         );
-        assertEquals("Invalid use of [include_ccs_metadata] argument: can only be used in combination with [JSON] format", e.getMessage());
+        assertEquals(
+            "Invalid use of [include_ccs_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
+            e.getMessage()
+        );
     }
 
     public void testColumnarWithParamText() {
@@ -99,26 +102,21 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
 
     public void testIncludeCCSMetadataWithNonJSONMediaTypesInParams() {
         {
-            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv", "SMILE", "YAML", "CBOR")));
+            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv")));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> getResponseMediaType(restRequest, createTestInstance(false, true))
             );
             assertEquals(
-                "Invalid use of [include_ccs_metadata] argument: can only be used in combination with [JSON] format",
+                "Invalid use of [include_ccs_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
                 e.getMessage()
             );
         }
         {
-            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("SMILE", "YAML", "CBOR")));
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> getResponseMediaType(restRequest, createTestInstance(true, true))
-            );
-            assertEquals(
-                "Invalid use of [include_ccs_metadata] argument: can only be used in combination with [JSON] format",
-                e.getMessage()
-            );
+            // check that no exception is thrown for the XContent types
+            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("SMILE", "YAML", "CBOR", "JSON")));
+            MediaType responseMediaType = getResponseMediaType(restRequest, createTestInstance(true, true));
+            assertNotNull(responseMediaType);
         }
     }
 

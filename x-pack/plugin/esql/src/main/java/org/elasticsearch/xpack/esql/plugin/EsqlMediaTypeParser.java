@@ -69,9 +69,11 @@ public class EsqlMediaTypeParser {
     }
 
     private static void validateIncludeCCSMetadata(boolean includeCCSMetadata, MediaType fromMediaType) {
-        if (includeCCSMetadata && fromMediaType != XContentType.JSON) {
+        if (includeCCSMetadata && fromMediaType instanceof TextFormat) {
             throw new IllegalArgumentException(
-                "Invalid use of [include_ccs_metadata] argument: can only be used in combination with [JSON] format"
+                "Invalid use of [include_ccs_metadata] argument: cannot be used in combination with "
+                    + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
+                    + " formats"
             );
         }
     }

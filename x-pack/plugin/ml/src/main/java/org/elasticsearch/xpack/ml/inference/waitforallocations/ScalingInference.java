@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -58,11 +57,10 @@ public class ScalingInference {
     }
 
     public synchronized void waitForAssignment(WaitingRequest request) {
-        logger.info("new wait for request");
         var p = queueRequests.computeIfAbsent(request.deploymentId(), k -> new LinkedBlockingQueue<>());
 
         if (p.isEmpty()) {
-            logger.info("will wait for condition");
+            logger.info("waitForAssignment will wait for condition");
             p.offer(request);
             assignmentService.waitForAssignmentCondition(
                 request.deploymentId(),
@@ -71,7 +69,7 @@ public class ScalingInference {
                 new WaitingListener(request.deploymentId())
             );
         } else {
-            logger.info("added to queue");
+            logger.info("waitForAssignment added to queue");
             p.offer(request);
         }
 

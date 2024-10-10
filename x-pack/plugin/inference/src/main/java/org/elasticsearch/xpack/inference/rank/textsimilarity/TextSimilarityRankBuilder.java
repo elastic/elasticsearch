@@ -157,11 +157,13 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     @Override
     public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
         return null;
+        // return new RerankingQueryPhaseRankShardContext(queries, rankWindowSize());
     }
 
     @Override
     public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
         return null;
+        // return new RerankingQueryPhaseRankCoordinatorContext(rankWindowSize());
     }
 
     @Override

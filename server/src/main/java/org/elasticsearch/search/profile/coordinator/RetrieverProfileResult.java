@@ -12,46 +12,35 @@ package org.elasticsearch.search.profile.coordinator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.profile.SearchProfileCoordinatorResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class RetrieverProfileResult implements ToXContentObject, Writeable {
 
     private final String name;
     private long tookInMillis;
-    private final Map<String, Long> breakdownMap;
-    private final List<RetrieverProfileResult> children;
+    private final List<SearchProfileCoordinatorResult> children;
 
-    private final Set<String> timings = Set.of(
-        SearchCoordinatorTimingType.INFERENCE_RERANK_TIME.name(),
-        SearchCoordinatorTimingType.RETRIEVER_REWRITE.name()
-    );
-
-    public RetrieverProfileResult(String name, long tookInMillis, Map<String, Long> breakdownMap, List<RetrieverProfileResult> children) {
+    public RetrieverProfileResult(String name, long tookInMillis, List<SearchProfileCoordinatorResult> children) {
         this.name = name;
         this.tookInMillis = tookInMillis;
-        this.breakdownMap = breakdownMap;
         this.children = children;
     }
 
     public RetrieverProfileResult(StreamInput in) throws IOException {
         name = in.readString();
         tookInMillis = in.readLong();
-        breakdownMap = in.readMap(StreamInput::readString, StreamInput::readLong);
-        children = in.readCollectionAsList(RetrieverProfileResult::new);
+        children = in.readCollectionAsList(SearchProfileCoordinatorResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeLong(tookInMillis);
-        out.writeMap(breakdownMap, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeCollection(children);
     }
 
@@ -62,13 +51,12 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         if (tookInMillis != -1) {
             builder.field("took_in_millis", tookInMillis);
         }
-        if (false == breakdownMap.isEmpty()) {
-            builder.field("breakdown", breakdownMap);
-        }
         if (false == children.isEmpty()) {
             builder.startArray("children");
-            for (RetrieverProfileResult child : children) {
+            for (SearchProfileCoordinatorResult child : children) {
+                builder.startObject();
                 child.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endArray();
         }
@@ -77,29 +65,16 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         return builder;
     }
 
-    public List<RetrieverProfileResult> getChildren() {
+    public List<SearchProfileCoordinatorResult> getChildren() {
         return children;
     }
 
-    public void addChild(RetrieverProfileResult profileResult) {
+    public void addChild(SearchProfileCoordinatorResult profileResult) {
         assert profileResult != null;
         children.add(profileResult);
     }
 
-    public Map<String, Long> getBreakdownMap() {
-        return breakdownMap;
-    }
-
     public void setTookInMillis(long tookInMillis) {
         this.tookInMillis = tookInMillis;
-    }
-
-    public void setBreakDownMap(Map<String, Long> breakdownMap) {
-        this.breakdownMap.putAll(
-            breakdownMap.entrySet()
-                .stream()
-                .filter(entry -> timings.contains(entry.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-        );
     }
 }

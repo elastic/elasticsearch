@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -27,21 +28,25 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
 
     private final String nodeId;
     private final RetrieverProfileResult retrieverProfileResult;
+    private final Map<String, Long> breakdownMap;
 
-    public SearchProfileCoordinatorResult(String nodeId, RetrieverProfileResult retrieverProfileResult) {
+    public SearchProfileCoordinatorResult(String nodeId, RetrieverProfileResult retrieverProfileResult, Map<String, Long> breakdownMap) {
         this.nodeId = nodeId;
         this.retrieverProfileResult = retrieverProfileResult;
+        this.breakdownMap = breakdownMap;
     }
 
     public SearchProfileCoordinatorResult(StreamInput in) throws IOException {
         nodeId = in.readString();
         retrieverProfileResult = in.readOptionalWriteable(RetrieverProfileResult::new);
+        breakdownMap = in.readMap(StreamInput::readString, StreamInput::readLong);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
         out.writeOptionalWriteable(retrieverProfileResult);
+        out.writeMap(breakdownMap, StreamOutput::writeString, StreamOutput::writeLong);
     }
 
     public String getNodeId() {
@@ -52,11 +57,18 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
         return retrieverProfileResult;
     }
 
+    public Map<String, Long> getBreakdownMap() {
+        return breakdownMap;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("node_id", nodeId);
         if (retrieverProfileResult != null) {
-            builder.field("node_id", nodeId);
             builder.field("retriever", retrieverProfileResult);
+        }
+        if (false == breakdownMap.isEmpty()) {
+            builder.field("breakdown", breakdownMap);
         }
         return builder;
     }
@@ -66,12 +78,14 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchProfileCoordinatorResult that = (SearchProfileCoordinatorResult) o;
-        return Objects.equals(retrieverProfileResult, that.retrieverProfileResult);
+        return nodeId.equals(that.nodeId)
+            && Objects.equals(retrieverProfileResult, that.retrieverProfileResult)
+            && Objects.equals(breakdownMap, that.breakdownMap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(retrieverProfileResult);
+        return Objects.hash(nodeId, retrieverProfileResult, breakdownMap);
     }
 
     @Override

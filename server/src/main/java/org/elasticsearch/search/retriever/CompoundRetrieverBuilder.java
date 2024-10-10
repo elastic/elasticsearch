@@ -18,13 +18,13 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.profile.SearchProfileCoordinatorResult;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.coordinator.RetrieverProfileResult;
 import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
@@ -37,9 +37,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -91,14 +89,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         final SearchCoordinatorProfiler profiler = ctx.profiler();
         Timer rewriteTimer = null;
         if (profiler != null && profiler.getRetriever() == null) {
-            profiler.retriever(
-                new RetrieverProfileResult(
-                    this.getName(),
-                    -1,
-                    Maps.newMapWithExpectedSize(SearchCoordinatorTimingType.values().length),
-                    new ArrayList<>(innerRetrievers.size())
-                )
-            );
+            profiler.retriever(new RetrieverProfileResult(this.getName(), -1, new ArrayList<>(innerRetrievers.size())));
             rewriteTimer = profiler.getNewTimer(SearchCoordinatorTimingType.RETRIEVER_REWRITE);
             rewriteTimer.start();
         }
@@ -158,16 +149,8 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                                         // should we throw or just ignore? we know we asked for profiling so this is unexpected
                                         throw new IllegalStateException("Coordinator profile results are missing");
                                     }
-                                    RetrieverProfileResult nestedResult = item.getResponse()
-                                        .getCoordinatorProfileResults()
-                                        .getRetrieverProfileResult();
-                                    RetrieverProfileResult profileResult = new RetrieverProfileResult(
-                                        innerRetrievers.get(i).retriever().getName(),
-                                        item.getResponse().getTookInMillis(),
-                                        nestedResult == null ? Map.of() : nestedResult.getBreakdownMap(),
-                                        nestedResult == null ? Collections.emptyList() : nestedResult.getChildren()
-                                    );
-                                    profiler.captureInnerRetrieverResult(profileResult);
+                                    SearchProfileCoordinatorResult nestedResult = item.getResponse().getCoordinatorProfileResults();
+                                    profiler.captureInnerRetrieverResult(nestedResult);
                                 }
                             }
                         }

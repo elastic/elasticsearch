@@ -9,7 +9,14 @@
 
 package org.elasticsearch.search.profile.coordinator;
 
+import java.util.Locale;
+
 public enum SearchCoordinatorTimingType {
     RETRIEVER_REWRITE,
-    INFERENCE_RERANK_TIME
+    INFERENCE_RERANK_TIME;
+
+    @Override
+    public String toString() {
+        return name().toLowerCase(Locale.ROOT);
+    }
 }

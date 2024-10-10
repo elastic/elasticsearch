@@ -22,7 +22,7 @@ public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCo
         this.nodeId = nodeId;
     }
 
-    public void captureInnerRetrieverResult(RetrieverProfileResult profileResult) {
+    public void captureInnerRetrieverResult(SearchProfileCoordinatorResult profileResult) {
         if (retriever == null) {
             throw new IllegalArgumentException("parent [retriever] results have not been initialized");
         }
@@ -52,9 +52,6 @@ public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCo
     }
 
     public SearchProfileCoordinatorResult build() {
-        if (retriever != null) {
-            retriever.setBreakDownMap(toBreakdownMap());
-        }
-        return new SearchProfileCoordinatorResult(nodeId, retriever);
+        return new SearchProfileCoordinatorResult(nodeId, retriever, toBreakdownMap());
     }
 }

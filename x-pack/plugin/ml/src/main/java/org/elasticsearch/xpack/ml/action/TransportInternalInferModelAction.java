@@ -268,7 +268,10 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         // We couldn't find any nodes in the started state so let's look for ones that are stopping in case we're shutting down some nodes
         if (nodes.isEmpty()) {
-            nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(request.numberOfDocuments(), RoutingState.STOPPING);
+            nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(
+                request.numberOfDocuments(),
+                RoutingState.STOPPING
+            );
         }
 
         if (nodes.isEmpty()) {

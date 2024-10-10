@@ -25,6 +25,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
@@ -40,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -217,6 +219,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     private final AtomicLong scaleToZeroAfterNoRequestsSeconds = new AtomicLong();
 
+    private final Set<String> inFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
+
     public AdaptiveAllocationsScalerService(
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -298,8 +302,11 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
                 AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.computeIfAbsent(
                     assignment.getDeploymentId(),
-                    key -> new AdaptiveAllocationsScaler(assignment.getDeploymentId(), assignment.totalTargetAllocations(),
-                        scaleToZeroAfterNoRequestsSeconds.get())
+                    key -> new AdaptiveAllocationsScaler(
+                        assignment.getDeploymentId(),
+                        assignment.totalTargetAllocations(),
+                        scaleToZeroAfterNoRequestsSeconds.get()
+                    )
                 );
                 adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(
                     assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations(),
@@ -427,22 +434,42 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 if (newNumberOfAllocations > numberOfAllocations.get(deploymentId)) {
                     lastScaleUpTimesMillis.put(deploymentId, now);
                 }
-                updateNumberOfAllocations(deploymentId, newNumberOfAllocations);
+                updateNumberOfAllocations(
+                    deploymentId,
+                    newNumberOfAllocations,
+                    updateAssigmentListener(deploymentId, newNumberOfAllocations)
+                );
             }
         }
     }
 
     public boolean maybeStartAllocation(TrainedModelAssignment assignment) {
         if (assignment.getAdaptiveAllocationsSettings() != null
-            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
-            lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
-            updateNumberOfAllocations(assignment.getDeploymentId(), 1);
+            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE
+            && assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == 0) {
+
+            // Prevent against a flurry of scale up requests.
+            if (inFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
+                lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
+                var updateListener = updateAssigmentListener(assignment.getDeploymentId(), 1);
+                var cleanUpListener = ActionListener.runAfter(
+                    updateListener,
+                    () -> inFlightScaleFromZeroRequests.remove(assignment.getDeploymentId())
+                );
+
+                inFlightScaleFromZeroRequests.add(assignment.getDeploymentId());
+                updateNumberOfAllocations(assignment.getDeploymentId(), 1, cleanUpListener);
+            }
             return true;
         }
         return false;
     }
 
-    private void updateNumberOfAllocations(String deploymentId, int numberOfAllocations) {
+    private void updateNumberOfAllocations(
+        String deploymentId,
+        int numberOfAllocations,
+        ActionListener<CreateTrainedModelAssignmentAction.Response> listener
+    ) {
         UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
         updateRequest.setNumberOfAllocations(numberOfAllocations);
         updateRequest.setIsInternal(true);
@@ -451,40 +478,43 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             ClientHelper.ML_ORIGIN,
             UpdateTrainedModelDeploymentAction.INSTANCE,
             updateRequest,
-            ActionListener.wrap(updateResponse -> {
-                logger.info("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, numberOfAllocations);
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                    .execute(
-                        () -> inferenceAuditor.info(
-                            deploymentId,
-                            Strings.format(
-                                "adaptive allocations scaler: scaled [%s] to [%s] allocations.",
-                                deploymentId,
-                                numberOfAllocations
-                            )
-                        )
-                    );
-            }, e -> {
-                logger.atLevel(Level.WARN)
-                    .withThrowable(e)
-                    .log("adaptive allocations scaler: scaling [{}] to [{}] allocations failed.", deploymentId, numberOfAllocations);
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                    .execute(
-                        () -> inferenceAuditor.warning(
-                            deploymentId,
-                            Strings.format(
-                                "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
-                                deploymentId,
-                                numberOfAllocations
-                            )
-                        )
-                    );
-            })
+            listener
         );
     }
 
     private void setScaleToZeroPeriod(TimeValue timeValue) {
         logger.info("setting scaler service to zero " + timeValue);
         scaleToZeroAfterNoRequestsSeconds.set(timeValue.seconds());
+    }
+
+    private ActionListener<CreateTrainedModelAssignmentAction.Response> updateAssigmentListener(
+        String deploymentId,
+        int numberOfAllocations
+    ) {
+        return ActionListener.wrap(updateResponse -> {
+            logger.info("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, numberOfAllocations);
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                .execute(
+                    () -> inferenceAuditor.info(
+                        deploymentId,
+                        Strings.format("adaptive allocations scaler: scaled [%s] to [%s] allocations.", deploymentId, numberOfAllocations)
+                    )
+                );
+        }, e -> {
+            logger.atLevel(Level.WARN)
+                .withThrowable(e)
+                .log("adaptive allocations scaler: scaling [{}] to [{}] allocations failed.", deploymentId, numberOfAllocations);
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                .execute(
+                    () -> inferenceAuditor.warning(
+                        deploymentId,
+                        Strings.format(
+                            "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
+                            deploymentId,
+                            numberOfAllocations
+                        )
+                    )
+                );
+        });
     }
 }

@@ -586,7 +586,7 @@ public final class ThreadContext implements Writeable, TraceContext {
      * @param value       the header value
      */
     public void addResponseHeader(final String key, final String value) {
-        addResponseHeader(key, value, v -> v);
+        addResponseHeader(key, value, Function.identity());
     }
 
     /**
@@ -786,12 +786,32 @@ public final class ThreadContext implements Writeable, TraceContext {
 
         private ThreadContextStruct putResponseHeaders(Map<String, Set<String>> headers) {
             assert headers != null;
-            if (headers.isEmpty()) {
+            if (headers.isEmpty() || headers.equals(this.responseHeaders)) {
                 return this;
             }
+            if (this.responseHeaders.size() <= headers.size()) {
+                boolean allContained = true;
+                for (Map.Entry<String, Set<String>> entry : this.responseHeaders.entrySet()) {
+                    final Set<String> found = headers.get(entry.getKey());
+                    if (found == null || entry.getValue().containsAll(found) == false) {
+                        allContained = false;
+                        break;
+                    }
+                }
+                if (allContained) {
+                    return new ThreadContextStruct(requestHeaders, headers, transientHeaders, isSystemContext);
+                }
+            }
+            return doPutResponseHeaders(headers);
+        }
+
+        private ThreadContextStruct doPutResponseHeaders(Map<String, Set<String>> headers) {
             final Map<String, Set<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
             for (Map.Entry<String, Set<String>> entry : headers.entrySet()) {
                 newResponseHeaders.merge(entry.getKey(), entry.getValue(), (existing, added) -> {
+                    if (added.containsAll(existing)) {
+                        return added;
+                    }
                     final Set<String> updated = new LinkedHashSet<>(added);
                     updated.addAll(existing);
                     return Collections.unmodifiableSet(updated);

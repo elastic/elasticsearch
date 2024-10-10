@@ -75,7 +75,7 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
             return null;
         }
 
@@ -171,7 +171,7 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
             return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
@@ -249,8 +249,18 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
-            return DEFAULT_LOGS_TIMESTAMP_MAPPING;
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            final IndexSortConfig.FieldSortSpec[] fieldSortSpecs = indexSettings.getIndexSortConfig().sortSpecs;
+            if (fieldSortSpecs == null || fieldSortSpecs.length == 0) {
+                return DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
+            }
+
+            for (final IndexSortConfig.FieldSortSpec fieldSortSpec : fieldSortSpecs) {
+                if (HOST_NAME.equals(fieldSortSpec.field)) {
+                    return DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
+                }
+            }
+            return DEFAULT_LOGS_TIMESTAMP_MAPPING_WITHOUT_HOSTNAME;
         }
 
         @Override
@@ -308,6 +318,8 @@ public enum IndexMode {
         }
     };
 
+    private static final String HOST_NAME = "host.name";
+
     private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
@@ -346,11 +358,11 @@ public enum IndexMode {
         }
     }
 
-    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING;
+    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
 
     static {
         try {
-            DEFAULT_LOGS_TIMESTAMP_MAPPING = new CompressedXContent(
+            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = new CompressedXContent(
                 ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject(DataStreamTimestampFieldMapper.NAME)
                     .field("enabled", true)
@@ -359,9 +371,30 @@ public enum IndexMode {
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
                     .endObject()
-                    .startObject("host.name")
+                    .startObject(HOST_NAME)
                     .field("type", KeywordFieldMapper.CONTENT_TYPE)
                     .field("ignore_above", 1024)
+                    .endObject()
+                    .endObject()
+                    .endObject())
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITHOUT_HOSTNAME;
+
+    static {
+        try {
+            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITHOUT_HOSTNAME = new CompressedXContent(
+                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME)
+                    .field("enabled", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
                     .endObject()
                     .endObject()
                     .endObject())
@@ -421,7 +454,7 @@ public enum IndexMode {
      * Get default mapping for this index or {@code null} if there is none.
      */
     @Nullable
-    public abstract CompressedXContent getDefaultMapping();
+    public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
      * Build the {@link FieldMapper} for {@code _id}.

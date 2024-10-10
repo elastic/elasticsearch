@@ -131,6 +131,7 @@ public class AzureBlobStore implements BlobStore {
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
 
         List<RequestMatcher> requestMatchers = List.of(
+            new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.DELETE, Operation.DELETE_BLOB),
             new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
             new RequestMatcher(
                 (httpMethod, url) -> httpMethod == HttpMethod.GET && isListRequest(httpMethod, url) == false,
@@ -169,6 +170,7 @@ public class AzureBlobStore implements BlobStore {
                     return;
                 }
             }
+            logger.debug("Request did not match any of the tracked patterns: {} {}", method, url);
         };
     }
 
@@ -689,7 +691,8 @@ public class AzureBlobStore implements BlobStore {
         GET_BLOB_PROPERTIES("GetBlobProperties"),
         PUT_BLOB("PutBlob"),
         PUT_BLOCK("PutBlock"),
-        PUT_BLOCK_LIST("PutBlockList");
+        PUT_BLOCK_LIST("PutBlockList"),
+        DELETE_BLOB("DeleteBlob");
 
         private final String key;
 

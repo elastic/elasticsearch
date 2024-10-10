@@ -109,11 +109,16 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             IndexMetadata.SETTING_NUMBER_OF_SHARDS,
             dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
         );
+        int dummyNumberOfRoutingShards = indexTemplateAndCreateRequestSettings.getAsInt(
+            IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(),
+            dummyShards
+        );
         int shardReplicas = indexTemplateAndCreateRequestSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
         var finalResolvedSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(indexTemplateAndCreateRequestSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
+            .put(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), dummyNumberOfRoutingShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 

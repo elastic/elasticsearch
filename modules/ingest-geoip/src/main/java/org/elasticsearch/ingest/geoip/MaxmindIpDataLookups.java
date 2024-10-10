@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -45,6 +46,11 @@ final class MaxmindIpDataLookups {
     private MaxmindIpDataLookups() {
         // utility class
     }
+
+    // the actual prefixes from the metadata are cased like the literal strings, but
+    // prefix dispatch and checks case-insensitive, so the actual constants are lowercase
+    static final String GEOIP2_PREFIX = "GeoIP2".toLowerCase(Locale.ROOT);
+    static final String GEOLITE2_PREFIX = "GeoLite2".toLowerCase(Locale.ROOT);
 
     static class AnonymousIp extends AbstractBase<AnonymousIpResponse> {
         AnonymousIp(final Set<Database.Property> properties) {

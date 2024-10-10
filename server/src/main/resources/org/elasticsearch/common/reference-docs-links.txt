@@ -43,3 +43,4 @@ FLOOD_STAGE_WATERMARK                                           fix-watermark-er
 X_OPAQUE_ID                                                     api-conventions.html#x-opaque-id
 FORMING_SINGLE_NODE_CLUSTERS                                    modules-discovery-bootstrap-cluster.html#modules-discovery-bootstrap-cluster-joining
 CIRCUIT_BREAKER_ERRORS                                          circuit-breaker-errors.html
+ALLOCATION_EXPLAIN_NO_COPIES                                    cluster-allocation-explain.html#no-valid-shard-copy

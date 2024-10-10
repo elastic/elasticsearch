@@ -81,6 +81,7 @@ public enum ReferenceDocs {
     X_OPAQUE_ID,
     FORMING_SINGLE_NODE_CLUSTERS,
     CIRCUIT_BREAKER_ERRORS,
+    ALLOCATION_EXPLAIN_NO_COPIES,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

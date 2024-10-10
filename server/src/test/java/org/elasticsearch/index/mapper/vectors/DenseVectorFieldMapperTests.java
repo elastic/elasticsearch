@@ -2022,7 +2022,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
         private final int dims = between(512, 1000);
-//        private final int dims = between(5, 512);
         private final ElementType elementType = randomFrom(ElementType.BIT);
         private final boolean indexed = randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();
@@ -2030,8 +2029,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
             Object value = switch (elementType) {
-                case BYTE, BIT: yield randomList(dims, dims, ESTestCase::randomByte);
-                case FLOAT: yield randomList(dims, dims, ESTestCase::randomFloat);
+                case BYTE, BIT:
+                    yield randomList(dims, dims, ESTestCase::randomByte);
+                case FLOAT:
+                    yield randomList(dims, dims, ESTestCase::randomFloat);
             };
             return new SyntheticSourceExample(value, value, this::mapping);
         }

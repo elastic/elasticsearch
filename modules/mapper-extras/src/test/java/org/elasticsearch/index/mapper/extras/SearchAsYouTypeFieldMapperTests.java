@@ -867,7 +867,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
+    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory, MapperService mapperService) throws IOException {
         // MockAnalyzer is "too good" and produces random payloads every time
         // which then leads to failures during assertReaderEquals.
         return new RandomIndexWriter(random(), directory, new StandardAnalyzer());

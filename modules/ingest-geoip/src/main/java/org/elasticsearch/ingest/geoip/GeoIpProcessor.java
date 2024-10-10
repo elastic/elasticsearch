@@ -39,6 +39,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final String GEOIP_TYPE = "geoip";
 
+    private final String type;
     private final String field;
     private final Supplier<Boolean> isValid;
     private final String targetField;
@@ -62,6 +63,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * @param databaseFile  the name of the database file being queried; used only for tagging documents if the database is unavailable
      */
     GeoIpProcessor(
+        final String type,
         final String tag,
         final String description,
         final String field,
@@ -74,6 +76,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final String databaseFile
     ) {
         super(tag, description);
+        this.type = type;
         this.field = field;
         this.isValid = isValid;
         this.targetField = targetField;
@@ -93,7 +96,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Object ip = document.getFieldValue(field, Object.class, ignoreMissing);
 
         if (isValid.get() == false) {
-            document.appendFieldValue("tags", "_geoip_expired_database", false);
+            document.appendFieldValue("tags", "_" + type + "_expired_database", false);
             return document;
         } else if (ip == null && ignoreMissing) {
             return document;
@@ -104,7 +107,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         try (IpDatabase ipDatabase = this.supplier.get()) {
             if (ipDatabase == null) {
                 if (ignoreMissing == false) {
-                    tag(document, databaseFile);
+                    tag(document, type, databaseFile);
                 }
                 return document;
             }
@@ -146,7 +149,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     @Override
     public String getType() {
-        return GEOIP_TYPE;
+        return type;
     }
 
     String getField() {
@@ -241,7 +244,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
                     // then the processor will continue to tag documents with a warning until it is remediated by providing a database
                     // or changing the pipeline.
-                    return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
+                    return new DatabaseUnavailableProcessor(type, processorTag, description, databaseFile);
                 }
                 databaseType = ipDatabase.getDatabaseType();
             }
@@ -261,6 +264,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             return new GeoIpProcessor(
+                type,
                 processorTag,
                 description,
                 ipField,
@@ -286,22 +290,24 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     static class DatabaseUnavailableProcessor extends AbstractProcessor {
 
+        private final String type;
         private final String databaseName;
 
-        DatabaseUnavailableProcessor(String tag, String description, String databaseName) {
+        DatabaseUnavailableProcessor(String type, String tag, String description, String databaseName) {
             super(tag, description);
+            this.type = type;
             this.databaseName = databaseName;
         }
 
         @Override
         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-            tag(ingestDocument, databaseName);
+            tag(ingestDocument, this.type, databaseName);
             return ingestDocument;
         }
 
         @Override
         public String getType() {
-            return GEOIP_TYPE;
+            return type;
         }
 
         public String getDatabaseName() {
@@ -309,7 +315,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
     }
 
-    private static void tag(IngestDocument ingestDocument, String databaseName) {
-        ingestDocument.appendFieldValue("tags", "_geoip_database_unavailable_" + databaseName, true);
+    private static void tag(IngestDocument ingestDocument, String type, String databaseName) {
+        ingestDocument.appendFieldValue("tags", "_" + type + "_database_unavailable_" + databaseName, true);
     }
 }

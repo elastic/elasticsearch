@@ -118,7 +118,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         EsQueryExec queryExec,
         List<Expression> pushable,
         List<Expression> nonPushable,
-        List<Alias> others
+        List<Alias> evalFields
     ) {
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);

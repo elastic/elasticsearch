@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -60,17 +61,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
 
-    public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
-        SourceFieldMapper.Mode.class,
-        "index.mapping.source.mode",
-        Mode.UNDEFINED,
-        Setting.Property.Final,
-        Setting.Property.IndexScope
-    );
+    public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(SourceFieldMapper.Mode.class, settings -> {
+        final IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return switch (indexMode) {
+            case IndexMode.LOGSDB, IndexMode.TIME_SERIES -> Mode.SYNTHETIC.name();
+            default -> Mode.STORED.name();
+        };
+    }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
 
     /** The source mode */
     public enum Mode {
-        UNDEFINED,
         DISABLED,
         STORED,
         SYNTHETIC
@@ -269,7 +269,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 if (indexMode != null && indexMode.isSyntheticSourceEnabled()) {
                     throw new MapperParsingException("Indices with with index mode [" + indexMode + "] only support synthetic source");
                 }
-                if (mode.get() != null && mode.get() != Mode.UNDEFINED) {
+                if (mode.get() != null) {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
             }
@@ -303,10 +303,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
             }
 
-            final Mode settingsSourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
-            final Mode sourceMode = settingsSourceMode == Mode.UNDEFINED ? mode.get() : settingsSourceMode;
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
-                sourceMode,
+                INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings) == false ? mode.get() : INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings),
                 enabled.get(),
                 includes.getValue().toArray(Strings.EMPTY_ARRAY),
                 excludes.getValue().toArray(Strings.EMPTY_ARRAY),
@@ -404,11 +402,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         IndexMode indexMode,
         boolean enableRecoverySource
     ) {
-        super(
-            new SourceFieldType(
-                (enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED && mode != Mode.UNDEFINED)
-            )
-        );
+        super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
         assert enabled.explicit() == false || mode == null;
         this.mode = mode;
         this.enabled = enabled;
@@ -431,7 +425,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private boolean stored() {
-        if (enabled.explicit() || mode == null || mode == Mode.UNDEFINED) {
+        if (enabled.explicit() || mode == null) {
             return enabled.value();
         }
         return mode == Mode.STORED;
@@ -442,7 +436,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return enabled.value();
         }
         if (mode != null) {
-            return mode != Mode.DISABLED && mode != Mode.UNDEFINED;
+            return mode != Mode.DISABLED;
         }
         return enabled.value();
     }

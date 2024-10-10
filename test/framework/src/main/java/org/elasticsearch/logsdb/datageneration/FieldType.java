@@ -26,16 +26,22 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldData
  * Lists all leaf field types that are supported for data generation.
  */
 public enum FieldType {
-    KEYWORD,
-    LONG,
-    UNSIGNED_LONG,
-    INTEGER,
-    SHORT,
-    BYTE,
-    DOUBLE,
-    FLOAT,
-    HALF_FLOAT,
-    SCALED_FLOAT;
+    KEYWORD("keyword"),
+    LONG("long"),
+    UNSIGNED_LONG("unsigned_long"),
+    INTEGER("integer"),
+    SHORT("short"),
+    BYTE("byte"),
+    DOUBLE("double"),
+    FLOAT("float"),
+    HALF_FLOAT("half_float"),
+    SCALED_FLOAT("scaled_float");
+
+    private final String name;
+
+    FieldType(String name) {
+        this.name = name;
+    }
 
     public FieldDataGenerator generator(
         String fieldName,
@@ -54,5 +60,10 @@ public enum FieldType {
             case HALF_FLOAT -> new HalfFloatFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
             case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
         };
+    }
+
+    @Override
+    public String toString() {
+        return name;
     }
 }

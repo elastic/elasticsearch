@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * Challenge test (see {@link StandardVersusLogsIndexModeChallengeRestIT}) that uses randomly generated
@@ -53,10 +54,10 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     @Override
     protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {
         var document = XContentFactory.jsonBuilder();
-        dataGenerationHelper.getDataGenerator().generateDocument(document, doc -> {
-            doc.field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp));
-        });
-
+        dataGenerationHelper.generateDocument(
+            document,
+            Map.of("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
+        );
         return document;
     }
 }

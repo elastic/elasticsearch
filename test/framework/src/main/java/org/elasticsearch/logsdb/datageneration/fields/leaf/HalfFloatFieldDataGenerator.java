@@ -54,4 +54,9 @@ public class HalfFloatFieldDataGenerator implements FieldDataGenerator {
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
         return b -> b.value(valueGenerator.get());
     }
+
+    @Override
+    public Object generateValue() {
+        return valueGenerator.get();
+    }
 }

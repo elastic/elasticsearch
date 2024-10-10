@@ -1184,9 +1184,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 updateRepositoryData(
                     originalRepositoryData,
                     releasingListener.delegateFailureAndWrap(
-                        // TODO should we pass newRepositoryData to cleanupStaleBlobs()?
                         (l, newRepositoryData) -> cleanupUnlinkedRootAndIndicesBlobs(
-                            originalRepositoryData,
+                            newRepositoryData,
                             l.map(ignored -> DeleteResult.of(blobsDeleted.get(), bytesDeleted.get()))
                         )
                     )

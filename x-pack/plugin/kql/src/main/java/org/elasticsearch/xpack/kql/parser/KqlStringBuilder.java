@@ -11,7 +11,6 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.xpack.ql.parser.ParserUtils;
 
 import java.util.stream.Collectors;
 

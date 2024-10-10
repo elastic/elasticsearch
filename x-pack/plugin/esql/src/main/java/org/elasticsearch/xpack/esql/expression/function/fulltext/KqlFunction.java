@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -23,7 +25,6 @@ import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -36,6 +37,8 @@ public class KqlFunction extends FullTextFunction {
         "Kql",
         KqlFunction::new
     );
+
+    Logger log = LogManager.getLogger(KqlFunction.class);
 
     @FunctionInfo(
         returnType = "boolean",
@@ -67,7 +70,8 @@ public class KqlFunction extends FullTextFunction {
     public Query asQuery() {
         Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef queryAsBytesRef) {
-            return new QueryStringQuery(source(), queryAsBytesRef.utf8ToString(), Map.of(), null);
+            log.debug("Query in the KQLFunction {}",  queryAsBytesRef.utf8ToString());
+            return new KqlQuery(source(), queryAsBytesRef.utf8ToString());
         } else {
             throw new IllegalArgumentException("Query in QSTR needs to be resolved to a string");
         }

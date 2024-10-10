@@ -106,5 +106,4 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
         // TODO: Create a transport versions.
         return TransportVersion.current();
     }
-
 }

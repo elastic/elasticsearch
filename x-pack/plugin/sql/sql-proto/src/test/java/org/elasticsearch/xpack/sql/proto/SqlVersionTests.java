@@ -13,8 +13,9 @@ import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.MAJOR_MULTIPLIER;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.MINOR_MULTIPLIER;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.REVISION_MULTIPLIER;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.V_7_7_0;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
+import static org.elasticsearch.xpack.sql.proto.SqlVersions.V_7_7_0;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSIONING_INDEPENDENT_FEATURES;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.isClientCompatible;
 
 public class SqlVersionTests extends ESTestCase {
     public void test123FromString() {
@@ -35,6 +36,17 @@ public class SqlVersionTests extends ESTestCase {
         assertEquals(REVISION_MULTIPLIER - 1, ver.build);
         assertEquals(1 * MAJOR_MULTIPLIER + 2 * MINOR_MULTIPLIER + 3 * REVISION_MULTIPLIER + REVISION_MULTIPLIER - 1, ver.id);
         assertEquals("1.2.3-Alpha", ver.version);
+    }
+
+    public void test123AlphaWithIdFromString() {
+        String version = "1.2.3-Alpha[" + randomIntBetween(0, 100_000_000) + "]";
+        SqlVersion ver = SqlVersion.fromString(version);
+        assertEquals(1, ver.major);
+        assertEquals(2, ver.minor);
+        assertEquals(3, ver.revision);
+        assertEquals(REVISION_MULTIPLIER - 1, ver.build);
+        assertEquals(1 * MAJOR_MULTIPLIER + 2 * MINOR_MULTIPLIER + 3 * REVISION_MULTIPLIER + REVISION_MULTIPLIER - 1, ver.id);
+        assertEquals(version, ver.version);
     }
 
     public void test123AlphaSnapshotFromString() {
@@ -84,16 +96,28 @@ public class SqlVersionTests extends ESTestCase {
     }
 
     public void testVersionCompatibilityClientNewer() {
-        int major = randomIntBetween(7, 99);
-        SqlVersion server = new SqlVersion(major, randomIntBetween(major > 7 ? 0 : 7, 99), randomIntBetween(0, 98));
+        SqlVersion server = randomReleasedVersion(false);
         SqlVersion client = new SqlVersion(server.major, server.minor, (byte) (server.revision + 1));
         assertFalse(isClientCompatible(server, client));
     }
 
+    public void testVersionCompatibilityClientVersionIndependentFeatures() {
+        SqlVersion server = new SqlVersion(
+            randomIntBetween(INTRODUCING_VERSIONING_INDEPENDENT_FEATURES.major, 99),
+            randomIntBetween(INTRODUCING_VERSIONING_INDEPENDENT_FEATURES.minor, 99),
+            randomIntBetween(INTRODUCING_VERSIONING_INDEPENDENT_FEATURES.revision, 99)
+        );
+        SqlVersion client = new SqlVersion(
+            randomIntBetween(INTRODUCING_VERSIONING_INDEPENDENT_FEATURES.major, 99),
+            randomIntBetween(INTRODUCING_VERSIONING_INDEPENDENT_FEATURES.minor, 99),
+            randomIntBetween(INTRODUCING_VERSIONING_INDEPENDENT_FEATURES.revision, 99)
+        );
+        assertTrue(server + " vs. " + client, isClientCompatible(server, client));
+    }
+
     public void testVersionCompatibilityClientTooOld() {
-        int major = randomIntBetween(9, 99);
-        SqlVersion server = new SqlVersion(major, randomIntBetween(0, 99), randomIntBetween(0, 99));
-        SqlVersion client = new SqlVersion(major - 2, randomIntBetween(0, 99), randomIntBetween(0, 99));
+        SqlVersion server = randomReleasedVersion(false);
+        SqlVersion client = new SqlVersion(server.major - 2, randomIntBetween(0, 99), randomIntBetween(0, 99));
         assertFalse(isClientCompatible(server, client));
     }
 
@@ -108,5 +132,10 @@ public class SqlVersionTests extends ESTestCase {
         int serverRevision = randomIntBetween(client.major == serverMajor && client.minor == serverMinor ? client.revision : 0, 99);
         SqlVersion server = new SqlVersion(serverMajor, serverMinor, serverRevision);
         assertTrue(isClientCompatible(server, client));
+    }
+
+    private static SqlVersion randomReleasedVersion(boolean includeVersioningIndependent) {
+        var allVersions = SqlVersions.getAllVersions();
+        return allVersions.get(randomIntBetween(0, allVersions.size() - 1 - (includeVersioningIndependent ? 0 : 1)));
     }
 }

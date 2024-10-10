@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.IS_PARTIAL_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.IS_RUNNING_NAME;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_DATE_NANOS;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<SqlQueryResponse> {
@@ -118,7 +118,7 @@ public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<S
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, mode, DATE_NANOS_SUPPORT_VERSION, false, columns, rows, asyncExecutionId, isPartial, isRunning);
+        return new SqlQueryResponse(cursor, mode, INTRODUCING_DATE_NANOS, false, columns, rows, asyncExecutionId, isPartial, isRunning);
     }
 
     public void testToXContent() throws IOException {
@@ -177,7 +177,7 @@ public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<S
         return new SqlQueryResponse(
             protoResponse.cursor(),
             Mode.JDBC,
-            DATE_NANOS_SUPPORT_VERSION,
+            INTRODUCING_DATE_NANOS,
             false,
             protoResponse.columns(),
             protoResponse.rows(),

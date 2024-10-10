@@ -58,6 +58,11 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
         this.topN = in.readOptionalVInt();
     }
 
+    @Override
+    public boolean isEmpty() {
+        return topN == null;
+    }
+
     public Integer topN() {
         return topN;
     }

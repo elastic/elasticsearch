@@ -161,7 +161,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
         return usageStatsByTier;
     }
 
-    public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
+    public static class NodesRequest extends BaseNodesRequest {
 
         public NodesRequest() {
             super((String[]) null);

@@ -26,7 +26,8 @@ public class AnthropicChatCompletionRequestEntityTests extends ESTestCase {
         var entity = new AnthropicChatCompletionRequestEntity(
             List.of("abc"),
             new AnthropicChatCompletionServiceSettings("model", null),
-            new AnthropicChatCompletionTaskSettings(1, -1.0, 1.2, 3)
+            new AnthropicChatCompletionTaskSettings(1, -1.0, 1.2, 3),
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -42,7 +43,8 @@ public class AnthropicChatCompletionRequestEntityTests extends ESTestCase {
         var entity = new AnthropicChatCompletionRequestEntity(
             List.of("abc"),
             new AnthropicChatCompletionServiceSettings("model", null),
-            new AnthropicChatCompletionTaskSettings(1, null, 1.2, 3)
+            new AnthropicChatCompletionTaskSettings(1, null, 1.2, 3),
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

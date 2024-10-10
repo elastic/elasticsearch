@@ -73,7 +73,7 @@ public final class ApplicationPermission {
      * <li>The entry's application, when interpreted as an {@link Automaton} {@link Automatons#pattern(String) pattern} matches the
      * application given in the argument (interpreted as a raw string)
      * </li>
-     * <li>The {@link ApplicationPrivilege#getAutomaton automaton that defines the entry's actions} entirely covers the
+     * <li>The {@code ApplicationPrivilege# TODO automaton that defines the entry's actions} entirely covers the
      * automaton given in the argument (that is, the argument is a subset of the entry's automaton)
      * </li>
      * <li>The entry's resources, when interpreted as an {@link Automaton} {@link Automatons#patterns(String...)} set of patterns} entirely
@@ -197,12 +197,16 @@ public final class ApplicationPermission {
             if (this.application.test(other.getApplication()) == false) {
                 return false;
             }
-            if (Operations.isTotal(privilege.getAutomaton())) {
+            if (privilege.patternsTotal()) {
                 return true;
             }
-            return Operations.isEmpty(privilege.getAutomaton()) == false
-                && Operations.isEmpty(other.getAutomaton()) == false
-                && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
+            if (other.patternsTotal()) {
+                return false;
+            }
+
+            return privilege.patternsEmpty() == false
+                && other.patternsEmpty() == false
+                && privilege.supersetOfPatterns(other.getPatterns());
         }
 
         @Override

@@ -69,6 +69,11 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
           "data_stream": {},
           "priority": 500,
           "template": {
+            "settings": {
+              "index": {
+                "mode": "standard"
+              }
+            },
             "mappings": {
               "properties": {
                 "@timestamp" : {

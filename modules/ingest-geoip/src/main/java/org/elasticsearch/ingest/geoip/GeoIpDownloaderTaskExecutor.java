@@ -296,8 +296,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        if (processor.containsKey(GeoIpProcessor.TYPE)) {
-            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GeoIpProcessor.TYPE);
+        if (processor.containsKey(GeoIpProcessor.GEOIP_TYPE)) {
+            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GeoIpProcessor.GEOIP_TYPE);
             return downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
         }
 

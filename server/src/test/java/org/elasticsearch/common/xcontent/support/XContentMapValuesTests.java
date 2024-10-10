@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -729,6 +730,94 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 Map.of("field", "nested5")
             )
         );
+    }
+
+    public void testInsertValue() throws Exception {
+        final BiFunction<Map<String, Object>, String, Object> getMapValue = (map, key) -> {
+            String[] pathElements = Arrays.stream(key.split("(?<!\\\\)\\.")).map(k -> k.replace("\\.", ".")).toArray(String[]::new);
+
+            Object value = null;
+            Object nextLayer = map;
+            for (int i = 0; i < pathElements.length; i++) {
+                if (nextLayer instanceof Map<?, ?> nextMap) {
+                    value = nextMap.get(pathElements[i]);
+                } else if (nextLayer instanceof List<?> nextList) {
+                    final String pathElement = pathElements[i];
+                    List<?> values = nextList.stream()
+                        .filter(v -> v instanceof Map<?, ?>)
+                        .map(v -> ((Map<?, ?>) v).get(pathElement))
+                        .toList();
+                    if (values.isEmpty()) {
+                        return null;
+                    } else if (values.size() > 1) {
+                        throw new AssertionError("List " + nextList + " contains multiple values for [" + pathElement + "]");
+                    } else {
+                        value = values.getFirst();
+                    }
+                } else if (nextLayer == null) {
+                    break;
+                } else {
+                    throw new AssertionError(
+                        "Layer ["
+                            + String.join(".", Arrays.stream(Arrays.copyOfRange(pathElements, 0, i)).toList())
+                            + "] has value ["
+                            + value
+                            + "] of type ["
+                            + value.getClass()
+                            + "], which cannot be traversed into further"
+                    );
+                }
+
+                nextLayer = value;
+            }
+
+            return value;
+        };
+
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
+
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+            assertThat(XContentMapValues.insertValue("test", map, "value2").toString(), equalTo("value"));
+            assertThat(getMapValue.apply(map, "test"), equalTo("value2"));
+            assertThat(XContentMapValues.insertValue("test.me", map, "test.me.value"), nullValue());
+            assertThat(getMapValue.apply(map, "test\\.me"), equalTo("test.me.value"));
+            assertThat(XContentMapValues.insertValue("something.else.2", map, "something.else.2.value"), nullValue());
+            assertThat(getMapValue.apply(map, "something\\.else\\.2"), equalTo("something.else.2.value"));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            builder.startObject("path1").startObject("path2").field("test", "value").endObject().endObject();
+            builder.endObject();
+
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+            assertThat(XContentMapValues.insertValue("path1.path2.test", map, "value2").toString(), equalTo("value"));
+            assertThat(getMapValue.apply(map, "path1.path2.test"), equalTo("value2"));
+            assertThat(XContentMapValues.insertValue("path1.path2.test_me", map, "test_me_value"), nullValue());
+            assertThat(getMapValue.apply(map, "path1\\.path2\\.test_me"), equalTo("test_me_value"));
+            assertThat(XContentMapValues.insertValue("path1.non_path2.test", map, "test_value"), nullValue());
+            assertThat(getMapValue.apply(map, "path1\\.non_path2\\.test"), equalTo("test_value"));
+
+            assertThat(XContentMapValues.insertValue("path1.path2", map, Map.of("path3", "bar")), equalTo(Map.of("test", "value2")));
+            assertThat(getMapValue.apply(map, "path1.path2"), equalTo(Map.of("path3", "bar")));
+
+            assertThat(XContentMapValues.insertValue("path1", map, "baz"), equalTo(Map.of("path2", Map.of("path3", "bar"))));
+            assertThat(getMapValue.apply(map, "path1"), equalTo("baz"));
+        }
+
+        // lists
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            builder.startObject("path1").array("test", "value1", "value2").endObject();
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            assertThat(
+                XContentMapValues.insertValue("path1.test", map, List.of("value3", "value4", "value5")),
+                equalTo(List.of("value1", "value2"))
+            );
+            assertThat(getMapValue.apply(map, "path1.test"), equalTo(List.of("value3", "value4", "value5")));
+        }
     }
 
     public void testInsertValueMixedDottedObjectNotation() throws IOException {

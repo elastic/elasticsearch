@@ -293,15 +293,26 @@ public class XContentMapValues {
             int nextIndex = index + 1;
             while (true) {
                 if (map.containsKey(key)) {
-                    extractAndInsertValue(pathElements, nextIndex, map.get(key), nullValue, insertNewValue, newValue, extractedValues);
+                    // We could use an enum for this, but the scope of use is so limited that an int will do.
+                    // 1 = replace value
+                    // 0 = do nothing
+                    // -1 = remove value
+                    int valueModAction = 0;
                     if (insertNewValue && nextIndex == pathElements.length) {
-                        if (extractedValues.size() == 1) {
-                            // Replace the first instance of the path with the new value
-                            ((Map<String, Object>) map).put(key, newValue);
-                        } else if (extractedValues.size() > 1) {
-                            // Remove any following instances of the path
-                            map.remove(key);
-                        }
+                        // We found a value to extract and then either replace or remove.
+                        // Check the extracted values size before we add to it because if we add an unpacked list, we could potentially
+                        // be adding more than one value.
+                        valueModAction = extractedValues.isEmpty() ? 1 : -1;
+                    }
+
+                    extractAndInsertValue(pathElements, nextIndex, map.get(key), nullValue, insertNewValue, newValue, extractedValues);
+
+                    if (valueModAction == 1) {
+                        // Replace the first instance of the path with the new value
+                        ((Map<String, Object>) map).put(key, newValue);
+                    } else if (valueModAction == -1) {
+                        // Remove any following instances of the path
+                        map.remove(key);
                     }
                 }
                 if (nextIndex == pathElements.length) {

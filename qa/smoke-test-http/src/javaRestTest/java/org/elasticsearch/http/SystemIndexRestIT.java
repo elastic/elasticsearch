@@ -196,7 +196,6 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                         .setPrimaryIndex(SYSTEM_INDEX_NAME)
                         .setDescription("Test system index")
                         .setOrigin(getClass().getName())
-                        .setVersionMetaKey("version")
                         .setMappings(builder)
                         .setSettings(SETTINGS)
                         .setType(Type.INTERNAL_MANAGED)

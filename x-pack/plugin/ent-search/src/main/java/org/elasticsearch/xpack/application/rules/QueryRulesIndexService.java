@@ -92,7 +92,6 @@ public class QueryRulesIndexService {
                 .setSettings(getIndexSettings())
                 .setAliasName(QUERY_RULES_ALIAS_NAME)
                 .setIndexFormat(QueryRulesIndexMappingVersion.latest().id)
-                .setVersionMetaKey("version")
                 .setOrigin(ENT_SEARCH_ORIGIN)
                 .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS);
 
